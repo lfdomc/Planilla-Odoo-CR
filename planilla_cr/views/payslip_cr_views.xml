@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_payslip_cr_list" model="ir.ui.view">
+        <field name="name">planilla.payslip.cr.list</field>
+        <field name="model">planilla.payslip.cr</field>
+        <field name="arch" type="xml">
+            <list string="Boletas de Pago"
+                  decoration-success="state=='done'"
+                  decoration-warning="state=='confirmed'"
+                  decoration-muted="state=='cancelled'">
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="branch_id"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="gross_salary"/>
+                <field name="total_employee_deductions"/>
+                <field name="net_salary"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_payslip_cr_form" model="ir.ui.view">
+        <field name="name">planilla.payslip.cr.form</field>
+        <field name="model">planilla.payslip.cr</field>
+        <field name="arch" type="xml">
+            <form string="Boleta de Pago">
+                <header>
+                    <button name="action_confirm" type="object" string="Confirmar"
+                            invisible="state != 'draft'" class="btn-primary"/>
+                    <button name="action_reset_to_draft" type="object" string="⟲ Volver a Borrador"
+                            invisible="state not in ('cancelled', 'confirmed')"
+                            class="btn-warning"/>
+                    <button name="action_pay" type="object" string="Marcar como Pagado"
+                            invisible="state != 'confirmed'" class="btn-success"/>
+                    <button name="action_send_payslip" type="object" string="Enviar por Correo"
+                            invisible="state != 'done'"/>
+                    <button name="action_print_payslip" type="object" string="Imprimir"
+                            invisible="state == 'draft'"/>
+                    <button name="action_cancel" type="object" string="Cancelar"
+                            invisible="state in ('done', 'cancelled')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Empleado">
+                            <field name="employee_id"/>
+                            <field name="branch_id" readonly="1"/>
+                            <field name="payroll_run_id"/>
+                            <field name="payroll_calendar_id" readonly="1"/>
+                        </group>
+                        <group string="Período">
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <!-- INGRESOS -->
+                        <page string="Ingresos" name="income">
+                            <group>
+                                <group string="Método de Cálculo">
+                                    <field name="calculation_method" readonly="1"/>
+                                    <field name="attendance_hours" readonly="1"
+                                           invisible="calculation_method != 'attendance'"/>
+                                </group>
+                            </group>
+                            <group>
+                                <group string="Salario">
+                                    <field name="base_salary" readonly="1"/>
+                                    <field name="overtime_amount" readonly="1"/>
+                                    <field name="vacation_amount" readonly="1"/>
+                                    <field name="other_income"/>
+                                    <field name="gross_salary" readonly="1"
+                                           class="fw-bold"/>
+                                </group>
+                                <group string="Contabilidad">
+                                    <field name="move_id" readonly="1"
+                                           invisible="not move_id"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- DEDUCCIONES OBRERO -->
+                        <page string="Deducciones Obrero" name="employee_deductions">
+                            <group>
+                                <group string="Deducciones Legales">
+                                    <field name="ccss_employee" readonly="1"/>
+                                    <field name="income_tax" readonly="1"/>
+                                    <field name="other_deductions"/>
+                                </group>
+                                <group string="Total">
+                                    <field name="total_employee_deductions" readonly="1"
+                                           class="fw-bold"/>
+                                    <field name="net_salary" readonly="1"
+                                           class="fw-bold text-success"/>
+                                </group>
+                            </group>
+                            <separator string="Deducciones Adicionales"/>
+                            <field name="deduction_line_ids">
+                                <list editable="bottom">
+                                    <field name="deduction_code_id"/>
+                                    <field name="description"/>
+                                    <field name="amount"/>
+                                    <field name="deduction_type" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <!-- CARGAS PATRONALES -->
+                        <page string="Cargas Patronales" name="employer_costs">
+                            <group>
+                                <group string="Cargas Legales">
+                                    <field name="ccss_employer" readonly="1"/>
+                                    <field name="ins_employer" readonly="1"/>
+                                    <field name="aguinaldo_provision" readonly="1"/>
+                                    <field name="cesantia_provision" readonly="1"/>
+                                    <field name="vacation_provision" readonly="1"/>
+                                </group>
+                                <group string="Total">
+                                    <field name="total_employer_cost" readonly="1"
+                                           class="fw-bold"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <!-- HORAS EXTRAS -->
+                        <page string="Asistencias" name="attendances"
+                              invisible="calculation_method != 'attendance'">
+                            <group>
+                                <field name="attendance_hours" readonly="1"/>
+                                <field name="attendance_details" readonly="1"
+                                       string="Detalle por Día"/>
+                            </group>
+                        </page>
+                        <page string="Horas Extras" name="overtime">
+                            <field name="overtime_ids">
+                                <list>
+                                    <field name="date"/>
+                                    <field name="overtime_type"/>
+                                    <field name="hours"/>
+                                    <field name="amount"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <!-- INCAPACIDADES -->
+                        <page string="Incapacidades" name="disabilities">
+                            <field name="disability_ids">
+                                <list>
+                                    <field name="disability_type"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="days"/>
+                                    <field name="employer_cost"/>
+                                    <field name="certificate_number"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <!-- VACACIONES -->
+                        <page string="Vacaciones" name="vacations">
+                            <field name="vacation_ids">
+                                <list>
+                                    <field name="vacation_type"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="days"/>
+                                    <field name="total_amount"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Observaciones" name="notes">
+                            <field name="notes"
+                                   placeholder="Ej: Salario proporcional por ingreso el día 15. Incluye ajuste retroactivo de enero..."
+                                   style="min-height:80px;"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_payslip_cr" model="ir.actions.act_window">
+        <field name="name">Boletas de Pago</field>
+        <field name="res_model">planilla.payslip.cr</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

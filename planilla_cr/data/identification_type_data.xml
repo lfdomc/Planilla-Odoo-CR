@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="id_type_cedula" model="planilla.identification.type">
+        <field name="name">Cédula de Identidad</field>
+        <field name="code">CI</field>
+    </record>
+    <record id="id_type_dimex" model="planilla.identification.type">
+        <field name="name">DIMEX (Residencia)</field>
+        <field name="code">DIMEX</field>
+    </record>
+    <record id="id_type_pasaporte" model="planilla.identification.type">
+        <field name="name">Pasaporte</field>
+        <field name="code">PAS</field>
+    </record>
+    <record id="id_type_juridica" model="planilla.identification.type">
+        <field name="name">Cédula Jurídica</field>
+        <field name="code">CJ</field>
+    </record>
+    <record id="id_type_nite" model="planilla.identification.type">
+        <field name="name">NITE (Extranjero)</field>
+        <field name="code">NITE</field>
+    </record>
+</odoo>

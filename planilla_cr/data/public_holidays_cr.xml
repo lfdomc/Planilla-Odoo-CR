@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Feriados nacionales CR 2026 — Art. 148 CT + Ley 8442 -->
+    <record id="holiday_cr_2026_01" model="planilla.public.holiday">
+        <field name="name">Año Nuevo</field>
+        <field name="date">2026-01-01</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_04_09" model="planilla.public.holiday">
+        <field name="name">Jueves Santo</field>
+        <field name="date">2026-04-02</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_04_10" model="planilla.public.holiday">
+        <field name="name">Viernes Santo</field>
+        <field name="date">2026-04-03</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_04_11" model="planilla.public.holiday">
+        <field name="name">Batalla de Rivas (Juan Santamaría)</field>
+        <field name="date">2026-04-11</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_05_01" model="planilla.public.holiday">
+        <field name="name">Día del Trabajador</field>
+        <field name="date">2026-05-01</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_07_25" model="planilla.public.holiday">
+        <field name="name">Anexión del Partido de Nicoya</field>
+        <field name="date">2026-07-25</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_08_02" model="planilla.public.holiday">
+        <field name="name">Virgen de los Ángeles</field>
+        <field name="date">2026-08-02</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_08_15" model="planilla.public.holiday">
+        <field name="name">Madre y Día del Soldado (no laborable)</field>
+        <field name="date">2026-08-15</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_09_15" model="planilla.public.holiday">
+        <field name="name">Independencia de Centroamérica</field>
+        <field name="date">2026-09-15</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_12_25" model="planilla.public.holiday">
+        <field name="name">Navidad</field>
+        <field name="date">2026-12-25</field>
+        <field name="type">national</field>
+    </record>
+</odoo>

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_vacation_list" model="ir.ui.view">
+        <field name="name">planilla.vacation.payment.list</field>
+        <field name="model">planilla.vacation.payment</field>
+        <field name="arch" type="xml">
+            <list string="Vacaciones" decoration-success="state=='approved'"
+                  decoration-muted="state=='paid'">
+                <field name="employee_id"/>
+                <field name="branch_id"/>
+                <field name="vacation_type"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="days"/>
+                <field name="days_accrued"/>
+                <field name="total_amount"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_vacation_form" model="ir.ui.view">
+        <field name="name">planilla.vacation.payment.form</field>
+        <field name="model">planilla.vacation.payment</field>
+        <field name="arch" type="xml">
+            <form string="Vacaciones">
+                <header>
+                    <button name="action_approve" type="object" string="Aprobar"
+                            invisible="state != 'draft'" class="btn-primary"/>
+                    <button name="action_cancel" type="object" string="Cancelar"
+                            invisible="state not in ('draft', 'approved')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved,paid"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Empleado">
+                            <field name="employee_id"/>
+                            <field name="vacation_type"/>
+                            <field name="days_accrued" readonly="1"/>
+                        </group>
+                        <group string="Período">
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="days" readonly="1"/>
+                            <field name="daily_salary" readonly="1"/>
+                            <field name="total_amount" readonly="1"/>
+                        </group>
+                    </group>
+                    <field name="note" placeholder="Observaciones..."/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_vacation_payment" model="ir.actions.act_window">
+        <field name="name">Vacaciones</field>
+        <field name="res_model">planilla.vacation.payment</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

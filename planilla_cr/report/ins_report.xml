@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="report_ins_template">
+        <t t-call="web.html_container">
+            <meta charset="UTF-8"/>
+            <t t-foreach="docs" t-as="doc">
+                <t t-set="company" t-value="doc.company_id"/>
+                <t t-set="all_payslips" t-value="env['planilla.payslip.cr'].search([
+                    ('date_from', '&lt;=', doc.date_to),
+                    ('date_to', '&gt;=', doc.date_from),
+                    ('state', '=', 'done'),
+                    ('company_id', '=', doc.company_id.id),
+                ])"/>
+                <t t-set="employees" t-value="all_payslips.mapped('employee_id').filtered(lambda e: e.ins_include)"/>
+                <t t-set="ins_rates" t-value="{'I': 0.0087, 'II': 0.0149, 'III': 0.0247, 'IV': 0.0413, 'V': 0.0688}"/>
+
+                <div class="page">
+                    <div style="border-bottom:3px solid #1F4E79; padding-bottom:10px; margin-bottom:15px;">
+                        <table width="100%">
+                            <tr>
+                                <td width="65%">
+                                    <h2 style="color:#1F4E79; margin:0;">PLANILLA INS - RIESGOS DEL TRABAJO</h2>
+                                    <h4 style="margin:2px 0 0 0; color:#555;"><t t-esc="company.name"/></h4>
+                                </td>
+                                <td width="35%" style="text-align:right; vertical-align:top; font-size:12px; color:#555;">
+                                    <div><strong>Periodo:</strong> <t t-esc="doc.date_from"/> al <t t-esc="doc.date_to"/></div>
+                                    <div><strong>Frecuencia:</strong>
+                                        <t t-if="doc.frequency == 'monthly'"> Mensual</t>
+                                        <t t-elif="doc.frequency == 'biweekly'"> Quincenal</t>
+                                        <t t-else=""> Semanal</t>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <table width="100%" style="border-collapse:collapse; font-size:9px;">
+                        <thead>
+                            <tr style="background:#1F4E79; color:#fff;">
+                                <th style="padding:4px; border:1px solid #ccc;">#</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Nombre</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Primer Apellido</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Segundo Apellido</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Identificacion</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Tipo ID</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Nacionalidad</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Estado Civil</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Jornada</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Ocupacion</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Clase Riesgo</th>
+                                <th style="padding:4px; border:1px solid #ccc; text-align:right;">Tasa INS</th>
+                                <th style="padding:4px; border:1px solid #ccc; text-align:right;">Salario</th>
+                                <th style="padding:4px; border:1px solid #ccc; text-align:right;">Prima INS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-set="total_salary" t-value="0"/>
+                            <t t-set="total_prima" t-value="0"/>
+                            <t t-foreach="employees" t-as="emp">
+                                <t t-set="emp_payslips" t-value="all_payslips.filtered(lambda p: p.employee_id.id == emp.id)"/>
+                                <t t-set="emp_salary" t-value="sum(emp_payslips.mapped('gross_salary'))"/>
+                                <t t-set="emp_risk" t-value="emp.ins_risk_class or 'II'"/>
+                                <t t-set="emp_rate" t-value="ins_rates.get(emp_risk, 0.0149)"/>
+                                <t t-set="emp_prima" t-value="emp_salary * emp_rate"/>
+                                <t t-set="total_salary" t-value="total_salary + emp_salary"/>
+                                <t t-set="total_prima" t-value="total_prima + emp_prima"/>
+                                <t t-set="occ_label" t-value="dict(emp._fields['ins_occupation'].selection).get(emp.ins_occupation, emp.ins_occupation or '') if emp.ins_occupation else ''"/>
+                                <tr style="background:#f9f9f9;">
+                                    <td style="padding:3px; border:1px solid #ddd; text-align:center;"><t t-esc="emp_index + 1"/></td>
+                                    <td style="padding:3px; border:1px solid #ddd;"><t t-esc="emp.ins_first_name or emp.name or ''"/></td>
+                                    <td style="padding:3px; border:1px solid #ddd;"><t t-esc="emp.ins_first_lastname or ''"/></td>
+                                    <td style="padding:3px; border:1px solid #ddd;"><t t-esc="emp.ins_second_lastname or ''"/></td>
+                                    <td style="padding:3px; border:1px solid #ddd;"><t t-esc="emp.identification_id or ''"/></td>
+                                    <td style="padding:3px; border:1px solid #ddd;">
+                                        <t t-if="emp.ins_id_type == '01'">Cedula CR</t>
+                                        <t t-elif="emp.ins_id_type == '02'">Residencia</t>
+                                        <t t-elif="emp.ins_id_type == '03'">Permiso</t>
+                                        <t t-elif="emp.ins_id_type == '04'">Pasaporte</t>
+                                        <t t-else="">Indocumentado</t>
+                                    </td>
+                                    <td style="padding:3px; border:1px solid #ddd;"><t t-esc="dict(emp._fields['ins_nationality'].selection).get(emp.ins_nationality, '') if emp.ins_nationality else ''"/></td>
+                                    <td style="padding:3px; border:1px solid #ddd;">
+                                        <t t-if="emp.ins_civil_status == '01'">Soltero/a</t>
+                                        <t t-elif="emp.ins_civil_status == '02'">Casado/a</t>
+                                        <t t-elif="emp.ins_civil_status == '03'">Divorciado/a</t>
+                                        <t t-elif="emp.ins_civil_status == '04'">Viudo/a</t>
+                                        <t t-elif="emp.ins_civil_status == '05'">Union Libre</t>
+                                        <t t-else="">Separado/a</t>
+                                    </td>
+                                    <td style="padding:3px; border:1px solid #ddd;">
+                                        <t t-if="emp.ins_workday_type == '01'">Ordinaria</t>
+                                        <t t-elif="emp.ins_workday_type == '02'">Extraordinaria</t>
+                                        <t t-elif="emp.ins_workday_type == '03'">Mixta</t>
+                                        <t t-elif="emp.ins_workday_type == '04'">Tiempo Parcial</t>
+                                        <t t-elif="emp.ins_workday_type == '05'">Por Horas</t>
+                                        <t t-else="">Ocasional</t>
+                                    </td>
+                                    <td style="padding:3px; border:1px solid #ddd;"><t t-esc="occ_label"/></td>
+                                    <td style="padding:3px; border:1px solid #ddd; text-align:center;">
+                                        <t t-if="emp_risk == 'I'">Clase I</t>
+                                        <t t-elif="emp_risk == 'II'">Clase II</t>
+                                        <t t-elif="emp_risk == 'III'">Clase III</t>
+                                        <t t-elif="emp_risk == 'IV'">Clase IV</t>
+                                        <t t-else="">Clase V</t>
+                                    </td>
+                                    <td style="padding:3px; border:1px solid #ddd; text-align:center;"><t t-esc="'%.2f' % (emp_rate * 100) + '%'"/></td>
+                                    <td style="padding:3px; border:1px solid #ddd; text-align:right;"><t t-esc="'%.2f' % emp_salary"/></td>
+                                    <td style="padding:3px; border:1px solid #ddd; text-align:right;"><t t-esc="'%.2f' % emp_prima"/></td>
+                                </tr>
+                            </t>
+                        </tbody>
+                        <tfoot>
+                            <tr style="background:#1F4E79; color:#fff; font-weight:bold;">
+                                <td colspan="12" style="padding:5px; border:1px solid #ccc; text-align:right;">TOTALES</td>
+                                <td style="padding:5px; border:1px solid #ccc; text-align:right;"><t t-esc="'%.2f' % total_salary"/></td>
+                                <td style="padding:5px; border:1px solid #ccc; text-align:right;"><t t-esc="'%.2f' % total_prima"/></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+
+                    <div style="margin-top:10px; font-size:8px; color:#888; border-top:1px solid #ddd; padding-top:5px;">
+                        <strong>Tasas INS:</strong> Clase I: 0.87% | Clase II: 1.49% | Clase III: 2.47% | Clase IV: 4.13% | Clase V: 6.88%
+                        (Ley N.° 6727 - Riesgos del Trabajo. Tasa segun clase asignada por el INS)
+                    </div>
+                    <div style="margin-top:5px; font-size:8px; color:#888;">
+                        <t t-esc="company.name"/> | Planilla INS Riesgos del Trabajo |
+                        Periodo: <t t-esc="doc.date_from"/> al <t t-esc="doc.date_to"/> |
+                        Presentar antes del dia 10 de cada mes via RT-Virtual (rtvirtual.grupoins.com)
+                    </div>
+                </div>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_ins" model="ir.actions.report">
+        <field name="name">Planilla INS - Riesgos del Trabajo</field>
+        <field name="model">planilla.ins.report</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_ins_template</field>
+        <field name="report_file">planilla_cr.report_ins_template</field>
+        <field name="print_report_name">'Planilla_INS_%s_%s' % (object.date_from, object.date_to)</field>
+        <field name="binding_model_id" ref="model_planilla_ins_report"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="base.paperformat_euro"/>
+    </record>
+
+</odoo>

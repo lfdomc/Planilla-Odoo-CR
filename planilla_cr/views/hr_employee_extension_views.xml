@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_employee_extension_form" model="ir.ui.view">
+        <field name="name">hr.employee.planilla.cr.form</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Botones stat en cabecera -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_salary_history" type="object"
+                        class="oe_stat_button" icon="fa-money">
+                    <field name="salary_history_count" widget="statinfo" string="Historial Salarial"/>
+                </button>
+            </xpath>
+
+            <!-- Nueva pestaña: Planilla CR -->
+            <xpath expr="//page[@name='hr_settings']" position="after">
+                <page name="planilla_cr" string="Planilla CR">
+                    <group string="Método de Cálculo">
+                        <field name="payroll_calculation_method" widget="radio"/>
+                    </group>
+                    <group>
+                        <group string="Clasificación">
+                            <field name="identification_type_id"/>
+                            <field name="employee_status_id"/>
+                            <field name="employee_type_id"/>
+                            <field name="branch_id"/>
+                        </group>
+                        <group string="Horario y Pago">
+                            <field name="schedule_type_id"/>
+                            <field name="payroll_calendar_id"/>
+                            <field name="base_salary"/>
+                            <field name="salary_effective_date"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="CCSS">
+                            <field name="ccss_number"/>
+                            <field name="ccss_insured"/>
+                        </group>
+                        <group string="Datos Bancarios">
+                            <field name="bank_name"/>
+                            <field name="bank_iban" placeholder="CR15200001121513215152"/>
+                            <field name="sinpe_phone" placeholder="88001234"
+                                   help="8 dígitos, sin espacios ni guiones"/>
+                            <field name="bank_account_number"/>
+                            <field name="bank_account_type"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Fechas">
+                            <field name="entry_date"/>
+                            <field name="exit_date"/>
+                        </group>
+                    </group>
+
+                    <!-- Saldo de Vacaciones -->
+                    <group string="Saldo de Vacaciones (Art. 153 CT)">
+                        <group>
+                            <field name="vacation_days_accrued" string="Días Acumulados"/>
+                            <field name="vacation_days_taken" string="Días Tomados"/>
+                        </group>
+                        <group>
+                            <field name="vacation_days_available" string="Días Disponibles"/>
+                            <field name="vacation_balance_alert" invisible="1"/>
+                        </group>
+                        <div invisible="not vacation_balance_alert"
+                             style="background:#f8d7da; border-radius:4px; padding:8px; color:#721c24; font-size:12px;">
+                            ⚠ Este empleado tiene saldo negativo de vacaciones.
+                            Ha tomado más días de los acumulados según su antigüedad.
+                        </div>
+                        <div invisible="vacation_balance_alert or vacation_days_available &gt; 10"
+                             style="background:#fff3cd; border-radius:4px; padding:8px; color:#856404; font-size:12px; display:none;">
+                        </div>
+                    </group>
+                </page>
+
+                <!-- Pestaña INS -->
+                <page name="ins_data" string="INS - Riesgos del Trabajo">
+                    <div class="alert alert-info" role="alert">
+                        <strong>Referencias normativas:</strong>
+                        Ocupaciones: <em>Clasificacion de Ocupaciones de Costa Rica COCR-2023 (INEC), basada en CIUO-08 OIT.</em>
+                        Clase de Riesgo: <em>Manual de Clasificacion de Riesgos del Trabajo, INS Costa Rica.</em>
+                        Jornadas y tipos de identificacion: <em>Codigo de Trabajo de Costa Rica y formularios oficiales INS.</em>
+                    </div>
+                    <group>
+                        <group string="Configuracion INS">
+                            <field name="ins_include"/>
+                            <field name="ins_policy_number"
+                                   invisible="not ins_include"/>
+                        </group>
+                    </group>
+                    <group invisible="not ins_include">
+                        <group string="Nombre Completo (INS)">
+                            <field name="ins_first_name"/>
+                            <field name="ins_first_lastname"/>
+                            <field name="ins_second_lastname"/>
+                        </group>
+                        <group string="Identificacion">
+                            <field name="ins_id_type"/>
+                            <field name="ins_nationality"/>
+                            <field name="ins_civil_status"/>
+                        </group>
+                    </group>
+                    <group invisible="not ins_include">
+                        <group string="Clasificacion Laboral">
+                            <field name="ins_workday_type"/>
+                            <field name="ins_occupation"/>
+                            <field name="ins_risk_class"/>
+                        </group>
+                    </group>
+                </page>
+
+                <!-- Pestaña préstamos y adelantos -->
+                <page name="loans" string="Préstamos y Adelantos">
+                    <!-- Resumen rápido -->
+                    <group>
+                        <group string="Resumen">
+                            <field name="loan_active_count" string="Préstamos Activos"/>
+                            <field name="loan_pending_amount" string="Saldo Total Pendiente (₡)"/>
+                        </group>
+                    </group>
+                    <field name="loan_ids" readonly="1">
+                        <list decoration-success="state=='paid'"
+                              decoration-warning="state in ('approved','active')"
+                              decoration-muted="state=='cancelled'">
+                            <field name="name" string="Referencia"/>
+                            <field name="loan_type" string="Tipo"/>
+                            <field name="amount_total" string="Monto Total (₡)"/>
+                            <field name="installments" string="Cuotas"/>
+                            <field name="amount_paid" string="Pagado (₡)"/>
+                            <field name="amount_pending" string="Saldo (₡)"/>
+                            <field name="date_granted" string="Otorgado"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state=='paid'"
+                                   decoration-warning="state in ('approved','active')"
+                                   decoration-danger="state=='cancelled'"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Pestaña historial de salarios -->
+                <page name="salary_history" string="Historial de Salarios">
+                    <field name="salary_history_ids" readonly="1">
+                        <list>
+                            <field name="effective_date"/>
+                            <field name="reason"/>
+                            <field name="gross_salary"/>
+                            <field name="salary"/>
+                            <field name="payslip_id"/>
+                        </list>
+                    </field>
+                    <div class="o_row mt-2">
+                        <button name="action_print_salary_history" type="object"
+                                string="Imprimir Historial" class="btn btn-primary"/>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

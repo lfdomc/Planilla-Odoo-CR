@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Vista Formulario ── -->
+    <record id="view_planilla_accounting_config_form" model="ir.ui.view">
+        <field name="name">planilla.accounting.config.form</field>
+        <field name="model">planilla.accounting.config</field>
+        <field name="arch" type="xml">
+            <form string="Configuración Contable de Planilla">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>Configuración Contable de Planilla CR</h1>
+                        <p class="text-muted">
+                            Configure las cuentas contables para generar automáticamente los asientos de planilla.
+                            El asiento sigue la estructura estándar de Costa Rica.
+                        </p>
+                    </div>
+
+                    <group string="General">
+                        <group>
+                            <field name="company_id"/>
+                            <field name="journal_id"/>
+                            <field name="accounting_entry_mode" widget="radio"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Cuentas de Gasto (Débitos)" name="expense_accounts">
+                            <div class="alert alert-info" role="alert">
+                                <strong>Débitos del asiento:</strong> Estas cuentas registran el gasto de planilla en el período.
+                                Aparecen en la columna DEBE del asiento contable.
+                            </div>
+                            <group>
+                                <group string="Gastos de Nómina">
+                                    <field name="account_salary_expense"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_social_charges_expense"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_vacation_expense"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_aguinaldo_expense"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_preaviso_expense"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_cesantia_expense"
+                                           options="{'no_create': True}"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Cuentas por Pagar (Créditos)" name="payable_accounts">
+                            <div class="alert alert-info" role="alert">
+                                <strong>Créditos del asiento:</strong> Estas cuentas registran los pasivos pendientes de pago.
+                                Aparecen en la columna HABER del asiento contable.
+                            </div>
+                            <group>
+                                <group string="Obligaciones con CCSS e Impuestos">
+                                    <field name="account_ccss_payable"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_ins_payable"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_income_tax_payable"
+                                           options="{'no_create': True}"/>
+                                </group>
+                                <group string="Provisiones y Salarios">
+                                    <field name="account_aguinaldo_provision"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_cesantia_provision"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_vacation_provision"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_salary_payable"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_termination_payable"
+                                           options="{'no_create': True}"/>
+                                </group>
+                            </group>
+                        </page>
+
+                        <page string="Vista Previa del Asiento" name="preview">
+                            <div class="o_field_widget" style="padding: 10px;">
+                                <table class="table table-sm table-bordered">
+                                    <thead style="background:#1F4E79; color:#fff;">
+                                        <tr>
+                                            <th>Cuenta</th>
+                                            <th class="text-end">Debe</th>
+                                            <th class="text-end">Haber</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr style="background:#f8f9fa;">
+                                            <td colspan="3"><strong>Gastos Administrativos</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Salarios (Gasto)</td>
+                                            <td class="text-end">gross_salary</td>
+                                            <td></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Cargas Sociales (CCSS 26.83% + INS 1%)</td>
+                                            <td class="text-end">ccss_patronal + ins</td>
+                                            <td></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Vacaciones (4.16%)</td>
+                                            <td class="text-end">vacation_provision</td>
+                                            <td></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Aguinaldo (8.33%)</td>
+                                            <td class="text-end">aguinaldo_provision</td>
+                                            <td></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Cesantía (5.33%)</td>
+                                            <td class="text-end">cesantia_provision</td>
+                                            <td></td>
+                                        </tr>
+                                        <tr style="background:#f8f9fa;">
+                                            <td colspan="3"><strong>Pasivos por Planilla</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Deducciones CCSS por Pagar (Obrera 10.83% + Patronal 26.83%)</td>
+                                            <td></td>
+                                            <td class="text-end">ccss_obrero + ccss_patronal</td>
+                                        </tr>
+                                        <tr>
+                                            <td>INS por Pagar</td>
+                                            <td></td>
+                                            <td class="text-end">ins</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Retención Renta por Pagar</td>
+                                            <td></td>
+                                            <td class="text-end">income_tax</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Provisión Aguinaldo</td>
+                                            <td></td>
+                                            <td class="text-end">aguinaldo_provision</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Provisión Cesantía</td>
+                                            <td></td>
+                                            <td class="text-end">cesantia_provision</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Provisión Vacaciones</td>
+                                            <td></td>
+                                            <td class="text-end">vacation_provision</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Salarios por Pagar (Neto)</td>
+                                            <td></td>
+                                            <td class="text-end">net_salary</td>
+                                        </tr>
+                                        <tr style="background:#e8f0fe; font-weight:bold;">
+                                            <td>TOTAL</td>
+                                            <td class="text-end">= Costo Total Empresa</td>
+                                            <td class="text-end">= Costo Total Empresa</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Vista Lista ── -->
+    <record id="view_planilla_accounting_config_list" model="ir.ui.view">
+        <field name="name">planilla.accounting.config.list</field>
+        <field name="model">planilla.accounting.config</field>
+        <field name="arch" type="xml">
+            <list string="Configuración Contable">
+                <field name="company_id"/>
+                <field name="journal_id"/>
+                <field name="account_salary_expense"/>
+                <field name="account_salary_payable"/>
+                <field name="account_termination_payable"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Acción servidor que abre el registro existente o lo crea ── -->
+    <record id="action_planilla_accounting_config_server" model="ir.actions.server">
+        <field name="name">Configuración Contable</field>
+        <field name="model_id" ref="model_planilla_accounting_config"/>
+        <field name="binding_model_id" ref="model_planilla_accounting_config"/>
+        <field name="state">code</field>
+        <field name="code">
+config = env['planilla.accounting.config'].search([('company_id', '=', env.company.id)], limit=1)
+if config:
+    action = {
+        'type': 'ir.actions.act_window',
+        'name': 'Configuración Contable de Planilla',
+        'res_model': 'planilla.accounting.config',
+        'view_mode': 'form',
+        'res_id': config.id,
+        'target': 'current',
+    }
+else:
+    action = {
+        'type': 'ir.actions.act_window',
+        'name': 'Configuración Contable de Planilla',
+        'res_model': 'planilla.accounting.config',
+        'view_mode': 'form',
+        'target': 'current',
+        'context': {'default_company_id': env.company.id},
+    }
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Vista Lista Préstamos ── -->
+    <record id="view_employee_loan_list" model="ir.ui.view">
+        <field name="name">planilla.employee.loan.list</field>
+        <field name="model">planilla.employee.loan</field>
+        <field name="arch" type="xml">
+            <list string="Préstamos y Adelantos" decoration-success="state=='paid'"
+                  decoration-warning="state=='active'" decoration-muted="state=='cancelled'">
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="branch_id"/>
+                <field name="loan_type"/>
+                <field name="amount_total"/>
+                <field name="installments"/>
+                <field name="amount_paid"/>
+                <field name="amount_pending"/>
+                <field name="date_granted"/>
+                <field name="state" widget="badge"
+                       decoration-success="state=='paid'"
+                       decoration-warning="state in ('approved','active')"
+                       decoration-danger="state=='cancelled'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Vista Formulario Préstamo ── -->
+    <record id="view_employee_loan_form" model="ir.ui.view">
+        <field name="name">planilla.employee.loan.form</field>
+        <field name="model">planilla.employee.loan</field>
+        <field name="arch" type="xml">
+            <form string="Préstamo / Adelanto de Salario">
+                <header>
+                    <button type="object" name="action_print_amortization"
+                        string="Imprimir Tabla" class="btn-secondary"
+                        invisible="state not in ('approved','active','paid')"/>
+                <button name="action_approve" type="object" string="✓ Aprobar"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_cancel" type="object" string="✗ Anular"
+                            class="btn-danger" invisible="state not in ('draft','approved')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved,active,paid"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Empleado">
+                            <field name="employee_id" readonly="state != 'draft'"/>
+                            <field name="branch_id"/>
+                            <field name="loan_type" readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Montos">
+                            <field name="amount_total" readonly="state != 'draft'"/>
+                            <field name="installments" readonly="state != 'draft'"/>
+                            <field name="installment_amount"/>
+                            <field name="amount_paid"/>
+                            <field name="amount_pending"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Fechas">
+                            <field name="date_granted" readonly="state != 'draft'"/>
+                            <field name="date_first_deduction" readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Observaciones">
+                            <field name="note" nolabel="1"/>
+                        </group>
+                    </group>
+
+                    <!-- Tabla de cuotas -->
+                    <notebook>
+                        <page string="Cuotas" name="installments_tab">
+                            <field name="installment_ids" readonly="1">
+                                <list>
+                                    <field name="sequence" string="N°"/>
+                                    <field name="due_date" string="Fecha Descuento"/>
+                                    <field name="amount" string="Monto (₡)"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state=='deducted'"
+                                           decoration-warning="state=='pending'"
+                                           decoration-muted="state=='cancelled'"/>
+                                    <field name="payslip_id" string="Boleta"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_employee_loan" model="ir.actions.act_window">
+        <field name="name">Préstamos y Adelantos</field>
+        <field name="res_model">planilla.employee.loan</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay préstamos registrados</p>
+            <p>Registre préstamos o adelantos de salario. Las cuotas se descontarán
+            automáticamente en cada boleta de pago del periodo correspondiente.</p>
+        </field>
+    </record>
+</odoo>

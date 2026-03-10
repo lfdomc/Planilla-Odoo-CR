@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- ═══════════════════════════════════════════
+         SUCURSALES
+    ═══════════════════════════════════════════ -->
+    <record id="branch_principal" model="planilla.branch">
+        <field name="code">PRINCIPAL</field>
+        <field name="name">Principal</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         ESTADOS DE EMPLEADO
+    ═══════════════════════════════════════════ -->
+    <record id="employee_status_activo" model="planilla.employee.status">
+        <field name="code">ACT</field>
+        <field name="name">Activo</field>
+        <field name="is_active_payroll">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_status_vacaciones" model="planilla.employee.status">
+        <field name="code">VAC</field>
+        <field name="name">Vacaciones</field>
+        <field name="is_active_payroll">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_status_incapacitado" model="planilla.employee.status">
+        <field name="code">INC</field>
+        <field name="name">Incapacitado</field>
+        <field name="is_active_payroll">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_status_licencia" model="planilla.employee.status">
+        <field name="code">LSG</field>
+        <field name="name">Licencia Sin Goce</field>
+        <field name="is_active_payroll">False</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_status_suspension" model="planilla.employee.status">
+        <field name="code">SUS</field>
+        <field name="name">Suspendido</field>
+        <field name="is_active_payroll">False</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_status_periodo_prueba" model="planilla.employee.status">
+        <field name="code">PPR</field>
+        <field name="name">Período de Prueba</field>
+        <field name="is_active_payroll">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_status_renunciante" model="planilla.employee.status">
+        <field name="code">REN</field>
+        <field name="name">Renunciante</field>
+        <field name="is_active_payroll">False</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_status_despedido" model="planilla.employee.status">
+        <field name="code">DES</field>
+        <field name="name">Despedido</field>
+        <field name="is_active_payroll">False</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         TIPOS DE EMPLEADO
+    ═══════════════════════════════════════════ -->
+    <record id="employee_type_indefinido" model="planilla.employee.type">
+        <field name="code">IND</field>
+        <field name="name">Empleado Indefinido</field>
+        <field name="contract_type">indefinido</field>
+        <field name="apply_ccss">True</field>
+        <field name="apply_ins">True</field>
+        <field name="apply_income_tax">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_type_plazo_fijo" model="planilla.employee.type">
+        <field name="code">PLF</field>
+        <field name="name">Empleado Plazo Fijo</field>
+        <field name="contract_type">fijo</field>
+        <field name="apply_ccss">True</field>
+        <field name="apply_ins">True</field>
+        <field name="apply_income_tax">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_type_servicios_prof" model="planilla.employee.type">
+        <field name="code">SRV</field>
+        <field name="name">Servicios Profesionales</field>
+        <field name="contract_type">servicios</field>
+        <field name="apply_ccss">False</field>
+        <field name="apply_ins">False</field>
+        <field name="apply_income_tax">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_type_practicante" model="planilla.employee.type">
+        <field name="code">PRC</field>
+        <field name="name">Practicante</field>
+        <field name="contract_type">practicante</field>
+        <field name="apply_ccss">True</field>
+        <field name="apply_ins">True</field>
+        <field name="apply_income_tax">False</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="employee_type_tiempo_parcial" model="planilla.employee.type">
+        <field name="code">TPA</field>
+        <field name="name">Tiempo Parcial</field>
+        <field name="contract_type">fijo</field>
+        <field name="apply_ccss">True</field>
+        <field name="apply_ins">True</field>
+        <field name="apply_income_tax">True</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         TIPOS DE HORARIO
+    ═══════════════════════════════════════════ -->
+    <record id="schedule_type_completo" model="planilla.schedule.type">
+        <field name="code">COMP</field>
+        <field name="name">Jornada Completa (8 horas - Lun a Vie)</field>
+        <field name="hours_per_day">8.0</field>
+        <field name="hours_per_week">40.0</field>
+        <field name="days_per_week">5</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="schedule_type_medio_tiempo" model="planilla.schedule.type">
+        <field name="code">MEDI</field>
+        <field name="name">Medio Tiempo (4 horas)</field>
+        <field name="hours_per_day">4.0</field>
+        <field name="hours_per_week">20.0</field>
+        <field name="days_per_week">5</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="schedule_type_mixta" model="planilla.schedule.type">
+        <field name="code">MIXT</field>
+        <field name="name">Jornada Mixta (7 horas)</field>
+        <field name="hours_per_day">7.0</field>
+        <field name="hours_per_week">35.0</field>
+        <field name="days_per_week">5</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="schedule_type_nocturna" model="planilla.schedule.type">
+        <field name="code">NOCT</field>
+        <field name="name">Jornada Nocturna (6 horas)</field>
+        <field name="hours_per_day">6.0</field>
+        <field name="hours_per_week">30.0</field>
+        <field name="days_per_week">5</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════
+         CALENDARIZACIONES DE PAGO
+    ═══════════════════════════════════════════ -->
+    <record id="payroll_calendar_mensual" model="planilla.calendar">
+        <field name="name">Mensual</field>
+        <field name="frequency">monthly</field>
+        <field name="payment_day">30</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="payroll_calendar_quincenal" model="planilla.calendar">
+        <field name="name">Quincenal</field>
+        <field name="frequency">biweekly</field>
+        <field name="payment_day">15</field>
+        <field name="second_payment_day">30</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="payroll_calendar_semanal" model="planilla.calendar">
+        <field name="name">Semanal</field>
+        <field name="frequency">weekly</field>
+        <field name="payment_day">5</field>
+        <field name="active">True</field>
+    </record>
+
+</odoo>

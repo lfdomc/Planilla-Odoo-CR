@@ -1,0 +1,106 @@
+from odoo import models, fields, api
+from odoo.exceptions import UserError
+
+
+class SalaryHistory(models.Model):
+    _name = 'planilla.salary.history'
+    _description = 'Historial de Salarios'
+    _order = 'effective_date desc'
+
+    employee_id    = fields.Many2one(
+        'hr.employee', string='Empleado', required=True, ondelete='cascade'
+    )
+    branch_id      = fields.Many2one(related='employee_id.branch_id', string='Sucursal', store=True)
+    effective_date = fields.Date(string='Fecha Efectiva', required=True)
+    salary         = fields.Monetary(string='Salario Neto',   currency_field='currency_id', required=True)
+    gross_salary   = fields.Monetary(string='Salario Bruto',  currency_field='currency_id')
+    currency_id    = fields.Many2one(related='employee_id.currency_id', store=True)
+    reason         = fields.Char(string='Motivo', required=True)
+    payslip_id     = fields.Many2one('planilla.payslip.cr', string='Boleta de Pago')
+    note           = fields.Text(string='Notas')
+
+    # ── Flujo de autorización ──────────────────────────────────────────
+    state = fields.Selection([
+        ('draft',      'Borrador'),
+        ('authorized', 'Autorizado'),
+        ('rejected',   'Rechazado'),
+    ], default='draft', string='Estado', tracking=True)
+
+    authorized_by   = fields.Many2one('res.users', string='Autorizado por', readonly=True)
+    authorized_date = fields.Datetime(string='Fecha de Autorización', readonly=True)
+    rejection_note  = fields.Text(string='Motivo de Rechazo', readonly=True)
+
+    # ── Salario anterior (para mostrar variación) ─────────────────────
+    previous_salary = fields.Monetary(
+        string='Salario Anterior (₡)', currency_field='currency_id',
+        compute='_compute_previous_salary', store=False
+    )
+    variation_amount = fields.Monetary(
+        string='Variación (₡)', currency_field='currency_id',
+        compute='_compute_previous_salary', store=False
+    )
+    variation_pct = fields.Float(
+        string='Variación (%)', compute='_compute_previous_salary', store=False
+    )
+
+    @api.depends('employee_id', 'effective_date', 'gross_salary')
+    def _compute_previous_salary(self):
+        for rec in self:
+            prev = self.search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('effective_date', '<', rec.effective_date),
+                ('state', '=', 'authorized'),
+                ('id', '!=', rec.id),
+            ], order='effective_date desc', limit=1)
+            prev_salary = prev.gross_salary or 0.0
+            rec.previous_salary  = prev_salary
+            rec.variation_amount = rec.gross_salary - prev_salary
+            rec.variation_pct    = (
+                ((rec.gross_salary - prev_salary) / prev_salary * 100)
+                if prev_salary else 0.0
+            )
+
+    def action_authorize(self):
+        for rec in self:
+            if not self.env.user.has_group('planilla_cr.group_planilla_aprobador'):
+                raise UserError('Solo un aprobador de planilla puede autorizar cambios salariales.')
+            rec.write({
+                'state':            'authorized',
+                'authorized_by':   self.env.user.id,
+                'authorized_date': fields.Datetime.now(),
+                'rejection_note':  False,
+            })
+
+    def action_reject(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Motivo de Rechazo',
+            'res_model': 'planilla.salary.reject.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_history_id': self.id},
+        }
+
+    def action_reset_draft(self):
+        for rec in self:
+            rec.write({'state': 'draft', 'authorized_by': False,
+                       'authorized_date': False, 'rejection_note': False})
+
+    def action_print_history(self):
+        employees = self.mapped('employee_id')
+        return self.env.ref('planilla_cr.action_report_salary_history').report_action(employees)
+
+
+class SalaryRejectWizard(models.TransientModel):
+    _name = 'planilla.salary.reject.wizard'
+    _description = 'Wizard Rechazo de Cambio Salarial'
+
+    history_id = fields.Many2one('planilla.salary.history', required=True)
+    reason     = fields.Text(string='Motivo de Rechazo', required=True)
+
+    def action_confirm(self):
+        self.history_id.write({
+            'state':          'rejected',
+            'rejection_note': self.reason,
+        })
+        return {'type': 'ir.actions.act_window_close'}
