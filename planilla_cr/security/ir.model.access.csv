@@ -68,3 +68,12 @@ planilla.scheduled.actions.admin,planilla.scheduled.actions admin,model_planilla
 planilla.employer.cost.report,planilla.employer.cost.report,model_planilla_employer_cost_report,planilla_cr.group_planilla_aprobador,1,1,1,1
 planilla.reopen.period.wizard,planilla.reopen.period.wizard,model_planilla_reopen_period_wizard,planilla_cr.group_planilla_admin,1,1,1,1
 planilla.salary.reject.wizard,planilla.salary.reject.wizard,model_planilla_salary_reject_wizard,planilla_cr.group_planilla_aprobador,1,1,1,1
+
+planilla.overtime.consolidated.report,planilla.overtime.consolidated.report,model_planilla_overtime_consolidated_report,planilla_cr.group_planilla_aprobador,1,1,1,1
+planilla.mtss.export,planilla.mtss.export,model_planilla_mtss_export,planilla_cr.group_planilla_aprobador,1,1,1,1
+planilla.termination.simulator,planilla.termination.simulator,model_planilla_termination_simulator,planilla_cr.group_planilla_operador,1,1,1,1
+planilla.audit.zip.wizard,planilla.audit.zip.wizard,model_planilla_audit_zip_wizard,planilla_cr.group_planilla_aprobador,1,1,1,1
+planilla.recurring.benefit,planilla.recurring.benefit,model_planilla_recurring_benefit,planilla_cr.group_planilla_operador,1,1,1,1
+planilla.termination.simulator.loan,planilla.termination.simulator.loan,model_planilla_termination_simulator_loan,planilla_cr.group_planilla_operador,1,1,1,1
+access_pension_alimentaria,planilla.pension.alimentaria,model_planilla_pension_alimentaria,planilla_cr.group_planilla_aprobador,1,1,1,1
+access_pension_alimentaria_user,planilla.pension.alimentaria user,model_planilla_pension_alimentaria,planilla_cr.group_planilla_operador,1,1,1,0

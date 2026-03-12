@@ -2,6 +2,7 @@ import io
 import base64
 from odoo import models, fields, api
 from odoo.exceptions import UserError
+import xlsxwriter
 
 
 class CcssReport(models.TransientModel):
@@ -94,15 +95,7 @@ class CcssReport(models.TransientModel):
 
     def action_generate_excel(self):
         self.ensure_one()
-        try:
-            import xlsxwriter
-        except ImportError:
-            raise UserError('xlsxwriter no instalado. Ejecute: pip install xlsxwriter')
         self.ensure_one()
-        try:
-            import xlsxwriter
-        except ImportError:
-            raise UserError('xlsxwriter no instalado. Ejecute: pip install xlsxwriter')
 
         data = self.get_report_data()
         if not data['rows']:

@@ -1,6 +1,7 @@
 import io
 import base64
 from odoo import models, fields, api
+import xlsxwriter
 
 
 class PayrollReportWizard(models.TransientModel):
@@ -66,15 +67,9 @@ class PayrollReportWizard(models.TransientModel):
     def action_export_excel(self):
         """Exporta el detalle completo de planilla a Excel con todas las columnas."""
         self.ensure_one()
-        try:
-            import xlsxwriter
-        except ImportError:
-            from odoo.exceptions import UserError
-            raise UserError('xlsxwriter no está instalado en el servidor.')
 
         payslips = self._get_payslips()
         if not payslips:
-            from odoo.exceptions import UserError
             raise UserError('No hay boletas pagadas en el periodo seleccionado.')
 
         output = io.BytesIO()

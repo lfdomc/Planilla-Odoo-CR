@@ -25,6 +25,11 @@
         <field name="arch" type="xml">
             <form string="Vacaciones">
                 <header>
+                    <button name="action_approve_and_pay"
+                           string="Aprobar y Pagar"
+                           type="object"
+                           class="btn-primary"
+                           invisible="state != 'draft'"/>
                     <button name="action_approve" type="object" string="Aprobar"
                             invisible="state != 'draft'" class="btn-primary"/>
                     <button name="action_cancel" type="object" string="Cancelar"
@@ -46,6 +51,19 @@
                             <field name="daily_salary" readonly="1"/>
                             <field name="total_amount" readonly="1"/>
                         </group>
+                    </group>
+                    <!-- Método de pago Art. 153-156 CT -->
+                    <group string="Método de Pago (Art. 153-156 CT)">
+                        <field name="payment_method"/>
+                        <field name="use_average"/>
+                        <field name="avg_last_4_weeks"
+                               invisible="use_average == False"/>
+                        <field name="days_in_money"
+                               invisible="payment_method != 'mixto'"/>
+                        <field name="payslip_id"
+                               invisible="payment_method == 'disfrutadas'"/>
+                        <field name="vacation_income_payslip"
+                               invisible="payment_method == 'disfrutadas'"/>
                     </group>
                     <field name="note" placeholder="Observaciones..."/>
                 </sheet>

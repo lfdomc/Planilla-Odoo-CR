@@ -2,12 +2,13 @@ from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
 from datetime import date
 from dateutil.relativedelta import relativedelta
+from .closed_period import PlanillaClosedPeriod
 
 
 class EmployeeTermination(models.Model):
     _name = 'planilla.termination'
     _description = 'Liquidación / Finiquito de Empleado'
-    _inherit = []
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'termination_date desc'
 
     name = fields.Char(
@@ -119,7 +120,7 @@ class EmployeeTermination(models.Model):
 
     move_id = fields.Many2one('account.move', string='Asiento Contable', readonly=True)
     state = fields.Selection([
-        ('draft',    'Borrador'),
+        ('draft', 'Borrador'),
         ('confirmed','Confirmado'),
         ('paid',     'Pagado'),
         ('cancelled','Cancelado'),
@@ -291,7 +292,6 @@ class EmployeeTermination(models.Model):
                 f'Pague o cancele esas boletas antes de confirmar la liquidación.'
             )
         # Verificar período cerrado
-        from .closed_period import PlanillaClosedPeriod
         termination_date = self.termination_date or fields.Date.today()
         closed = PlanillaClosedPeriod.is_period_closed(
             self.env, self.company_id.id,
@@ -396,10 +396,23 @@ class EmployeeTermination(models.Model):
         if not lines:
             return False
 
+        # H1 FIX — Verificar cuadre antes de postear
+        total_debit  = round(sum(l[2]['debit']  for l in lines), 2)
+        total_credit = round(sum(l[2]['credit'] for l in lines), 2)
+        if abs(total_debit - total_credit) > 1.0:
+            raise UserError(
+                f'El asiento de liquidación no cuadra para {emp}:\n'
+                f'  Débitos:  ₡{total_debit:,.2f}\n'
+                f'  Créditos: ₡{total_credit:,.2f}\n\n'
+                f'Verifique que todas las cuentas contables estén configuradas '
+                f'(Planilla → Configuración → Contabilidad → ⚡ Autocompletar).'
+            )
+
         move = self.env['account.move'].create({
             'journal_id': journal.id,
             'date': self.termination_date or fields.Date.today(),
             'ref': f'Liquidación — {emp} — {self.termination_date}',
+            'move_type': 'entry',
             'line_ids': lines,
         })
         move.action_post()

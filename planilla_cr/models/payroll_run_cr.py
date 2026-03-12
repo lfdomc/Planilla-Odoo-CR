@@ -8,6 +8,16 @@ class PayrollRunCR(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_end desc'
 
+    # M3 FIX — Constraint de BD para prevenir planillas duplicadas en concurrencia
+    _sql_constraints = [
+        (
+            'unique_run_company_period',
+            'UNIQUE(company_id, date_start, date_end)',
+            'Ya existe una planilla para esta compañía en el mismo período. '
+            'No se pueden crear dos planillas con las mismas fechas.'
+        ),
+    ]
+
     name = fields.Char(string='Nombre', required=True, tracking=True)
     company_id = fields.Many2one(
         'res.company', string='Compañía',
@@ -55,6 +65,25 @@ class PayrollRunCR(models.Model):
         string='Total CCSS Obrero', currency_field='currency_id',
         compute='_compute_totals', store=True
     )
+    total_income_tax = fields.Monetary(
+        string='Imp. Renta Total', currency_field='currency_id',
+        compute='_compute_totals', store=True
+    )
+    total_deductions = fields.Monetary(
+        string='Total Deducciones Obrero', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+        help='CCSS Obrero + Impuesto de Renta'
+    )
+    total_salary_payable = fields.Monetary(
+        string='Salario a Pagar', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+        help='Total neto a transferir a los empleados (bruto - CCSS obrero - renta - deducciones)'
+    )
+    cost_per_net_colon = fields.Float(
+        string='Costo por ₡1 neto', digits=(6, 4),
+        compute='_compute_totals', store=True,
+        help='Por cada ₡1 que recibe el empleado en mano, cuánto gasta la empresa en total (salario + cargas patronales)'
+    )
 
     state = fields.Selection([
         ('draft', 'Borrador'),
@@ -77,15 +106,36 @@ class PayrollRunCR(models.Model):
             rec.payslip_count = len(rec.payslip_ids)
 
     @api.depends('payslip_ids.gross_salary', 'payslip_ids.net_salary',
-                 'payslip_ids.total_employer_cost', 'payslip_ids.ccss_employer',
-                 'payslip_ids.ccss_employee')
+                 'payslip_ids.salary_payable', 'payslip_ids.total_employer_cost',
+                 'payslip_ids.ccss_employer', 'payslip_ids.ccss_employee',
+                 'payslip_ids.income_tax')
     def _compute_totals(self):
         for rec in self:
-            rec.total_gross = sum(rec.payslip_ids.mapped('gross_salary'))
-            rec.total_net = sum(rec.payslip_ids.mapped('net_salary'))
-            rec.total_employer_cost = sum(rec.payslip_ids.mapped('total_employer_cost'))
-            rec.total_ccss_employer = sum(rec.payslip_ids.mapped('ccss_employer'))
+            rec.total_gross         = sum(rec.payslip_ids.mapped('gross_salary'))
             rec.total_ccss_employee = sum(rec.payslip_ids.mapped('ccss_employee'))
+            rec.total_income_tax    = sum(rec.payslip_ids.mapped('income_tax'))
+            rec.total_ccss_employer = sum(rec.payslip_ids.mapped('ccss_employer'))
+            rec.total_employer_cost = sum(rec.payslip_ids.mapped('total_employer_cost'))
+
+            # Total Deducciones = CCSS Obrero + Renta
+            rec.total_deductions = round(
+                rec.total_ccss_employee + rec.total_income_tax, 2
+            )
+            # Total Neto = suma del net_salary de cada boleta (bruto - CCSS obrero - renta)
+            rec.total_net = round(
+                sum(rec.payslip_ids.mapped('net_salary')), 2
+            )
+
+            # Salario a Pagar = lo que realmente se deposita (neto - pensiones, prestamos y deducciones adicionales)
+            rec.total_salary_payable = round(
+                sum(rec.payslip_ids.mapped('salary_payable')), 2
+            )
+
+            # Costo real por cada colón que el empleado recibe en mano
+            if rec.total_salary_payable and rec.total_salary_payable > 0:
+                rec.cost_per_net_colon = round(rec.total_employer_cost / rec.total_salary_payable, 4)
+            else:
+                rec.cost_per_net_colon = 0.0
 
     def action_generate_payslips(self):
         """Genera boletas para todos los empleados activos de la calendarización."""
@@ -137,18 +187,34 @@ class PayrollRunCR(models.Model):
         if self.state != 'confirmed':
             raise UserError('Solo se pueden pagar planillas confirmadas.')
 
+        # M1 FIX — Verificar que todas las boletas están confirmadas antes de pagar
+        not_confirmed = self.payslip_ids.filtered(
+            lambda p: p.state not in ('confirmed', 'paid', 'cancelled')
+        )
+        if not_confirmed:
+            names = ', '.join(not_confirmed.mapped('employee_id.name'))
+            raise UserError(
+                f'Las siguientes boletas no están confirmadas:\n{names}\n\n'
+                f'Confirme todas las boletas antes de pagar la planilla.'
+            )
+
+        payslips_to_pay = self.payslip_ids.filtered(lambda p: p.state == 'confirmed')
+        if not payslips_to_pay:
+            raise UserError(
+                'No hay boletas confirmadas para pagar. '
+                'Todas las boletas están canceladas o ya fueron pagadas.'
+            )
+
         config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
         mode = config.accounting_entry_mode if config else 'per_employee'
 
-        payslips = self.payslip_ids.filtered(lambda p: p.state == 'confirmed')
-
         if mode == 'per_run':
             # Asiento consolidado por planilla
-            payslips.action_pay(skip_accounting=True)
-            self._create_consolidated_accounting_entry(payslips)
+            payslips_to_pay.action_pay(skip_accounting=True)
+            self._create_consolidated_accounting_entry(payslips_to_pay)
         else:
             # Asiento por empleado (comportamiento original)
-            payslips.action_pay()
+            payslips_to_pay.action_pay()
 
         self.state = 'done'
 
@@ -158,8 +224,17 @@ class PayrollRunCR(models.Model):
             return
 
         config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
-        if not config or not config.journal_id:
-            return
+        if not config:
+            raise UserError(
+                'No hay configuración contable para esta compañía. '
+                'Configure las cuentas en Planilla → Configuración → Contabilidad.'
+            )
+        if not config.journal_id:
+            raise UserError(
+                'El diario de planilla no está configurado. '
+                'Vaya a Planilla → Configuración → Contabilidad y asigne un diario, '
+                'o use el botón "⚡ Autocompletar Cuentas CR".'
+            )
 
         # Sumar todos los montos de todas las boletas
         total_gross = sum(payslips.mapped('gross_salary'))
@@ -170,7 +245,24 @@ class PayrollRunCR(models.Model):
         total_cesantia_prov = sum(payslips.mapped('cesantia_provision'))
         total_ccss_employee = sum(payslips.mapped('ccss_employee'))
         total_income_tax = sum(payslips.mapped('income_tax'))
-        total_net = sum(payslips.mapped('net_salary'))
+        # B1 FIX: usar salary_payable (neto real después de pensiones y préstamos)
+        total_salary_payable = sum(payslips.mapped('salary_payable'))
+
+        # B7 FIX: sumar pensiones, préstamos y otras deducciones de TODAS las boletas
+        all_deduction_lines = payslips.mapped('deduction_line_ids')
+        total_pensiones = round(sum(
+            l.amount for l in all_deduction_lines
+            if l.deduction_category == 'pension_alimentaria'
+        ), 2)
+        total_prestamos = round(sum(
+            l.amount for l in all_deduction_lines
+            if l.deduction_category == 'loan'
+        ), 2)
+        total_otras_ded = round(sum(
+            l.amount for l in all_deduction_lines
+            if l.deduction_category not in ('pension_alimentaria', 'loan')
+               and l.deduction_type == 'deduction'
+        ), 2)
 
         ref = f'Planilla: {self.name} ({len(payslips)} empleados)'
         lines = []
@@ -199,7 +291,24 @@ class PayrollRunCR(models.Model):
         add_line(config.account_aguinaldo_provision, credit=total_aguinaldo_prov, name='Provisión Aguinaldo — Planilla ' + self.name)
         add_line(config.account_cesantia_provision, credit=total_cesantia_prov, name='Provisión Cesantía — Planilla ' + self.name)
         add_line(config.account_vacation_provision, credit=total_vacation_prov, name='Provisión Vacaciones — Planilla ' + self.name)
-        add_line(config.account_salary_payable, credit=total_net, name='Salarios por Pagar — Planilla ' + self.name)
+
+        # B7 FIX: pensiones retenidas
+        if total_pensiones > 0:
+            pension_account = config.account_salary_payable
+            if hasattr(config, 'account_pension_payable') and config.account_pension_payable:
+                pension_account = config.account_pension_payable
+            add_line(pension_account, credit=total_pensiones, name='Pensiones Alimentarias Retenidas — Planilla ' + self.name)
+
+        # B7 FIX: cuotas de préstamos retenidas
+        if total_prestamos > 0:
+            loan_account = config.account_loans_payable if config.account_loans_payable else config.account_salary_payable
+            add_line(loan_account, credit=total_prestamos, name='Cuotas Préstamos Retenidos — Planilla ' + self.name)
+
+        # B7 FIX: otras deducciones adicionales
+        if total_otras_ded > 0:
+            add_line(config.account_salary_payable, credit=total_otras_ded, name='Otras Deducciones Retenidas — Planilla ' + self.name)
+
+        add_line(config.account_salary_payable, credit=total_salary_payable, name='Salarios por Pagar — Planilla ' + self.name)
 
         if not lines:
             return
@@ -229,7 +338,7 @@ class PayrollRunCR(models.Model):
     def _check_no_duplicate_payment(self):
         """
         Verifica que ningún empleado en esta corrida ya tenga una boleta
-        PAGADA en el mismo período (mismo date_from/date_to).
+        PAGADA en el mismo período (mismo date_start/date_end).
         Previene doble pago accidental al recrear una planilla.
         """
         self.ensure_one()
@@ -241,8 +350,8 @@ class PayrollRunCR(models.Model):
         # Excluir las propias boletas de esta corrida
         duplicates = self.env['planilla.payslip.cr'].search([
             ('employee_id', 'in', employee_ids),
-            ('date_from', '=', self.date_from),
-            ('date_to', '=', self.date_to),
+            ('date_from', '=', self.date_start),
+            ('date_to', '=', self.date_end),
             ('state', '=', 'paid'),
             ('payroll_run_id', '!=', self.id),
         ])
@@ -250,7 +359,7 @@ class PayrollRunCR(models.Model):
             names = ', '.join(sorted(set(duplicates.mapped('employee_id.name'))))
             raise UserError(
                 f'⚠️ Doble pago detectado — los siguientes empleados ya tienen '
-                f'una boleta PAGADA en el período {self.date_from} – {self.date_to}:\n\n'
+                f'una boleta PAGADA en el período {self.date_start} – {self.date_end}:\n\n'
                 f'{names}\n\n'
                 f'Cancele o archive la planilla anterior antes de continuar. '
                 f'Si es un reliquidado, use el campo "Notas" en la boleta para documentarlo.'

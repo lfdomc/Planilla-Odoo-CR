@@ -94,7 +94,7 @@
                                     <td style="text-align:right;">₡ <t t-out="'{:,.2f}'.format(max(running_balance, 0))"/></td>
                                     <td style="text-align:center;">
                                         <t t-if="inst.state == 'deducted'">
-                                            <span class="badge-paid">✓ Descontado</span>
+                                            <span class="badge-paid"><i class="fa fa-check" title="Check"/> Descontado</span>
                                         </t>
                                         <t t-else="">
                                             <span class="badge-pending">Pendiente</span>

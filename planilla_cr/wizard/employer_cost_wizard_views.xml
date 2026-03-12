@@ -7,7 +7,7 @@
             <form string="Reporte de Costos Patronales">
                 <sheet>
                     <div class="alert alert-info" role="alert">
-                        <strong>📊 Costos Patronales:</strong>
+                        <strong><i class="fa fa-bar-chart" title="Bar Chart"/> Costos Patronales:</strong>
                         Muestra CCSS patronal, INS, aguinaldo, cesantía y vacaciones provisión.
                         Solo boletas en estado <strong>PAGADO</strong>.
                     </div>
@@ -25,9 +25,9 @@
                 </sheet>
                 <footer>
                     <button name="action_generate_pdf" type="object"
-                            string="📄 Generar PDF" class="btn-primary"/>
+                            string="Generar PDF" class="btn-primary"/>
                     <button name="action_export_excel" type="object"
-                            string="📥 Exportar Excel" class="btn-success"/>
+                            string="Exportar Excel" class="btn-success"/>
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

@@ -34,9 +34,9 @@
                     <button type="object" name="action_print_amortization"
                         string="Imprimir Tabla" class="btn-secondary"
                         invisible="state not in ('approved','active','paid')"/>
-                <button name="action_approve" type="object" string="✓ Aprobar"
+                <button name="action_approve" type="object" string="Aprobar"
                             class="btn-primary" invisible="state != 'draft'"/>
-                    <button name="action_cancel" type="object" string="✗ Anular"
+                    <button name="action_cancel" type="object" string="Anular"
                             class="btn-danger" invisible="state not in ('draft','approved')"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,approved,active,paid"/>
@@ -50,6 +50,7 @@
                             <field name="employee_id" readonly="state != 'draft'"/>
                             <field name="branch_id"/>
                             <field name="loan_type" readonly="state != 'draft'"/>
+                            <field name="description" readonly="state != 'draft'"/>
                         </group>
                         <group string="Montos">
                             <field name="amount_total" readonly="state != 'draft'"/>
@@ -87,6 +88,7 @@
                         </page>
                     </notebook>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>

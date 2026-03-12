@@ -83,7 +83,7 @@
                                 <t t-if="wizard.group_by == 'branch'">
                                     <t t-foreach="grp['detail_rows']" t-as="d">
                                         <tr class="detail">
-                                            <td>↳ <t t-out="d['employee']"/> <span style="color:#888;font-size:8px">(<t t-out="d['month']"/>)</span></td>
+                                            <td>  <t t-out="d['employee']"/> <span style="color:#888;font-size:8px">(<t t-out="d['month']"/>)</span></td>
                                             <td><t t-out="'{:,.0f}'.format(d['gross'])"/></td>
                                             <td><t t-out="'{:,.0f}'.format(d['ccss_patronal'])"/></td>
                                             <td><t t-out="'{:,.0f}'.format(d['ins'])"/></td>

@@ -11,12 +11,24 @@
                 <field name="name"/>
                 <field name="employee_id"/>
                 <field name="branch_id"/>
-                <field name="date_from"/>
-                <field name="date_to"/>
-                <field name="gross_salary"/>
-                <field name="total_employee_deductions"/>
-                <field name="net_salary"/>
-                <field name="state"/>
+                <field name="payroll_calendar_id" string="Calendarización" optional="hide"/>
+                <field name="date_from" string="Desde"/>
+                <field name="date_to" string="Hasta"/>
+                <field name="gross_salary" string="Salario Bruto"/>
+                <field name="ccss_employee" string="CCSS Obrero" optional="hide"/>
+                <field name="income_tax" string="Imp. Renta" optional="hide"/>
+                <field name="total_employee_deductions" string="Total Deducciones"/>
+                <field name="net_salary" string="Salario Neto"/>
+                <field name="salary_payable" string="Salario a Pagar" optional="show"
+                       help="Neto menos préstamos y deducciones adicionales — lo que se deposita"/>
+                <field name="total_employer_cost" string="Costo Total Patronal" optional="hide"/>
+                <field name="cost_per_net_colon" string="₡ Costo/₡ Neto"
+                       widget="float" digits="[6,2]" optional="show"
+                       help="Por cada ₡1 neto que recibe el empleado, la empresa gasta este monto total"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-warning="state == 'confirmed'"
+                       decoration-info="state == 'draft'"/>
             </list>
         </field>
     </record>
@@ -29,7 +41,11 @@
                 <header>
                     <button name="action_confirm" type="object" string="Confirmar"
                             invisible="state != 'draft'" class="btn-primary"/>
-                    <button name="action_reset_to_draft" type="object" string="⟲ Volver a Borrador"
+                    <button name="action_sync_novedades" type="object"
+                            string="Sincronizar Novedades"
+                            invisible="state != 'draft'"
+                            class="btn-secondary"/>
+                    <button name="action_reset_to_draft" type="object" string="Volver a Borrador"
                             invisible="state not in ('cancelled', 'confirmed')"
                             class="btn-warning"/>
                     <button name="action_pay" type="object" string="Marcar como Pagado"
@@ -44,6 +60,7 @@
                            statusbar_visible="draft,confirmed,done"/>
                 </header>
                 <sheet>
+                    <!-- Encabezado -->
                     <group>
                         <group string="Empleado">
                             <field name="employee_id"/>
@@ -54,36 +71,88 @@
                         <group string="Período">
                             <field name="date_from"/>
                             <field name="date_to"/>
+                            <field name="calculation_method" readonly="1"/>
                         </group>
                     </group>
 
                     <notebook>
-                        <!-- INGRESOS -->
+
+                        <!-- ══ RESUMEN GENERAL ══════════════════════════════════ -->
                         <page string="Ingresos" name="income">
                             <group>
-                                <group string="Método de Cálculo">
-                                    <field name="calculation_method" readonly="1"/>
-                                    <field name="attendance_hours" readonly="1"
-                                           invisible="calculation_method != 'attendance'"/>
-                                </group>
-                            </group>
-                            <group>
+                                <!-- Salario base y proporcionalidad -->
                                 <group string="Salario">
                                     <field name="base_salary" readonly="1"/>
+                                    <field name="is_proportional"/>
+                                    <field name="days_worked" invisible="not is_proportional"/>
+                                    <field name="days_in_period" readonly="1" invisible="not is_proportional"/>
+                                    <field name="proportional_factor" readonly="1"
+                                           invisible="not is_proportional" string="Factor proporcional (%)"/>
+                                </group>
+                                <!-- Otros ingresos del período -->
+                                <group string="Ingresos Adicionales">
                                     <field name="overtime_amount" readonly="1"/>
                                     <field name="vacation_amount" readonly="1"/>
                                     <field name="other_income"/>
-                                    <field name="gross_salary" readonly="1"
-                                           class="fw-bold"/>
+                                    <field name="gross_salary" readonly="1" class="fw-bold"/>
                                 </group>
-                                <group string="Contabilidad">
-                                    <field name="move_id" readonly="1"
-                                           invisible="not move_id"/>
+                            </group>
+
+                            <!-- Incapacidades del período -->
+                            <separator string="Incapacidades del Período"/>
+                            <group invisible="disability_days == 0">
+                                <group string="Resumen Incapacidades">
+                                    <field name="disability_days" readonly="1"/>
+                                    <field name="ccss_subsidy_total" readonly="1"/>
+                                    <field name="employer_disability_cost" readonly="1"/>
                                 </group>
+                            </group>
+                            <field name="disability_ids" readonly="1"
+                                   invisible="disability_days == 0">
+                                <list>
+                                    <field name="disability_type"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="days"/>
+                                    <field name="ccss_subsidy"/>
+                                    <field name="employer_cost"/>
+                                    <field name="certificate_number"/>
+                                </list>
+                            </field>
+                            <div invisible="disability_days != 0"
+                                 style="color:#999;font-size:12px;padding:4px 0;">
+                                Sin incapacidades en este período.
+                            </div>
+
+                            <!-- Vacaciones del período -->
+                            <separator string="Vacaciones del Período"/>
+                            <field name="vacation_ids" readonly="1">
+                                <list>
+                                    <field name="vacation_type"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="days"/>
+                                    <field name="total_amount"/>
+                                </list>
+                            </field>
+
+                            <!-- Asistencias (solo si aplica) -->
+                            <separator string="Asistencias"
+                                       invisible="calculation_method != 'attendance'"/>
+                            <group invisible="calculation_method != 'attendance'">
+                                <field name="attendance_hours" readonly="1"/>
+                                <field name="attendance_details" readonly="1"
+                                       string="Detalle por día"/>
+                            </group>
+
+                            <!-- Contabilidad -->
+                            <separator string="Contabilidad" invisible="not move_id"/>
+                            <group invisible="not move_id">
+                                <field name="move_id" readonly="1"/>
                             </group>
                         </page>
 
-                        <!-- DEDUCCIONES OBRERO -->
+                        <!-- ══ DEDUCCIONES OBRERO ════════════════════════════════ -->
                         <page string="Deducciones Obrero" name="employee_deductions">
                             <group>
                                 <group string="Deducciones Legales">
@@ -91,25 +160,29 @@
                                     <field name="income_tax" readonly="1"/>
                                     <field name="other_deductions"/>
                                 </group>
-                                <group string="Total">
+                                <group string="Total Obrero">
                                     <field name="total_employee_deductions" readonly="1"
                                            class="fw-bold"/>
                                     <field name="net_salary" readonly="1"
                                            class="fw-bold text-success"/>
                                 </group>
                             </group>
-                            <separator string="Deducciones Adicionales"/>
+
+                            <!-- Préstamos, adelantos y deducciones adicionales -->
+                            <separator string="Préstamos / Adelantos / Deducciones Adicionales"/>
                             <field name="deduction_line_ids">
                                 <list editable="bottom">
                                     <field name="deduction_code_id"/>
                                     <field name="description"/>
+                                    <field name="line_type"/>
+                                    <field name="amount_type"/>
                                     <field name="amount"/>
                                     <field name="deduction_type" readonly="1"/>
                                 </list>
                             </field>
                         </page>
 
-                        <!-- CARGAS PATRONALES -->
+                        <!-- ══ CARGAS PATRONALES ════════════════════════════════ -->
                         <page string="Cargas Patronales" name="employer_costs">
                             <group>
                                 <group string="Cargas Legales">
@@ -119,22 +192,14 @@
                                     <field name="cesantia_provision" readonly="1"/>
                                     <field name="vacation_provision" readonly="1"/>
                                 </group>
-                                <group string="Total">
+                                <group string="Total Patronal">
                                     <field name="total_employer_cost" readonly="1"
                                            class="fw-bold"/>
                                 </group>
                             </group>
                         </page>
 
-                        <!-- HORAS EXTRAS -->
-                        <page string="Asistencias" name="attendances"
-                              invisible="calculation_method != 'attendance'">
-                            <group>
-                                <field name="attendance_hours" readonly="1"/>
-                                <field name="attendance_details" readonly="1"
-                                       string="Detalle por Día"/>
-                            </group>
-                        </page>
+                        <!-- ══ HORAS EXTRAS ═════════════════════════════════════ -->
                         <page string="Horas Extras" name="overtime">
                             <field name="overtime_ids">
                                 <list>
@@ -147,21 +212,31 @@
                             </field>
                         </page>
 
-                        <!-- INCAPACIDADES -->
+                        <!-- ══ INCAPACIDADES (detalle completo) ════════════════ -->
                         <page string="Incapacidades" name="disabilities">
+                            <group>
+                                <group string="Resumen">
+                                    <field name="disability_days" readonly="1"/>
+                                    <field name="ccss_subsidy_total" readonly="1"/>
+                                    <field name="employer_disability_cost" readonly="1"/>
+                                </group>
+                            </group>
                             <field name="disability_ids">
                                 <list>
                                     <field name="disability_type"/>
                                     <field name="date_start"/>
                                     <field name="date_end"/>
                                     <field name="days"/>
+                                    <field name="subsidy_percentage"/>
+                                    <field name="ccss_subsidy"/>
                                     <field name="employer_cost"/>
                                     <field name="certificate_number"/>
+                                    <field name="state"/>
                                 </list>
                             </field>
                         </page>
 
-                        <!-- VACACIONES -->
+                        <!-- ══ VACACIONES (detalle completo) ═══════════════════ -->
                         <page string="Vacaciones" name="vacations">
                             <field name="vacation_ids">
                                 <list>
@@ -169,15 +244,20 @@
                                     <field name="date_start"/>
                                     <field name="date_end"/>
                                     <field name="days"/>
+                                    <field name="daily_salary"/>
                                     <field name="total_amount"/>
+                                    <field name="state"/>
                                 </list>
                             </field>
                         </page>
+
+                        <!-- ══ OBSERVACIONES ════════════════════════════════════ -->
                         <page string="Observaciones" name="notes">
                             <field name="notes"
-                                   placeholder="Ej: Salario proporcional por ingreso el día 15. Incluye ajuste retroactivo de enero..."
+                                   placeholder="Observaciones adicionales del período..."
                                    style="min-height:80px;"/>
                         </page>
+
                     </notebook>
                 </sheet>
                 <chatter/>

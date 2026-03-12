@@ -6,6 +6,13 @@
         <field name="model">planilla.accounting.config</field>
         <field name="arch" type="xml">
             <form string="Configuración Contable de Planilla">
+                <header>
+                    <button name="action_autocompletar_cuentas"
+                            string="⚡ Autocompletar Cuentas CR"
+                            type="object"
+                            class="btn-primary"
+                            help="Completa automáticamente las cuentas usando los códigos estándar del plan de cuentas de Costa Rica (l10n_cr). Solo rellena campos vacíos, no sobreescribe los ya configurados."/>
+                </header>
                 <sheet>
                     <div class="oe_title">
                         <h1>Configuración Contable de Planilla CR</h1>
@@ -69,6 +76,8 @@
                                     <field name="account_vacation_provision"
                                            options="{'no_create': True}"/>
                                     <field name="account_salary_payable"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_loans_payable"
                                            options="{'no_create': True}"/>
                                     <field name="account_termination_payable"
                                            options="{'no_create': True}"/>
@@ -149,9 +158,19 @@
                                             <td class="text-end">vacation_provision</td>
                                         </tr>
                                         <tr>
-                                            <td>Salarios por Pagar (Neto)</td>
+                                            <td>Pensión Alimentaria Retenida</td>
                                             <td></td>
-                                            <td class="text-end">net_salary</td>
+                                            <td class="text-end">si aplica</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Cuotas Préstamos Retenidos ← cuenta 230900</td>
+                                            <td></td>
+                                            <td class="text-end">si aplica</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Salarios por Pagar (Neto real a depositar)</td>
+                                            <td></td>
+                                            <td class="text-end">salary_payable</td>
                                         </tr>
                                         <tr style="background:#e8f0fe; font-weight:bold;">
                                             <td>TOTAL</td>

@@ -5,6 +5,7 @@ from odoo.exceptions import UserError, ValidationError
 class PlanillaClosedPeriod(models.Model):
     _name = 'planilla.closed.period'
     _description = 'Periodo Cerrado de Planilla'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_from desc'
 
     company_id  = fields.Many2one('res.company', required=True,
@@ -111,6 +112,7 @@ class PlanillaClosedPeriod(models.Model):
 class ReopenPeriodWizard(models.TransientModel):
     _name = 'planilla.reopen.period.wizard'
     _description = 'Wizard Reapertura de Período'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
 
     period_id = fields.Many2one('planilla.closed.period', required=True)
     reason    = fields.Text(string='Motivo de Reapertura', required=True,

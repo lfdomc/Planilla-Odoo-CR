@@ -1,8 +1,8 @@
 {
-    'name': 'Planilla Costa Rica',
-    'version': '19.0.23.1.0',
+    'name': 'Sistema Planilla v24',
+    'version': '19.0.47.0.0',
     'category': 'Human Resources/Payroll',
-    'summary': 'Módulo de planilla adaptado a la legislación de Costa Rica',
+    'summary': 'Sistema de Planilla Costa Rica v24 — Legislación CR 2026',
     'description': """
         Módulo completo de gestión de planillas para Costa Rica.
         Incluye:
@@ -58,6 +58,7 @@
         'views/overtime_views.xml',
         'views/disability_views.xml',
         'views/vacation_payment_views.xml',
+        'views/pension_alimentaria_views.xml',
         'views/termination_views.xml',
         'views/payslip_cr_views.xml',
         'views/payroll_run_cr_views.xml',
@@ -69,6 +70,7 @@
         'report/loan_report.xml',
         'report/vacation_balance_report.xml',
         'report/employer_cost_report.xml',
+        'report/overtime_consolidated_report.xml',
         'report/payslip_report.xml',
         'report/salary_history_report.xml',
         'report/payroll_reports.xml',
@@ -84,6 +86,7 @@
         'views/public_holiday_views.xml',
         'wizard/vacation_balance_wizard_views.xml',
         'wizard/employer_cost_wizard_views.xml',
+        'wizard/wizard_views_v24.xml',
         'wizard/aguinaldo_wizard_views.xml',
         # Data con referencias a modelos externos (cargar al final, modelos ya cargados)
         'data/cron_jobs.xml',
@@ -97,4 +100,5 @@
     'auto_install': False,
     'images': ['static/description/icon.png'],
     'post_init_hook': 'post_init_hook',
+    'post_migrate_hook': 'post_migrate_hook',
 }

@@ -29,3 +29,6 @@ from . import employee_loan
 from . import public_holiday
 from . import scheduled_actions
 from . import employer_cost_report
+from . import overtime_report
+from . import recurring_benefit
+from . import pension_alimentaria

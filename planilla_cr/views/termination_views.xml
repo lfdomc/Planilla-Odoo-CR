@@ -32,14 +32,14 @@
                             invisible="state != 'draft'" class="btn-primary"/>
                     <button name="action_pay" type="object" string="Marcar como Pagado"
                             invisible="state != 'confirmed'" class="btn-success"/>
-                    <button name="action_print_termination" type="object" string="🖨 Imprimir Finiquito"
+                    <button name="action_print_termination" type="object" string="Imprimir Finiquito"
                             invisible="state == 'draft'"/>
-                    <button name="action_view_accounting_entry" type="object" string="📒 Ver Asiento"
+                    <button name="action_view_accounting_entry" type="object" string="Ver Asiento"
                             invisible="not move_id"/>
                     <field name="move_id" invisible="1"/>
                     <button name="action_cancel" type="object" string="Cancelar"
                             invisible="state in ('paid', 'cancelled')"/>
-                    <button name="action_reset_to_draft" type="object" string="⟲ Volver a Borrador"
+                    <button name="action_reset_to_draft" type="object" string="Volver a Borrador" icon="fa-undo"
                             invisible="state not in ('cancelled', 'confirmed')" class="btn-warning"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,confirmed,paid"/>
                 </header>
@@ -176,7 +176,7 @@
                     </group>
 
                 </sheet>
-
+                <chatter/>
             </form>
         </field>
     </record>

@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class Disability(models.Model):
@@ -15,37 +16,40 @@ class Disability(models.Model):
     )
 
     disability_type = fields.Selection([
-        ('ccss', 'CCSS - Enfermedad'),
+        ('ccss',          'CCSS - Enfermedad'),
         ('ccss_accident', 'CCSS - Accidente Laboral'),
-        ('ins', 'INS - Riesgo Laboral'),
-        ('maternity', 'Maternidad'),
-        ('other', 'Otra'),
+        ('ins',           'INS - Riesgo Laboral'),
+        ('maternity',     'Maternidad'),
+        ('other',         'Otra'),
     ], string='Tipo de Incapacidad', required=True, default='ccss', tracking=True)
 
-    date_start = fields.Date(string='Fecha Inicio', required=True, tracking=True,
-                             default=fields.Date.today)
-    date_end = fields.Date(string='Fecha Fin', required=True, tracking=True,
-                           default=fields.Date.today)
-    days = fields.Integer(
-        string='Días', compute='_compute_days', store=True
+    # Para maternidad: date_start = inicio prenatal, date_end = fin postnatal
+    date_start = fields.Date(
+        string='Fecha Inicio', required=True, tracking=True,
+        default=fields.Date.today,
+        help='Para maternidad: inicio de licencia prenatal (max 30 dias antes del parto)'
     )
+    date_end = fields.Date(
+        string='Fecha Fin', required=True, tracking=True,
+        default=fields.Date.today,
+        help='Para maternidad: fin de licencia postnatal (max 90 dias despues del parto)'
+    )
+    days = fields.Integer(string='Dias Totales', compute='_compute_days', store=True)
 
-    # Porcentaje de subsidio según CCSS:
-    # Primeros 3 días: 0% (a cargo del patrono 100%)
-    # Del 4to en adelante: 60% CCSS, 40% patrono
     subsidy_percentage = fields.Float(
-        string='% Subsidio CCSS',
-        default=60.0,
+        string='% Subsidio CCSS', default=60.0,
         help='Porcentaje que paga la CCSS del salario durante la incapacidad'
     )
-    employer_percentage = fields.Float(
-        string='% Cargo Patrono',
-        default=40.0
-    )
+    employer_percentage = fields.Float(string='% Cargo Patrono', default=40.0)
 
     daily_salary = fields.Monetary(
         string='Salario Diario', currency_field='currency_id',
         compute='_compute_daily_salary', store=True
+    )
+    maternity_avg_salary = fields.Monetary(
+        string='Salario Diario Base (prom. 3 meses)', currency_field='currency_id',
+        compute='_compute_daily_salary', store=True,
+        help='Promedio de los ultimos 3 salarios brutos cotizados / 30. Base del subsidio CCSS por maternidad.'
     )
     currency_id = fields.Many2one(related='employee_id.currency_id', store=True)
     employer_cost = fields.Monetary(
@@ -57,14 +61,30 @@ class Disability(models.Model):
         compute='_compute_costs', store=True
     )
 
-    certificate_number = fields.Char(string='Número de Certificado CCSS')
-    diagnosis = fields.Char(string='Diagnóstico')
+    # Campos Maternidad (Art. 94 CT) — un solo registro cubre prenatal + postnatal
+    fecha_parto = fields.Date(
+        string='Fecha de Parto', tracking=True,
+        help='Fecha real o estimada del parto.\n'
+             'Prenatal:  Fecha Inicio -> Fecha Parto (max 30 dias)\n'
+             'Postnatal: Fecha Parto  -> Fecha Fin   (max 90 dias)'
+    )
+    prenatal_days = fields.Integer(
+        string='Dias Prenatales', compute='_compute_maternity_days', store=True,
+        help='Automatico: Fecha Parto - Fecha Inicio. Max 30 dias (Art. 94 CT).'
+    )
+    postnatal_days = fields.Integer(
+        string='Dias Postnatales', compute='_compute_maternity_days', store=True,
+        help='Automatico: Fecha Fin - Fecha Parto + 1. Max 90 dias (Art. 94 CT).'
+    )
+
+    certificate_number = fields.Char(string='Numero de Certificado CCSS')
+    diagnosis = fields.Char(string='Diagnostico')
     note = fields.Text(string='Observaciones')
 
     state = fields.Selection([
-        ('draft', 'Borrador'),
+        ('draft',     'Borrador'),
         ('confirmed', 'Confirmado'),
-        ('paid', 'Procesado en Planilla'),
+        ('paid',      'Procesado en Planilla'),
         ('cancelled', 'Cancelado'),
     ], string='Estado', default='draft', tracking=True)
 
@@ -81,29 +101,161 @@ class Disability(models.Model):
     def _compute_days(self):
         for rec in self:
             if rec.date_start and rec.date_end:
-                delta = rec.date_end - rec.date_start
-                rec.days = delta.days + 1
+                rec.days = (rec.date_end - rec.date_start).days + 1
             else:
                 rec.days = 0
 
-    @api.depends('employee_id')
+    @api.depends('date_start', 'date_end', 'fecha_parto', 'disability_type')
+    def _compute_maternity_days(self):
+        for rec in self:
+            if rec.disability_type == 'maternity' and rec.fecha_parto:
+                rec.prenatal_days = max(0, (rec.fecha_parto - rec.date_start).days) if rec.date_start else 0
+                rec.postnatal_days = max(0, (rec.date_end - rec.fecha_parto).days + 1) if rec.date_end else 0
+            else:
+                rec.prenatal_days = 0
+                rec.postnatal_days = 0
+
+    @api.depends('employee_id', 'date_start', 'disability_type', 'fecha_parto')
     def _compute_daily_salary(self):
         for rec in self:
-            if rec.employee_id and rec.employee_id.base_salary:
-                rec.daily_salary = rec.employee_id.base_salary / 30
-            else:
+            if not rec.employee_id or not rec.employee_id.base_salary:
                 rec.daily_salary = 0.0
+                rec.maternity_avg_salary = 0.0
+                continue
 
-    @api.depends('days', 'daily_salary', 'subsidy_percentage', 'employer_percentage')
+            rec.daily_salary = round(rec.employee_id.base_salary / 30, 2)
+
+            if rec.disability_type == 'maternity':
+                history = rec.env['planilla.salary.history'].search([
+                    ('employee_id', '=', rec.employee_id.id),
+                    ('effective_date', '<=', rec.date_start or fields.Date.today()),
+                ], order='effective_date desc', limit=3)
+                if history:
+                    # Promedio de ultimos 3 salarios brutos cotizados (Reglamento CCSS)
+                    avg = sum(history.mapped('gross_salary')) / len(history)
+                    rec.maternity_avg_salary = round(avg / 30, 2)
+                else:
+                    # Sin historial previo: usa salario base actual del empleado
+                    rec.maternity_avg_salary = round(rec.employee_id.base_salary / 30, 2)
+            else:
+                rec.maternity_avg_salary = 0.0
+
+    @api.depends('days', 'daily_salary', 'maternity_avg_salary',
+                 'subsidy_percentage', 'employer_percentage', 'disability_type')
     def _compute_costs(self):
         for rec in self:
-            total = rec.days * rec.daily_salary
-            # Los primeros 3 días son 100% patrono
-            first_days = min(rec.days, 3)
-            remaining_days = max(rec.days - 3, 0)
-            rec.employer_cost = (first_days * rec.daily_salary) + \
-                                 (remaining_days * rec.daily_salary * rec.employer_percentage / 100)
-            rec.ccss_subsidy = remaining_days * rec.daily_salary * rec.subsidy_percentage / 100
+            if rec.disability_type == 'maternity':
+                # Art. 94 CT: 100% CCSS desde dia 1, patrono NO paga salario
+                daily = rec.maternity_avg_salary or rec.daily_salary
+                rec.employer_cost = 0.0
+                rec.ccss_subsidy = round(rec.days * daily, 2)
+            elif rec.disability_type == 'ins':
+                rec.employer_cost = 0.0
+                rec.ccss_subsidy = round(rec.days * rec.daily_salary, 2)
+            else:
+                # CCSS: dias 1-3 patrono 100%, del 4 en adelante 60% CCSS / 40% patrono
+                first_days = min(rec.days, 3)
+                remaining_days = max(rec.days - 3, 0)
+                rec.employer_cost = round(
+                    (first_days * rec.daily_salary) +
+                    (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2
+                )
+                rec.ccss_subsidy = round(
+                    remaining_days * rec.daily_salary * rec.subsidy_percentage / 100, 2
+                )
+
+    @api.onchange('disability_type')
+    def _onchange_disability_type(self):
+        if self.disability_type == 'maternity':
+            self.subsidy_percentage = 100.0
+            self.employer_percentage = 0.0
+        elif self.disability_type in ('ccss', 'ccss_accident'):
+            self.subsidy_percentage = 60.0
+            self.employer_percentage = 40.0
+        elif self.disability_type == 'ins':
+            self.subsidy_percentage = 100.0
+            self.employer_percentage = 0.0
+
+    @api.constrains('date_start', 'date_end', 'fecha_parto', 'disability_type',
+                    'prenatal_days', 'postnatal_days', 'days')
+    def _check_maternity_rules(self):
+        for rec in self:
+            if rec.disability_type != 'maternity':
+                continue
+            if not rec.fecha_parto:
+                raise ValidationError(
+                    'Debe ingresar la Fecha de Parto para una licencia de maternidad (Art. 94 CT).'
+                )
+            if rec.date_start and rec.date_start > rec.fecha_parto:
+                raise ValidationError(
+                    f'La Fecha Inicio ({rec.date_start}) debe ser anterior o igual '
+                    f'a la Fecha de Parto ({rec.fecha_parto}).'
+                )
+            if rec.date_end and rec.fecha_parto > rec.date_end:
+                raise ValidationError(
+                    f'La Fecha de Parto ({rec.fecha_parto}) debe ser anterior o igual '
+                    f'a la Fecha Fin ({rec.date_end}).'
+                )
+            if rec.days > 120:
+                raise ValidationError(
+                    f'La licencia de maternidad no puede exceder 120 dias naturales '
+                    f'(Art. 94 CT). Dias ingresados: {rec.days}.'
+                )
+            if rec.prenatal_days > 30:
+                raise ValidationError(
+                    f'El prenatal no puede exceder 30 dias (Art. 94 CT). '
+                    f'Dias prenatales: {rec.prenatal_days}. '
+                    f'Ajuste la Fecha Inicio para que sea maximo 30 dias antes del parto.'
+                )
+            if rec.postnatal_days > 90:
+                raise ValidationError(
+                    f'El postnatal no puede exceder 90 dias (Art. 94 CT). '
+                    f'Dias postnatales: {rec.postnatal_days}. '
+                    f'Ajuste la Fecha Fin para que sea maximo 90 dias despues del parto.'
+                )
+
+    def action_recompute(self):
+        """Fuerza el recalculo de salario diario y montos directamente en BD."""
+        for rec in self:
+            if not rec.employee_id or not rec.employee_id.base_salary:
+                continue
+            daily = round(rec.employee_id.base_salary / 30, 2)
+            history = rec.env['planilla.salary.history'].search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('effective_date', '<=', rec.date_start or fields.Date.today()),
+            ], order='effective_date desc', limit=3)
+            if history:
+                avg = sum(history.mapped('gross_salary')) / len(history)
+                avg_daily = round(avg / 30, 2)
+            else:
+                avg_daily = daily
+
+            # Calcular subsidio
+            days = rec.days or 0
+            ccss_subsidy = round(days * avg_daily, 2)
+
+            # Escribir directo en BD para campos computed store=True
+            rec.env.cr.execute(
+                """UPDATE planilla_disability
+                   SET daily_salary = %s,
+                       maternity_avg_salary = %s,
+                       ccss_subsidy = %s,
+                       employer_cost = 0
+                   WHERE id = %s""",
+                (daily, avg_daily, ccss_subsidy, rec.id)
+            )
+            # Invalidar cache para que la vista se refresque
+            rec.invalidate_recordset(['daily_salary', 'maternity_avg_salary',
+                                      'ccss_subsidy', 'employer_cost'])
+        return True
+
+    def write(self, vals):
+        res = super().write(vals)
+        # Si cambia el empleado o tipo, forzar recálculo del salario promedio
+        if any(f in vals for f in ('employee_id', 'disability_type', 'date_start', 'fecha_parto')):
+            self._compute_daily_salary()
+            self._compute_costs()
+        return res
 
     def action_confirm(self):
         self.write({'state': 'confirmed'})

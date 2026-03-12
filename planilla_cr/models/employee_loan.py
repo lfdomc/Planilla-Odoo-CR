@@ -1,10 +1,15 @@
+import logging
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError, UserError
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
 
 
+_logger = logging.getLogger(__name__)
 class EmployeeLoan(models.Model):
     _name = 'planilla.employee.loan'
     _description = 'Préstamos y Adelantos de Salario'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_granted desc'
 
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
@@ -14,6 +19,7 @@ class EmployeeLoan(models.Model):
     branch_id = fields.Many2one(related='employee_id.branch_id', store=True)
     currency_id = fields.Many2one(related='employee_id.currency_id', store=True)
 
+    description = fields.Char(string='Motivo / Descripción', help='Motivo del préstamo o adelanto')
     loan_type = fields.Selection([
         ('loan', 'Préstamo'),
         ('advance', 'Adelanto de Salario'),
@@ -40,7 +46,7 @@ class EmployeeLoan(models.Model):
     note = fields.Text(string='Observaciones')
 
     state = fields.Selection([
-        ('draft',    'Borrador'),
+        ('draft', 'Borrador'),
         ('approved', 'Aprobado'),
         ('active',   'En curso'),
         ('paid',     'Cancelado'),
@@ -55,15 +61,20 @@ class EmployeeLoan(models.Model):
         compute='_compute_amounts', store=True
     )
     max_installment_allowed = fields.Monetary(
-        string='Cuota Máxima Permitida (50% neto)',
+        string='Cuota Máxima Permitida (₡)',
         currency_field='currency_id',
-        compute='_compute_max_installment', store=False,
-        help='Límite legal Art. 172 CT: 50% del salario neto estimado del empleado.'
+        compute='_compute_max_installment', store=True,
+        help='50% del salario neto estimado — límite legal Art. 172 CT'
     )
-
     amount_pending = fields.Monetary(
         string='Saldo Pendiente (₡)', currency_field='currency_id',
         compute='_compute_amounts', store=True
+    )
+    move_id = fields.Many2one(
+        'account.move', string='Asiento de Otorgamiento',
+        readonly=True, copy=False,
+        help='Asiento contable generado al aprobar el préstamo: '
+             'Débito Préstamos por Cobrar / Crédito Caja o Banco.'
     )
 
     @api.depends('employee_id', 'loan_type', 'date_granted')
@@ -112,6 +123,17 @@ class EmployeeLoan(models.Model):
     def action_print_amortization(self):
         return self.env.ref('planilla_cr.action_report_loan_amortization').report_action(self)
 
+
+    def _check_installment_salary_limit(self):
+        """Verifica que la cuota no supere el 50% del salario neto (Art. 172 CT)."""
+        self.ensure_one()
+        if self.max_installment_allowed and self.installment_amount > self.max_installment_allowed:
+            raise UserError(
+                f'La cuota mensual (₡{self.installment_amount:,.2f}) supera el 50% '
+                f'del salario neto estimado (₡{self.max_installment_allowed:,.2f}). '
+                f'Ajuste el monto o el número de cuotas (Art. 172 Código de Trabajo).'
+            )
+
     def action_approve(self):
         for rec in self:
             if rec.state != 'draft':
@@ -120,12 +142,102 @@ class EmployeeLoan(models.Model):
             rec._check_installment_salary_limit()
             rec._generate_installments()
             rec.state = 'approved'
+            # H4 FIX — Generar asiento contable de otorgamiento
+            rec._create_loan_accounting_entry()
+
+    def _create_loan_accounting_entry(self):
+        """
+        H4 FIX — Asiento contable al otorgar el préstamo:
+          DEBE:  Préstamos por Cobrar (activo corriente)
+          HABER: Caja / Banco (activo — la empresa desembolsa el dinero)
+
+        Usa las cuentas configuradas en planilla.accounting.config.
+        Si no hay cuentas específicas de préstamos, usa cuentas de fallback
+        y registra una advertencia en el chatter.
+        """
+        self.ensure_one()
+        config = self.env['planilla.accounting.config'].get_config(
+            self.employee_id.company_id.id
+        )
+        if not config or not config.journal_id:
+            # Sin configuración contable — registrar advertencia pero no bloquear
+            self.message_post(
+                body='<b>Aviso:</b> No se generó asiento contable de otorgamiento '
+                     'porque no hay configuración contable configurada. '
+                     'Vaya a Planilla → Configuración → Contabilidad.',
+                message_type='notification',
+            )
+            return
+
+        # Buscar cuenta de Préstamos por Cobrar (activo)
+        # Intenta primero un código estándar; si no existe usa cta de gastos como fallback
+        loan_receivable = self.env['account.account'].search([
+            ('code', 'like', '1%'),
+            ('account_type', '=', 'asset_current'),
+            ('company_ids', 'in', self.env.company.id),
+            ('name', 'ilike', 'préstam'),
+        ], limit=1)
+        if not loan_receivable:
+            loan_receivable = self.env['account.account'].search([
+                ('code', 'like', '115%'),
+                ('company_ids', 'in', self.env.company.id),
+            ], limit=1)
+        if not loan_receivable:
+            # Fallback: crear cuenta 115000 Préstamos a Empleados por Cobrar
+            loan_receivable = self.env['account.account'].create({
+                'code': '115000',
+                'name': 'Préstamos a Empleados por Cobrar',
+                'account_type': 'asset_current',
+            })
+
+        # Buscar cuenta de Caja/Banco para el crédito
+        bank_account = self.env['account.account'].search([
+            ('code', 'like', '1%'),
+            ('account_type', 'in', ('asset_cash', 'asset_current')),
+            ('company_ids', 'in', self.env.company.id),
+        ], limit=1)
+        if not bank_account:
+            self.message_post(
+                body='<b>Aviso:</b> No se encontró cuenta de Caja/Banco para el '
+                     'asiento de otorgamiento. Cree el asiento manualmente.',
+                message_type='notification',
+            )
+            return
+
+        emp = self.employee_id.name
+        lines = [
+            (0, 0, {
+                'account_id': loan_receivable.id,
+                'name': f'Préstamo otorgado — {emp} — {self.name}',
+                'debit': round(self.amount_total, 2),
+                'credit': 0.0,
+            }),
+            (0, 0, {
+                'account_id': bank_account.id,
+                'name': f'Desembolso préstamo — {emp} — {self.name}',
+                'debit': 0.0,
+                'credit': round(self.amount_total, 2),
+            }),
+        ]
+
+        move = self.env['account.move'].create({
+            'journal_id':  config.journal_id.id,
+            'date':        self.date_granted or fields.Date.today(),
+            'ref':         f'Préstamo — {emp} — {self.name}',
+            'move_type':   'entry',
+            'line_ids':    lines,
+        })
+        move.action_post()
+        self.move_id = move.id
+        self.message_post(
+            body=f'Asiento contable de otorgamiento creado: <a href="/web#id={move.id}&model=account.move">{move.name}</a>',
+            message_type='notification',
+        )
 
     def _generate_installments(self):
         """Genera las líneas de cuota con fechas a partir de date_first_deduction."""
         self.ensure_one()
         self.installment_ids.unlink()
-        from dateutil.relativedelta import relativedelta
         base_date = self.date_first_deduction
         for i in range(self.installments):
             due_date = base_date + relativedelta(months=i)
@@ -156,18 +268,38 @@ class EmployeeLoan(models.Model):
                         template = self.env.ref('planilla_cr.email_template_loan_paid', raise_if_not_found=False)
                         if template:
                             template.send_mail(rec.id, force_send=False)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        _logger.warning(f"planilla_cr: No se pudo enviar email de prestamo pagado ({rec.name}): {e}")
 
     def get_pending_installment(self, date_from, date_to):
         """
         Retorna la cuota pendiente a descontar en el periodo dado.
-        Llamado desde la boleta al computar deducciones.
+        Busca por MES/AÑO para ser compatible con nóminas quincenales,
+        semanales o de cualquier frecuencia — la cuota se descuenta en
+        la primera boleta que caiga dentro del mismo mes que su due_date.
         """
         self.ensure_one()
+        if not date_from or not date_to:
+            return self.env['planilla.loan.installment']
+
+        # Mes y año que cubre el período de la boleta
+        # (puede abarcar más de un mes en casos extremos, se toma el del date_from)
+        period_year = date_from.year
+        period_month = date_from.month
+
+        # Si el período cruza dos meses (ej: 25-ene al 09-feb), considerar ambos
+        months_in_period = set()
+        d = date_from
+        while d <= date_to:
+            months_in_period.add((d.year, d.month))
+            # Avanzar por semanas para no iterar día a día en períodos largos
+            d = d + timedelta(days=7)
+        months_in_period.add((date_to.year, date_to.month))
+
         installment = self.installment_ids.filtered(
             lambda i: i.state == 'pending' and
-            date_from <= i.due_date <= date_to
+            i.due_date and
+            (i.due_date.year, i.due_date.month) in months_in_period
         )
         return installment[:1]  # solo una cuota por periodo
 
@@ -175,6 +307,7 @@ class EmployeeLoan(models.Model):
 class LoanInstallment(models.Model):
     _name = 'planilla.loan.installment'
     _description = 'Cuota de Préstamo'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'sequence asc'
 
     loan_id = fields.Many2one(
@@ -185,7 +318,7 @@ class LoanInstallment(models.Model):
     amount     = fields.Monetary(string='Monto (₡)', currency_field='currency_id')
     currency_id = fields.Many2one(related='loan_id.currency_id', store=True)
     state = fields.Selection([
-        ('pending',   'Pendiente'),
+        ('pending', 'Pendiente'),
         ('deducted',  'Descontada'),
         ('cancelled', 'Cancelada'),
     ], string='Estado', default='pending')

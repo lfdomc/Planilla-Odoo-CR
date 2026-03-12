@@ -1,10 +1,13 @@
+import logging
 from odoo import models, fields, api
 from odoo.exceptions import UserError
 
 
+_logger = logging.getLogger(__name__)
 class SalaryHistory(models.Model):
     _name = 'planilla.salary.history'
     _description = 'Historial de Salarios'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'effective_date desc'
 
     employee_id    = fields.Many2one(
@@ -21,7 +24,7 @@ class SalaryHistory(models.Model):
 
     # ── Flujo de autorización ──────────────────────────────────────────
     state = fields.Selection([
-        ('draft',      'Borrador'),
+        ('draft', 'Borrador'),
         ('authorized', 'Autorizado'),
         ('rejected',   'Rechazado'),
     ], default='draft', string='Estado', tracking=True)
@@ -70,6 +73,16 @@ class SalaryHistory(models.Model):
                 'authorized_date': fields.Datetime.now(),
                 'rejection_note':  False,
             })
+            # F9: Send email notification to employee
+            if rec.employee_id.work_email:
+                try:
+                    template = self.env.ref(
+                        'planilla_cr.email_template_salary_authorized', raise_if_not_found=False
+                    )
+                    if template:
+                        template.send_mail(rec.id, force_send=False)
+                except Exception as e:
+                    _logger.warning(f"planilla_cr: No se pudo enviar email de historial salarial ({rec.id}): {e}")
 
     def action_reject(self):
         return {
@@ -94,6 +107,7 @@ class SalaryHistory(models.Model):
 class SalaryRejectWizard(models.TransientModel):
     _name = 'planilla.salary.reject.wizard'
     _description = 'Wizard Rechazo de Cambio Salarial'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
 
     history_id = fields.Many2one('planilla.salary.history', required=True)
     reason     = fields.Text(string='Motivo de Rechazo', required=True)

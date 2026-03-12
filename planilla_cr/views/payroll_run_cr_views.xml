@@ -4,19 +4,34 @@
         <field name="name">planilla.run.cr.list</field>
         <field name="model">planilla.run.cr</field>
         <field name="arch" type="xml">
-            <list string="Planillas" decoration-success="state=='done'"
-                  decoration-warning="state=='confirmed'">
+            <list string="Planillas"
+                  decoration-success="state=='done'"
+                  decoration-warning="state=='confirmed'"
+                  decoration-muted="state=='cancelled'">
                 <field name="name"/>
-                <field name="branch_id"/>
-                <field name="department_id"/>
-                <field name="payroll_calendar_id"/>
-                <field name="date_start"/>
-                <field name="date_end"/>
-                <field name="payslip_count"/>
-                <field name="total_gross"/>
-                <field name="total_net"/>
-                <field name="total_employer_cost"/>
-                <field name="state"/>
+                <field name="branch_id" optional="show"/>
+                <field name="department_id" optional="hide"/>
+                <field name="payroll_calendar_id" string="Calendarización"/>
+                <field name="date_start" string="Desde"/>
+                <field name="date_end" string="Hasta"/>
+                <field name="payslip_count" string="Boletas"/>
+                <field name="total_gross" string="Total Bruto"/>
+                <field name="total_ccss_employee" string="CCSS Obrero" optional="hide"/>
+                <field name="total_income_tax" string="Imp. Renta" optional="hide"/>
+                <field name="total_deductions" string="Total Deducciones"
+                       help="CCSS Obrero + Impuesto de Renta"/>
+                <field name="total_net" string="Total Neto"
+                       help="Bruto menos CCSS Obrero y Renta"/>
+                <field name="total_salary_payable" string="Salario a Pagar" optional="hide"
+                       help="Lo que realmente se deposita: neto menos préstamos y deducciones adicionales"/>
+                <field name="total_employer_cost" string="Costo Total Patronal"/>
+                <field name="cost_per_net_colon" string="₡ Costo/₡ Neto"
+                       widget="float" digits="[6,2]"
+                       help="Por cada ₡1 que el empleado recibe en mano, la empresa gasta este monto total"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-warning="state == 'confirmed'"
+                       decoration-info="state == 'draft'"/>
             </list>
         </field>
     </record>
@@ -44,7 +59,7 @@
                             invisible="state != 'done'"/>
                     <button name="action_cancel" type="object" string="Cancelar"
                             invisible="state in ('done', 'cancelled')"/>
-                    <button name="action_reset_to_draft" type="object" string="⟲ Volver a Borrador"
+                    <button name="action_reset_to_draft" type="object" string="Volver a Borrador" icon="fa-undo"
                             invisible="state not in ('cancelled', 'confirmed')"
                             class="btn-warning"/>
                     <field name="state" widget="statusbar"

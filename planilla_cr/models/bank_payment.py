@@ -103,7 +103,7 @@ class BankPaymentWizard(models.TransientModel):
                 errors.append(f'{emp.name}: IBAN invalido ({iban})')
                 continue
 
-            net = round(payslip.net_salary, 2)
+            net = round(payslip.salary_payable, 2)  # B1 FIX: salary_payable (neto real despues de todas las deducciones)
             nombre = emp.name or ''
             writer.writerow([iban, nombre, f'{net:.2f}', concept, concept, concept])
 
@@ -187,7 +187,7 @@ class BankPaymentWizard(models.TransientModel):
                 errors.append(f'{emp.name}: IBAN invalido ({iban})')
                 continue
 
-            net = payslip.net_salary
+            net = payslip.salary_payable  # B1 FIX: salary_payable no net_salary
             total_monto += net
 
             # Correlativo = posicion 23-28 del IBAN (indices 22-28 en 0-based del string IBAN completo)
@@ -354,7 +354,7 @@ class BankPaymentWizard(models.TransientModel):
                 errors.append(f'{emp.name}: teléfono inválido ({phone_clean}) — debe tener 8 dígitos')
                 continue
 
-            net = round(payslip.net_salary, 2)
+            net = round(payslip.salary_payable, 2)  # B1 FIX: salary_payable (neto real despues de todas las deducciones)
             cedula = emp.identification_id or ''
             writer.writerow([phone_clean, f'{net:.2f}', concept, emp.name, cedula])
             count += 1

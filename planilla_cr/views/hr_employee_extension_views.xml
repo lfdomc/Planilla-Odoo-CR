@@ -67,7 +67,7 @@
                         </group>
                         <div invisible="not vacation_balance_alert"
                              style="background:#f8d7da; border-radius:4px; padding:8px; color:#721c24; font-size:12px;">
-                            ⚠ Este empleado tiene saldo negativo de vacaciones.
+                            <i class="fa fa-exclamation-triangle" title="Exclamation Triangle"/> Este empleado tiene saldo negativo de vacaciones.
                             Ha tomado más días de los acumulados según su antigüedad.
                         </div>
                         <div invisible="vacation_balance_alert or vacation_days_available &gt; 10"

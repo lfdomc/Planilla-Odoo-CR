@@ -7,7 +7,7 @@
             <form string="Reporte de Saldo de Vacaciones">
                 <sheet>
                     <div class="alert alert-info" role="alert">
-                        <strong>📅 Reporte de Vacaciones:</strong>
+                        <strong><i class="fa fa-calendar" title="Calendar"/> Reporte de Vacaciones:</strong>
                         Muestra días acumulados, tomados y disponibles por empleado.
                         Filas rojas indican saldo negativo. Base legal: Art. 153 CT CR.
                     </div>
@@ -21,9 +21,9 @@
                 </sheet>
                 <footer>
                     <button name="action_generate_pdf" type="object"
-                            string="📄 Generar PDF" class="btn-primary"/>
+                            string="Generar PDF" class="btn-primary"/>
                     <button name="action_export_excel" type="object"
-                            string="📥 Exportar Excel" class="btn-success"/>
+                            string="Exportar Excel" class="btn-success"/>
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

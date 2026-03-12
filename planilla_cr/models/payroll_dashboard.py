@@ -1,5 +1,6 @@
 from odoo import models, fields, api
 from datetime import date
+from dateutil.relativedelta import relativedelta
 
 
 class PayrollDashboard(models.TransientModel):
@@ -55,6 +56,22 @@ class PayrollDashboard(models.TransientModel):
         compute='_compute_urgent_alerts', string='Incapacidades Activas'
     )
 
+    # ── Comparación períodos ─────────────────────────────────────────
+    compare_date_from = fields.Date(string='Período Anterior Desde')
+    compare_date_to   = fields.Date(string='Período Anterior Hasta')
+    show_comparison   = fields.Boolean(string='Comparar Períodos', default=False)
+
+    # Deltas computed
+    delta_gross   = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Δ Bruto')
+    delta_net     = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Δ Neto')
+    delta_cost    = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Δ Costo Empresa')
+    delta_emp     = fields.Integer(compute='_compute_comparison', string='Δ Empleados')
+    compare_gross = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Bruto Período Anterior')
+    compare_net   = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Neto Período Anterior')
+    compare_cost  = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Costo Período Anterior')
+    new_employees = fields.Char(compute='_compute_comparison', string='Nuevos Ingresos')
+    left_employees = fields.Char(compute='_compute_comparison', string='Salidas')
+
     prev_total_gross = fields.Monetary(
         compute='_compute_hr_kpis', string='Nómina Mes Anterior (₡)',
         currency_field='currency_id'
@@ -65,10 +82,56 @@ class PayrollDashboard(models.TransientModel):
     )
 
     @api.depends('company_id', 'date_from', 'date_to')
+    @api.depends('company_id', 'date_from', 'date_to',
+             'compare_date_from', 'compare_date_to', 'show_comparison')
+    def _compute_comparison(self):
+        for rec in self:
+            if not rec.show_comparison or not rec.compare_date_from or not rec.compare_date_to:
+                rec.delta_gross = rec.delta_net = rec.delta_cost = 0.0
+                rec.delta_emp = 0
+                rec.compare_gross = rec.compare_net = rec.compare_cost = 0.0
+                rec.new_employees = rec.left_employees = ''
+                continue
+
+            def get_period_data(df, dt):
+                ps = self.env['planilla.payslip.cr'].search([
+                    ('company_id', '=', rec.company_id.id),
+                    ('state', '=', 'paid'),
+                    ('date_from', '>=', df), ('date_to', '<=', dt),
+                ])
+                return {
+                    'gross': sum(ps.mapped('gross_salary')),
+                    'net':   sum(ps.mapped('net_salary')),
+                    'cost':  sum(ps.mapped('total_employer_cost')),
+                    'emps':  set(ps.mapped('employee_id.id')),
+                }
+
+            curr = get_period_data(rec.date_from, rec.date_to)
+            prev = get_period_data(rec.compare_date_from, rec.compare_date_to)
+
+            rec.compare_gross = prev['gross']
+            rec.compare_net   = prev['net']
+            rec.compare_cost  = prev['cost']
+            rec.delta_gross   = curr['gross'] - prev['gross']
+            rec.delta_net     = curr['net']   - prev['net']
+            rec.delta_cost    = curr['cost']  - prev['cost']
+            rec.delta_emp     = len(curr['emps']) - len(prev['emps'])
+
+            new_ids  = curr['emps'] - prev['emps']
+            left_ids = prev['emps'] - curr['emps']
+            if new_ids:
+                new_names = self.env['hr.employee'].browse(list(new_ids)).mapped('name')
+                rec.new_employees = ', '.join(new_names[:5]) + (f' (+{len(new_names)-5} más)' if len(new_names) > 5 else '')
+            else:
+                rec.new_employees = 'Ninguno'
+            if left_ids:
+                left_names = self.env['hr.employee'].browse(list(left_ids)).mapped('name')
+                rec.left_employees = ', '.join(left_names[:5]) + (f' (+{len(left_names)-5} más)' if len(left_names) > 5 else '')
+            else:
+                rec.left_employees = 'Ninguno'
+
     @api.depends('company_id', 'date_from', 'date_to')
     def _compute_urgent_alerts(self):
-        from datetime import date
-        from dateutil.relativedelta import relativedelta
         today = date.today()
         threshold_vac = today + relativedelta(months=2)
 
@@ -86,22 +149,33 @@ class PayrollDashboard(models.TransientModel):
             # 2. Empleados con vacaciones próximas a prescribir (Art. 156 CT)
             # Acumuladas hace >22 meses y sin tomar vacaciones recientes
             employees_at_risk = 0
+            # L2 FIX: batch query en vez de N+1
             employees = self.env['hr.employee'].search([
                 ('company_id', '=', company.id),
                 ('active', '=', True),
                 ('entry_date', '!=', False),
                 ('vacation_days_available', '>', 0),
             ])
-            for emp in employees:
-                last_vac = self.env['planilla.vacation.payment'].search([
-                    ('employee_id', '=', emp.id),
-                    ('state', 'in', ('approved', 'paid')),
-                    ('vacation_type', '=', 'disfrutadas'),
-                ], order='date_from desc', limit=1)
-                ref_date = last_vac.date_from if last_vac else emp.entry_date
-                months_since = (today - ref_date).days / 30
-                if months_since >= 22:
-                    employees_at_risk += 1
+            if employees:
+                emp_ids = employees.ids
+                # Traer la última vacación de TODOS los empleados en una sola query
+                last_vacs = self.env['planilla.vacation.payment'].read_group(
+                    domain=[
+                        ('employee_id', 'in', emp_ids),
+                        ('state', 'in', ('approved', 'paid')),
+                        ('vacation_type', '=', 'disfrutadas'),
+                    ],
+                    fields=['employee_id', 'date_from:max'],
+                    groupby=['employee_id'],
+                )
+                last_vac_by_emp = {
+                    lv['employee_id'][0]: lv['date_from']
+                    for lv in last_vacs if lv.get('date_from')
+                }
+                for emp in employees:
+                    ref_date = last_vac_by_emp.get(emp.id) or emp.entry_date
+                    if ref_date and (today - ref_date).days / 30 >= 22:
+                        employees_at_risk += 1
             rec.urgent_expiring_vacations = employees_at_risk
 
             # 3. Incapacidades activas (confirmed, no vencidas)
@@ -111,7 +185,6 @@ class PayrollDashboard(models.TransientModel):
             ])
 
     def action_open_overdue_loans(self):
-        from datetime import date
         return {
             'type': 'ir.actions.act_window',
             'name': 'Cuotas Vencidas',
@@ -125,22 +198,31 @@ class PayrollDashboard(models.TransientModel):
         }
 
     def action_open_expiring_vacations(self):
-        from datetime import date
         employees = self.env['hr.employee'].search([
             ('company_id', '=', self.company_id.id),
             ('active', '=', True),
             ('vacation_balance_alert', '=', False),
             ('vacation_days_available', '>', 0),
         ])
-        at_risk_ids = []
-        for emp in employees:
-            last_vac = self.env['planilla.vacation.payment'].search([
-                ('employee_id', '=', emp.id),
+        # L2 FIX: batch query en vez de N+1
+        emp_ids = employees.ids
+        last_vacs = self.env['planilla.vacation.payment'].read_group(
+            domain=[
+                ('employee_id', 'in', emp_ids),
                 ('state', 'in', ('approved', 'paid')),
                 ('vacation_type', '=', 'disfrutadas'),
-            ], order='date_from desc', limit=1)
-            ref_date = last_vac.date_from if last_vac else emp.entry_date
-            if (date.today() - ref_date).days / 30 >= 22:
+            ],
+            fields=['employee_id', 'date_from:max'],
+            groupby=['employee_id'],
+        )
+        last_vac_by_emp = {
+            lv['employee_id'][0]: lv['date_from']
+            for lv in last_vacs if lv.get('date_from')
+        }
+        at_risk_ids = []
+        for emp in employees:
+            ref_date = last_vac_by_emp.get(emp.id) or emp.entry_date
+            if ref_date and (date.today() - ref_date).days / 30 >= 22:
                 at_risk_ids.append(emp.id)
         return {
             'type': 'ir.actions.act_window',
@@ -236,7 +318,6 @@ class PayrollDashboard(models.TransientModel):
 
     @api.depends('company_id', 'date_from', 'date_to')
     def _compute_hr_kpis(self):
-        from dateutil.relativedelta import relativedelta
         for rec in self:
             today = date.today()
             company = rec.company_id
@@ -294,7 +375,6 @@ class PayrollDashboard(models.TransientModel):
 
     def action_open_anniversary_employees(self):
         """Abre lista de empleados con aniversario este mes."""
-        from datetime import date
         today = date.today()
         all_emps = self.env['hr.employee'].search([
             ('active', '=', True), ('entry_date', '!=', False),

@@ -1,5 +1,7 @@
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
+import math
+from datetime import date, timedelta
 
 
 class HrEmployeeExtension(models.Model):
@@ -674,6 +676,10 @@ class HrEmployeeExtension(models.Model):
             emp.loan_pending_amount = sum(active_loans.mapped('amount_pending'))
 
     # ── Historial de salarios ───────────────────────────────────────
+    recurring_benefit_ids = fields.One2many(
+        'planilla.recurring.benefit', 'employee_id',
+        string='Beneficios/Deducciones Recurrentes'
+    )
     salary_history_ids = fields.One2many(
         'planilla.salary.history', 'employee_id', string='Historial de Salarios'
     )
@@ -739,8 +745,6 @@ class HrEmployeeExtension(models.Model):
         Art. 153 párrafo 2: incapacidades > 3 meses continuos NO cuentan
         como tiempo trabajado para el cálculo de vacaciones.
         """
-        import math
-        from datetime import date, timedelta
         for emp in self:
             if not emp.entry_date:
                 emp.vacation_days_accrued = 0.0
@@ -784,7 +788,6 @@ class HrEmployeeExtension(models.Model):
             emp.vacation_balance_alert  = available < 0
 
     def _check_minimum_salary_warning(self):
-        from odoo.exceptions import UserError
         min_salary = self.env['planilla.minimum.salary'].get_current_minimum()
         if not min_salary:
             return

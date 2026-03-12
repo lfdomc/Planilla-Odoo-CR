@@ -42,6 +42,7 @@
                     </group>
                     <field name="note" placeholder="Notas..."/>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>

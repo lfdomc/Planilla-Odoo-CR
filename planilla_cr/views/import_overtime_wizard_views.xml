@@ -9,7 +9,7 @@
                 <sheet>
                     <div class="alert alert-info" role="alert"
                          invisible="state != 'draft'">
-                        <strong>📋 Cómo funciona:</strong>
+                        <strong><i class="fa fa-clipboard" title="Clipboard"/> Cómo funciona:</strong>
                         Se analizan las asistencias registradas en Odoo (Check-in / Check-out)
                         del periodo seleccionado. Por cada día donde el empleado trabajó más horas
                         que el umbral configurado, se genera un registro de horas extras pendiente

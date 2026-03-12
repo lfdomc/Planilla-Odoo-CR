@@ -2,6 +2,7 @@ import io
 import base64
 from odoo import models, fields, api
 from odoo.exceptions import UserError
+import xlsxwriter
 
 INS_RISK_LABELS = {
     'I': 'Clase I', 'II': 'Clase II', 'III': 'Clase III',
@@ -41,10 +42,6 @@ class InsReport(models.TransientModel):
 
     def action_generate_excel(self):
         self.ensure_one()
-        try:
-            import xlsxwriter
-        except ImportError:
-            raise UserError('xlsxwriter no esta instalado. Ejecute: pip install xlsxwriter')
 
         payslips, employees = self._get_payslips_and_employees()
 

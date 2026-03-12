@@ -1,5 +1,9 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError
+import io
+import base64
+import xlsxwriter
+from datetime import date
 
 
 class EmployerCostReport(models.TransientModel):
@@ -88,11 +92,6 @@ class EmployerCostReport(models.TransientModel):
 
     def action_export_excel(self):
         self.ensure_one()
-        import io, base64
-        try:
-            import xlsxwriter
-        except ImportError:
-            raise UserError('xlsxwriter no instalado.')
 
         data   = self._build_report_data()
         output = io.BytesIO()
@@ -142,7 +141,6 @@ class EmployerCostReport(models.TransientModel):
             ws.write(row, col, data['totals'][key], total)
 
         wb.close()
-        from datetime import date
         fname = f"CostosPatronales_{self.date_from}_{self.date_to}.xlsx"
         att = self.env['ir.attachment'].create({
             'name': fname, 'type': 'binary',

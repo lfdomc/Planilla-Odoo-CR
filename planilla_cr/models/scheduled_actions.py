@@ -1,5 +1,7 @@
 from odoo import models, api
 import logging
+from datetime import date
+from dateutil.relativedelta import relativedelta
 
 _logger = logging.getLogger(__name__)
 
@@ -19,7 +21,6 @@ class PlanillaScheduledActions(models.AbstractModel):
         envía notificación al correo de la empresa (RRHH).
         Corre: diariamente a las 7am.
         """
-        from datetime import date
         today = date.today()
         template = self.env.ref(
             'planilla_cr.email_template_anniversary', raise_if_not_found=False
@@ -129,8 +130,6 @@ class PlanillaScheduledActions(models.AbstractModel):
         Art. 156 CT CR: vacaciones prescriben a los 2 años de ganadas.
         Corre: primer día de cada mes.
         """
-        from datetime import date
-        from dateutil.relativedelta import relativedelta
         today = date.today()
         threshold = today + relativedelta(months=2)  # Alerta con 2 meses de anticipación
 
@@ -141,23 +140,31 @@ class PlanillaScheduledActions(models.AbstractModel):
                 ('active', '=', True),
                 ('entry_date', '!=', False),
             ])
-            at_risk = []
-            for emp in employees:
-                # Si tiene más de 22 meses sin tomar vacaciones y tiene saldo positivo
-                if emp.vacation_days_available > 0:
-                    months_without = (today - emp.entry_date).days / 30
-                    # Empleados con >22 meses de antigüedad sin haber tomado vacaciones recientes
-                    last_vacation = self.env['planilla.vacation.payment'].search([
-                        ('employee_id', '=', emp.id),
+            # L2 FIX: batch query — traer última vacación de todos los empleados en 1 query
+            emp_ids = employees.filtered(lambda e: e.vacation_days_available > 0).ids
+            last_vacs = {}
+            if emp_ids:
+                vac_groups = self.env['planilla.vacation.payment'].read_group(
+                    domain=[
+                        ('employee_id', 'in', emp_ids),
                         ('state', 'in', ('approved', 'paid')),
                         ('vacation_type', '=', 'disfrutadas'),
-                    ], order='date_from desc', limit=1)
-                    if last_vacation:
-                        months_since = (today - last_vacation.date_from).days / 30
-                    else:
-                        months_since = months_without
-                    if months_since >= 22:
-                        at_risk.append((emp.name, emp.vacation_days_available, round(months_since, 0)))
+                    ],
+                    fields=['employee_id', 'date_from:max'],
+                    groupby=['employee_id'],
+                )
+                last_vacs = {
+                    g['employee_id'][0]: g['date_from']
+                    for g in vac_groups if g.get('date_from')
+                }
+            at_risk = []
+            for emp in employees:
+                if emp.vacation_days_available > 0:
+                    ref_date = last_vacs.get(emp.id) or emp.entry_date
+                    if ref_date:
+                        months_since = (today - ref_date).days / 30
+                        if months_since >= 22:
+                            at_risk.append((emp.name, emp.vacation_days_available, round(months_since, 0)))
 
             if not at_risk or not company.email:
                 continue

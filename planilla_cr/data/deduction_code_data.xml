@@ -91,4 +91,82 @@
         <field name="calculation_type">fixed</field>
         <field name="description">Descuento de cuotas de préstamos o adelantos de salario. Se aplica automáticamente según el plan de cuotas.</field>
     </record>
+    <!-- Pago de vacaciones en dinero Art. 156 CT -->
+    <record id="deduction_code_vac_pago" model="planilla.deduction.code">
+        <field name="code">VAC-PAG</field>
+        <field name="name">Pago de Vacaciones (Art. 156 CT)</field>
+        <field name="deduction_type">employee</field>
+        <field name="calculation_type">fixed</field>
+        <field name="employee_percentage">0</field>
+        <field name="active">True</field>
+        <field name="description">Pago de días de vacaciones en dinero por acuerdo mutuo</field>
+    </record>
+
+    <!-- Permiso de Paternidad Ley 8107 -->
+    <record id="deduction_code_paternidad" model="planilla.deduction.code">
+        <field name="code">PAT-LIC</field>
+        <field name="name">Licencia de Paternidad (Ley 8107)</field>
+        <field name="deduction_type">employer</field>
+        <field name="calculation_type">fixed</field>
+        <field name="employee_percentage">0</field>
+        <field name="active">True</field>
+        <field name="description">8 días hábiles remunerados al 100% cargo patrono</field>
+    </record>
+
+    <!-- Cuota Sindical -->
+    <record id="deduction_code_sindical" model="planilla.deduction.code">
+        <field name="code">SIND</field>
+        <field name="name">Cuota Sindical</field>
+        <field name="deduction_type">employee</field>
+        <field name="calculation_type">fixed</field>
+        <field name="employee_percentage">0</field>
+        <field name="active">True</field>
+        <field name="description">Cuota mensual sindical voluntaria</field>
+    </record>
+
+    <!-- Cuota Cooperativa -->
+    <record id="deduction_code_cooperativa" model="planilla.deduction.code">
+        <field name="code">COOP</field>
+        <field name="name">Cuota Cooperativa</field>
+        <field name="deduction_type">employee</field>
+        <field name="calculation_type">fixed</field>
+        <field name="employee_percentage">0</field>
+        <field name="active">True</field>
+        <field name="description">Cuota cooperativa voluntaria</field>
+    </record>
+
+    <!-- Embargo Judicial -->
+    <record id="deduction_code_embargo" model="planilla.deduction.code">
+        <field name="code">EMB</field>
+        <field name="name">Embargo Judicial</field>
+        <field name="deduction_type">employee</field>
+        <field name="calculation_type">fixed</field>
+        <field name="employee_percentage">0</field>
+        <field name="active">True</field>
+        <field name="description">Embargo judicial — máximo 25% salario neto Art. 172 CT</field>
+    </record>
+
+    <!-- Pensión Alimentaria -->
+    <record id="deduction_code_pension_ali" model="planilla.deduction.code">
+        <field name="code">PENS-ALI</field>
+        <field name="name">Pensión Alimentaria (Ley 8590)</field>
+        <field name="deduction_type">employee</field>
+        <field name="calculation_type">fixed</field>
+        <field name="employee_percentage">0</field>
+        <field name="active">True</field>
+        <field name="description">Pensión alimentaria ordenada judicialmente — prioridad absoluta sobre otras deducciones</field>
+    </record>
+
+    <!-- ROP Obrero -->
+    <record id="deduction_code_rop" model="planilla.deduction.code">
+        <field name="code">ROP</field>
+        <field name="name">ROP Obrero (1%) — Ley 7983</field>
+        <field name="deduction_type">both</field>
+        <field name="calculation_type">percentage</field>
+        <field name="employee_percentage">1.0</field>
+        <field name="employer_percentage">3.25</field>
+        <field name="active">True</field>
+        <field name="description">Régimen Obligatorio de Pensiones — Ley 7983</field>
+    </record>
+
 </odoo>
