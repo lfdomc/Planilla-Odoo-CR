@@ -159,18 +159,19 @@ class PayrollDashboard(models.TransientModel):
             if employees:
                 emp_ids = employees.ids
                 # Traer la última vacación de TODOS los empleados en una sola query
+                # FIX v53: campo correcto es date_start, no date_from (no existe en vacation.payment)
                 last_vacs = self.env['planilla.vacation.payment'].read_group(
                     domain=[
                         ('employee_id', 'in', emp_ids),
                         ('state', 'in', ('approved', 'paid')),
                         ('vacation_type', '=', 'disfrutadas'),
                     ],
-                    fields=['employee_id', 'date_from:max'],
+                    fields=['employee_id', 'date_start:max'],
                     groupby=['employee_id'],
                 )
                 last_vac_by_emp = {
-                    lv['employee_id'][0]: lv['date_from']
-                    for lv in last_vacs if lv.get('date_from')
+                    lv['employee_id'][0]: lv['date_start']
+                    for lv in last_vacs if lv.get('date_start')
                 }
                 for emp in employees:
                     ref_date = last_vac_by_emp.get(emp.id) or emp.entry_date
@@ -206,18 +207,19 @@ class PayrollDashboard(models.TransientModel):
         ])
         # L2 FIX: batch query en vez de N+1
         emp_ids = employees.ids
+        # FIX v53: campo correcto es date_start, no date_from
         last_vacs = self.env['planilla.vacation.payment'].read_group(
             domain=[
                 ('employee_id', 'in', emp_ids),
                 ('state', 'in', ('approved', 'paid')),
                 ('vacation_type', '=', 'disfrutadas'),
             ],
-            fields=['employee_id', 'date_from:max'],
+            fields=['employee_id', 'date_start:max'],
             groupby=['employee_id'],
         )
         last_vac_by_emp = {
-            lv['employee_id'][0]: lv['date_from']
-            for lv in last_vacs if lv.get('date_from')
+            lv['employee_id'][0]: lv['date_start']
+            for lv in last_vacs if lv.get('date_start')
         }
         at_risk_ids = []
         for emp in employees:

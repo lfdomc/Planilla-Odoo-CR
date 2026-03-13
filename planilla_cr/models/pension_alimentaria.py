@@ -109,6 +109,34 @@ class PensionAlimentaria(models.Model):
             if rec.calculation_type == 'fixed' and rec.fixed_amount <= 0:
                 raise ValidationError('El monto fijo debe ser mayor a 0.')
 
+    @api.constrains('percentage', 'fixed_amount', 'calculation_type', 'employee_id')
+    def _check_amount_vs_salary(self):
+        """FIX C-04 v53: Advertir si la pensión puede superar el salario neto.
+        La Ley 8590 permite retener hasta el 100% del salario en casos extremos,
+        pero se registra advertencia como aviso al usuario (no bloquea).
+        """
+        for rec in self:
+            if not rec.employee_id or not rec.employee_id.base_salary:
+                continue
+            gross = rec.employee_id.base_salary
+            # Estimar neto: bruto − CCSS obrero (10.83%) − renta estimada 0%
+            approx_net = gross * (1 - 0.1083)
+            if rec.calculation_type == 'percentage' and rec.percentage > 0:
+                monto = round(gross * rec.percentage / 100, 2)
+            elif rec.calculation_type == 'fixed' and rec.fixed_amount > 0:
+                monto = rec.fixed_amount
+            else:
+                continue
+            if monto > approx_net:
+                rec.message_post(
+                    body=(
+                        f'⚠️ <b>Advertencia:</b> El monto de pensión alimentaria '
+                        f'(₡{monto:,.2f}) supera el salario neto estimado del empleado '
+                        f'(₡{approx_net:,.2f}). Verifique la resolución judicial.'
+                    ),
+                    message_type='notification',
+                )
+
     def compute_amount(self, gross_salary):
         """Calcula el monto de pensión para un salario bruto dado."""
         self.ensure_one()

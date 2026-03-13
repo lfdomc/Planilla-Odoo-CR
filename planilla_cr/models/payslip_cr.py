@@ -304,15 +304,19 @@ class PayslipCR(models.Model):
                 (rec.vacation_amount or 0.0) + (rec.other_income or 0.0)
             )
 
-    @api.depends('gross_salary')
+    @api.depends('gross_salary', 'company_id', 'paternity_days')
     def _compute_deductions(self):
-        rh = self.env['planilla.rate.helper']
-        ccss_emp  = rh.get_ccss_employee_rate()
-        ccss_pat  = rh.get_ccss_employer_rate()
-        agu_rate  = rh.get_aguinaldo_rate()
-        ces_rate  = rh.get_cesantia_rate()
-        vac_rate  = rh.get_vacation_rate()
+        # FIX A-02 v53: Tasas consultadas DENTRO del loop con sudo().with_company()
+        # para soporte multi-empresa correcto. Antes se obtenían fuera del loop
+        # usando siempre la empresa activa en sesión, lo que causaba que todos los
+        # registros de un batch usaran las tasas de la primera empresa procesada.
         for rec in self:
+            rh = rec.env['planilla.rate.helper'].with_company(rec.company_id)
+            ccss_emp = rh.get_ccss_employee_rate()
+            ccss_pat = rh.get_ccss_employer_rate()
+            agu_rate = rh.get_aguinaldo_rate()
+            ces_rate = rh.get_cesantia_rate()
+            vac_rate = rh.get_vacation_rate()
             g = rec.gross_salary or 0.0
             rec.ccss_employee      = round(g * ccss_emp, 2)
 
@@ -328,16 +332,31 @@ class PayslipCR(models.Model):
             rec.ccss_employer      = round(g * ccss_pat, 2)
             risk                   = rec.employee_id.ins_risk_class or 'II'
             rec.ins_employer       = round(g * rh.get_ins_rate(risk), 2)
-            rec.aguinaldo_provision = round(g * agu_rate, 2)
-            rec.cesantia_provision  = round(g * ces_rate, 2)
-            rec.vacation_provision  = round(g * vac_rate, 2)
+            # FIX C-03 v53: Las provisiones deben representar el costo acumulado mensual.
+            # Para períodos sub-mensuales (quincenal, semanal), el gross_salary ya es el
+            # salario del período — la provisión debe ajustarse al equivalente mensual
+            # para que la contabilidad refleje el acumulado correcto por mes.
+            # bimonthly = bimensual: el gross ya es 2 meses → provisión x 0.5 del período.
+            freq = rec.payroll_calendar_id.frequency if rec.payroll_calendar_id else 'monthly'
+            prov_factor = {
+                'monthly':   1.0,
+                'biweekly':  0.5,   # quincenal: 2 períodos = 1 mes
+                'weekly':    0.25,  # semanal:   4 períodos = 1 mes
+                'bimonthly': 2.0,   # bimensual: 0.5 períodos = 1 mes
+            }.get(freq, 1.0)
+            rec.aguinaldo_provision = round(g * agu_rate * prov_factor, 2)
+            rec.cesantia_provision  = round(g * ces_rate * prov_factor, 2)
+            rec.vacation_provision  = round(g * vac_rate * prov_factor, 2)
             # NOTA: _sync_pension_alimentaria() y _sync_loan_deductions() se llaman
             # desde create() y action_sync_novedades(), NO aquí.
             # Un método compute NO debe tener side effects (escritura en BD).
             # Colocarlos aquí causaba RecursionError y comportamiento impredecible.
 
     def _sync_recurring_benefits(self):
-        """Auto-apply active recurring benefits/deductions for the period."""
+        """Auto-apply active recurring benefits/deductions for the period.
+        FIX C-08 v53: Si la línea ya existe y es de tipo porcentaje, recalcular
+        el monto en base al gross_salary actual (puede haber cambiado por novedades).
+        """
         for rec in self:
             if rec.state != 'draft':
                 continue
@@ -352,13 +371,18 @@ class PayslipCR(models.Model):
                 '|', ('date_end', '=', False),   ('date_end', '>=', today),
             ])
             for ben in benefits:
-                # Skip if already applied (by recurring_benefit_id)
                 existing = rec.deduction_line_ids.filtered(
-                    lambda l: l.recurring_benefit_id.id == ben.id
+                    lambda l, b=ben: l.recurring_benefit_id.id == b.id
                 )
-                if existing:
-                    continue
                 amt = ben.get_amount_for_salary(rec.gross_salary or 0.0)
+                if existing:
+                    # FIX C-08 v53: Actualizar monto si el beneficio es de porcentaje
+                    # y el salario bruto cambió desde la última sincronización.
+                    if ben.amount_type == 'percentage':
+                        for line in existing:
+                            if line.amount != amt:
+                                line.amount = amt
+                    continue
                 rec.deduction_line_ids = [(0, 0, {
                     'deduction_code_id':    ben.deduction_code_id.id,
                     'description':          ben.name,
@@ -583,12 +607,27 @@ class PayslipCR(models.Model):
             if existing:
                 continue
 
-            # Calcular días efectivos dentro del período de la boleta
+            # FIX C-05 v53: Usar number_of_days de hr.leave cuando está disponible,
+            # ya que Odoo lo calcula correctamente incluyendo medias jornadas (0.5).
+            # El cálculo manual por fechas siempre redondea hacia arriba y no maneja
+            # ausencias de medio día (request_date_from_period = 'am'/'pm').
             leave_start = leave.date_from.date() if leave.date_from else self.date_from
             leave_end   = leave.date_to.date()   if leave.date_to   else self.date_to
             effective_start = max(leave_start, self.date_from)
             effective_end   = min(leave_end,   self.date_to)
-            days_absent = (effective_end - effective_start).days + 1
+
+            if effective_end < effective_start:
+                continue
+
+            # Si la ausencia está completamente dentro del período, usar number_of_days
+            if leave_start >= self.date_from and leave_end <= self.date_to:
+                days_absent = getattr(leave, 'number_of_days', None)
+                if not days_absent or days_absent <= 0:
+                    days_absent = (effective_end - effective_start).days + 1
+            else:
+                # Ausencia parcialmente fuera del período → calcular intersección en días
+                days_absent = (effective_end - effective_start).days + 1
+
             if days_absent <= 0:
                 continue
 
@@ -636,12 +675,15 @@ class PayslipCR(models.Model):
         Esto evita que un quincenal pague menos renta de la que corresponde.
         """
         # Factor de frecuencia para normalizar a mensual
+        # bimonthly = bimensual = cada 2 meses → periods_per_month = 0.5
+        # biweekly  = bisemanal = cada 2 semanas → 2 períodos/mes
+        # weekly    = semanal  = 4 períodos/mes
         freq = self.payroll_calendar_id.frequency if self.payroll_calendar_id else 'monthly'
         periods_per_month = {
             'monthly':   1,
             'biweekly':  2,
             'weekly':    4,
-            'bimonthly': 1,
+            'bimonthly': 0.5,   # FIX B-04 v53: bimensual = 0.5 períodos/mes (antes era 1, incorrecto)
         }.get(freq, 1)
 
         # Salario mensual equivalente para aplicar tramos correctamente
@@ -651,7 +693,12 @@ class PayslipCR(models.Model):
             [('active', '=', True)], order='sequence asc'
         )
         if not brackets:
-            # Fallback con tramos 2026 sobre equivalente mensual
+            # FIX C-09 v53: Fallback hardcoded — ACTUALIZAR CADA AÑO.
+            # Tramos vigentes: Resolución DGT-R-016-2026 (Ministerio de Hacienda CR).
+            # ACTUALIZACIÓN PENDIENTE: revisar en enero de cada año en
+            # https://www.hacienda.go.cr/contenido/15169-impuesto-sobre-la-renta-asalariados
+            # y actualizar los límites en Planilla → Config → Tramos de Renta.
+            # ── Tramos 2026 (mensual) ──────────────────────────────────────────
             g = monthly_equiv
             if g <= 941000:
                 tax_monthly = 0.0
@@ -790,7 +837,10 @@ class PayslipCR(models.Model):
                 )
 
             # ── CCSS coherente ───────────────────────────────────────
-            expected_ccss_emp = round(rec.gross_salary * 0.1083, 2)
+            # FIX D-04 v53: usar get_ccss_employee_rate() en lugar de 0.1083 hardcoded
+            # para que la validación respete la tasa configurada en la empresa.
+            rh = rec.env['planilla.rate.helper'].with_company(rec.company_id)
+            expected_ccss_emp = round(rec.gross_salary * rh.get_ccss_employee_rate(), 2)
             if rec.ccss_employee and abs(rec.ccss_employee - expected_ccss_emp) > 1.0:
                 warnings.append(
                     f'{prefix} La cuota CCSS obrero ({rec.ccss_employee:,.2f}) '
@@ -957,7 +1007,20 @@ class PayslipCR(models.Model):
                     if template:
                         template.send_mail(rec.id, force_send=False)
                 except Exception as e:
+                    # FIX D-06 v53: Registrar fallo de email en chatter para que RRHH pueda
+                    # reenviar manualmente. El log de servidor puede pasarse por alto.
                     _logger.warning(f"planilla_cr: No se pudo enviar email de boleta ({rec.name}): {e}")
+                    try:
+                        rec.message_post(
+                            body=(
+                                f'⚠️ <b>No se pudo enviar el email de boleta</b> al correo '
+                                f'{rec.employee_id.work_email}. Error: {str(e)[:200]}. '
+                                f'Use el botón "Enviar Boleta" para reenviar manualmente.'
+                            ),
+                            message_type='notification',
+                        )
+                    except Exception:
+                        pass  # Si falla el chatter también, al menos queda en el log
 
     def action_cancel(self):
         for rec in self:
@@ -1341,21 +1404,25 @@ class PayslipDeductionLine(models.Model):
         Valida límites legales:
         - Embargo judicial: máximo 25% salario neto (Art. 172 CT)
         - Pensión alimentaria: sin límite, tiene prioridad absoluta (Ley 8590)
+        FIX B-07 v53: calcular el neto disponible en tiempo real (no usar salary_payable
+        almacenado, que puede estar desactualizado respecto a la línea que se está guardando).
         """
         for line in self:
-            if line.deduction_category == 'embargo' and line.payslip_id.salary_payable:
-                # H5 FIX — Calcular neto disponible sobre salary_payable
-                # (neto real después de CCSS, renta, pensiones y préstamos)
-                # en lugar de net_salary que no descuenta préstamos activos.
-                # Art. 172 CT: límite 25% sobre el neto disponible DESPUÉS
-                # de descontar pensiones alimentarias (Ley 8590 prioridad).
+            if line.deduction_category == 'embargo':
+                slip = line.payslip_id
+                if not slip:
+                    continue
+                # Recalcular neto disponible directamente
+                gross = slip.gross_salary or 0.0
+                ccss_emp = slip.ccss_employee or 0.0
+                renta = slip.income_tax or 0.0
                 pensiones = sum(
-                    l.amount for l in line.payslip_id.deduction_line_ids
+                    l.amount for l in slip.deduction_line_ids
                     if l.deduction_category == 'pension_alimentaria'
                 )
-                neto_disponible = line.payslip_id.salary_payable - pensiones
-                limit = neto_disponible * 0.25
-                if line.amount > limit:
+                neto_disponible = gross - ccss_emp - renta - pensiones
+                limit = round(neto_disponible * 0.25, 2)
+                if line.amount > limit and limit > 0:
                     raise ValidationError(
                         f'El embargo judicial (₡{line.amount:,.2f}) supera el 25% del '
                         f'salario neto disponible después de pensiones alimentarias '

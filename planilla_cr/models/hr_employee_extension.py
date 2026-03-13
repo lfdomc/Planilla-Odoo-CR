@@ -764,15 +764,18 @@ class HrEmployeeExtension(models.Model):
             total_days = (cutoff - emp.entry_date).days
 
             # ── Descontar incapacidades > 3 meses continuos (Art. 153 CT) ──
-            # Solo incapacidades confirmadas/pagadas con más de 90 días
+            # FIX D-03 v53: Solo descontar incapacidades donde los días son CONTINUOS.
+            # Una incapacidad de 95 días continuos sí excede 90 días.
+            # Dos incapacidades de 50 días cada una NO deben sumarse para llegar a 100.
+            # La continuidad se determina por la duración de cada registro individual.
             disability_days_excluded = 0
             long_disabilities = self.env['planilla.disability'].search([
                 ('employee_id', '=', emp.id),
                 ('state', 'in', ('confirmed', 'paid')),
-                ('days', '>', 90),  # > 3 meses = 90 días
+                ('days', '>', 90),  # > 3 meses continuos = 90 días en un solo registro
             ])
             for dis in long_disabilities:
-                # Solo descontar los días que EXCEDEN los 3 primeros meses
+                # Solo descontar los días que EXCEDEN los primeros 90 días continuos
                 disability_days_excluded += max(dis.days - 90, 0)
 
             effective_days = max(total_days - disability_days_excluded, 0)
@@ -794,19 +797,24 @@ class HrEmployeeExtension(models.Model):
             emp.vacation_balance_alert  = available < 0
 
     def _check_minimum_salary_warning(self):
+        """FIX B-08 v53: Advertencia de salario mínimo como notificación (no UserError).
+        UserError bloqueaba el wizard de aumento masivo si algún empleado quedaba bajo mínimo,
+        haciendo imposible hacer el ajuste. Ahora registra mensaje en el chatter del empleado.
+        """
         min_salary = self.env['planilla.minimum.salary'].get_current_minimum()
         if not min_salary:
             return
-        warnings = []
         for emp in self:
             if emp.base_salary and emp.base_salary < min_salary:
-                warnings.append(
-                    f'  - {emp.name}: {emp.base_salary:,.2f} (minimo: {min_salary:,.2f})'
+                emp.message_post(
+                    body=(
+                        f'⚠️ <b>Advertencia Salario Mínimo MTSS:</b> '
+                        f'El salario base de {emp.name} (₡{emp.base_salary:,.2f}) '
+                        f'está por debajo del mínimo vigente (₡{min_salary:,.2f}). '
+                        f'Revise Configuración → Salarios Mínimos MTSS.'
+                    ),
+                    message_type='notification',
                 )
-        if warnings:
-            msg = 'ADVERTENCIA - Salario por debajo del minimo MTSS vigente:\n' + '\n'.join(warnings)
-            msg += '\n\nRevise Configuracion > Salarios Minimos MTSS.'
-            raise UserError(msg)
 
     # ── Validacion IBAN ──────────────────────────────────────────────
     @api.constrains('bank_iban')

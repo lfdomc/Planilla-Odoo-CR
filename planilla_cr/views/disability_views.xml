@@ -87,8 +87,8 @@
                     <!-- Sección CCSS / INS (no maternidad) -->
                     <group invisible="disability_type == 'maternity'">
                         <group string="Subsidio CCSS">
-                            <field name="subsidy_percentage"/>
-                            <field name="employer_percentage"/>
+                            <field name="subsidy_percentage" groups="planilla_cr.group_planilla_admin"/>
+                            <field name="employer_percentage" groups="planilla_cr.group_planilla_admin"/>
                             <field name="daily_salary" readonly="1"/>
                         </group>
                         <group string="Montos">

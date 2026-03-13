@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 from dateutil.relativedelta import relativedelta
 from datetime import date
 
@@ -19,6 +20,25 @@ class ScheduleType(models.Model):
         help='Multiplicador para el cálculo de horas extras (ej: 1.5 = 150%)'
     )
     description = fields.Text(string='Descripción')
+
+    @api.constrains('hours_per_day')
+    def _check_hours_per_day(self):
+        """FIX C-06 v53: Validar rango legal de horas por día (Art. 136 CT: máx 8h ordinarias)."""
+        for rec in self:
+            if rec.hours_per_day <= 0:
+                raise ValidationError('Las horas por día deben ser mayor a 0.')
+            if rec.hours_per_day > 12:
+                raise ValidationError(
+                    f'Las horas por día ({rec.hours_per_day}) superan el máximo permitido (12h). '
+                    f'La jornada ordinaria máxima es 8h + 4h extras (Art. 136 y 139 CT).'
+                )
+
+    @api.constrains('days_per_week')
+    def _check_days_per_week(self):
+        """Validar rango de días por semana."""
+        for rec in self:
+            if rec.days_per_week < 1 or rec.days_per_week > 7:
+                raise ValidationError('Los días por semana deben estar entre 1 y 7.')
 
 
 class PayrollCalendar(models.Model):

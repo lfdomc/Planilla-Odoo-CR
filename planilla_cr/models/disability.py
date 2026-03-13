@@ -61,7 +61,14 @@ class Disability(models.Model):
     currency_id = fields.Many2one(related='employee_id.currency_id', store=True)
     employer_cost = fields.Monetary(
         string='Costo Patrono', currency_field='currency_id',
-        compute='_compute_costs', store=True
+        compute='_compute_costs', store=True,
+        help='Costo a cargo del patrono durante la incapacidad.\n'
+             '- CCSS (enfermedad): dias 1-3 a cargo del patrono (66.67% del salario), '
+             'a partir del dia 4 cubre la CCSS.\n'
+             '- INS (riesgo laboral / accidente): el INS cubre desde el DIA 1 (Art. 218 '
+             'Codigo de Trabajo y Reglamento del Seguro de Riesgos del Trabajo). '
+             'Por eso employer_cost=0 es correcto para este tipo.\n'
+             '- Maternidad: el subsidio lo paga la CCSS en su totalidad; costo patrono = 0.'
     )
     ccss_subsidy = fields.Monetary(
         string='Subsidio CCSS', currency_field='currency_id',
@@ -184,6 +191,22 @@ class Disability(models.Model):
         elif self.disability_type == 'ins':
             self.subsidy_percentage = 100.0
             self.employer_percentage = 0.0
+
+    @api.constrains('date_start', 'date_end')
+    def _check_disability_dates(self):
+        """FIX B-02 v53: Validar que la incapacidad tenga al menos 1 día y fechas coherentes."""
+        for rec in self:
+            if rec.date_start and rec.date_end:
+                if rec.date_end < rec.date_start:
+                    raise ValidationError(
+                        f'La Fecha Fin ({rec.date_end}) no puede ser anterior '
+                        f'a la Fecha Inicio ({rec.date_start}).'
+                    )
+                days = (rec.date_end - rec.date_start).days + 1
+                if days <= 0:
+                    raise ValidationError(
+                        'La incapacidad debe tener al menos 1 día.'
+                    )
 
     @api.constrains('date_start', 'date_end', 'fecha_parto', 'disability_type',
                     'prenatal_days', 'postnatal_days', 'days')

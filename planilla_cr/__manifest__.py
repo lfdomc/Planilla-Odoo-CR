@@ -1,8 +1,19 @@
 {
-    'name': 'Sistema Planilla v24',
-    'version': '19.0.0.52',
+    'name': 'Sistema Planilla v5.4',
+    'version': '19.0.5.4',
     'category': 'Human Resources/Payroll',
-    'summary': 'Sistema de Planilla Costa Rica v24 — Legislación CR 2026',
+    'summary': 'Sistema de Planilla Costa Rica v5.4 — Legislación CR 2026',
+    # ── Changelog v54 ──────────────────────────────────────────────────────────
+    # NEW-01: account_pension_alimentaria_payable (campo correcto en per_run).
+    # NEW-02: income_tax_on_termination en liquidaciones (Art. 35 Ley ISR).
+    # NEW-03: help text employer_cost en incapacidad INS (valor 0 es correcto).
+    # NEW-04: 5 nuevos tests — renta quincenal, pension+embargo, HE feriado,
+    #         liquidacion con prestamo, provisiones 17.82%.
+    # NEW-05: avg_last_4_weeks computed desde salary_history (Art. 153 CT).
+    # NEW-06: _compute_totals excluye boletas canceladas (state != cancelled).
+    # NEW-07: EDDI-7 v4.x — validacion longitud/ASCII, _sanitize_ascii para SICERE.
+    # NEW-08: salary_increase_wizard crea salary_history con gross_salary+authorized.
+    # ──────────────────────────────────────────────────────────────────────────
     'description': """
         Módulo completo de gestión de planillas para Costa Rica.
         Incluye:

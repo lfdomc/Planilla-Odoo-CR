@@ -60,11 +60,16 @@ class VacationPayment(models.Model):
     ], string='Método de Pago', default='disfrutadas', tracking=True,
         help='Art. 156 CT: solo se pueden pagar en dinero con acuerdo de ambas partes')
 
-    # Cálculo promedio últimas 4 semanas (Art. 153 CT)
+    # Calculo promedio ultimas 4 semanas (Art. 153 CT)
+    # FIX NEW-05 v54: avg_last_4_weeks ahora es compute (antes era manual).
+    # Se calcula automaticamente como el promedio de los ultimos 4 registros
+    # de salary_history del empleado. Si no hay historial, cae al salario diario normal.
     avg_last_4_weeks = fields.Monetary(
-        string='Promedio Últimas 4 Semanas', currency_field='currency_id',
-        help='Promedio del salario de las últimas 4 semanas trabajadas (Art. 153 CT). '
-             'Incluye HE, comisiones y otros ingresos variables.'
+        string='Promedio Ultimas 4 Semanas', currency_field='currency_id',
+        compute='_compute_avg_last_4_weeks', store=True, readonly=False,
+        help='Promedio del salario de las ultimas 4 semanas (Art. 153 CT). '
+             'Se calcula automaticamente desde el historial salarial. '
+             'Puede editarse manualmente si incluye HE, comisiones u otros ingresos variables.'
     )
     use_average = fields.Boolean(
         string='Usar Promedio 4 Semanas',
@@ -72,6 +77,32 @@ class VacationPayment(models.Model):
         help='Si el empleado tuvo HE, comisiones u otros ingresos variables, '
              'activar para calcular con el promedio Art. 153 CT'
     )
+
+    @api.depends('employee_id', 'date_start')
+    def _compute_avg_last_4_weeks(self):
+        """FIX NEW-05 v54: calcula el promedio salarial de las ultimas 4 semanas
+        desde salary_history. Toma los 4 registros autorizados mas recientes antes
+        de la fecha de inicio de vacaciones.
+        """
+        for rec in self:
+            if not rec.employee_id or not rec.date_start:
+                rec.avg_last_4_weeks = 0.0
+                continue
+            history = self.env['planilla.salary.history'].search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('effective_date', '<=', rec.date_start),
+                ('state', '=', 'authorized'),
+            ], order='effective_date desc', limit=4)
+            if history:
+                salaries = [h.gross_salary or h.salary or 0.0 for h in history]
+                # Promedio semanal = (salario mensual * 12 meses) / 52 semanas
+                avg_monthly = sum(salaries) / len(salaries)
+                avg_weekly = avg_monthly * 12 / 52
+                rec.avg_last_4_weeks = round(avg_weekly, 2)
+            else:
+                # Sin historial: usar el salario base actual como referencia
+                base = rec.employee_id.base_salary or 0.0
+                rec.avg_last_4_weeks = round(base * 12 / 52, 2)
     days_in_money = fields.Integer(
         string='Días a Pagar en Dinero',
         help='Para tipo Mixto: días que se pagan en efectivo (Art. 156 CT)'
@@ -103,11 +134,10 @@ class VacationPayment(models.Model):
                     f'disponibles pero solicita {rec.days} días.'
                 )
             rec.state = 'approved'
-            # FIX BUG-N07 v52: Al aprobar vacaciones, forzar recompute de boletas
-            # en estado borrador del mismo empleado en el período activo.
-            # Esto actualiza vacation_days_available en boletas que ya estaban abiertas
-            # antes de aprobar la solicitud.
-            draft_payslips = self.env['planilla.payslip'].search([
+            # FIX A-01 v53: Modelo correcto planilla.payslip.cr (no planilla.payslip).
+            # El modelo incorrecto generaba KeyError al aprobar vacaciones cuando
+            # había boletas abiertas del empleado.
+            draft_payslips = self.env['planilla.payslip.cr'].search([
                 ('employee_id', '=', rec.employee_id.id),
                 ('state', 'in', ['draft', 'confirmed']),
             ])
@@ -282,3 +312,13 @@ class VacationPayment(models.Model):
 
     def action_cancel(self):
         self.write({'state': 'cancelled'})
+
+    def write(self, vals):
+        # FIX B-01 v53: Al cambiar estado (approved → cancelled / draft → approved),
+        # invalidar vacation_days_available en el empleado para que el saldo
+        # se recalcule de inmediato en la UI sin esperar el siguiente cron.
+        res = super().write(vals)
+        if 'state' in vals:
+            employees = self.mapped('employee_id')
+            employees._compute_vacation_balance()
+        return res

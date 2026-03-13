@@ -102,14 +102,25 @@ class SalaryIncreaseWizard(models.TransientModel):
                     'salary_effective_date': self.effective_date,
                 })
                 # Registrar en historial de salarios
+                # FIX NEW-08 v54: registrar en salary_history con gross_salary,
+                # reason obligatorio y estado 'authorized' (incremento masivo
+                # ya fue aprobado por quien ejecuta el wizard — es accion explicita).
+                # Sin esto la tarifa horaria de HE queda desactualizada porque
+                # _compute_overtime_rate lee salary_history para el salario vigente.
+                reason_text = (
+                    f'Incremento masivo: {self.percent}%' if self.increase_type == 'percent'
+                    else f'Incremento masivo: ₡{self.fixed_amount:,.0f}'
+                )
                 self.env['planilla.salary.history'].create({
                     'employee_id': emp.id,
                     'salary': new_salary,
+                    'gross_salary': new_salary,
                     'effective_date': self.effective_date,
-                    'note': self.note or (
-                        f'Incremento masivo: {self.percent}%' if self.increase_type == 'percent'
-                        else f'Incremento masivo: ₡{self.fixed_amount:,.0f}'
-                    ),
+                    'reason': self.note or reason_text,
+                    'note': self.note,
+                    'state': 'authorized',
+                    'authorized_by': self.env.user.id,
+                    'authorized_date': fields.Datetime.now(),
                 })
                 count += 1
 

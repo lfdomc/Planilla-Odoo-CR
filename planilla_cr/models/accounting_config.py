@@ -102,6 +102,15 @@ class PayrollAccountingConfig(models.Model):
              'Ej: 115000 Préstamos a Empleados por Cobrar. '
              'Si no se configura, employee_loan.py crea la cuenta automáticamente.'
     )
+    # FIX B-05 v53 — Cuenta de Banco/Caja para desembolso de préstamos
+    account_bank_disbursement = fields.Many2one(
+        'account.account',
+        string='Banco / Caja para Desembolso Préstamos',
+        help='CRÉDITO — Cuenta de Banco o Caja desde la que se desembolsan los préstamos a empleados. '
+             'Ej: 110100 Banco Nacional CR (cuenta corriente). '
+             'Si no se configura, el sistema intentará encontrar la primera cuenta '
+             'de tipo Caja/Banco disponible (menos confiable).'
+    )
 
     # BUG #10 FIX v50 — Cuenta separada para Pensiones Alimentarias retenidas
     account_pension_alimentaria_payable = fields.Many2one(

@@ -1,5 +1,6 @@
 from odoo import models, fields, api
 from odoo.models import Constraint
+from odoo.exceptions import UserError, ValidationError
 
 
 class Overtime(models.Model):
@@ -105,6 +106,26 @@ class Overtime(models.Model):
 
     def action_approve(self):
         self.ensure_one()
+        # FIX B-03 v53: Advertencia si supera el límite legal de horas extras diarias.
+        # Art. 139 CT: jornada ordinaria máx 8h/día + horas extra máx 4h/día = 12h total.
+        if self.hours > 4.0:
+            raise ValidationError(
+                f'Las horas extras ({self.hours:.1f}h) superan el máximo legal de 4 horas '
+                f'diarias establecido en el Art. 139 del Código de Trabajo. '
+                f'Verifique si necesita dividir en varios días o solicitar autorización especial.'
+            )
+        # FIX C-01 v53: Validar que overtime_type=holiday corresponda a un feriado real.
+        if self.overtime_type == 'holiday' and self.date:
+            is_holiday = self.env['planilla.public.holiday'].is_paid_holiday(
+                self.date,
+                company_id=self.employee_id.company_id.id if self.employee_id else None
+            )
+            if not is_holiday:
+                raise ValidationError(
+                    f'El tipo "Día Feriado" requiere que la fecha ({self.date}) '
+                    f'esté registrada como feriado de pago obligatorio (Art. 148 CT). '
+                    f'Verifique en Planilla → Feriados Nacionales o use tipo Simple/Doble.'
+                )
         self.write({'state': 'approved'})
 
     def action_cancel(self):

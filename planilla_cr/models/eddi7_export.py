@@ -177,9 +177,10 @@ class Eddi7Export(models.TransientModel):
           119-120: Relleno
         """
         cedula     = self._fmt_cedula(emp_data.get('cedula', ''))
-        apellido1  = self._fmt_str(emp_data.get('apellido1', '').upper(), 30)
-        apellido2  = self._fmt_str(emp_data.get('apellido2', '').upper(), 30)
-        nombre     = self._fmt_str(emp_data.get('nombre', '').upper(), 20)
+        # FIX NEW-07 v54: usar _sanitize_ascii para eliminar tildes/enies (EDDI-7 v4.x)
+        apellido1  = self._sanitize_ascii(emp_data.get('apellido1', ''), 30, align='upper')
+        apellido2  = self._sanitize_ascii(emp_data.get('apellido2', ''), 30, align='upper')
+        nombre     = self._sanitize_ascii(emp_data.get('nombre', ''), 20, align='upper')
         salario    = self._fmt_num(emp_data.get('salario_bruto', 0), 13)
         dias       = self._fmt_num(emp_data.get('dias_trabajados', 30), 4)
         tipo_trab  = str(emp_data.get('tipo_trabajador', '1'))
@@ -299,6 +300,61 @@ class Eddi7Export(models.TransientModel):
             'maternidad': maternidad,
         }
 
+    # ── Validacion formato EDDI-7 v4.x ──────────────────────────
+
+    # FIX NEW-07 v54: validar que cada linea generada cumple la especificacion
+    # EDDI-7 version 4.x vigente CCSS 2026.
+    # Referencia: Manual Tecnico EDDI-7 v4, CCSS Costa Rica (2024-2026).
+    # Reglas principales:
+    #   - Tipo 1: 80 caracteres exactos
+    #   - Tipo 2: 120 caracteres exactos
+    #   - Tipo 9: 80 caracteres exactos
+    #   - Solo caracteres ASCII (a-z, A-Z, 0-9, espacios). Sin tildes ni enie.
+    #   - CRLF como separador de lineas (\r\n)
+    #   - Codificacion: ISO-8859-1 o UTF-8 sin BOM
+
+    EDDI7_LINE_LENGTHS = {'1': 80, '2': 120, '9': 80}
+
+    def _validate_eddi7_lines(self, lines):
+        """FIX NEW-07 v54: valida longitud y caracteres de cada linea segun EDDI-7 v4.x.
+        Retorna lista de errores de formato encontrados.
+        """
+        errors = []
+        import unicodedata
+        for i, line in enumerate(lines, start=1):
+            tipo = line[0] if line else '?'
+            expected_len = self.EDDI7_LINE_LENGTHS.get(tipo)
+            if expected_len and len(line) != expected_len:
+                errors.append(
+                    f'Linea {i} (Tipo {tipo}): longitud {len(line)} caracteres '
+                    f'(esperado {expected_len} segun EDDI-7 v4.x)'
+                )
+            # Verificar caracteres no-ASCII (tildes, enies, etc.) que pueden
+            # causar rechazo en el sistema SICERE de la CCSS
+            for j, ch in enumerate(line):
+                if ord(ch) > 127:
+                    normalized = unicodedata.normalize('NFKD', ch)
+                    ascii_ch = normalized.encode('ascii', 'ignore').decode('ascii')
+                    errors.append(
+                        f'Linea {i}, pos {j+1}: caracter no-ASCII "{ch}" '
+                        f'(sugerido: "{ascii_ch}"). CCSS/SICERE requiere ASCII puro.'
+                    )
+        return errors
+
+    def _sanitize_ascii(self, value, length, align='left'):
+        """FIX NEW-07 v54: elimina tildes y enie para cumplir ASCII puro de EDDI-7.
+        Normaliza a NFD y descarta los combinadores diacriticos (categoria Mn).
+        """
+        import unicodedata
+        s = str(value or '')
+        # Normalizar NFD: separa caracter base del diacritico
+        nfd = unicodedata.normalize('NFD', s)
+        ascii_s = ''.join(c for c in nfd if unicodedata.category(c) != 'Mn')
+        # Reemplazar enie manualmente (no se elimina solo con NFD)
+        ascii_s = ascii_s.replace('\u00f1', 'n').replace('\u00d1', 'N')
+        ascii_s = ascii_s.upper() if align == 'upper' else ascii_s
+        return ascii_s[:length].ljust(length)
+
     # ── Acción principal ──────────────────────────────────────────
 
     def action_generate_eddi7(self):
@@ -378,7 +434,13 @@ class Eddi7Export(models.TransientModel):
         )
 
         all_lines = [tipo1] + lines + [tipo9]
-        file_content = '\r\n'.join(all_lines) + '\r\n'  # CRLF según spec CCSS
+
+        # FIX NEW-07 v54: validar estructura EDDI-7 v4.x antes de generar el archivo
+        format_errors = self._validate_eddi7_lines(all_lines)
+        if format_errors:
+            errors.extend(format_errors)
+
+        file_content = '\r\n'.join(all_lines) + '\r\n'  # CRLF segun EDDI-7 v4.x
 
         import base64
         filename = f'EDDI7_{patron_num}_{self.year}{self.month}.txt'

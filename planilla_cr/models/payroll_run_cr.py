@@ -109,27 +109,31 @@ class PayrollRunCR(models.Model):
                  'payslip_ids.state')  # FIX BUG-N11 v52: state para re-totalizar al cancelar boletas
     def _compute_totals(self):
         for rec in self:
-            rec.total_gross         = sum(rec.payslip_ids.mapped('gross_salary'))
-            rec.total_ccss_employee = sum(rec.payslip_ids.mapped('ccss_employee'))
-            rec.total_income_tax    = sum(rec.payslip_ids.mapped('income_tax'))
-            rec.total_ccss_employer = sum(rec.payslip_ids.mapped('ccss_employer'))
-            rec.total_employer_cost = sum(rec.payslip_ids.mapped('total_employer_cost'))
+            # FIX NEW-06 v54: excluir boletas canceladas de los totales.
+            # Antes se sumaban TODAS las boletas incluidas las canceladas, inflando
+            # los totales cuando se cancelaba una boleta dentro de una planilla.
+            active_slips = rec.payslip_ids.filtered(lambda p: p.state != 'cancelled')
+            rec.total_gross         = sum(active_slips.mapped('gross_salary'))
+            rec.total_ccss_employee = sum(active_slips.mapped('ccss_employee'))
+            rec.total_income_tax    = sum(active_slips.mapped('income_tax'))
+            rec.total_ccss_employer = sum(active_slips.mapped('ccss_employer'))
+            rec.total_employer_cost = sum(active_slips.mapped('total_employer_cost'))
 
             # Total Deducciones = CCSS Obrero + Renta
             rec.total_deductions = round(
                 rec.total_ccss_employee + rec.total_income_tax, 2
             )
-            # Total Neto = suma del net_salary de cada boleta (bruto - CCSS obrero - renta)
+            # Total Neto = suma del net_salary de cada boleta activa (bruto - CCSS obrero - renta)
             rec.total_net = round(
-                sum(rec.payslip_ids.mapped('net_salary')), 2
+                sum(active_slips.mapped('net_salary')), 2
             )
 
             # Salario a Pagar = lo que realmente se deposita (neto - pensiones, prestamos y deducciones adicionales)
             rec.total_salary_payable = round(
-                sum(rec.payslip_ids.mapped('salary_payable')), 2
+                sum(active_slips.mapped('salary_payable')), 2
             )
 
-            # Costo real por cada colón que el empleado recibe en mano
+            # Costo real por cada colon que el empleado recibe en mano
             if rec.total_salary_payable and rec.total_salary_payable > 0:
                 rec.cost_per_net_colon = round(rec.total_employer_cost / rec.total_salary_payable, 4)
             else:
@@ -151,19 +155,31 @@ class PayrollRunCR(models.Model):
 
         employees = self.env['hr.employee'].search(domain)
 
-        # Filtrar solo empleados activos en planilla
-        employees = employees.filtered(
+        # FIX C-07 v53: Advertir sobre empleados sin employee_status_id en lugar de
+        # excluirlos silenciosamente. El usuario debe saber cuáles quedaron fuera.
+        without_status = employees.filtered(lambda e: not e.employee_status_id)
+        employees_active = employees.filtered(
             lambda e: e.employee_status_id and e.employee_status_id.is_active_payroll
         )
+        if without_status:
+            names = ', '.join(without_status.mapped('name'))
+            self.message_post(
+                body=(
+                    f'⚠️ <b>Empleados sin Estado de Nómina:</b> Los siguientes empleados '
+                    f'no tienen un "Estado de Empleado" configurado y fueron excluidos de '
+                    f'la planilla: <b>{names}</b>. '
+                    f'Configure el estado en el perfil de cada empleado '
+                    f'(Planilla → Empleados → Estado de Empleado).'
+                ),
+                message_type='notification',
+            )
+
         # FIX BUG-N09 v52: Excluir empleados con ccss_insured=False de la planilla estándar.
-        # Empleados sin seguro CCSS activo no deben procesarse en planillas regulares.
-        # Nota: si se necesita procesar empleados sin CCSS (ej: trabajadores ocasionales),
-        # crear una planilla separada o gestionar manualmente sus boletas.
-        employees = employees.filtered(
-            lambda e: getattr(e, 'ccss_insured', True)  # True por defecto si el campo no existe
+        employees_active = employees_active.filtered(
+            lambda e: getattr(e, 'ccss_insured', True)
         )
 
-        for employee in employees:
+        for employee in employees_active:
             # Verificar si ya existe boleta para este periodo
             existing = self.env['planilla.payslip.cr'].search([
                 ('employee_id', '=', employee.id),
@@ -344,11 +360,12 @@ class PayrollRunCR(models.Model):
         add_line(config.account_cesantia_provision, credit=total_cesantia_prov, name='Provisión Cesantía — Planilla ' + self.name)
         add_line(config.account_vacation_provision, credit=total_vacation_prov, name='Provisión Vacaciones — Planilla ' + self.name)
 
-        # B7 FIX: pensiones retenidas
+        # FIX NEW-01 v54: usar account_pension_alimentaria_payable (campo correcto).
+        # La version anterior usaba hasattr('account_pension_payable') que no existe en
+        # accounting_config.py — las pensiones siempre iban a account_salary_payable.
         if total_pensiones > 0:
-            pension_account = config.account_salary_payable
-            if hasattr(config, 'account_pension_payable') and config.account_pension_payable:
-                pension_account = config.account_pension_payable
+            pension_account = (config.account_pension_alimentaria_payable
+                               or config.account_salary_payable)
             add_line(pension_account, credit=total_pensiones, name='Pensiones Alimentarias Retenidas — Planilla ' + self.name)
 
         # B7 FIX: cuotas de préstamos retenidas
@@ -444,11 +461,24 @@ class PayrollRunCR(models.Model):
     def action_confirm(self):
         self.ensure_one()
         # FIX B-02 v51: verificar doble pago ANTES de confirmar, no solo al pagar.
-        # Si hay race condition entre dos usuarios confirmando la misma planilla,
-        # el constraint SQL de BD lo captura. Esta validación es la capa de aplicación.
         self._check_no_duplicate_payment()
-        self.payslip_ids.action_confirm()
-        self.state = 'confirmed'
+        # FIX B-06 v53: Savepoint para atomicidad — si una boleta falla al confirmar,
+        # revertir toda la operación. Sin esto la planilla quedaba en estado inconsistente
+        # (algunas boletas confirmadas, otras en draft) y no se podía recuperar.
+        with self.env.cr.savepoint():
+            errors = []
+            for slip in self.payslip_ids:
+                try:
+                    slip.action_confirm()
+                except Exception as e:
+                    errors.append(f'  • {slip.employee_id.name}: {str(e)}')
+            if errors:
+                raise UserError(
+                    'No se pudo confirmar la planilla. Los siguientes empleados '
+                    'presentaron errores (ninguna boleta fue confirmada):\n\n' +
+                    '\n'.join(errors)
+                )
+            self.state = 'confirmed'
 
     def action_send_all_payslips(self):
         """Envía todas las boletas por correo."""

@@ -200,16 +200,23 @@ class EmployeeLoan(models.Model):
                 message_type='notification',
             )
 
-        # Buscar cuenta de Caja/Banco para el crédito
-        bank_account = self.env['account.account'].search([
-            ('code', 'like', '1%'),
-            ('account_type', 'in', ('asset_cash', 'asset_current')),
-            ('company_ids', 'in', self.env.company.id),
-        ], limit=1)
+        # FIX B-05 v53: Usar cuenta de banco configurada en accounting_config.
+        # La búsqueda anterior por código '1%' podía devolver cualquier activo corriente
+        # (inventarios, cuentas por cobrar, etc.) en lugar de una cuenta bancaria real.
+        config = self.env['planilla.accounting.config'].get_config()
+        bank_account = config.account_bank_disbursement if config else None
+        if not bank_account:
+            # Fallback: buscar cuenta de Caja/Banco activa en la empresa
+            bank_account = self.env['account.account'].search([
+                ('account_type', 'in', ('asset_cash',)),
+                ('company_ids', 'in', self.env.company.id),
+                ('deprecated', '=', False),
+            ], limit=1)
         if not bank_account:
             self.message_post(
                 body='<b>Aviso:</b> No se encontró cuenta de Caja/Banco para el '
-                     'asiento de otorgamiento. Cree el asiento manualmente.',
+                     'asiento de otorgamiento. Configure la cuenta en '
+                     'Planilla → Configuración → Contabilidad → Banco/Caja para Desembolso.',
                 message_type='notification',
             )
             return
@@ -287,24 +294,23 @@ class EmployeeLoan(models.Model):
         Busca por MES/AÑO para ser compatible con nóminas quincenales,
         semanales o de cualquier frecuencia — la cuota se descuenta en
         la primera boleta que caiga dentro del mismo mes que su due_date.
+        FIX D-02 v53: Calcular el set de meses cubiertos sin iterar día a día.
         """
         self.ensure_one()
         if not date_from or not date_to:
             return self.env['planilla.loan.installment']
 
-        # Mes y año que cubre el período de la boleta
-        # (puede abarcar más de un mes en casos extremos, se toma el del date_from)
-        period_year = date_from.year
-        period_month = date_from.month
-
-        # Si el período cruza dos meses (ej: 25-ene al 09-feb), considerar ambos
+        # FIX D-02 v53: Calcular directamente los meses en el rango sin iterar día a día.
+        # Para períodos de hasta 24 meses esto es O(1) en lugar de O(días).
         months_in_period = set()
-        d = date_from
-        while d <= date_to:
-            months_in_period.add((d.year, d.month))
-            # Avanzar por semanas para no iterar día a día en períodos largos
-            d = d + timedelta(days=7)
-        months_in_period.add((date_to.year, date_to.month))
+        y, m = date_from.year, date_from.month
+        end_y, end_m = date_to.year, date_to.month
+        while (y, m) <= (end_y, end_m):
+            months_in_period.add((y, m))
+            m += 1
+            if m > 12:
+                m = 1
+                y += 1
 
         installment = self.installment_ids.filtered(
             lambda i: i.state == 'pending' and

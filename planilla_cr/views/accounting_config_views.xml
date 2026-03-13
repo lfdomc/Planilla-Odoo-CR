@@ -83,6 +83,9 @@
                                            options="{'no_create': True}"/>
                                     <field name="account_loans_payable"
                                            options="{'no_create': True}"/>
+                                    <field name="account_bank_disbursement"
+                                           options="{'no_create': True}"
+                                           help="Cuenta Banco/Caja para desembolso de préstamos (FIX B-05)"/>
                                     <field name="account_termination_payable"
                                            options="{'no_create': True}"/>
                                 </group>

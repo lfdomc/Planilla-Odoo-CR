@@ -109,6 +109,22 @@ class EmployeeTermination(models.Model):
     deductions_note = fields.Char(string='Descripción deducciones')
 
     # ── Totales ──────────────────────────────────────────────────
+    # FIX A-03 v53: CCSS obrero sobre base liquidable (preaviso + vacaciones proporcionales)
+    ccss_employee_on_termination = fields.Monetary(
+        string='CCSS Obrero Retenido (₡)', currency_field='currency_id',
+        compute='_compute_total', store=True,
+        help='10.83% sobre preaviso + vacaciones proporcionales (Art. 26 Reglamento CCSS). '
+             'Se retiene del empleado y se deposita a la CCSS.'
+    )
+    # FIX NEW-02 v54: Impuesto de Renta sobre la liquidación.
+    # Art. 35 Ley ISR: preaviso y vacaciones proporcionales son ingreso gravable.
+    # Se calcula sobre el total_gross aplicando los tramos vigentes.
+    income_tax_on_termination = fields.Monetary(
+        string='Impuesto Renta Retenido (₡)', currency_field='currency_id',
+        compute='_compute_total', store=True,
+        help='Retención de impuesto sobre la renta calculada sobre el total bruto de la liquidación '
+             '(Art. 35 Ley ISR). Se retiene del empleado y se deposita a Hacienda.'
+    )
     total_gross = fields.Monetary(
         string='Total Bruto Liquidación (₡)', currency_field='currency_id',
         compute='_compute_total', store=True
@@ -151,7 +167,7 @@ class EmployeeTermination(models.Model):
                 rec.months_service = 0
                 rec.days_service = 0
 
-    @api.depends('months_service')
+    @api.depends('months_service', 'termination_reason')
     def _compute_preaviso(self):
         """
         Código de Trabajo CR Art. 28:
@@ -159,8 +175,13 @@ class EmployeeTermination(models.Model):
         3-6 meses: 2 semanas
         6-12 meses: 1 mes
         > 12 meses: 1 mes
+        FIX C-10 v53: fallecimiento no genera preaviso (Art. 85 CT — extinción por muerte).
         """
         for rec in self:
+            # Fallecimiento: sin preaviso (Art. 85 CT)
+            if rec.termination_reason == 'fallecimiento':
+                rec.preaviso_days = 0
+                continue
             m = rec.months_service
             if m < 3:
                 rec.preaviso_days = 7
@@ -168,6 +189,12 @@ class EmployeeTermination(models.Model):
                 rec.preaviso_days = 14
             else:
                 rec.preaviso_days = 30
+
+    @api.onchange('termination_reason')
+    def _onchange_termination_reason_preaviso(self):
+        """FIX C-10 v53: Al seleccionar fallecimiento, desmarcar preaviso automáticamente."""
+        if self.termination_reason == 'fallecimiento':
+            self.preaviso_applies = False
 
     @api.depends('termination_reason')
     def _compute_cesantia_applies(self):
@@ -265,9 +292,44 @@ class EmployeeTermination(models.Model):
                 rec.aguinaldo_months = months_in_period
                 rec.aguinaldo_amount = round(monthly_salary / 12 * months_in_period, 2)
 
+    def _calc_income_tax(self, gross):
+        """FIX NEW-02 v54: calcula renta sobre el total bruto de la liquidacion.
+        Reutiliza la misma logica progresiva por tramos que payslip_cr._calc_income_tax.
+        La liquidacion se trata como pago unico mensual (freq = monthly).
+        """
+        brackets = self.env['planilla.income.tax.bracket'].search(
+            [('active', '=', True)], order='sequence asc'
+        )
+        g = gross
+        if not brackets:
+            # Fallback tramos 2026 (DGT-R-016-2026)
+            if g <= 941000:
+                return 0.0
+            elif g <= 1381000:
+                return (g - 941000) * 0.10
+            elif g <= 2423000:
+                return (440000 * 0.10) + ((g - 1381000) * 0.15)
+            elif g <= 4845000:
+                return (440000 * 0.10) + (1042000 * 0.15) + ((g - 2423000) * 0.20)
+            else:
+                return (440000 * 0.10) + (1042000 * 0.15) + (2422000 * 0.20) + ((g - 4845000) * 0.25)
+        tax = 0.0
+        for bracket in brackets:
+            if g <= bracket.limit_from:
+                break
+            limit_to = bracket.limit_to if bracket.limit_to else float('inf')
+            taxable = min(g, limit_to) - bracket.limit_from
+            if taxable > 0:
+                tax += taxable * (bracket.rate / 100)
+        return tax
+
     @api.depends('preaviso_amount', 'preaviso_applies', 'cesantia_amount',
                  'vacation_amount', 'aguinaldo_amount', 'other_payments', 'deductions')
     def _compute_total(self):
+        # FIX A-03 v53: calcular CCSS obrero sobre base liquidable (preaviso + vacaciones prop.)
+        # FIX NEW-02 v54: agregar retencion de renta sobre total_gross (Art. 35 Ley ISR)
+        rh = self.env['planilla.rate.helper']
+        ccss_employee_rate = rh.get_ccss_employee_rate()
         for rec in self:
             gross = (
                 (rec.preaviso_amount if rec.preaviso_applies else 0) +
@@ -276,8 +338,19 @@ class EmployeeTermination(models.Model):
                 rec.aguinaldo_amount +
                 rec.other_payments
             )
+            # Base cotizable CCSS obrero: preaviso + vacaciones proporcionales
+            liquidable_base = (
+                (rec.preaviso_amount if rec.preaviso_applies else 0) +
+                rec.vacation_amount
+            )
+            ccss_emp = round(liquidable_base * ccss_employee_rate, 2)
+            # FIX NEW-02 v54: renta sobre el total bruto de la liquidacion
+            income_tax = round(rec._calc_income_tax(gross), 2)
             rec.total_gross = round(gross, 2)
-            rec.total_net = round(gross - rec.deductions, 2)
+            rec.ccss_employee_on_termination = ccss_emp
+            rec.income_tax_on_termination = income_tax
+            # total_net = bruto − CCSS obrero − renta − otras deducciones
+            rec.total_net = round(gross - ccss_emp - income_tax - rec.deductions, 2)
 
     # ── Onchange para autocompletar desde empleado ────────────────
 
@@ -427,11 +500,18 @@ class EmployeeTermination(models.Model):
         # para efectos de cotización CCSS según Reglamento del Seguro Social).
         rh = self.env['planilla.rate.helper']
         ccss_employer_rate = rh.get_ccss_employer_rate()  # 26.83%
+        # FIX A-03 v53: CCSS obrero e Impuesto de Renta sobre la liquidación.
+        # Art. 26 RCCSS y Art. 29 CT: preaviso y vacaciones proporcionales
+        # son base de cotización. La cesantía y el aguinaldo proporcional
+        # NO son base imponible (CCSS Resolución Nro. 5 del 24/5/1994).
+        # La renta aplica sobre el total bruto según criterio del Ministerio de Hacienda.
+        ccss_employee_rate = rh.get_ccss_employee_rate()  # 10.83%
         liquidable_base = (
             (self.preaviso_amount if self.preaviso_applies else 0) +
             self.vacation_amount
         )
         ccss_on_termination = round(liquidable_base * ccss_employer_rate, 2)
+        ccss_emp_on_termination = round(liquidable_base * ccss_employee_rate, 2)
         if ccss_on_termination > 0:
             add_line(
                 config.account_social_charges_expense,
@@ -443,16 +523,32 @@ class EmployeeTermination(models.Model):
                 credit=ccss_on_termination,
                 name=f'CCSS Patronal liquidación por pagar — {emp}'
             )
+        # CCSS obrero: se retiene del empleado (reduce el neto a pagar)
+        if ccss_emp_on_termination > 0:
+            add_line(
+                config.account_ccss_payable,
+                credit=ccss_emp_on_termination,
+                name=f'CCSS Obrero retenido en liquidacion — {emp} ({ccss_employee_rate*100:.2f}%)'
+            )
 
-        # ── CRÉDITO (pasivo por pagar) ───────────────────────────────
-        # FIX BUG-N02 v52: usar misma cuenta payable para la deducción.
-        # La deducción REDUCE el pasivo (el empleado ya recibió ese dinero),
-        # NO es un gasto adicional. Así cuadra: DEBE total = HABER total.
+        # FIX NEW-02 v54: Impuesto de Renta retenido sobre la liquidacion (Art. 35 Ley ISR)
+        income_tax_liq = round(self.income_tax_on_termination or 0.0, 2)
+        if income_tax_liq > 0:
+            add_line(
+                config.account_income_tax_payable,
+                credit=income_tax_liq,
+                name=f'Retencion Renta en liquidacion — {emp}'
+            )
+
+        # ── CREDITO (pasivo por pagar) ───────────────────────────────
+        # FIX A-03 v53: neto = total_gross - CCSS obrero.
+        # FIX NEW-02 v54: neto = total_gross - CCSS obrero - renta.
         payable_account = config.account_termination_payable or config.account_salary_payable
+        net_to_pay = round(self.total_gross - ccss_emp_on_termination - income_tax_liq, 2)
         add_line(
             payable_account,
-            credit=self.total_gross,
-            name=f'Liquidación por pagar — {emp}'
+            credit=net_to_pay if net_to_pay > 0 else self.total_gross,
+            name=f'Liquidación por pagar (neto) — {emp}'
         )
 
         # ── Deducción (si aplica) ────────────────────────────────────

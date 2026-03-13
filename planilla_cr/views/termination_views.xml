@@ -153,7 +153,14 @@
                                 </div>
                             </div>
                             <div style="text-align:right;">
-                                <div style="font-size:13px; opacity:0.8;">(-) Deducciones</div>
+                                <div style="font-size:13px; opacity:0.8;">(-) CCSS Obrero Retenido</div>
+                                <div style="font-size:16px;">
+                                    ₡ <field name="ccss_employee_on_termination" nolabel="1" readonly="1"
+                                              style="color:#fff; font-size:16px;"/>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:13px; opacity:0.8;">(-) Otras Deducciones</div>
                                 <div style="font-size:16px;">
                                     ₡ <field name="deductions" nolabel="1" readonly="1"
                                               style="color:#fff; font-size:16px;"/>
