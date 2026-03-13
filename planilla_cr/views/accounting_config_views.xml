@@ -67,6 +67,10 @@
                                            options="{'no_create': True}"/>
                                     <field name="account_income_tax_payable"
                                            options="{'no_create': True}"/>
+                                    <!-- FIX v49 Bug 5: cuenta específica para subsidio CCSS por cobrar -->
+                                    <field name="account_ccss_subsidy_receivable"
+                                           options="{'no_create': True}"
+                                           help="Cuenta activo corriente para el derecho de cobro del patrono ante la CCSS por subsidios de incapacidad (días 4+). Si no se configura, el sistema usa CCSS por Pagar como fallback."/>
                                 </group>
                                 <group string="Provisiones y Salarios">
                                     <field name="account_aguinaldo_provision"

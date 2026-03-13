@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.models import Constraint
 from odoo.exceptions import ValidationError
 
 
@@ -7,6 +8,12 @@ class PensionAlimentaria(models.Model):
     _description = 'Pensión Alimentaria'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'employee_id, date_start'
+    _unique_pension_employee_expediente = Constraint(
+        'UNIQUE(employee_id, numero_expediente)',
+        'Ya existe una pensión alimentaria con ese número de expediente para este empleado. Verifique el número de expediente antes de continuar.'
+    )
+
+
 
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
 

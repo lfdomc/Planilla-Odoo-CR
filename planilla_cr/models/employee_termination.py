@@ -181,7 +181,8 @@ class EmployeeTermination(models.Model):
             )
 
     @api.depends('last_salary', 'years_service', 'months_service', 'days_service',
-                 'termination_date', 'entry_date', 'termination_reason', 'preaviso_days')
+                 'termination_date', 'entry_date', 'termination_reason', 'preaviso_days',
+                 'employee_id')
     def _compute_amounts(self):
         for rec in self:
             if not rec.last_salary or not rec.entry_date or not rec.termination_date:
@@ -221,13 +222,27 @@ class EmployeeTermination(models.Model):
             else:
                 rec.cesantia_amount = 0
 
-            # ── Vacaciones proporcionales (Art. 153) ──────────────
-            # 2 semanas (12 días) por cada 50 semanas trabajadas
-            # = 0.24 días por semana trabajada
+            # ── Vacaciones proporcionales (Art. 153 CT) ───────────────
+            # FIX B-01 v51: Calcular días brutos acumulados por tiempo de servicio
+            # y descontar los días ya tomados (disfrutadas) y pagados (dinero/proporcionales)
+            # para obtener el saldo real pendiente de pagar en la liquidación.
+            # Sin este fix el empleado podía cobrar vacaciones que ya había disfrutado.
             weeks_worked = rec.days_service / 7
-            vacation_days = weeks_worked * (12 / 50)
-            rec.vacation_days_accrued = round(vacation_days, 2)
-            rec.vacation_amount = round(daily_salary * vacation_days, 2)
+            vacation_days_gross = weeks_worked * (12 / 50)
+
+            # Días ya consumidos: vacaciones disfrutadas, pagadas en dinero o proporcionales
+            # que se hayan aprobado o pagado durante la relación laboral
+            vacation_days_taken = 0.0
+            if rec.employee_id:
+                taken_payments = self.env['planilla.vacation.payment'].search([
+                    ('employee_id', '=', rec.employee_id.id),
+                    ('state', 'in', ('approved', 'paid')),
+                ])
+                vacation_days_taken = sum(taken_payments.mapped('days'))
+
+            vacation_days_net = max(vacation_days_gross - vacation_days_taken, 0.0)
+            rec.vacation_days_accrued = round(vacation_days_net, 2)
+            rec.vacation_amount = round(daily_salary * vacation_days_net, 2)
 
             # ── Aguinaldo proporcional (Art. 228 - periodo jun-nov) ─
             # El aguinaldo es el salario del mes de diciembre
@@ -305,6 +320,32 @@ class EmployeeTermination(models.Model):
                 f'("{closed.name}", cerrado el {closed.closed_date.strftime("%d/%m/%Y")} '
                 f'por {closed.closed_by.name}).'
             )
+
+        # BUG #3 FIX v50: Integración automática de préstamos activos
+        # Busca préstamos/adelantos activos o aprobados con saldo pendiente
+        active_loans = self.env['planilla.employee.loan'].search([
+            ('employee_id', '=', self.employee_id.id),
+            ('state', 'in', ('approved', 'active')),
+            ('amount_pending', '>', 0),
+        ])
+        if active_loans:
+            total_loan_balance = sum(active_loans.mapped('amount_pending'))
+            loan_details = ', '.join(
+                f'{l.name} (₡{l.amount_pending:,.2f})' for l in active_loans
+            )
+            # Pre-llenar campo deductions si está vacío
+            if not self.deductions:
+                self.deductions = round(total_loan_balance, 2)
+                self.deductions_note = f'Saldo préstamos activos: {loan_details}'
+            else:
+                # Ya tiene deducciones manuales: mostrar advertencia
+                self.message_post(
+                    body=f'<b>⚠️ Aviso:</b> El empleado tiene préstamos activos con saldo '
+                         f'pendiente de ₡{total_loan_balance:,.2f} ({loan_details}). '
+                         f'Verifique que el campo <b>Deducciones</b> ya lo contempla.',
+                    message_type='notification',
+                )
+
         self.state = 'confirmed'
 
     def action_pay(self):
@@ -312,19 +353,22 @@ class EmployeeTermination(models.Model):
         if self.state != 'confirmed':
             raise UserError('Solo se pueden pagar liquidaciones confirmadas.')
 
-        # ── Asiento contable ─────────────────────────────────────────
-        move = self._create_termination_accounting_entry()
-
-        # ── Inactivar empleado ───────────────────────────────────────
-        self.employee_id.write({'active': False})
-
-        self.write({
-            'state': 'paid',
-            'move_id': move.id if move else False,
-        })
+        # BUG #7 FIX v50: Savepoint para atomicidad — si el asiento falla,
+        # el empleado NO queda inactivo sin reversión contable
+        with self.env.cr.savepoint():
+            move = self._create_termination_accounting_entry()
+            # Inactivar empleado SOLO si el asiento se creó correctamente
+            if move:
+                self.employee_id.write({'active': False})
+            self.write({
+                'state': 'paid',
+                'move_id': move.id if move else False,
+            })
 
     def _create_termination_accounting_entry(self):
-        config = self.env['planilla.accounting.config'].get_config()
+        # FIX BUG-N01 v52: pasar company_id del registro de liquidación, no la compañía
+        # activa en sesión. En multi-empresa esto asegura usar la config correcta.
+        config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
         if not config:
             return False
 
@@ -377,7 +421,33 @@ class EmployeeTermination(models.Model):
                 name=f'Otros pagos — {emp}: {self.other_payments_note or ""}'
             )
 
+        # BUG #4 FIX v50: CCSS patronal sobre preaviso + vacaciones proporcionales
+        # Art. 26 Reglamento CCSS: cargas sociales aplican sobre estos componentes
+        # de la liquidación (preaviso y vacaciones proporcionales son salario ordinario
+        # para efectos de cotización CCSS según Reglamento del Seguro Social).
+        rh = self.env['planilla.rate.helper']
+        ccss_employer_rate = rh.get_ccss_employer_rate()  # 26.83%
+        liquidable_base = (
+            (self.preaviso_amount if self.preaviso_applies else 0) +
+            self.vacation_amount
+        )
+        ccss_on_termination = round(liquidable_base * ccss_employer_rate, 2)
+        if ccss_on_termination > 0:
+            add_line(
+                config.account_social_charges_expense,
+                debit=ccss_on_termination,
+                name=f'CCSS Patronal sobre liquidación — {emp} ({ccss_employer_rate*100:.2f}%)'
+            )
+            add_line(
+                config.account_ccss_payable,
+                credit=ccss_on_termination,
+                name=f'CCSS Patronal liquidación por pagar — {emp}'
+            )
+
         # ── CRÉDITO (pasivo por pagar) ───────────────────────────────
+        # FIX BUG-N02 v52: usar misma cuenta payable para la deducción.
+        # La deducción REDUCE el pasivo (el empleado ya recibió ese dinero),
+        # NO es un gasto adicional. Así cuadra: DEBE total = HABER total.
         payable_account = config.account_termination_payable or config.account_salary_payable
         add_line(
             payable_account,
@@ -386,9 +456,11 @@ class EmployeeTermination(models.Model):
         )
 
         # ── Deducción (si aplica) ────────────────────────────────────
+        # DÉBITO en la misma cuenta de Liquidaciones por Pagar → reduce el pasivo.
+        # El neto a depositar al empleado = total_gross - deductions (gestionado en banco).
         if self.deductions:
             add_line(
-                config.account_salary_payable,
+                payable_account,
                 debit=self.deductions,
                 name=f'Deducción liquidación — {emp}: {self.deductions_note or ""}'
             )
@@ -399,7 +471,7 @@ class EmployeeTermination(models.Model):
         # H1 FIX — Verificar cuadre antes de postear
         total_debit  = round(sum(l[2]['debit']  for l in lines), 2)
         total_credit = round(sum(l[2]['credit'] for l in lines), 2)
-        if abs(total_debit - total_credit) > 1.0:
+        if abs(total_debit - total_credit) > 0.02:  # FIX BUG-N02 v52: tolerancia reducida a ₡0.02
             raise UserError(
                 f'El asiento de liquidación no cuadra para {emp}:\n'
                 f'  Débitos:  ₡{total_debit:,.2f}\n'

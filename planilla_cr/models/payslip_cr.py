@@ -1,5 +1,6 @@
 import logging
 from odoo import models, fields, api
+from odoo.models import Constraint
 from odoo.exceptions import UserError, ValidationError
 import datetime
 from .closed_period import PlanillaClosedPeriod
@@ -13,14 +14,10 @@ class PayslipCR(models.Model):
     _order = 'date_to desc, employee_id'
 
     # M3 FIX — Constraint de BD para prevenir boletas duplicadas en concurrencia
-    _sql_constraints = [
-        (
-            'unique_payslip_employee_period',
-            'UNIQUE(employee_id, date_from, date_to)',
-            'Ya existe una boleta para este empleado en el mismo período. '
-            'No se pueden crear dos boletas para el mismo empleado y fechas.'
-        ),
-    ]
+    _unique_payslip_employee_period = Constraint(
+        'UNIQUE(employee_id, date_from, date_to)',
+        'Ya existe una boleta para este empleado en el mismo período. No se pueden crear dos boletas para el mismo empleado y fechas.'
+    )
 
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
     employee_id = fields.Many2one(
@@ -195,7 +192,9 @@ class PayslipCR(models.Model):
             date_str = str(rec.date_to)[:7] if rec.date_to else ''
             rec.name = f'BOL - {emp} - {date_str}'
 
-    @api.depends('employee_id', 'date_from', 'date_to', 'attendance_hours', 'is_proportional', 'proportional_factor', 'payroll_calendar_id')
+    @api.depends('employee_id', 'date_from', 'date_to', 'attendance_hours',
+                 'is_proportional', 'proportional_factor', 'payroll_calendar_id',
+                 'days_in_period')  # FIX BUG-N04 v52: days_in_period afecta hourly_rate
     def _compute_base_salary(self):
         for rec in self:
             emp = rec.employee_id
@@ -206,9 +205,20 @@ class PayslipCR(models.Model):
                 if not rec.date_from or not rec.date_to or not emp.base_salary:
                     rec.base_salary = 0.0
                     continue
-                hours_per_day = emp.schedule_type_id.hours_per_day if emp.schedule_type_id else 8.0
-                monthly_hours = hours_per_day * 30.0
-                hourly_rate = emp.base_salary / monthly_hours if monthly_hours else 0.0
+                # FIX v49 Bug 2: usar días reales del período para la tasa horaria.
+                # El estándar CR es salario mensual / (horas_por_día × 30 días),
+                # pero para períodos quincenales o semanales los días reales son distintos.
+                # Usamos days_in_period (compute dependiente de date_from/date_to) en vez de 30 fijo.
+                # Se mantiene 30 como mínimo para evitar divisiones con períodos muy cortos/inválidos.
+                hours_per_day   = emp.schedule_type_id.hours_per_day if emp.schedule_type_id else 8.0
+                period_days     = max(rec.days_in_period or 30, 1)
+                # La tasa horaria se basa en el salario MENSUAL del empleado dividido entre las
+                # horas mensuales equivalentes (calculadas con los días reales del período × frecuencia).
+                # Ejemplo: quincenal → 15 días × 8h = 120h; el salario mensual / 240h × horas_trabajadas.
+                freq            = rec.payroll_calendar_id.frequency if rec.payroll_calendar_id else 'monthly'
+                periods_per_month = {'monthly': 1, 'biweekly': 2, 'weekly': 4, 'bimonthly': 1}.get(freq, 1)
+                monthly_hours   = hours_per_day * period_days * periods_per_month
+                hourly_rate     = emp.base_salary / monthly_hours if monthly_hours else 0.0
                 rec.base_salary = round(hourly_rate * (rec.attendance_hours or 0.0), 2)
             else:
                 raw = emp.base_salary or 0.0
@@ -321,10 +331,10 @@ class PayslipCR(models.Model):
             rec.aguinaldo_provision = round(g * agu_rate, 2)
             rec.cesantia_provision  = round(g * ces_rate, 2)
             rec.vacation_provision  = round(g * vac_rate, 2)
-            # Pensión alimentaria primero (Ley 8590, Art. 59), luego préstamos
-            if rec.state == 'draft' and rec.date_from and rec.date_to:
-                rec._sync_pension_alimentaria()
-                rec._sync_loan_deductions()
+            # NOTA: _sync_pension_alimentaria() y _sync_loan_deductions() se llaman
+            # desde create() y action_sync_novedades(), NO aquí.
+            # Un método compute NO debe tener side effects (escritura en BD).
+            # Colocarlos aquí causaba RecursionError y comportamiento impredecible.
 
     def _sync_recurring_benefits(self):
         """Auto-apply active recurring benefits/deductions for the period."""
@@ -538,14 +548,32 @@ class PayslipCR(models.Model):
         ])
 
         for leave in leaves:
-            # Solo procesar ausencias sin goce (unpaid) o injustificadas
-            # Las ausencias CON pago (vacaciones anuales legales, maternidad)
-            # tienen work_time_rate > 0 y se manejan por sus propios modelos.
+            # ── FIX v49 Bug 1: filtro robusto compatible con Odoo 19 ──────────────
+            # En Odoo 19 hr.holiday.status expone estos campos oficiales:
+            #   - unpaid (boolean): True si la ausencia NO tiene remuneración
+            #   - work_time_rate (float): % de tiempo laboral durante la ausencia (0=sin pago)
+            #   - time_type (selection): 'leave' | 'other'
+            # Estrategia: verificar cada campo con hasattr() para no asumir su existencia.
+            # Solo aplicamos descuento a ausencias CLARAMENTE sin goce de sueldo.
+            # Si no podemos determinar el tipo con certeza → NO aplicar descuento (seguro).
             holiday_type = leave.holiday_status_id
-            is_paid = getattr(holiday_type, 'work_time_rate', 0) > 0 or \
-                      getattr(holiday_type, 'leave_validation_type', '') == 'no_validation'
-            # Si el tipo de ausencia tiene "time_type = leave" y es pagada, omitir
-            if getattr(holiday_type, 'time_type', 'leave') == 'leave' and is_paid:
+
+            # Método 1 (Odoo 17+): campo unpaid boolean directo
+            if hasattr(holiday_type, 'unpaid'):
+                is_unpaid = bool(holiday_type.unpaid)
+            # Método 2: work_time_rate == 0 indica 0% remuneración
+            elif hasattr(holiday_type, 'work_time_rate'):
+                is_unpaid = (holiday_type.work_time_rate == 0)
+            # Método 3: fallback conservador — solo si el nombre sugiere "sin goce"
+            else:
+                name_lower = (holiday_type.name or '').lower()
+                is_unpaid = any(k in name_lower for k in (
+                    'sin goce', 'injustificad', 'unpaid', 'sin remuner', 'no remuner'
+                ))
+
+            # Si la ausencia ES pagada (maternidad, vacaciones anuales, etc.) → omitir.
+            # Esas ausencias ya están gestionadas por sus propios modelos (disability, vacation).
+            if not is_unpaid:
                 continue
 
             # Evitar duplicados: verificar si ya existe línea para este leave
@@ -585,12 +613,18 @@ class PayslipCR(models.Model):
             })
 
     def action_sync_novedades(self):
-        """Botón manual: re-sincroniza novedades del período en la boleta."""
+        """Botón manual: re-sincroniza novedades del período en la boleta.
+
+        BUG #8 FIX v50: Eliminadas llamadas duplicadas a _sync_pension_alimentaria()
+        y _sync_ausencias(). _sync_novedades() ya las llama internamente, por lo que
+        llamarlas de nuevo causaba duplicación de líneas de deducción al re-sincronizar.
+        Orden correcto: novedades → beneficios recurrentes → pensión (prioridad absoluta)
+        → préstamos (después de pensión, Art. 59 Ley 8590).
+        """
         for rec in self:
             if rec.state == 'draft':
-                rec._sync_novedades()           # incluye _sync_ausencias() internamente
-                rec._sync_pension_alimentaria()
-                rec._sync_ausencias()           # B2 FIX: también en sincronización manual
+                rec._sync_novedades()          # incluye _sync_ausencias() y _sync_pension_alimentaria()
+                rec._sync_recurring_benefits() # beneficios recurrentes (comisiones, bonos)
         return True
 
     def _calc_income_tax(self, gross):
@@ -662,11 +696,15 @@ class PayslipCR(models.Model):
                 if l.line_type == 'deduction'
             )
 
-            # Total Deducciones Legales Obrero = CCSS + ROP + Renta + otras legales
+            # Total Deducciones Obrero = CCSS + Renta + otras legales + deducciones adicionales
+            # (sindicato, cooperativa, embargo, cuotas préstamo, pensión alimentaria, etc.)
+            # FIX M-03 v51: agregar extra_deductions para que el total refleje todas las
+            # deducciones reales al empleado, no solo las legales obligatorias.
             rec.total_employee_deductions = round(
                 (rec.ccss_employee or 0.0) +
                 (rec.income_tax or 0.0) +
-                (rec.other_deductions or 0.0), 2
+                (rec.other_deductions or 0.0) +
+                extra_deductions, 2
             )
             rec.total_employer_cost = round(
                 (rec.gross_salary or 0.0) +
@@ -679,16 +717,17 @@ class PayslipCR(models.Model):
                 # C4: días 1-3 incapacidad CCSS a cargo del patrono (Art. 79 Reglamento CCSS)
                 (rec.employer_disability_cost or 0.0), 2
             )
-            # Salario Neto = Bruto − deducciones legales + subsidio CCSS + ingresos adicionales
-            # Paternidad: el patrono paga los 8 días hábiles, se suma al neto
+            # Salario Neto = Bruto − TODAS las deducciones del obrero
+            # (ccss + renta + otras legales + sindicato/embargo/préstamos)
+            # + subsidio CCSS incapacidad + paternidad + ingresos adicionales
             rec.net_salary = round(
                 (rec.gross_salary or 0.0) - rec.total_employee_deductions +
                 (rec.ccss_subsidy_total or 0.0) +
                 (rec.paternity_amount or 0.0) +
                 extra_income, 2
             )
-            # Salario a Pagar = Neto − préstamos, adelantos y deducciones adicionales
-            rec.salary_payable = round(rec.net_salary - extra_deductions, 2)
+            # Salario a Pagar = Neto (extra_deductions ya están incluidas en total_employee_deductions)
+            rec.salary_payable = rec.net_salary
 
             # KPI: costo total patronal por cada ₡1 que el empleado recibe en mano
             if rec.salary_payable and rec.salary_payable > 0:
@@ -759,15 +798,50 @@ class PayslipCR(models.Model):
                     f'Verifique si hay deducciones manuales.'
                 )
 
-            # ── Asistencias abiertas (C5) ────────────────────────────────
+            # ── FIX v49 Bug 3: validar attendance_hours y existencia de registros ──
             if (rec.employee_id.payroll_calculation_method or 'fixed') == 'attendance':
                 dt_from = fields.Datetime.to_datetime(rec.date_from)
-                dt_to = fields.Datetime.to_datetime(rec.date_to) + datetime.timedelta(days=1)
+                dt_to   = fields.Datetime.to_datetime(rec.date_to) + datetime.timedelta(days=1)
+
+                # Contar registros totales en el período (abiertos y cerrados)
+                total_att = self.env['hr.attendance'].search_count([
+                    ('employee_id', '=', emp.id),
+                    ('check_in',    '>=', dt_from),
+                    ('check_in',    '<',  dt_to),
+                ])
+
+                # Error si no hay NINGÚN registro de asistencia en el período
+                if total_att == 0:
+                    errors.append(
+                        f'{prefix} Modo de cálculo por asistencia pero no hay '
+                        f'registros de asistencia (check_in) en el período '
+                        f'{rec.date_from} — {rec.date_to}. '
+                        f'El salario bruto sería ₡0. '
+                        f'Registre las asistencias antes de confirmar.'
+                    )
+
+                # Error si attendance_hours es 0 aunque haya registros (todos abiertos o con 0h)
+                elif (rec.attendance_hours or 0.0) <= 0:
+                    errors.append(
+                        f'{prefix} Las horas trabajadas calculadas son 0 '
+                        f'en modo de cálculo por asistencia. '
+                        f'Verifique que los registros tengan check_out y horas válidas.'
+                    )
+
+                # Advertencia si el gross_salary resultante es 0 (captura otros casos)
+                elif rec.gross_salary <= 0:
+                    errors.append(
+                        f'{prefix} El salario bruto es ₡0 en modo attendance '
+                        f'({rec.attendance_hours:.1f}h trabajadas). '
+                        f'Verifique la tasa horaria y las asistencias del período.'
+                    )
+
+                # ── Asistencias abiertas (C5) ────────────────────────────────────
                 open_att = self.env['hr.attendance'].search_count([
                     ('employee_id', '=', emp.id),
-                    ('check_in', '>=', dt_from),
-                    ('check_in', '<', dt_to),
-                    ('check_out', '=', False),
+                    ('check_in',    '>=', dt_from),
+                    ('check_in',    '<',  dt_to),
+                    ('check_out',   '=',  False),
                 ])
                 if open_att:
                     errors.append(
@@ -818,11 +892,14 @@ class PayslipCR(models.Model):
     def create(self, vals_list):
         records = super().create(vals_list)
         for rec in records:
+            # _sync_novedades() ya incluye _sync_pension_alimentaria() y _sync_ausencias()
+            # internamente (ver línea ~506). NO llamar _sync_pension_alimentaria() de nuevo
+            # aquí — genera duplicados en las líneas de deducción al crear la boleta.
+            # FIX M-01 v51: eliminada la llamada duplicada a _sync_pension_alimentaria().
             rec._sync_novedades()
             rec._sync_recurring_benefits()
-            # Pensión alimentaria tiene prioridad absoluta (Ley 8590, Art. 59)
-            # Se sincroniza ANTES que préstamos y embargos
-            rec._sync_pension_alimentaria()
+            # _sync_loan_deductions() se llama DESPUÉS de novedades para respetar
+            # la prioridad: pensión alimentaria → embargo → préstamos (Ley 8590 Art. 59)
             rec._sync_loan_deductions()
         return records
 
@@ -849,13 +926,31 @@ class PayslipCR(models.Model):
         for rec in self:
             if rec.state != 'confirmed':
                 raise UserError(f'La boleta {rec.name} debe estar confirmada para pagar.')
-            rec.state = 'done'
-            if not skip_accounting:
-                rec._create_accounting_entry()
-            rec.overtime_ids.filtered(lambda o: o.state == 'approved').write({'state': 'paid'})
-            rec.vacation_ids.filtered(lambda v: v.state == 'approved').write({'state': 'paid'})
-            rec.disability_ids.filtered(lambda d: d.state == 'confirmed').write({'state': 'paid'})
-            # Enviar email al empleado si tiene correo configurado
+            # FIX Q-06 v51: savepoint para atomicidad.
+            # Si _create_accounting_entry() falla, la boleta NO queda en state=done
+            # sin asiento contable — PostgreSQL revierte todo al punto de guardado.
+            with rec.env.cr.savepoint():
+                rec.state = 'done'
+                if not skip_accounting:
+                    rec._create_accounting_entry()
+                rec.overtime_ids.filtered(lambda o: o.state == 'approved').write({'state': 'paid'})
+                rec.vacation_ids.filtered(lambda v: v.state == 'approved').write({'state': 'paid'})
+                rec.disability_ids.filtered(lambda d: d.state == 'confirmed').write({'state': 'paid'})
+                # Marcar cuotas de préstamos como descontadas y verificar si el préstamo quedó saldado
+                loan_lines = rec.deduction_line_ids.filtered(lambda l: l.loan_installment_id)
+                for line in loan_lines:
+                    line.loan_installment_id.write({'state': 'deducted', 'payslip_id': rec.id})
+                    line.loan_installment_id.loan_id.action_activate()
+                    line.loan_installment_id.loan_id.action_check_paid()
+                self.env['planilla.salary.history'].create({
+                    'employee_id': rec.employee_id.id,
+                    'salary': rec.net_salary,
+                    'gross_salary': rec.gross_salary,
+                    'effective_date': rec.date_to,
+                    'payslip_id': rec.id,
+                    'reason': f'Planilla {rec.name}',
+                })
+            # Email fuera del savepoint: fallo de email no revierte el pago
             if rec.employee_id.work_email:
                 try:
                     template = self.env.ref('planilla_cr.email_template_payslip_paid', raise_if_not_found=False)
@@ -863,20 +958,6 @@ class PayslipCR(models.Model):
                         template.send_mail(rec.id, force_send=False)
                 except Exception as e:
                     _logger.warning(f"planilla_cr: No se pudo enviar email de boleta ({rec.name}): {e}")
-            # Marcar cuotas de préstamos como descontadas y verificar si el préstamo quedó saldado
-            loan_lines = rec.deduction_line_ids.filtered(lambda l: l.loan_installment_id)
-            for line in loan_lines:
-                line.loan_installment_id.write({'state': 'deducted', 'payslip_id': rec.id})
-                line.loan_installment_id.loan_id.action_activate()
-                line.loan_installment_id.loan_id.action_check_paid()
-            self.env['planilla.salary.history'].create({
-                'employee_id': rec.employee_id.id,
-                'salary': rec.net_salary,
-                'gross_salary': rec.gross_salary,
-                'effective_date': rec.date_to,
-                'payslip_id': rec.id,
-                'reason': f'Planilla {rec.name}',
-            })
 
     def action_cancel(self):
         for rec in self:
@@ -968,90 +1049,227 @@ class PayslipCR(models.Model):
 
         emp = self.employee_id.name
 
-        # ── DÉBITOS (Gastos) ─────────────────────────────────────────────────
-        add_line(config.account_salary_expense,
-                 debit=self.gross_salary, name=f'Salarios — {emp}')
-        add_line(config.account_social_charges_expense,
-                 debit=self.ccss_employer + self.ins_employer, name=f'Cargas Sociales — {emp}')
-        add_line(config.account_vacation_expense,
-                 debit=self.vacation_provision, name=f'Vacaciones — {emp}')
-        add_line(config.account_aguinaldo_expense,
-                 debit=self.aguinaldo_provision, name=f'Aguinaldo — {emp}')
-        add_line(config.account_cesantia_expense,
-                 debit=self.cesantia_provision, name=f'Cesantía — {emp}')
+        # ══════════════════════════════════════════════════════════════════════
+        # LÓGICA DE CUADRE — v48
+        #
+        # El asiento DEBE cuadrar con CUALQUIER combinación de:
+        #   - Horas extras (ya incluidas en gross_salary ← OK)
+        #   - Incapacidades: ccss_subsidy_total (subsidio CCSS días 4+)
+        #                    employer_disability_cost (patrono paga días 1-3)
+        #   - Paternidad:    paternity_amount
+        #   - Pensiones alimentarias
+        #   - Préstamos
+        #   - Ingresos adicionales (line_type='income')
+        #   - Otras deducciones (sindicato, embargo, ausencias, etc.)
+        #
+        # REGLA FUNDAMENTAL:
+        #   DEBE = HABER siempre.
+        #   Todo lo que entra en salary_payable (HABER) debe tener contrapartida en DEBE.
+        #   Todo lo que es gasto patronal (DEBE) debe tener contrapartida en HABER.
+        # ══════════════════════════════════════════════════════════════════════
 
-        # ── CRÉDITOS (Pasivos) ───────────────────────────────────────────────
-        add_line(config.account_ccss_payable,
-                 credit=round(self.ccss_employee + self.ccss_employer, 2),
-                 name=f'CCSS por Pagar — {emp}')
-        add_line(config.account_ins_payable,
-                 credit=self.ins_employer, name=f'INS por Pagar — {emp}')
-        add_line(config.account_income_tax_payable,
-                 credit=self.income_tax, name=f'Retención Renta — {emp}')
-        add_line(config.account_aguinaldo_provision,
-                 credit=self.aguinaldo_provision, name=f'Provisión Aguinaldo — {emp}')
-        add_line(config.account_cesantia_provision,
-                 credit=self.cesantia_provision, name=f'Provisión Cesantía — {emp}')
-        add_line(config.account_vacation_provision,
-                 credit=self.vacation_provision, name=f'Provisión Vacaciones — {emp}')
+        # ── Calcular cada componente localmente (no depender de campos compute) ──
+        gross         = round(self.gross_salary or 0.0, 2)
+        ccss_emp      = round(self.ccss_employee or 0.0, 2)
+        ccss_pat      = round(self.ccss_employer or 0.0, 2)
+        ins_pat       = round(self.ins_employer or 0.0, 2)
+        renta         = round(self.income_tax or 0.0, 2)
+        vac_prov      = round(self.vacation_provision or 0.0, 2)
+        agui_prov     = round(self.aguinaldo_provision or 0.0, 2)
+        ces_prov      = round(self.cesantia_provision or 0.0, 2)
+        subsidy       = round(self.ccss_subsidy_total or 0.0, 2)
+        pat_amount    = round(self.paternity_amount or 0.0, 2)
+        dis_cost      = round(self.employer_disability_cost or 0.0, 2)
 
-        # C2 — Pensiones alimentarias retenidas (cuenta retenciones por pagar)
-        pensiones = sum(
+        # Separar deducciones e ingresos adicionales
+        extra_income = round(sum(
+            l.amount for l in self.deduction_line_ids
+            if l.line_type == 'income'
+        ), 2)
+        pensiones = round(sum(
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'pension_alimentaria'
-        )
-        if pensiones > 0:
-            pension_account = config.account_salary_payable  # fallback si no hay cuenta específica
-            if hasattr(config, 'account_pension_payable') and config.account_pension_payable:
-                pension_account = config.account_pension_payable
-            add_line(pension_account,
-                     credit=pensiones, name=f'Pensión Alimentaria Retenida — {emp}')
-
-        # B7 FIX — Cuotas de préstamos retenidas
-        # Necesitan su propia cuenta de crédito para cuadrar el asiento.
-        # salary_payable ya descuenta estos montos, pero sin su línea de crédito
-        # el asiento queda descuadrado en exactamente ese monto.
+        ), 2)
         prestamos = round(sum(
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'loan'
         ), 2)
-        if prestamos > 0:
-            loan_account = (
-                config.account_loans_payable
-                if config.account_loans_payable
-                else config.account_salary_payable  # fallback: usa salarios por pagar
-            )
-            add_line(loan_account,
-                     credit=prestamos, name=f'Cuotas Préstamos Retenidos — {emp}')
-
-        # B7 FIX — Otras deducciones adicionales (no son pensión ni préstamo)
-        # Por ejemplo: sindicato, asociación, embargo judicial, etc.
+        ausencias = round(sum(
+            l.amount for l in self.deduction_line_ids
+            if l.deduction_category == 'ausencia'
+        ), 2)
         otras_ded = round(sum(
             l.amount for l in self.deduction_line_ids
-            if l.deduction_category not in ('pension_alimentaria', 'loan')
-               and l.deduction_type == 'deduction'
+            if l.line_type == 'deduction'
+               and l.deduction_category not in ('pension_alimentaria', 'loan', 'ausencia')
         ), 2)
-        if otras_ded > 0:
-            # Fallback a salary_payable — la empresa puede separar estas cuentas luego
-            add_line(config.account_salary_payable,
-                     credit=otras_ded, name=f'Otras Deducciones Retenidas — {emp}')
 
-        # C1 — Usar salary_payable (ya descontados préstamos y pensiones y otras)
-        add_line(config.account_salary_payable,
-                 credit=self.salary_payable,
-                 name=f'Salarios por Pagar (neto a depositar) — {emp}')
+        # salary_payable calculado localmente para garantizar cuadre
+        # = gross - ccss_emp - renta + subsidio_ccss + paternidad + extra_income
+        #   - pensiones - prestamos - ausencias - otras_ded
+        net_for_accounting = round(
+            gross - ccss_emp - renta
+            + subsidy       # subsidio CCSS días 4+ (la CCSS lo deposita al empleado)
+            + pat_amount    # paternidad: patrono asume los 8 días
+            + extra_income  # ingresos adicionales en boleta
+            - pensiones
+            - prestamos
+            - ausencias
+            - otras_ded,
+            2
+        )
+
+        # ── DÉBITOS (Gastos del patrono) ─────────────────────────────────────
+        add_line(config.account_salary_expense,
+                 debit=gross,
+                 name=f'Salarios — {emp}')
+
+        add_line(config.account_social_charges_expense,
+                 debit=round(ccss_pat + ins_pat, 2),
+                 name=f'Cargas Sociales Patronales — {emp}')
+
+        add_line(config.account_vacation_expense,
+                 debit=vac_prov,
+                 name=f'Provisión Vacaciones — {emp}')
+
+        add_line(config.account_aguinaldo_expense,
+                 debit=agui_prov,
+                 name=f'Provisión Aguinaldo — {emp}')
+
+        add_line(config.account_cesantia_expense,
+                 debit=ces_prov,
+                 name=f'Provisión Cesantía — {emp}')
+
+        # FIX: Paternidad — gasto patronal que entra en net pero no tenía DEBE
+        if pat_amount > 0:
+            add_line(config.account_salary_expense,
+                     debit=pat_amount,
+                     name=f'Paternidad (8 días Art. 95 CT) — {emp}')
+
+        # FIX: Días 1-3 incapacidad a cargo del patrono (Art. 79 Reg. CCSS)
+        if dis_cost > 0:
+            add_line(config.account_salary_expense,
+                     debit=dis_cost,
+                     name=f'Incapacidad días 1-3 (cargo patrono) — {emp}')
+
+        # FIX v49 Bug 5: Subsidio CCSS — la CCSS paga días 4+ directamente al empleado.
+        # El patrono registra un derecho de cobro (activo corriente) en el DEBE del asiento.
+        # Jerarquía de cuentas:
+        #   1. account_ccss_subsidy_receivable configurado en Planilla → Configuración → Contabilidad
+        #   2. Búsqueda automática de cuenta 120500 en el plan de cuentas de la compañía
+        #   3. Fallback: account_ccss_payable (neteo — menos claro pero cuadra el asiento)
+        if subsidy > 0:
+            # Prioridad 1: cuenta configurada explícitamente por el contador
+            ccss_subsidy_acct = config.account_ccss_subsidy_receivable
+
+            # Prioridad 2: buscar cuenta 120500 en el plan de cuentas
+            if not ccss_subsidy_acct:
+                ccss_subsidy_acct = self.env['account.account'].search([
+                    ('code', '=', '120500'),
+                    ('company_ids', 'in', self.env.company.id),
+                ], limit=1)
+
+            # Prioridad 3: fallback a CCSS por pagar (neteo contable)
+            if not ccss_subsidy_acct:
+                ccss_subsidy_acct = config.account_ccss_payable
+                _logger.info(
+                    'planilla_cr: usando account_ccss_payable como fallback para subsidio CCSS '
+                    '(empresa %s). Configure account_ccss_subsidy_receivable en '
+                    'Planilla → Configuración → Contabilidad para mayor claridad contable.',
+                    self.company_id.name
+                )
+
+            add_line(ccss_subsidy_acct,
+                     debit=subsidy,
+                     name=f'Subsidio CCSS por Cobrar (incapacidad) — {emp}')
+
+        # FIX: Ingresos adicionales en boleta — el patrono los paga, son gasto
+        if extra_income > 0:
+            add_line(config.account_salary_expense,
+                     debit=extra_income,
+                     name=f'Ingresos Adicionales en Boleta — {emp}')
+
+        # ── CRÉDITOS (Pasivos y retenciones) ─────────────────────────────────
+        add_line(config.account_ccss_payable,
+                 credit=round(ccss_emp + ccss_pat, 2),
+                 name=f'CCSS por Pagar (obrero + patronal) — {emp}')
+
+        add_line(config.account_ins_payable,
+                 credit=ins_pat,
+                 name=f'INS por Pagar — {emp}')
+
+        add_line(config.account_income_tax_payable,
+                 credit=renta,
+                 name=f'Retención Renta — {emp}')
+
+        add_line(config.account_aguinaldo_provision,
+                 credit=agui_prov,
+                 name=f'Provisión Aguinaldo por Pagar — {emp}')
+
+        add_line(config.account_cesantia_provision,
+                 credit=ces_prov,
+                 name=f'Provisión Cesantía por Pagar — {emp}')
+
+        add_line(config.account_vacation_provision,
+                 credit=vac_prov,
+                 name=f'Provisión Vacaciones por Pagar — {emp}')
+
+        if pensiones > 0:
+            # BUG #10 FIX v50: Pensiones alimentarias van a cuenta separada (230950)
+            # para control judicial (Juzgado de Familia). Fallback: account_salary_payable.
+            pension_account = (config.account_pension_alimentaria_payable
+                               or config.account_salary_payable)
+            add_line(pension_account,
+                     credit=pensiones,
+                     name=f'Pensión Alimentaria Retenida — {emp}')
+
+        if prestamos > 0:
+            loan_account = config.account_loans_payable or config.account_salary_payable
+            add_line(loan_account,
+                     credit=prestamos,
+                     name=f'Cuotas Préstamos Retenidos — {emp}')
+
+        if ausencias > 0:
+            add_line(config.account_salary_payable,
+                     credit=ausencias,
+                     name=f'Descuento Ausencias Sin Goce — {emp}')
+
+        if otras_ded > 0:
+            add_line(config.account_salary_payable,
+                     credit=otras_ded,
+                     name=f'Otras Deducciones Retenidas — {emp}')
+
+        # Días 1-3 de incapacidad se pagan al empleado pero son gasto patronal
+        if dis_cost > 0:
+            add_line(config.account_salary_payable,
+                     credit=dis_cost,
+                     name=f'Incapacidad días 1-3 (por pagar al empleado) — {emp}')
+
+        # Neto final a depositar (salary_payable calculado localmente)
+        if net_for_accounting > 0:
+            add_line(config.account_salary_payable,
+                     credit=net_for_accounting,
+                     name=f'Salarios por Pagar (neto a depositar) — {emp}')
 
         if not lines:
             return
 
-        # Verificar cuadre antes de postear
-        total_debit = round(sum(l[2]['debit'] for l in lines), 2)
+        # ── Verificación de cuadre matemático antes de postear ───────────────
+        total_debit  = round(sum(l[2]['debit']  for l in lines), 2)
         total_credit = round(sum(l[2]['credit'] for l in lines), 2)
-        if abs(total_debit - total_credit) > 1.0:
+        if abs(total_debit - total_credit) > 0.02:
+            # Generar diagnóstico detallado para facilitar depuración
+            detail = '\n'.join(
+                f"  {'DEBE' if l[2]['debit'] else 'HABER'} ₡{max(l[2]['debit'], l[2]['credit']):>12,.2f}  {l[2]['name']}"
+                for l in lines
+            )
             raise UserError(
-                f'El asiento contable no cuadra para {emp}: '
-                f'Débitos={total_debit:,.2f} / Créditos={total_credit:,.2f}. '
-                f'Verifique que todas las cuentas contables estén configuradas.'
+                f'El asiento contable no cuadra para {emp}:\n'
+                f'  Débitos:  ₡{total_debit:,.2f}\n'
+                f'  Créditos: ₡{total_credit:,.2f}\n'
+                f'  Diferencia: ₡{abs(total_debit - total_credit):,.2f}\n\n'
+                f'Detalle de líneas:\n{detail}\n\n'
+                f'Verifique la configuración contable en Planilla → Configuración → Contabilidad.'
             )
 
         move = self.env['account.move'].create({

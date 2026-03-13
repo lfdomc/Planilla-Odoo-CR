@@ -711,9 +711,14 @@ class HrEmployeeExtension(models.Model):
         employees = super().create(vals_list)
         for employee in employees:
             if employee.base_salary:
+                # FIX BUG-N10 v52: guardar también gross_salary en el historial inicial.
+                # Sin esto, el primer registro tiene gross_salary=0, lo que causa que
+                # overtime._compute_hourly_rate() y disability._compute_daily_salary()
+                # no encuentren salario histórico válido para la fecha de ingreso.
                 self.env['planilla.salary.history'].create({
                     'employee_id': employee.id,
                     'salary': employee.base_salary,
+                    'gross_salary': employee.base_salary,  # FIX: también el bruto
                     'effective_date': employee.salary_effective_date or fields.Date.today(),
                     'reason': 'Salario Inicial',
                 })
@@ -729,6 +734,7 @@ class HrEmployeeExtension(models.Model):
                     self.env['planilla.salary.history'].create({
                         'employee_id': employee.id,
                         'salary': employee.base_salary,
+                        'gross_salary': employee.base_salary,  # FIX BUG-N10 v52
                         'effective_date': vals.get('salary_effective_date') or fields.Date.today(),
                         'reason': 'Ajuste Salarial',
                     })

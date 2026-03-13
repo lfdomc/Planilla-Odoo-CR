@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.models import Constraint
 from odoo.exceptions import ValidationError
 
 
@@ -6,6 +7,12 @@ class Disability(models.Model):
     _name = 'planilla.disability'
     _description = 'Incapacidad'
     _inherit = ['mail.thread', 'mail.activity.mixin']
+    _unique_disability_employee_date_type = Constraint(
+        'UNIQUE(employee_id, date_start, disability_type)',
+        'Ya existe una incapacidad del mismo tipo para este empleado en esa fecha de inicio. Verifique si ya existe un registro duplicado.'
+    )
+
+
 
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
     employee_id = fields.Many2one(
@@ -153,12 +160,14 @@ class Disability(models.Model):
                 rec.employer_cost = 0.0
                 rec.ccss_subsidy = round(rec.days * rec.daily_salary, 2)
             else:
-                # CCSS: dias 1-3 patrono 100%, del 4 en adelante 60% CCSS / 40% patrono
+                # BUG #13 FIX v50: Días 1-3 SIEMPRE son 100% patrono (Art. 79 Reglamento CCSS)
+                # No usar employer_percentage para días 1-3 — es un mandato legal fijo.
+                # employer_percentage (40%) solo aplica para días 4+ cuando CCSS subsidia.
                 first_days = min(rec.days, 3)
                 remaining_days = max(rec.days - 3, 0)
                 rec.employer_cost = round(
-                    (first_days * rec.daily_salary) +
-                    (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2
+                    (first_days * rec.daily_salary * 1.0) +          # 100% patrono días 1-3 (hardcoded)
+                    (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2  # 40% días 4+
                 )
                 rec.ccss_subsidy = round(
                     remaining_days * rec.daily_salary * rec.subsidy_percentage / 100, 2
@@ -215,7 +224,12 @@ class Disability(models.Model):
                 )
 
     def action_recompute(self):
-        """Fuerza el recalculo de salario diario y montos directamente en BD."""
+        """
+        FIX B-03 v51: Fuerza el recálculo usando ORM write() en vez de SQL directo.
+        El SQL directo (env.cr.execute) dejaba inconsistencias en el cache ORM de Odoo 19:
+        los campos se actualizaban en BD pero el recordset en memoria no se invalidaba
+        correctamente, causando que la vista mostrara valores desactualizados.
+        """
         for rec in self:
             if not rec.employee_id or not rec.employee_id.base_salary:
                 continue
@@ -230,23 +244,33 @@ class Disability(models.Model):
             else:
                 avg_daily = daily
 
-            # Calcular subsidio
+            # Calcular costos según el tipo de incapacidad (misma lógica que _compute_costs)
             days = rec.days or 0
-            ccss_subsidy = round(days * avg_daily, 2)
+            if rec.disability_type == 'maternity':
+                employer_cost = 0.0
+                ccss_subsidy = round(days * avg_daily, 2)
+            elif rec.disability_type == 'ins':
+                employer_cost = 0.0
+                ccss_subsidy = round(days * daily, 2)
+            else:
+                # Días 1-3: 100% patrono. Días 4+: según porcentajes configurados.
+                first_days = min(days, 3)
+                remaining_days = max(days - 3, 0)
+                employer_cost = round(
+                    (first_days * daily * 1.0) +
+                    (remaining_days * daily * (rec.employer_percentage or 40.0) / 100), 2
+                )
+                ccss_subsidy = round(
+                    remaining_days * daily * (rec.subsidy_percentage or 60.0) / 100, 2
+                )
 
-            # Escribir directo en BD para campos computed store=True
-            rec.env.cr.execute(
-                """UPDATE planilla_disability
-                   SET daily_salary = %s,
-                       maternity_avg_salary = %s,
-                       ccss_subsidy = %s,
-                       employer_cost = 0
-                   WHERE id = %s""",
-                (daily, avg_daily, ccss_subsidy, rec.id)
-            )
-            # Invalidar cache para que la vista se refresque
-            rec.invalidate_recordset(['daily_salary', 'maternity_avg_salary',
-                                      'ccss_subsidy', 'employer_cost'])
+            # Usar write() ORM — actualiza BD e invalida cache correctamente en Odoo 19
+            rec.write({
+                'daily_salary': daily,
+                'maternity_avg_salary': avg_daily,
+                'ccss_subsidy': ccss_subsidy,
+                'employer_cost': employer_cost,
+            })
         return True
 
     def write(self, vals):

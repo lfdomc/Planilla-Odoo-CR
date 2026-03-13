@@ -150,12 +150,14 @@ class PlanillaScheduledActions(models.AbstractModel):
                         ('state', 'in', ('approved', 'paid')),
                         ('vacation_type', '=', 'disfrutadas'),
                     ],
-                    fields=['employee_id', 'date_from:max'],
+                    # FIX M-05 v51: el campo correcto es date_start, no date_from
+                    # (date_from no existe en planilla.vacation.payment → error silencioso)
+                    fields=['employee_id', 'date_start:max'],
                     groupby=['employee_id'],
                 )
                 last_vacs = {
-                    g['employee_id'][0]: g['date_from']
-                    for g in vac_groups if g.get('date_from')
+                    g['employee_id'][0]: g['date_start']
+                    for g in vac_groups if g.get('date_start')
                 }
             at_risk = []
             for emp in employees:

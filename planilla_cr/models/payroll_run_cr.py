@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.models import Constraint
 from odoo.exceptions import UserError, ValidationError
 
 
@@ -9,14 +10,10 @@ class PayrollRunCR(models.Model):
     _order = 'date_end desc'
 
     # M3 FIX — Constraint de BD para prevenir planillas duplicadas en concurrencia
-    _sql_constraints = [
-        (
-            'unique_run_company_period',
-            'UNIQUE(company_id, date_start, date_end)',
-            'Ya existe una planilla para esta compañía en el mismo período. '
-            'No se pueden crear dos planillas con las mismas fechas.'
-        ),
-    ]
+    _unique_run_company_period = Constraint(
+        'UNIQUE(company_id, date_start, date_end)',
+        'Ya existe una planilla para esta compañía en el mismo período. No se pueden crear dos planillas con las mismas fechas.'
+    )
 
     name = fields.Char(string='Nombre', required=True, tracking=True)
     company_id = fields.Many2one(
@@ -108,7 +105,8 @@ class PayrollRunCR(models.Model):
     @api.depends('payslip_ids.gross_salary', 'payslip_ids.net_salary',
                  'payslip_ids.salary_payable', 'payslip_ids.total_employer_cost',
                  'payslip_ids.ccss_employer', 'payslip_ids.ccss_employee',
-                 'payslip_ids.income_tax')
+                 'payslip_ids.income_tax',
+                 'payslip_ids.state')  # FIX BUG-N11 v52: state para re-totalizar al cancelar boletas
     def _compute_totals(self):
         for rec in self:
             rec.total_gross         = sum(rec.payslip_ids.mapped('gross_salary'))
@@ -156,6 +154,13 @@ class PayrollRunCR(models.Model):
         # Filtrar solo empleados activos en planilla
         employees = employees.filtered(
             lambda e: e.employee_status_id and e.employee_status_id.is_active_payroll
+        )
+        # FIX BUG-N09 v52: Excluir empleados con ccss_insured=False de la planilla estándar.
+        # Empleados sin seguro CCSS activo no deben procesarse en planillas regulares.
+        # Nota: si se necesita procesar empleados sin CCSS (ej: trabajadores ocasionales),
+        # crear una planilla separada o gestionar manualmente sus boletas.
+        employees = employees.filtered(
+            lambda e: getattr(e, 'ccss_insured', True)  # True por defecto si el campo no existe
         )
 
         for employee in employees:
@@ -236,20 +241,26 @@ class PayrollRunCR(models.Model):
                 'o use el botón "⚡ Autocompletar Cuentas CR".'
             )
 
-        # Sumar todos los montos de todas las boletas
-        total_gross = sum(payslips.mapped('gross_salary'))
-        total_ccss_employer = sum(payslips.mapped('ccss_employer'))
-        total_ins_employer = sum(payslips.mapped('ins_employer'))
-        total_vacation_prov = sum(payslips.mapped('vacation_provision'))
-        total_aguinaldo_prov = sum(payslips.mapped('aguinaldo_provision'))
-        total_cesantia_prov = sum(payslips.mapped('cesantia_provision'))
-        total_ccss_employee = sum(payslips.mapped('ccss_employee'))
-        total_income_tax = sum(payslips.mapped('income_tax'))
-        # B1 FIX: usar salary_payable (neto real después de pensiones y préstamos)
-        total_salary_payable = sum(payslips.mapped('salary_payable'))
+        # ── Sumar todos los montos de todas las boletas ──────────────────────
+        total_gross         = round(sum(payslips.mapped('gross_salary')), 2)
+        total_ccss_employer = round(sum(payslips.mapped('ccss_employer')), 2)
+        total_ins_employer  = round(sum(payslips.mapped('ins_employer')), 2)
+        total_vacation_prov = round(sum(payslips.mapped('vacation_provision')), 2)
+        total_aguinaldo_prov= round(sum(payslips.mapped('aguinaldo_provision')), 2)
+        total_cesantia_prov = round(sum(payslips.mapped('cesantia_provision')), 2)
+        total_ccss_employee = round(sum(payslips.mapped('ccss_employee')), 2)
+        total_income_tax    = round(sum(payslips.mapped('income_tax')), 2)
 
-        # B7 FIX: sumar pensiones, préstamos y otras deducciones de TODAS las boletas
+        # FIX v48 — Componentes que faltaban y causaban descuadre en modo per_run
+        total_subsidy    = round(sum(payslips.mapped('ccss_subsidy_total')), 2)
+        total_dis_cost   = round(sum(payslips.mapped('employer_disability_cost')), 2)
+        total_paternity  = round(sum(payslips.mapped('paternity_amount')), 2)
+
+        # Deducciones adicionales de todas las boletas
         all_deduction_lines = payslips.mapped('deduction_line_ids')
+        total_extra_income = round(sum(
+            l.amount for l in all_deduction_lines if l.line_type == 'income'
+        ), 2)
         total_pensiones = round(sum(
             l.amount for l in all_deduction_lines
             if l.deduction_category == 'pension_alimentaria'
@@ -258,11 +269,23 @@ class PayrollRunCR(models.Model):
             l.amount for l in all_deduction_lines
             if l.deduction_category == 'loan'
         ), 2)
+        total_ausencias = round(sum(
+            l.amount for l in all_deduction_lines
+            if l.deduction_category == 'ausencia'
+        ), 2)
         total_otras_ded = round(sum(
             l.amount for l in all_deduction_lines
-            if l.deduction_category not in ('pension_alimentaria', 'loan')
-               and l.deduction_type == 'deduction'
+            if l.line_type == 'deduction'
+               and l.deduction_category not in ('pension_alimentaria', 'loan', 'ausencia')
         ), 2)
+
+        # Neto total a depositar (calculado igual que en asiento individual)
+        total_net_for_accounting = round(
+            total_gross - total_ccss_employee - total_income_tax
+            + total_subsidy + total_paternity + total_extra_income
+            - total_pensiones - total_prestamos - total_ausencias - total_otras_ded,
+            2
+        )
 
         ref = f'Planilla: {self.name} ({len(payslips)} empleados)'
         lines = []
@@ -277,12 +300,41 @@ class PayrollRunCR(models.Model):
                 'credit': round(credit, 2),
             }))
 
-        # DÉBITOS
-        add_line(config.account_salary_expense, debit=total_gross, name='Salarios — Planilla ' + self.name)
-        add_line(config.account_social_charges_expense, debit=total_ccss_employer + total_ins_employer, name='Cargas Sociales — Planilla ' + self.name)
-        add_line(config.account_vacation_expense, debit=total_vacation_prov, name='Vacaciones — Planilla ' + self.name)
-        add_line(config.account_aguinaldo_expense, debit=total_aguinaldo_prov, name='Aguinaldo — Planilla ' + self.name)
-        add_line(config.account_cesantia_expense, debit=total_cesantia_prov, name='Cesantía — Planilla ' + self.name)
+        # ── DÉBITOS (Gastos del patrono) ────────────────────────────────────
+        run_name = self.name
+        add_line(config.account_salary_expense, debit=total_gross,
+                 name=f'Salarios — Planilla {run_name}')
+        add_line(config.account_social_charges_expense,
+                 debit=round(total_ccss_employer + total_ins_employer, 2),
+                 name=f'Cargas Sociales — Planilla {run_name}')
+        add_line(config.account_vacation_expense, debit=total_vacation_prov,
+                 name=f'Provisión Vacaciones — Planilla {run_name}')
+        add_line(config.account_aguinaldo_expense, debit=total_aguinaldo_prov,
+                 name=f'Provisión Aguinaldo — Planilla {run_name}')
+        add_line(config.account_cesantia_expense, debit=total_cesantia_prov,
+                 name=f'Provisión Cesantía — Planilla {run_name}')
+        # FIX v48 — Paternidad, días 1-3 incapacidad y subsidio (mismo lógica que asiento individual)
+        if total_paternity > 0:
+            add_line(config.account_salary_expense, debit=total_paternity,
+                     name=f'Paternidad (Art. 95 CT) — Planilla {run_name}')
+        if total_dis_cost > 0:
+            add_line(config.account_salary_expense, debit=total_dis_cost,
+                     name=f'Incapacidad días 1-3 (cargo patrono) — Planilla {run_name}')
+        if total_subsidy > 0:
+            # FIX v49 Bug 5: misma jerarquía que el asiento individual
+            ccss_subsidy_acct = config.account_ccss_subsidy_receivable
+            if not ccss_subsidy_acct:
+                ccss_subsidy_acct = self.env['account.account'].search([
+                    ('code', '=', '120500'),
+                    ('company_ids', 'in', self.env.company.id),
+                ], limit=1)
+            if not ccss_subsidy_acct:
+                ccss_subsidy_acct = config.account_ccss_payable
+            add_line(ccss_subsidy_acct, debit=total_subsidy,
+                     name=f'Subsidio CCSS por Cobrar (incapacidades) — Planilla {run_name}')
+        if total_extra_income > 0:
+            add_line(config.account_salary_expense, debit=total_extra_income,
+                     name=f'Ingresos Adicionales en Boletas — Planilla {run_name}')
 
         # CRÉDITOS
         add_line(config.account_ccss_payable, credit=total_ccss_employee + total_ccss_employer, name='CCSS por Pagar — Planilla ' + self.name)
@@ -305,13 +357,37 @@ class PayrollRunCR(models.Model):
             add_line(loan_account, credit=total_prestamos, name='Cuotas Préstamos Retenidos — Planilla ' + self.name)
 
         # B7 FIX: otras deducciones adicionales
+        if total_ausencias > 0:
+            add_line(config.account_salary_payable, credit=total_ausencias,
+                     name=f'Descuento Ausencias Sin Goce — Planilla {run_name}')
         if total_otras_ded > 0:
-            add_line(config.account_salary_payable, credit=total_otras_ded, name='Otras Deducciones Retenidas — Planilla ' + self.name)
-
-        add_line(config.account_salary_payable, credit=total_salary_payable, name='Salarios por Pagar — Planilla ' + self.name)
+            add_line(config.account_salary_payable, credit=total_otras_ded,
+                     name=f'Otras Deducciones Retenidas — Planilla {run_name}')
+        if total_dis_cost > 0:
+            add_line(config.account_salary_payable, credit=total_dis_cost,
+                     name=f'Incapacidad días 1-3 (por pagar al empleado) — Planilla {run_name}')
+        if total_net_for_accounting > 0:
+            add_line(config.account_salary_payable, credit=total_net_for_accounting,
+                     name=f'Salarios por Pagar (neto a depositar) — Planilla {run_name}')
 
         if not lines:
             return
+
+        # Verificar cuadre antes de postear
+        total_debit  = round(sum(l[2]['debit']  for l in lines), 2)
+        total_credit = round(sum(l[2]['credit'] for l in lines), 2)
+        if abs(total_debit - total_credit) > 0.02:
+            detail = '\n'.join(
+                f"  {'DEBE' if l[2]['debit'] else 'HABER'} ₡{max(l[2]['debit'], l[2]['credit']):>12,.2f}  {l[2]['name']}"
+                for l in lines
+            )
+            raise UserError(
+                f'El asiento consolidado no cuadra para la planilla {run_name}:\n'
+                f'  Débitos:  ₡{total_debit:,.2f}\n'
+                f'  Créditos: ₡{total_credit:,.2f}\n'
+                f'  Diferencia: ₡{abs(total_debit - total_credit):,.2f}\n\n'
+                f'Detalle de líneas:\n{detail}'
+            )
 
         move = self.env['account.move'].create({
             'journal_id': config.journal_id.id,
@@ -367,6 +443,10 @@ class PayrollRunCR(models.Model):
 
     def action_confirm(self):
         self.ensure_one()
+        # FIX B-02 v51: verificar doble pago ANTES de confirmar, no solo al pagar.
+        # Si hay race condition entre dos usuarios confirmando la misma planilla,
+        # el constraint SQL de BD lo captura. Esta validación es la capa de aplicación.
+        self._check_no_duplicate_payment()
         self.payslip_ids.action_confirm()
         self.state = 'confirmed'
 

@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.exceptions import ValidationError
 
 
 class RecurringBenefit(models.Model):
@@ -29,6 +30,26 @@ class RecurringBenefit(models.Model):
     date_end       = fields.Date(string='Vigente hasta',
                                   help='Dejar vacío para aplicar indefinidamente.')
     note           = fields.Char(string='Nota')
+
+    @api.constrains('amount', 'percentage', 'amount_type')
+    def _check_amounts(self):
+        """FIX BUG-N08 v52: Validar que monto/porcentaje no sean negativos.
+        Un monto negativo crearía ingresos o deducciones negativas en la boleta,
+        causando que el neto se calcule incorrectamente.
+        """
+        for rec in self:
+            if rec.amount_type == 'fixed' and rec.amount < 0:
+                raise ValidationError(
+                    f'El monto del beneficio/deducción "{rec.name}" no puede ser negativo '
+                    f'(valor: ₡{rec.amount:,.2f}). '
+                    f'Si desea reducir, use el tipo de línea correcto.'
+                )
+            if rec.amount_type == 'percentage' and rec.percentage <= 0:
+                raise ValidationError(
+                    f'El porcentaje del beneficio/deducción "{rec.name}" debe ser mayor a 0 '
+                    f'(valor: {rec.percentage:.2f}%). '
+                    f'Ingrese un valor positivo.'
+                )
 
     def get_amount_for_salary(self, gross_salary):
         """Retorna el monto a aplicar dado el salario bruto."""

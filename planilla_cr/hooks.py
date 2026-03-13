@@ -57,7 +57,7 @@ def _setup_accounting_config(env):
             ('company_ids', 'in', env.company.id),
         ], limit=1)
 
-    # Mapa campo → código de cuenta estándar CR (15 cuentas — v47)
+    # Mapa campo → código de cuenta estándar CR (16 cuentas — v49)
     ACCOUNT_MAP = {
         'account_salary_expense':         '630000',
         'account_social_charges_expense': '630100',
@@ -72,8 +72,10 @@ def _setup_accounting_config(env):
         'account_aguinaldo_provision':    '230500',
         'account_cesantia_provision':     '230600',
         'account_vacation_provision':     '230700',
-        'account_termination_payable':    '230800',
-        'account_loans_payable':          '230900',
+        'account_termination_payable':         '230800',
+        'account_loans_payable':               '230900',
+        # FIX v49 Bug 5 — Cuenta para subsidio CCSS por cobrar (activo corriente 120500)
+        'account_ccss_subsidy_receivable':     '120500',
     }
 
     # Buscar diario de planilla

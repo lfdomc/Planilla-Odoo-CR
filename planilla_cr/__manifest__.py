@@ -1,6 +1,6 @@
 {
     'name': 'Sistema Planilla v24',
-    'version': '19.0.47.0.0',
+    'version': '19.0.0.52',
     'category': 'Human Resources/Payroll',
     'summary': 'Sistema de Planilla Costa Rica v24 — Legislación CR 2026',
     'description': """
@@ -33,6 +33,7 @@
         # Security - grupos primero
         'security/security.xml',
         'security/ir.model.access.csv',
+        'security/record_rules.xml',
         # Data
         'data/identification_type_data.xml',
         'data/income_tax_data.xml',
@@ -92,9 +93,15 @@
         'data/cron_jobs.xml',
         'data/email_templates.xml',
         'data/public_holidays_cr.xml',
+        # EDDI-7 CCSS
+        'views/eddi7_export_views.xml',
         # Menus (siempre al final)
         'views/menu_views.xml',
     ],
+    # FIX BUG-N03 v52: campo 'test' eliminado — Odoo 19 lo ignora completamente.
+    # Para ejecutar tests usar:
+    #   docker compose exec web odoo -d prueba --test-enable \
+    #     --test-tags planilla_cr --stop-after-init
     'installable': True,
     'application': True,
     'auto_install': False,

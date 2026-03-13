@@ -32,3 +32,5 @@ from . import employer_cost_report
 from . import overtime_report
 from . import recurring_benefit
 from . import pension_alimentaria
+
+from . import eddi7_export

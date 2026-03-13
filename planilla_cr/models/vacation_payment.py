@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.exceptions import UserError, ValidationError
 from datetime import date
 
 
@@ -29,9 +30,9 @@ class VacationPayment(models.Model):
 
     # Según Código de Trabajo CR: 2 semanas (12 días hábiles) por año trabajado
     days_accrued = fields.Float(
-        string='Días Acumulados',
+        string='Días Disponibles',
         compute='_compute_days_accrued',
-        help='Días de vacaciones acumulados según antigüedad'
+        help='Días de vacaciones disponibles según hr_employee (descuenta vacaciones tomadas)'
     )
 
     daily_salary = fields.Monetary(
@@ -82,19 +83,52 @@ class VacationPayment(models.Model):
     )
 
     payslip_id = fields.Many2one('planilla.payslip.cr', string='Boleta de Pago')
+    move_id = fields.Many2one('account.move', string='Asiento Contable', readonly=True)
     note = fields.Text(string='Observaciones')
 
+    # ── BUG #5 FIX v50: action_approve unificado con validación ────
+    def action_approve(self):
+        """
+        BUG #5 FIX v50: action_approve ahora valida días disponibles,
+        igual que action_approve_and_pay. Elimina la posibilidad de evadir
+        la validación usando el botón simple de aprobación.
+        """
+        for rec in self:
+            if rec.state != 'draft':
+                raise UserError('Solo se pueden aprobar vacaciones en borrador.')
+            # Validar días disponibles (misma lógica que action_approve_and_pay)
+            if rec.days > rec.days_accrued:
+                raise ValidationError(
+                    f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} días '
+                    f'disponibles pero solicita {rec.days} días.'
+                )
+            rec.state = 'approved'
+            # FIX BUG-N07 v52: Al aprobar vacaciones, forzar recompute de boletas
+            # en estado borrador del mismo empleado en el período activo.
+            # Esto actualiza vacation_days_available en boletas que ya estaban abiertas
+            # antes de aprobar la solicitud.
+            draft_payslips = self.env['planilla.payslip'].search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('state', 'in', ['draft', 'confirmed']),
+            ])
+            if draft_payslips:
+                # Invalidar cache para que extras (vacation_amount) se recalculen
+                draft_payslips.invalidate_recordset(['vacation_amount'])
+                draft_payslips._compute_extras()
+        return True
+
     def action_approve_and_pay(self):
-        """Aprueba las vacaciones y opcionalmente agrega el monto a la boleta."""
+        """Aprueba las vacaciones, agrega ingreso en boleta y genera asiento si pago en dinero."""
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('Solo se pueden aprobar vacaciones en borrador.')
 
-            # Verificar días disponibles
+            # BUG #1 FIX v50: Verificar días disponibles usando vacation_days_available
+            # (campo calculado en hr_employee que descuenta vacaciones ya tomadas)
             if rec.days > rec.days_accrued:
                 raise ValidationError(
-                    f'El empleado tiene {rec.days_accrued:.1f} días disponibles '
-                    f'pero solicita {rec.days} días.'
+                    f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} días '
+                    f'disponibles pero solicita {rec.days} días.'
                 )
 
             rec.state = 'approved'
@@ -102,7 +136,6 @@ class VacationPayment(models.Model):
             # Si hay pago en dinero y tiene boleta asignada, agregar ingreso
             if rec.vacation_income_payslip and rec.payslip_id and rec.total_amount > 0:
                 if rec.payment_method in ('dinero', 'mixto'):
-                    # Buscar o crear código de deducción para vacaciones
                     vac_code = self.env['planilla.deduction.code'].search(
                         [('code', '=', 'VAC-PAG')], limit=1
                     )
@@ -117,7 +150,76 @@ class VacationPayment(models.Model):
                             'amount': rec.total_amount,
                         })
 
+            # BUG #2 FIX v50: Generar asiento contable para pagos en dinero (Art. 156 CT)
+            # Vacaciones pagadas en dinero generan gasto real, no solo provisión
+            if rec.payment_method in ('dinero', 'mixto') and rec.total_amount > 0:
+                rec._create_vacation_accounting_entry()
+
         return {'type': 'ir.actions.act_window_close'}
+
+    def _create_vacation_accounting_entry(self):
+        """
+        BUG #2 FIX v50: Asiento contable para vacaciones pagadas en dinero (Art. 156 CT).
+          DEBE:  630200 Vacaciones (gasto)
+          HABER: 230000 Salarios por Pagar (pasivo)
+        """
+        self.ensure_one()
+        # FIX B-04 v51: pasar company_id del empleado para soporte multi-empresa.
+        # Sin este fix, en empresas con múltiples compañías se obtenía la config
+        # de env.company (la activa en sesión) en vez de la del empleado.
+        config = self.env['planilla.accounting.config'].get_config(
+            self.employee_id.company_id.id if self.employee_id.company_id else None
+        )
+        if not config or not config.journal_id:
+            self.message_post(
+                body='<b>Aviso:</b> No se generó asiento contable de vacaciones porque '
+                     'no hay configuración contable. Vaya a Planilla → Configuración → Contabilidad.',
+                message_type='notification',
+            )
+            return False
+
+        exp_account = config.account_vacation_expense
+        pay_account = config.account_salary_payable
+        if not exp_account or not pay_account:
+            self.message_post(
+                body='<b>Aviso:</b> Faltan cuentas contables para vacaciones '
+                     '(630200 Vacaciones o 230000 Salarios por Pagar). '
+                     'Use el botón ⚡ Autocompletar en Configuración → Contabilidad.',
+                message_type='notification',
+            )
+            return False
+
+        emp = self.employee_id.name
+        amount = round(self.total_amount, 2)
+        lines = [
+            (0, 0, {
+                'account_id': exp_account.id,
+                'name': f'Vacaciones en dinero — {emp} — {self.days} días (Art. 156 CT)',
+                'debit': amount,
+                'credit': 0.0,
+            }),
+            (0, 0, {
+                'account_id': pay_account.id,
+                'name': f'Vacaciones por pagar — {emp}',
+                'debit': 0.0,
+                'credit': amount,
+            }),
+        ]
+
+        move = self.env['account.move'].create({
+            'journal_id': config.journal_id.id,
+            'date': self.date_start or fields.Date.today(),
+            'ref': f'Vacaciones Art. 156 CT — {emp} — {self.name}',
+            'move_type': 'entry',
+            'line_ids': lines,
+        })
+        move.action_post()
+        self.move_id = move.id
+        self.message_post(
+            body=f'Asiento contable generado: <a href="/web#id={move.id}&model=account.move">{move.name}</a>',
+            message_type='notification',
+        )
+        return move
 
     @api.depends('employee_id', 'date_start')
     def _compute_name(self):
@@ -134,16 +236,19 @@ class VacationPayment(models.Model):
             else:
                 rec.days = 0
 
-    @api.depends('employee_id')
+    @api.depends('employee_id', 'employee_id.vacation_days_available')
     def _compute_days_accrued(self):
+        """
+        BUG #1 FIX v50: Usa vacation_days_available del empleado (calculado en
+        hr_employee_extension._compute_vacation_balance) que descuenta vacaciones
+        ya tomadas y pagadas. El cálculo anterior (years * 12) era incorrecto
+        porque ignoraba el historial de vacaciones del empleado.
+        """
         for rec in self:
-            if rec.employee_id and rec.employee_id.entry_date:
-                today = date.today()
-                years = (today - rec.employee_id.entry_date).days / 365
-                # 12 días hábiles por año trabajado (mínimo legal CR)
-                rec.days_accrued = years * 12
+            if rec.employee_id:
+                rec.days_accrued = rec.employee_id.vacation_days_available or 0.0
             else:
-                rec.days_accrued = 0
+                rec.days_accrued = 0.0
 
     @api.depends('employee_id')
     def _compute_daily_salary(self):
@@ -153,13 +258,27 @@ class VacationPayment(models.Model):
             else:
                 rec.daily_salary = 0.0
 
-    @api.depends('days', 'daily_salary')
+    @api.depends('days', 'daily_salary', 'use_average', 'avg_last_4_weeks',
+                 'payment_method', 'days_in_money')
     def _compute_total(self):
+        """
+        BUG #14 FIX v50: Implementa use_average con avg_last_4_weeks (Art. 153 CT).
+        Si use_average=True y hay promedio, usa ese valor como base diaria.
+        Para tipo mixto: días_en_dinero * tarifa + resto días disfrutados.
+        """
         for rec in self:
-            rec.total_amount = rec.days * rec.daily_salary
+            # Tarifa base: promedio 4 semanas (Art. 153 CT) o salario diario
+            if rec.use_average and rec.avg_last_4_weeks > 0:
+                base_rate = rec.avg_last_4_weeks
+            else:
+                base_rate = rec.daily_salary
 
-    def action_approve(self):
-        self.write({'state': 'approved'})
+            if rec.payment_method == 'mixto' and rec.days_in_money > 0:
+                # Pago mixto: días en dinero + días disfrutados
+                money_days = min(rec.days_in_money, rec.days)
+                rec.total_amount = round(money_days * base_rate, 2)
+            else:
+                rec.total_amount = round(rec.days * base_rate, 2)
 
     def action_cancel(self):
         self.write({'state': 'cancelled'})

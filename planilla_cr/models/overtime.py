@@ -1,10 +1,17 @@
 from odoo import models, fields, api
+from odoo.models import Constraint
 
 
 class Overtime(models.Model):
     _name = 'planilla.overtime'
     _description = 'Horas Extras'
     _inherit = ['mail.thread', 'mail.activity.mixin']
+    _unique_overtime_employee_date_type = Constraint(
+        'UNIQUE(employee_id, date, overtime_type)',
+        'Ya existe un registro de horas extras del mismo tipo para este empleado en esa fecha. Verifique los registros antes de crear uno nuevo.'
+    )
+
+
 
     name = fields.Char(
         string='Referencia', compute='_compute_name', store=True
@@ -58,14 +65,36 @@ class Overtime(models.Model):
             date_str = str(rec.date) if rec.date else ''
             rec.name = f'HE - {emp} - {date_str}'
 
-    @api.depends('employee_id')
+    @api.depends('employee_id', 'date')
     def _compute_hourly_rate(self):
+        """
+        BUG #6 FIX v50: Usa el salario histórico vigente en la fecha de las HE.
+        FIX M-04 v51: Usa hours_per_day del schedule_type del empleado en vez
+        de 8 horas fijo. Para empleados con jornada de 6h, 10h o 12h la tarifa
+        horaria era incorrecta. Fallback a 8h si no hay schedule_type configurado.
+        """
         for rec in self:
-            if rec.employee_id and rec.employee_id.base_salary:
-                # Salario mensual / 30 días / 8 horas = tarifa por hora
-                rec.hourly_rate = rec.employee_id.base_salary / 30 / 8
-            else:
+            if not rec.employee_id:
                 rec.hourly_rate = 0.0
+                continue
+            base_salary = 0.0
+            if rec.date:
+                # Buscar salario histórico vigente en la fecha de las HE
+                history = self.env['planilla.salary.history'].search([
+                    ('employee_id', '=', rec.employee_id.id),
+                    ('effective_date', '<=', rec.date),
+                ], order='effective_date desc', limit=1)
+                if history:
+                    base_salary = history.gross_salary
+            # Fallback: salario base actual
+            if not base_salary:
+                base_salary = rec.employee_id.base_salary or 0.0
+            # Horas por día según jornada del empleado (fallback 8h jornada ordinaria)
+            hours_per_day = 8.0
+            if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
+                hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
+            # Tarifa por hora = Salario mensual / 30 días / horas_jornada
+            rec.hourly_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
 
     @api.depends('hours', 'hourly_rate', 'overtime_type')
     def _compute_amount(self):
@@ -75,6 +104,7 @@ class Overtime(models.Model):
             rec.amount = rec.hours * rec.hourly_rate * factor
 
     def action_approve(self):
+        self.ensure_one()
         self.write({'state': 'approved'})
 
     def action_cancel(self):

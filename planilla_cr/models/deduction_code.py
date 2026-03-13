@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.models import Constraint
 from odoo.exceptions import ValidationError
 
 
@@ -6,6 +7,12 @@ class DeductionCode(models.Model):
     _name = 'planilla.deduction.code'
     _description = 'Código de Deducción'
     _inherit = ['mail.thread']
+    _unique_deduction_code = Constraint(
+        'UNIQUE(code)',
+        'El código de deducción ya existe. Cada código debe ser único en el sistema.'
+    )
+
+
 
     name = fields.Char(string='Nombre', required=True, tracking=True)
     code = fields.Char(string='Código', required=True, tracking=True)

@@ -1,5 +1,6 @@
 import logging
 from odoo import models, fields, api
+from odoo.models import Constraint
 from odoo.exceptions import ValidationError, UserError
 from datetime import date, timedelta
 from dateutil.relativedelta import relativedelta
@@ -11,6 +12,11 @@ class EmployeeLoan(models.Model):
     _description = 'Préstamos y Adelantos de Salario'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_granted desc'
+
+    _unique_loan_employee_date_type = Constraint(
+        'UNIQUE(employee_id, date_granted, loan_type)',
+        'Ya existe un préstamo/adelanto del mismo tipo para este empleado en la misma fecha. Verifique antes de crear un nuevo préstamo.'
+    )
 
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
     employee_id = fields.Many2one(
@@ -135,6 +141,7 @@ class EmployeeLoan(models.Model):
             )
 
     def action_approve(self):
+        self.ensure_one()
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('Solo se pueden aprobar préstamos en borrador.')
@@ -169,26 +176,29 @@ class EmployeeLoan(models.Model):
             )
             return
 
-        # Buscar cuenta de Préstamos por Cobrar (activo)
-        # Intenta primero un código estándar; si no existe usa cta de gastos como fallback
-        loan_receivable = self.env['account.account'].search([
-            ('code', 'like', '1%'),
-            ('account_type', '=', 'asset_current'),
-            ('company_ids', 'in', self.env.company.id),
-            ('name', 'ilike', 'préstam'),
-        ], limit=1)
+        # BUG #11 FIX v50: Usar cuenta configurada en accounting_config (115000)
+        # en lugar de búsqueda frágil por nombre que podría fallar silenciosamente.
+        loan_receivable = config.account_loans_receivable
         if not loan_receivable:
+            # Fallback: buscar por código exacto
             loan_receivable = self.env['account.account'].search([
-                ('code', 'like', '115%'),
+                ('code', '=', '115000'),
                 ('company_ids', 'in', self.env.company.id),
             ], limit=1)
         if not loan_receivable:
-            # Fallback: crear cuenta 115000 Préstamos a Empleados por Cobrar
+            # Último fallback: crear cuenta 115000
+            # FIX BUG-N05 v52: (4, id) compatible Odoo 14-19 — sin imports extra
             loan_receivable = self.env['account.account'].create({
                 'code': '115000',
                 'name': 'Préstamos a Empleados por Cobrar',
                 'account_type': 'asset_current',
+                'company_ids': [(4, self.env.company.id)],  # (4,id) compatible Odoo 14-19',
             })
+            self.message_post(
+                body='<b>Aviso:</b> Se creó la cuenta 115000 Préstamos a Empleados por Cobrar. '
+                     'Configure account_loans_receivable en Planilla → Configuración → Contabilidad.',
+                message_type='notification',
+            )
 
         # Buscar cuenta de Caja/Banco para el crédito
         bank_account = self.env['account.account'].search([

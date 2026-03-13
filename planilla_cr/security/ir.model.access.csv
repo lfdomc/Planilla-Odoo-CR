@@ -77,3 +77,5 @@ planilla.recurring.benefit,planilla.recurring.benefit,model_planilla_recurring_b
 planilla.termination.simulator.loan,planilla.termination.simulator.loan,model_planilla_termination_simulator_loan,planilla_cr.group_planilla_operador,1,1,1,1
 access_pension_alimentaria,planilla.pension.alimentaria,model_planilla_pension_alimentaria,planilla_cr.group_planilla_aprobador,1,1,1,1
 access_pension_alimentaria_user,planilla.pension.alimentaria user,model_planilla_pension_alimentaria,planilla_cr.group_planilla_operador,1,1,1,0
+access_planilla_eddi7_admin,planilla.eddi7.admin,model_planilla_eddi7_export,planilla_cr.group_planilla_admin,1,1,1,1
+access_planilla_eddi7_aprobador,planilla.eddi7.aprobador,model_planilla_eddi7_export,planilla_cr.group_planilla_aprobador,1,1,1,0

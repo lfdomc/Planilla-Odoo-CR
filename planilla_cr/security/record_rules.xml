@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        BUG #12 FIX v50 — Reglas de registro por company_id (multi-empresa)
+        Previene que usuarios vean datos salariales de otras compañías.
+        Las ir.rule filtran a nivel de dominio ORM — no se pueden evadir por URL.
+        Aplica a los modelos con información sensible de nómina.
+    -->
+
+    <!-- ══════════════════════════════════════════════════════════
+         BOLETAS DE PAGO — planilla.payslip.cr
+         ══════════════════════════════════════════════════════════ -->
+    <record id="rule_payslip_company" model="ir.rule">
+        <field name="name">Boletas: solo compañía activa</field>
+        <field name="model_id" ref="model_planilla_payslip_cr"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PLANILLAS (RUNS) — planilla.run.cr
+         ══════════════════════════════════════════════════════════ -->
+    <record id="rule_payroll_run_company" model="ir.rule">
+        <field name="name">Planillas: solo compañía activa</field>
+        <field name="model_id" ref="model_planilla_run_cr"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PRÉSTAMOS — planilla.employee.loan
+         Usa branch_id.company_id como pivot (loans no tienen company_id directo)
+         ══════════════════════════════════════════════════════════ -->
+    <record id="rule_loan_company" model="ir.rule">
+        <field name="name">Préstamos: solo compañía activa</field>
+        <field name="model_id" ref="model_planilla_employee_loan"/>
+        <field name="domain_force">
+            ['|',
+             ('employee_id.company_id', 'in', company_ids),
+             ('employee_id.company_id', '=', False)]
+        </field>
+        <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════
+         PENSIÓN ALIMENTARIA — planilla.pension.alimentaria
+         ══════════════════════════════════════════════════════════ -->
+    <record id="rule_pension_company" model="ir.rule">
+        <field name="name">Pensiones: solo compañía activa</field>
+        <field name="model_id" ref="model_planilla_pension_alimentaria"/>
+        <field name="domain_force">
+            ['|',
+             ('employee_id.company_id', 'in', company_ids),
+             ('employee_id.company_id', '=', False)]
+        </field>
+        <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════
+         INCAPACIDADES — planilla.disability
+         ══════════════════════════════════════════════════════════ -->
+    <record id="rule_disability_company" model="ir.rule">
+        <field name="name">Incapacidades: solo compañía activa</field>
+        <field name="model_id" ref="model_planilla_disability"/>
+        <field name="domain_force">
+            ['|',
+             ('employee_id.company_id', 'in', company_ids),
+             ('employee_id.company_id', '=', False)]
+        </field>
+        <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════
+         LIQUIDACIONES — planilla.termination
+         ══════════════════════════════════════════════════════════ -->
+    <record id="rule_termination_company" model="ir.rule">
+        <field name="name">Liquidaciones: solo compañía activa</field>
+        <field name="model_id" ref="model_planilla_termination"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════
+         VACACIONES — planilla.vacation.payment
+         ══════════════════════════════════════════════════════════ -->
+    <record id="rule_vacation_company" model="ir.rule">
+        <field name="name">Vacaciones: solo compañía activa</field>
+        <field name="model_id" ref="model_planilla_vacation_payment"/>
+        <field name="domain_force">
+            ['|',
+             ('employee_id.company_id', 'in', company_ids),
+             ('employee_id.company_id', '=', False)]
+        </field>
+        <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════
+         CONFIGURACIÓN CONTABLE — planilla.accounting.config
+         Solo admin puede ver config de otras compañías
+         ══════════════════════════════════════════════════════════ -->
+    <record id="rule_accounting_config_company" model="ir.rule">
+        <field name="name">Config Contable: solo compañía activa</field>
+        <field name="model_id" ref="model_planilla_accounting_config"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+</odoo>

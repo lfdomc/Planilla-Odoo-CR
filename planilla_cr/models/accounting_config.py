@@ -94,6 +94,39 @@ class PayrollAccountingConfig(models.Model):
              'Esta cuenta es necesaria para cuadrar el asiento cuando el empleado '
              'tiene préstamos activos con descuento en planilla.'
     )
+    # BUG #11 FIX v50 — Cuenta explícita para Préstamos a Empleados por Cobrar
+    account_loans_receivable = fields.Many2one(
+        'account.account',
+        string='Préstamos a Empleados por Cobrar',
+        help='DÉBITO — Activo corriente por préstamos otorgados a empleados. '
+             'Ej: 115000 Préstamos a Empleados por Cobrar. '
+             'Si no se configura, employee_loan.py crea la cuenta automáticamente.'
+    )
+
+    # BUG #10 FIX v50 — Cuenta separada para Pensiones Alimentarias retenidas
+    account_pension_alimentaria_payable = fields.Many2one(
+        'account.account',
+        string='Pensiones Alimentarias por Pagar',
+        help='CRÉDITO — Pensiones alimentarias retenidas en planilla pendientes de girar al Juzgado. '
+             'Mantener separado de Salarios por Pagar para control judicial (Ley 8590). '
+             'Ej: 230950 Pensiones Alimentarias por Pagar. '
+             'Si no se configura, usa la cuenta Salarios por Pagar como fallback.'
+    )
+
+    # FIX v49 Bug 5 — Cuenta específica para Subsidio CCSS por Cobrar (activo corriente)
+    # Cuando el empleado está incapacitado > 3 días, la CCSS asume el pago.
+    # El patrono registra un derecho de cobro contra la CCSS (activo) en el DEBE del asiento.
+    # Si este campo queda vacío, el sistema usa account_ccss_payable como fallback (neteo).
+    account_ccss_subsidy_receivable = fields.Many2one(
+        'account.account',
+        string='Subsidio CCSS por Cobrar',
+        help='DÉBITO — Derecho de cobro del patrono ante la CCSS por subsidios de incapacidad '
+             '(días 4+ a cargo de la CCSS, Art. 79 Reglamento CCSS).\n'
+             'Tipo de cuenta: Activo Corriente.\n'
+             'Ej: 120500 Subsidio CCSS por Cobrar\n\n'
+             'Si no se configura, el asiento usa la cuenta CCSS por Pagar como contrapartida '
+             '(neteo). Para mayor claridad contable se recomienda configurar esta cuenta.'
+    )
     # ── Liquidaciones ────────────────────────────────────────────────
     account_preaviso_expense = fields.Many2one(
         'account.account', string='Gasto Preaviso',
@@ -131,11 +164,14 @@ class PayrollAccountingConfig(models.Model):
         """
         account = self._get_account(code)
         if not account:
+            # FIX BUG-N05 v52: (4, id) es compatible Odoo 14-19. Command.link()
+            # no se usa aquí porque requiere import adicional que puede fallar
+            # en algunas instalaciones. (4, id) funciona en todas las versiones.
             account = self.env['account.account'].create({
                 'code': code,
                 'name': name,
                 'account_type': account_type,
-                'company_ids': [(4, self.env.company.id)],
+                'company_ids': [(4, self.env.company.id)],  # (4,id) compatible Odoo 14-19',
             })
         return account
 
@@ -215,8 +251,14 @@ class PayrollAccountingConfig(models.Model):
             'account_cesantia_provision':     ('230600', 'Provisión Cesantía por Pagar',                   'liability_current'),
             'account_vacation_provision':     ('230700', 'Provisión Vacaciones por Pagar',                 'liability_current'),
             'account_loans_payable':          ('230900', 'Cuotas Préstamos Retenidos por Pagar',           'liability_current'),
-            'account_termination_payable':    ('230800', 'Liquidaciones por Pagar',                         'liability_current'),
-            'account_preaviso_expense':       ('630500', 'Gasto por Preaviso',                              'expense'),
+            'account_termination_payable':         ('230800', 'Liquidaciones por Pagar',                         'liability_current'),
+            'account_preaviso_expense':            ('630500', 'Gasto por Preaviso',                              'expense'),
+            # FIX v49 Bug 5 — Cuenta para subsidio CCSS por cobrar (activo corriente)
+            'account_ccss_subsidy_receivable':     ('120500', 'Subsidio CCSS por Cobrar',                        'asset_current'),
+            # BUG #10 FIX v50 — Pensiones alimentarias separadas de salarios
+            'account_pension_alimentaria_payable':  ('230950', 'Pensiones Alimentarias por Pagar',              'liability_current'),
+            # BUG #11 FIX v50 — Cuenta préstamos por cobrar explícita
+            'account_loans_receivable':             ('115000', 'Préstamos a Empleados por Cobrar',             'asset_current'),
         }
 
         vals = {}
