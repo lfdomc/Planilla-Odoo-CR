@@ -173,6 +173,20 @@
               sequence="45"
               groups="planilla_cr.group_planilla_admin"/>
 
+    <menuitem id="menu_import_data_wizard"
+              name="Importar Empleados desde Excel"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_import_data_wizard"
+              sequence="94"
+              groups="planilla_cr.group_planilla_admin"/>
+
+        <menuitem id="menu_import_template_wizard"
+              name="Machote de Importación (Excel)"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_import_template_wizard"
+              sequence="95"
+              groups="planilla_cr.group_planilla_admin"/>
+
     <!-- ── CONFIGURACIÓN ─────────────────────────────────────────── -->
     <menuitem id="menu_planilla_cr_config"
               name="Configuración"

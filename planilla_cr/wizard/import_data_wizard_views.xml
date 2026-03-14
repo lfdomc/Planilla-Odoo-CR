@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_import_data_wizard_form" model="ir.ui.view">
+        <field name="name">planilla.import.data.wizard.form</field>
+        <field name="model">planilla.import.data.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Importación Masiva de Empleados">
+
+                <!-- ══ PASO 1: CARGA ══════════════════════════════════════ -->
+                <group invisible="state == 'done'">
+
+                    <div class="alert alert-info" role="alert">
+                        <i class="fa fa-upload me-2" title="Importar"/>
+                        <strong>Carga masiva desde el machote Excel</strong><br/>
+                        Los empleados que ya existan en Odoo (por cédula) serán <strong>omitidos</strong>.
+                        Los nuevos se crearán junto con todos sus datos relacionados.
+                    </div>
+
+                    <group string="Configuración">
+                        <group>
+                            <field name="company_id"/>
+                        </group>
+                        <group>
+                            <field name="excel_file"
+                                   filename="excel_filename"
+                                   widget="binary"
+                                   string="Archivo Excel (Machote completado)"/>
+                            <field name="excel_filename" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <group string="Hojas a importar">
+                        <group>
+                            <field name="import_employees"
+                                   widget="boolean_toggle"
+                                   string="👤  Empleados (datos principales)"/>
+                            <field name="import_loans"
+                                   widget="boolean_toggle"
+                                   string="💰  Préstamos y Adelantos"/>
+                            <field name="import_pension"
+                                   widget="boolean_toggle"
+                                   string="👨‍👧  Pensiones Alimentarias"/>
+                            <field name="import_overtime"
+                                   widget="boolean_toggle"
+                                   string="⏱️  Horas Extras"/>
+                        </group>
+                        <group>
+                            <field name="import_benefits"
+                                   widget="boolean_toggle"
+                                   string="➕  Beneficios / Deducciones Recurrentes"/>
+                            <field name="import_disabilities"
+                                   widget="boolean_toggle"
+                                   string="🏥  Incapacidades"/>
+                            <field name="import_vacations"
+                                   widget="boolean_toggle"
+                                   string="🏖️  Saldo de Vacaciones"/>
+                        </group>
+                    </group>
+
+                    <group string="🧪 Datos de Prueba">
+                        <field name="import_sample_data"
+                               widget="boolean_toggle"
+                               string="🧪  Importar fila de prueba (cédula 1-0000-0001)"/>
+                        <div class="text-muted small" colspan="2">
+                            Desactivado por defecto. Active solo para verificar que la importación funciona,
+                            luego use el botón para eliminar el empleado de prueba.
+                        </div>
+                        <div colspan="2" invisible="not sample_exists">
+                            <div class="alert alert-warning mt-1 mb-0 py-2" role="alert">
+                                <i class="fa fa-warning me-1"/>
+                                <strong>El EMPLEADO PRUEBA (1-0000-0001) ya existe en Odoo.</strong>
+                                Use el botón para eliminarlo antes de importar datos reales.
+                            </div>
+                        </div>
+                    </group>
+
+                    <div class="alert alert-warning mt-2" role="alert">
+                        <i class="fa fa-exclamation-triangle me-1" title="Advertencia"/>
+                        <strong>Importante:</strong> Importe primero los empleados antes de importar
+                        préstamos, pensiones u otras hojas. Todas las hojas relacionadas
+                        buscan al empleado por número de cédula.
+                    </div>
+
+                    <footer>
+                        <button name="action_import"
+                                type="object"
+                                string="▶ Iniciar Importación"
+                                class="btn-primary"
+                                confirm="¿Confirma que desea iniciar la importación? Esta acción creará registros en Odoo."/>
+                        <button name="action_delete_sample"
+                                type="object"
+                                string="🗑️ Eliminar Empleado de Prueba"
+                                class="btn-danger"
+                                invisible="not sample_exists"
+                                confirm="¿Eliminar el EMPLEADO PRUEBA (1-0000-0001) y todos sus registros relacionados?"/>
+                        <button string="Cancelar"
+                                class="btn-secondary"
+                                special="cancel"/>
+                    </footer>
+
+                </group>
+
+                <!-- ══ PASO 2: RESULTADOS ══════════════════════════════════ -->
+                <group invisible="state != 'done'">
+
+                    <div class="alert alert-success" role="alert"
+                         invisible="total_errors > 0">
+                        <i class="fa fa-check-circle me-2" title="Éxito"/>
+                        <strong>✅ Importación completada sin errores.</strong>
+                    </div>
+
+                    <div class="alert alert-warning" role="alert"
+                         invisible="total_errors == 0">
+                        <i class="fa fa-exclamation-triangle me-2" title="Advertencia"/>
+                        <strong>⚠️ Importación completada con errores.</strong>
+                        Descargue el reporte Excel para ver el detalle y corrija los registros fallidos.
+                    </div>
+
+                    <group string="Resumen">
+                        <group>
+                            <field name="emp_created"  string="👤 Empleados creados"              readonly="1"/>
+                            <field name="emp_skipped"  string="⏭ Empleados omitidos (ya existían)" readonly="1"/>
+                            <field name="total_errors" string="❌ Total errores"                   readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="loan_created" string="💰 Préstamos creados"    readonly="1"/>
+                            <field name="pen_created"  string="👨‍👧 Pensiones creadas"    readonly="1"/>
+                            <field name="ben_created"  string="➕ Beneficios creados"    readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="dis_created"  string="🏥 Incapacidades creadas"  readonly="1"/>
+                            <field name="vac_created"  string="🏖️ Vacaciones procesadas"  readonly="1"/>
+                            <field name="ot_created"   string="⏱️ Horas extras creadas"   readonly="1"/>
+                        </group>
+                    </group>
+
+                    <group string="Detalle completo">
+                        <field name="result_summary"
+                               widget="text"
+                               readonly="1"
+                               nolabel="1"
+                               style="font-family: monospace; font-size: 12px; white-space: pre;"/>
+                    </group>
+
+                    <group string="Reporte de errores" invisible="total_errors == 0">
+                        <div class="alert alert-info" role="alert">
+                            <i class="fa fa-file-excel-o me-2" title="Excel"/>
+                            Descargue el Excel con el detalle de cada error, corrija el machote
+                            y vuelva a importar únicamente los registros fallidos.
+                        </div>
+                        <field name="report_file"
+                               filename="report_name"
+                               widget="binary"
+                               string="⬇ Reporte de Errores Excel"
+                               readonly="1"/>
+                        <field name="report_name" invisible="1"/>
+                    </group>
+
+                    <footer>
+                        <button name="action_delete_sample"
+                                type="object"
+                                string="🗑️ Eliminar Empleado de Prueba"
+                                class="btn-danger"
+                                invisible="not sample_exists"
+                                confirm="¿Eliminar el EMPLEADO PRUEBA (1-0000-0001) y todos sus registros relacionados?"/>
+                        <button string="Cerrar"
+                                class="btn-primary"
+                                special="cancel"/>
+                    </footer>
+
+                </group>
+
+                <!-- Campos ocultos -->
+                <field name="state"          invisible="1"/>
+                <field name="emp_errors"     invisible="1"/>
+                <field name="total_errors"   invisible="1"/>
+                <field name="sample_exists"  invisible="1"/>
+
+            </form>
+        </field>
+    </record>
+
+    <record id="action_import_data_wizard" model="ir.actions.act_window">
+        <field name="name">Importar Empleados desde Excel</field>
+        <field name="res_model">planilla.import.data.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_import_data_wizard_form"/>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

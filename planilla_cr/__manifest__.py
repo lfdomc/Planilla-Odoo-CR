@@ -35,8 +35,6 @@
         'hr',
         'hr_attendance',
         'hr_holidays',
-        'hr_recruitment',
-        'hr_expense',
         'account',
         'mail',
     ],
@@ -100,6 +98,8 @@
         'wizard/employer_cost_wizard_views.xml',
         'wizard/wizard_views_v24.xml',
         'wizard/aguinaldo_wizard_views.xml',
+        'wizard/import_template_wizard_views.xml',
+        'wizard/import_data_wizard_views.xml',
         # Data con referencias a modelos externos (cargar al final, modelos ya cargados)
         'data/cron_jobs.xml',
         'data/email_templates.xml',
@@ -119,4 +119,5 @@
     'images': ['static/description/icon.png'],
     'post_init_hook': 'post_init_hook',
     'post_migrate_hook': 'post_migrate_hook',
+    'external_dependencies': {'python': ['openpyxl']},
 }

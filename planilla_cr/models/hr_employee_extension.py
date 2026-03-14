@@ -35,6 +35,13 @@ class HrEmployeeExtension(models.Model):
     branch_id = fields.Many2one(
         'planilla.branch', string='Sucursal', tracking=True
     )
+    sub_department_id = fields.Many2one(
+        'hr.department',
+        string='Sub Departamento',
+        tracking=True,
+        domain="[('parent_id', '=', department_id)]",
+        help='Sub departamento dentro del departamento principal del empleado.',
+    )
     schedule_type_id = fields.Many2one(
         'planilla.schedule.type', string='Tipo de Horario'
     )

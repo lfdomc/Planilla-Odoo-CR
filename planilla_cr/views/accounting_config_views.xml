@@ -25,7 +25,7 @@
                     <group string="General">
                         <group>
                             <field name="company_id"/>
-                            <field name="journal_id"/>
+                            <field name="journal_id" domain="[('company_id', '=', company_id), ('type', 'in', ['general', 'purchase'])]"/>
                             <field name="accounting_entry_mode" widget="radio"/>
                         </group>
                     </group>
@@ -39,17 +39,17 @@
                             <group>
                                 <group string="Gastos de Nómina">
                                     <field name="account_salary_expense"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_social_charges_expense"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_vacation_expense"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_aguinaldo_expense"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_preaviso_expense"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_cesantia_expense"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                 </group>
                             </group>
                         </page>
@@ -62,11 +62,11 @@
                             <group>
                                 <group string="Obligaciones con CCSS e Impuestos">
                                     <field name="account_ccss_payable"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_ins_payable"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_income_tax_payable"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <!-- FIX v49 Bug 5: cuenta específica para subsidio CCSS por cobrar -->
                                     <field name="account_ccss_subsidy_receivable"
                                            options="{'no_create': True}"
@@ -74,20 +74,20 @@
                                 </group>
                                 <group string="Provisiones y Salarios">
                                     <field name="account_aguinaldo_provision"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_cesantia_provision"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_vacation_provision"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_salary_payable"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_loans_payable"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_bank_disbursement"
                                            options="{'no_create': True}"
                                            help="Cuenta Banco/Caja para desembolso de préstamos (FIX B-05)"/>
                                     <field name="account_termination_payable"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                 </group>
                             </group>
                         </page>
@@ -201,7 +201,7 @@
         <field name="arch" type="xml">
             <list string="Configuración Contable">
                 <field name="company_id"/>
-                <field name="journal_id"/>
+                <field name="journal_id" domain="[('company_id', '=', company_id), ('type', 'in', ['general', 'purchase'])]"/>
                 <field name="account_salary_expense"/>
                 <field name="account_salary_payable"/>
                 <field name="account_termination_payable"/>

@@ -57,7 +57,7 @@
                         <field name="payment_method"/>
                         <field name="use_average"/>
                         <field name="avg_last_4_weeks"
-                               invisible="use_average == False"/>
+                               invisible="not use_average"/>
                         <field name="days_in_money"
                                invisible="payment_method != 'mixto'"/>
                         <field name="payslip_id"

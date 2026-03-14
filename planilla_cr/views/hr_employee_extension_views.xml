@@ -26,6 +26,9 @@
                             <field name="employee_status_id"/>
                             <field name="employee_type_id"/>
                             <field name="branch_id"/>
+                            <field name="sub_department_id"
+                                   domain="[('parent_id', '=', department_id)]"
+                                   invisible="not department_id"/>
                         </group>
                         <group string="Horario y Pago">
                             <field name="schedule_type_id"/>
