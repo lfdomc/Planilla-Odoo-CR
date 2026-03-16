@@ -68,7 +68,7 @@
                         </div>
                         <div colspan="2" invisible="not sample_exists">
                             <div class="alert alert-warning mt-1 mb-0 py-2" role="alert">
-                                <i class="fa fa-warning me-1"/>
+                                <i class="fa fa-warning me-1" title="Advertencia"/>
                                 <strong>El EMPLEADO PRUEBA (1-0000-0001) ya existe en Odoo.</strong>
                                 Use el botón para eliminarlo antes de importar datos reales.
                             </div>

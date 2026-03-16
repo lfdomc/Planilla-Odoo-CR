@@ -6,6 +6,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.comments import Comment
+from openpyxl.worksheet.datavalidation import DataValidation
 
 
 class ImportTemplateWizard(models.TransientModel):
@@ -35,6 +36,51 @@ class ImportTemplateWizard(models.TransientModel):
     # Cédula reservada para la fila de prueba — misma en template y en import wizard
     _SAMPLE_CEDULA = '1-0000-0001'
 
+    # ── Listas de valores para dropdowns Excel ────────────────────────────────
+    # Orden importa: cada key ocupa una columna en la hoja oculta _LISTAS
+    _DV_LISTS = {
+        # Identificación
+        'id_type':      ['Cédula Nacional', 'Residencia / DIMEX',
+                         'Permiso de Trabajo', 'Pasaporte', 'Indocumentado'],
+        # INS
+        'ins_risk':     ['I - Oficinas', 'II - Comercio', 'III - Industria',
+                         'IV - Construcción', 'V - Alto Riesgo'],
+        'ins_workday':  ['Ordinaria', 'Extraordinaria', 'Mixta',
+                         'Tiempo Parcial', 'Por Horas', 'Ocasional'],
+        'ins_civil':    ['Soltero/a', 'Casado/a', 'Divorciado/a',
+                         'Viudo/a', 'Unión Libre', 'Separado/a'],
+        'ins_nat':      ['Costarricense', 'Nicaragüense', 'Colombiano/a',
+                         'Estadounidense', 'Hondureño/a', 'Salvadoreño/a',
+                         'Guatemalteco/a', 'Panameño/a', 'Mexicano/a',
+                         'Venezolano/a', 'Peruano/a', 'Ecuatoriano/a', 'Otra'],
+        # Banco y cuenta
+        'banco':        ['BNCR', 'BCR', 'BP', 'BAC', 'BCT', 'CATHAY', 'CMB',
+                         'DAVIVIENDA', 'GENERAL', 'IMPROSA', 'LAFISE',
+                         'PROMERICA', 'PRIVAL', 'SCOTIA', 'COOCIQUE',
+                         'COOPENAE', 'MUTUAL_ALJ', 'Otro'],
+        'account_type': ['Cuenta Corriente', 'Cuenta de Ahorros', 'SINPE Móvil'],
+        # Nómina
+        'frequency':    ['Mensual', 'Quincenal', 'Semanal', 'Bimensual'],
+        'calc_method':  ['Salario Fijo', 'Por Horas Trabajadas'],
+        # Género y si/no
+        'gender':       ['Masculino', 'Femenino', 'Otro'],
+        'si_no':        ['Si', 'No'],
+        # Préstamos
+        'loan_type':    ['Préstamo de Empresa', 'Adelanto de Salario'],
+        'loan_state':   ['Aprobado', 'En Curso', 'Borrador', 'Pagado', 'Anulado'],
+        # Pensión
+        'pension_rel':  ['Hijo/a', 'Cónyuge', 'Padre', 'Madre', 'Otro'],
+        'pension_calc': ['Porcentaje del Salario', 'Monto Fijo'],
+        # Beneficios
+        'benefit_type': ['Beneficio / Ingreso', 'Deducción / Descuento'],
+        'amount_type':  ['Monto Fijo', 'Porcentaje'],
+        # Incapacidades
+        'disability':   ['Enfermedad Común (CCSS)', 'Accidente de Trabajo (CCSS)',
+                         'Riesgo Laboral (INS)', 'Maternidad / Paternidad', 'Otro'],
+        # Horas extras
+        'overtime_type':['Simple (1.5x)', 'Doble (2.0x)', 'Día Feriado'],
+    }
+
     # ── paleta ────────────────────────────────────────────────────────────────
     _C = {
         'dark':     '1F3864',
@@ -46,6 +92,35 @@ class ImportTemplateWizard(models.TransientModel):
         'border':   'BDD7EE',
         'white':    'FFFFFF',
         'red_hdr':  'C00000',
+    }
+
+    # ── catálogos para dropdowns ──────────────────────────────────────────────
+    # Orden de columnas en la hoja oculta _LISTAS (A, B, C, ...)
+    # Clave → (col_idx_0based, [valores])
+    _LISTAS = {
+        'id_type':          (0,  ['01','02','03','04','05']),
+        'si_no':            (1,  ['si','no']),
+        'ins_risk':         (2,  ['I','II','III','IV','V']),
+        'ins_workday':      (3,  ['01','02','03','04','05','06']),
+        'banco':            (4,  ['BNCR','BCR','BP','BAC','BCT','CATHAY','CMB',
+                                  'DAVIVIENDA','GENERAL','IMPROSA','LAFISE',
+                                  'PROMERICA','PRIVAL','SCOTIA','COOCIQUE',
+                                  'COOPENAE','MUTUAL_ALJ','OTRO']),
+        'account_type':     (5,  ['corriente','ahorros','sinpe']),
+        'frequency':        (6,  ['monthly','biweekly','weekly','bimonthly']),
+        'calc_method':      (7,  ['fixed','attendance']),
+        'ins_nationality':  (8,  ['CR','NI','CO','US','HN','SV','GT','PA',
+                                  'MX','VE','PE','EC','OT']),
+        'ins_civil':        (9,  ['01','02','03','04','05','06']),
+        'gender':           (10, ['masculino','femenino','otro']),
+        'loan_type':        (11, ['loan','advance']),
+        'loan_state':       (12, ['approved','active','draft','paid','cancelled']),
+        'pension_relacion': (13, ['hijo','conyuge','padre','madre','otro']),
+        'pension_calc':     (14, ['porcentaje','monto_fijo']),
+        'benefit_type':     (15, ['beneficio','deduccion']),
+        'amount_type':      (16, ['fijo','porcentaje']),
+        'disability_type':  (17, ['ccss','ccss_accident','ins','maternity','other']),
+        'overtime_type':    (18, ['simple','double','holiday']),
     }
 
     # ── helpers ───────────────────────────────────────────────────────────────
@@ -122,15 +197,7 @@ class ImportTemplateWizard(models.TransientModel):
         c.alignment = self._center()
         ws.row_dimensions[1].height = 28
 
-    # ── filas de datos (vacías + ejemplo) ─────────────────────────────────────
-    def _sample(self, cell, value):
-        """Estilo para la fila de prueba: fondo naranja, texto oscuro, itálica."""
-        cell.value     = value
-        cell.fill      = self._fill('F4B942')   # naranja
-        cell.border    = self._border()
-        cell.alignment = self._left()
-        cell.font      = self._font(italic=True, bold=True, size=9, color='7B2D00')
-
+    # ── filas de datos (vacías + ejemplo + prueba) ─────────────────────────────
     def _build_rows(self, ws, cols, data_rows=80, header_row=2, example_row=3,
                     sample_values=None):
         """
@@ -166,6 +233,52 @@ class ImportTemplateWizard(models.TransientModel):
 
         ws.freeze_panes = ws.cell(example_row, 1)
         ws.sheet_view.showGridLines = False
+
+    def _sample(self, cell, value):
+        """Estilo para la fila de prueba: fondo naranja, texto oscuro, itálica."""
+        cell.value     = value
+        cell.fill      = self._fill('F4B942')
+        cell.border    = self._border()
+        cell.alignment = self._left()
+        cell.font      = self._font(italic=True, bold=True, size=9, color='7B2D00')
+
+    def _build_listas_sheet(self, wb):
+        """Crea hoja oculta con todas las listas para DataValidation."""
+        ws = wb.create_sheet('_LISTAS')
+        for col_idx, (key, vals) in enumerate(self._DV_LISTS.items(), 1):
+            for row_idx, val in enumerate(vals, 1):
+                ws.cell(row_idx, col_idx, value=val)
+        ws.sheet_state = 'hidden'
+        return ws
+
+    def _dv(self, ws, col_idx, list_key, first_data_row, last_data_row=500,
+            title='Opciones'):
+        """Helper rápido que busca la lista en _DV_LISTS y aplica el dropdown."""
+        vals = self._DV_LISTS.get(list_key, [])
+        if not vals:
+            return
+        keys = list(self._DV_LISTS.keys())
+        listas_col = get_column_letter(keys.index(list_key) + 1)
+        last_r     = len(vals)
+        formula    = f"'_LISTAS'!${listas_col}$1:${listas_col}${last_r}"
+        col_letter = get_column_letter(col_idx)
+        sqref      = f'{col_letter}{first_data_row}:{col_letter}{last_data_row}'
+
+        dv = DataValidation(
+            type='list',
+            formula1=formula,
+            allow_blank=True,
+            showDropDown=False,
+            showErrorMessage=True,
+            errorStyle='warning',
+            errorTitle='Valor no reconocido',
+            error='El valor ingresado no está en el catálogo. Revise la hoja CATALOGOS.',
+            showInputMessage=True,
+            promptTitle=title,
+            prompt=f'Seleccione: {", ".join(vals[:6])}{"…" if len(vals)>6 else ""}',
+        )
+        ws.add_data_validation(dv)
+        dv.sqref = sqref
 
     # ══════════════════════════════════════════════════════════════════════════
     # HOJA INSTRUCCIONES
@@ -212,7 +325,7 @@ class ImportTemplateWizard(models.TransientModel):
             ('', '1. Complete la hoja EMPLEADOS — un empleado por fila.'),
             ('', '2. Use la cédula como llave: debe coincidir exactamente en todas las hojas.'),
             ('', '3. Para préstamos, pensiones o beneficios múltiples: agregue una fila por cada uno.'),
-            ('', '4. Respete los valores exactos de la hoja CATALOGOS en los campos de selección.'),
+            ('', '4. Los campos de selección tienen menú desplegable — haga clic en la celda y elija de la lista.'),
             ('', '5. Fechas en formato DD/MM/AAAA  (ejemplo: 15/03/2020).'),
             ('', '6. Montos en colones (₡), sin símbolo ni comas  (ejemplo: 750000).'),
             ('', '7. La fila de PRUEBA (fondo naranja, cédula 1-0000-0001) sirve para verificar que la importación funciona. Elimine ese empleado luego.'),
@@ -281,7 +394,7 @@ class ImportTemplateWizard(models.TransientModel):
             # Identificación (cols 1-6)
             ('Nombre Completo',           True,  28, 'Juan Pérez Rodríguez',     'Nombre completo del empleado'),
             ('Cédula / Identificación',   True,  18, '1-2345-6789',              'Cédula, DIMEX o pasaporte — llave entre hojas'),
-            ('Tipo de Identificación',    True,  18, '01',                       'Ver CATALOGOS → id_type  (01 Cédula / 02 DIMEX / 03 Permiso / 04 Pasaporte)'),
+            ('Tipo de Identificación',    True,  18, 'Cédula Nacional',             'Ver CATALOGOS → id_type  (01 Cédula / 02 DIMEX / 03 Permiso / 04 Pasaporte)'),
             ('Fecha de Ingreso',          True,  14, '01/03/2020',               'Formato DD/MM/AAAA'),
             ('Fecha de Salida',           False, 14, '',                         'Solo si ya no trabaja en la empresa'),
             ('Correo Corporativo',        False, 28, 'juan.perez@empresa.com',   'Email de trabajo en Odoo'),
@@ -299,25 +412,25 @@ class ImportTemplateWizard(models.TransientModel):
             ('Nombre INS',                False, 18, 'Juan',                     'Nombre como aparece en el sistema INS'),
             ('Primer Apellido INS',       False, 16, 'Pérez',                    ''),
             ('Segundo Apellido INS',      False, 16, 'Rodríguez',                ''),
-            ('Clase de Riesgo INS',       True,  16, 'I',                        'Ver CATALOGOS → ins_risk_class  (I / II / III / IV / V)'),
-            ('Jornada INS',               True,  18, '01',                       'Ver CATALOGOS → ins_workday_type  (01 Ordinaria / 02 Extraordinaria / 03 Mixta / 04 Tiempo Parcial / 05 Por Horas / 06 Ocasional)'),
+            ('Clase de Riesgo INS',       True,  16, 'I - Oficinas',                'Ver CATALOGOS → ins_risk_class  (I / II / III / IV / V)'),
+            ('Jornada INS',               True,  18, 'Ordinaria',                   'Ver CATALOGOS → ins_workday_type  (01 Ordinaria / 02 Extraordinaria / 03 Mixta / 04 Tiempo Parcial / 05 Por Horas / 06 Ocasional)'),
             # CCSS y banco (cols 21-26)
             ('Número CCSS',               False, 16, '123456789',                'Número de asegurado CCSS'),
             ('Asegurado CCSS',            True,  14, 'si',                       'si / no'),
             ('Cuenta Bancaria / IBAN',    False, 30, 'CR21015108010018023571',   'IBAN de 22 caracteres'),
             ('SINPE Móvil',               False, 14, '88887777',                 'Teléfono registrado en SINPE Móvil'),
-            ('Banco',                     False, 20, 'BNCR',                     'Ver CATALOGOS → bank'),
-            ('Tipo de Cuenta Banco',      False, 16, 'corriente',                'corriente / ahorros / sinpe  — Ver CATALOGOS → account_type'),
+            ('Banco',                     False, 20, 'BNCR',                        'Ver CATALOGOS → bank'),
+            ('Tipo de Cuenta Banco',      False, 16, 'Cuenta Corriente',            'Ver CATALOGOS → account_type'),
             # Configuración nómina (cols 27-32)
             ('Salario Base (₡)',          True,  18, '750000',                   'Salario mensual en colones, sin comas ni símbolo'),
             ('Fecha Vigencia Salarial',   False, 18, '01/01/2026',               'Desde cuándo aplica el salario'),
-            ('Frecuencia de Pago',        True,  18, 'monthly',                  'Ver CATALOGOS → frequency'),
-            ('Método de Cálculo',         True,  18, 'fixed',                    'Ver CATALOGOS → calc_method  (fixed / attendance)'),
+            ('Frecuencia de Pago',        True,  18, 'Mensual',                     'Ver CATALOGOS → frequency'),
+            ('Método de Cálculo',         True,  18, 'Salario Fijo',                'Ver CATALOGOS → calc_method'),
             ('Ocupación INS',             True,  20, '4110',                     'Código numérico INS — ver CATALOGOS → ins_occupation'),
-            ('Nacionalidad INS',          False, 14, 'CR',                       'Ver CATALOGOS → ins_nationality  (CR / NI / CO / US / OT…)'),
+            ('Nacionalidad INS',          False, 14, 'Costarricense',               'Ver CATALOGOS → ins_nationality  (CR / NI / CO / US / OT…)'),
             # Datos personales (cols 33-38)
-            ('Estado Civil INS',          False, 16, '01',                       'Ver CATALOGOS → ins_civil_status  (01 Soltero/a / 02 Casado/a / 03 Divorciado/a / 04 Viudo/a / 05 Unión Libre / 06 Separado/a)'),
-            ('Género',                    False, 12, 'masculino',                'masculino / femenino / otro'),
+            ('Estado Civil INS',          False, 16, 'Soltero/a',                   'Ver CATALOGOS → ins_civil_status  (01 Soltero/a / 02 Casado/a / 03 Divorciado/a / 04 Viudo/a / 05 Unión Libre / 06 Separado/a)'),
+            ('Género',                    False, 12, 'Masculino',                   'Masculino / Femenino / Otro'),
             ('Número de Dependientes',    False, 12, '0',                        'Hijos u otros dependientes'),
             ('Dirección',                 False, 30, 'San José, Escazú',         'Dirección de habitación'),
             ('Teléfono Personal',         False, 14, '88887777',                 ''),
@@ -327,16 +440,41 @@ class ImportTemplateWizard(models.TransientModel):
         sv = None
         if sample:
             sv = [
-                'EMPLEADO PRUEBA', self._SAMPLE_CEDULA, '01', '01/01/2024', '', 'prueba@empresa.com',
+                'EMPLEADO PRUEBA', self._SAMPLE_CEDULA, 'Cédula Nacional', '01/01/2024', '', 'prueba@empresa.com',
                 '', '', '', 'Puesto Prueba', 'planilla', 'activo', 'jornada_ordinaria',
-                'si', '', 'Prueba', 'Prueba', 'Prueba', 'I', '01',
-                '', 'si', '', '', 'BNCR', 'corriente',
-                '500000', '01/01/2024', 'monthly', 'fixed', '4110', 'CR',
-                '01', 'masculino', '0', 'San José', '88880000',
+                'Si', '', 'Prueba', 'Prueba', 'Prueba', 'I - Oficinas', 'Ordinaria',
+                '', 'Si', '', '', 'BNCR', 'Cuenta Corriente',
+                '500000', '01/01/2024', 'Mensual', 'Salario Fijo', '4110', 'Costarricense',
+                'Soltero/a', 'Masculino', '0', 'San José', '88880000',
                 '⚠️ FILA DE PRUEBA — eliminar después de verificar importación',
             ]
         self._build_rows(ws, cols, data_rows=100, header_row=3, example_row=4,
                          sample_values=sv)
+        # ── Dropdowns en filas de datos (5 en adelante) ──────────────────
+        # col  3: Tipo de Identificación
+        self._dv(ws,  3, 'id_type',      5, title='Tipo de Identificación')
+        # col 14: Incluir en INS
+        self._dv(ws, 14, 'si_no',        5, title='Incluir en INS (si/no)')
+        # col 19: Clase de Riesgo INS
+        self._dv(ws, 19, 'ins_risk',     5, title='Clase de Riesgo INS')
+        # col 20: Jornada INS
+        self._dv(ws, 20, 'ins_workday',  5, title='Tipo de Jornada INS')
+        # col 22: Asegurado CCSS
+        self._dv(ws, 22, 'si_no',        5, title='Asegurado CCSS (si/no)')
+        # col 25: Banco
+        self._dv(ws, 25, 'banco',        5, title='Banco')
+        # col 26: Tipo de Cuenta
+        self._dv(ws, 26, 'account_type', 5, title='Tipo de Cuenta Banco')
+        # col 29: Frecuencia de Pago
+        self._dv(ws, 29, 'frequency',    5, title='Frecuencia de Pago')
+        # col 30: Método de Cálculo
+        self._dv(ws, 30, 'calc_method',  5, title='Método de Cálculo')
+        # col 32: Nacionalidad INS
+        self._dv(ws, 32, 'ins_nat',      5, title='Nacionalidad INS')
+        # col 33: Estado Civil INS
+        self._dv(ws, 33, 'ins_civil',    5, title='Estado Civil INS')
+        # col 34: Género
+        self._dv(ws, 34, 'gender',       5, title='Género')
 
     # ══════════════════════════════════════════════════════════════════════════
     # HOJA PRÉSTAMOS
@@ -344,21 +482,24 @@ class ImportTemplateWizard(models.TransientModel):
     def _build_loans(self, wb, sample=False):
         cols = [
             ('Cédula Empleado',          True,  18, '1-2345-6789',     'Debe coincidir con hoja EMPLEADOS'),
-            ('Tipo de Préstamo',         True,  16, 'loan',            'loan = Préstamo   /   advance = Adelanto'),
+            ('Tipo de Préstamo',         True,  16, 'Préstamo de Empresa', 'Préstamo de Empresa / Adelanto de Salario'),
             ('Descripción / Motivo',     False, 30, 'Préstamo personal',''),
             ('Monto Total (₡)',          True,  16, '500000',          'Total del préstamo, sin comas'),
             ('Número de Cuotas',         True,  14, '10',              'Cantidad de cuotas a descontar'),
             ('Fecha de Otorgamiento',    True,  18, '15/01/2026',      'DD/MM/AAAA'),
             ('Fecha Primera Deducción',  True,  18, '01/02/2026',      'DD/MM/AAAA — primer boleta que descuenta'),
-            ('Estado',                   True,  14, 'approved',        'approved / active  (ver CATALOGOS)'),
+            ('Estado',                   True,  14, 'Aprobado',            'Ver CATALOGOS → loan_state'),
             ('Monto ya Pagado (₡)',      False, 16, '100000',          'Si ya se ha descontado algo'),
             ('Observaciones',            False, 28, '',                ''),
         ]
-        sv = [self._SAMPLE_CEDULA, 'loan', 'Préstamo de prueba', '100000', '5',
-              '01/01/2024', '01/02/2024', 'approved', '0', '⚠️ PRUEBA'] if sample else None
+        sv = [self._SAMPLE_CEDULA, 'Préstamo de Empresa', 'Préstamo de prueba', '100000', '5',
+              '01/01/2024', '01/02/2024', 'Aprobado', '0', '⚠️ PRUEBA'] if sample else None
         ws = wb.create_sheet('💰 PRESTAMOS')
         self._sheet_title(ws, 'PRÉSTAMOS Y ADELANTOS — Un préstamo por fila (puede haber varios por empleado)', len(cols))
         self._build_rows(ws, cols, data_rows=100, sample_values=sv)
+        # col 2: Tipo de Préstamo, col 8: Estado
+        self._dv(ws, 2, 'loan_type',   4, title='Tipo de Préstamo')
+        self._dv(ws, 8, 'loan_state',  4, title='Estado del Préstamo')
 
     # ══════════════════════════════════════════════════════════════════════════
     # HOJA PENSIÓN ALIMENTARIA
@@ -370,20 +511,23 @@ class ImportTemplateWizard(models.TransientModel):
             ('Juzgado',                True,  30, 'Juzgado de Familia SJ', ''),
             ('Fecha de Resolución',    True,  18, '10/06/2023',            'DD/MM/AAAA'),
             ('Nombre Beneficiario',    True,  26, 'María Rodríguez Solano','Nombre completo'),
-            ('Relación Beneficiario',  True,  16, 'hijo',                  'hijo / conyuge / padre / madre / otro'),
+            ('Relación Beneficiario',  True,  16, 'Hijo/a',                  'Ver CATALOGOS → pension_relacion'),
             ('Cuenta Beneficiario',    False, 28, 'CR21015108010018023571','IBAN del beneficiario (opcional)'),
-            ('Tipo de Cálculo',        True,  16, 'porcentaje',            'porcentaje / monto_fijo'),
+            ('Tipo de Cálculo',        True,  16, 'Porcentaje del Salario', 'Porcentaje del Salario / Monto Fijo'),
             ('Porcentaje (%)',          False, 12, '25',                   'Si tipo=porcentaje, solo el número (ej: 25)'),
             ('Monto Fijo (₡)',         False, 14, '',                     'Si tipo=monto_fijo, monto en colones'),
             ('Fecha de Inicio',        True,  14, '01/07/2023',            'DD/MM/AAAA'),
             ('Fecha de Fin',           False, 14, '',                     'Dejar vacío si no tiene vencimiento'),
         ]
         sv = [self._SAMPLE_CEDULA, 'TEST-0000-PRUEBA', 'Juzgado Prueba', '01/01/2024',
-              'Beneficiario Prueba', 'hijo', '', 'porcentaje', '10', '',
+              'Beneficiario Prueba', 'Hijo/a', '', 'Porcentaje del Salario', '10', '',
               '01/01/2024', ''] if sample else None
         ws = wb.create_sheet('👨‍👧 PENSION_ALIMENTARIA')
         self._sheet_title(ws, 'PENSIONES ALIMENTARIAS — Una resolución por fila', len(cols))
         self._build_rows(ws, cols, sample_values=sv)
+        # col 6: Relación Beneficiario, col 8: Tipo de Cálculo
+        self._dv(ws, 6, 'pension_rel',  4, title='Relación Beneficiario')
+        self._dv(ws, 8, 'pension_calc', 4, title='Tipo de Cálculo')
 
     # ══════════════════════════════════════════════════════════════════════════
     # HOJA BENEFICIOS RECURRENTES
@@ -392,8 +536,8 @@ class ImportTemplateWizard(models.TransientModel):
         cols = [
             ('Cédula Empleado',   True,  18, '1-2345-6789',        'Cédula del empleado'),
             ('Concepto',          True,  28, 'Plus de transporte',  'Nombre descriptivo del concepto'),
-            ('Tipo',              True,  14, 'beneficio',           'beneficio / deduccion'),
-            ('Tipo de Monto',     True,  16, 'fijo',                'fijo / porcentaje'),
+            ('Tipo',              True,  14, 'Beneficio / Ingreso',  'Beneficio / Ingreso   o   Deducción / Descuento'),
+            ('Tipo de Monto',     True,  16, 'Monto Fijo',           'Monto Fijo / Porcentaje'),
             ('Monto (₡)',         False, 14, '15000',               'Si tipo_monto=fijo'),
             ('Porcentaje (%)',    False, 12, '',                    'Si tipo_monto=porcentaje, solo el número'),
             ('Código Deducción',  False, 16, '',                    'Código del concepto si el módulo lo requiere'),
@@ -401,16 +545,19 @@ class ImportTemplateWizard(models.TransientModel):
             ('Vigente Hasta',     False, 14, '',                    'Dejar vacío si es indefinido'),
             ('Nota',              False, 28, 'Acuerdo colectivo 2026','Descripción o referencia'),
         ]
-        sv = [self._SAMPLE_CEDULA, 'Plus Prueba', 'beneficio', 'fijo',
+        sv = [self._SAMPLE_CEDULA, 'Plus Prueba', 'Beneficio / Ingreso', 'Monto Fijo',
               '5000', '', '', '01/01/2024', '', '⚠️ PRUEBA'] if sample else None
         ws = wb.create_sheet('➕ BENEFICIOS')
         self._sheet_title(ws, 'BENEFICIOS Y DEDUCCIONES RECURRENTES — Pluses, subsidios, embargos, etc.', len(cols))
         self._build_rows(ws, cols, data_rows=100, sample_values=sv)
+        # col 3: Tipo, col 4: Tipo de Monto
+        self._dv(ws, 3, 'benefit_type', 4, title='Tipo (beneficio/deduccion)')
+        self._dv(ws, 4, 'amount_type',  4, title='Tipo de Monto')
 
     def _build_disabilities(self, wb, sample=False):
         cols = [
             ('Cédula Empleado',      True,  18, '1-2345-6789',    ''),
-            ('Tipo de Incapacidad',  True,  22, 'enfermedad',     'enfermedad / accidente_trabajo / maternidad / paternidad'),
+            ('Tipo de Incapacidad',  True,  22, 'Enfermedad Común (CCSS)', 'Ver CATALOGOS → disability_type'),
             ('Fecha Inicio',         True,  14, '01/02/2026',     'DD/MM/AAAA'),
             ('Fecha Fin',            True,  14, '10/02/2026',     'DD/MM/AAAA'),
             ('% Subsidiado CCSS',    False, 14, '60',             'Porcentaje que paga la CCSS'),
@@ -420,12 +567,14 @@ class ImportTemplateWizard(models.TransientModel):
             ('Salario Diario (₡)',   False, 16, '25000',          'Salario mensual ÷ 30'),
             ('Observaciones',        False, 28, '',               ''),
         ]
-        sv = [self._SAMPLE_CEDULA, 'ccss', '01/01/2024', '05/01/2024',
+        sv = [self._SAMPLE_CEDULA, 'Enfermedad Común (CCSS)', '01/01/2024', '05/01/2024',
               '60', '40', 'PRUEBA-0000', 'Diagnóstico prueba', '16667',
               '⚠️ PRUEBA'] if sample else None
         ws = wb.create_sheet('🏥 INCAPACIDADES')
         self._sheet_title(ws, 'INCAPACIDADES — Solo las activas o dentro del período de carga', len(cols))
         self._build_rows(ws, cols, sample_values=sv)
+        # col 2: Tipo de Incapacidad
+        self._dv(ws, 2, 'disability', 4, title='Tipo de Incapacidad')
 
     def _build_vacations(self, wb, sample=False):
         cols = [
@@ -448,19 +597,24 @@ class ImportTemplateWizard(models.TransientModel):
         cols = [
             ('Cédula Empleado',      True,  18, '1-2345-6789',    ''),
             ('Fecha',                True,  14, '01/02/2026',      'DD/MM/AAAA'),
-            ('Tipo de Hora Extra',   True,  20, 'simple',          'simple / double / holiday'),
+            ('Tipo de Hora Extra',   True,  20, 'Simple (1.5x)',        'Ver CATALOGOS → overtime_type'),
             ('Cantidad de Horas',    True,  16, '2.5',             'Número de horas extras trabajadas'),
             ('Salario por Hora (₡)', False, 18, '3500',            'Salario mensual ÷ 240 (o según contrato)'),
             ('Monto Total (₡)',      False, 16, '8750',            'Horas × Salario × Factor (1.5 / 2.0)'),
             ('Período de Planilla',  False, 22, 'Febrero 2026',    'Período al que se carga esta hora extra'),
             ('Observaciones',        False, 28, '',                 ''),
         ]
-        sv = [self._SAMPLE_CEDULA, '15/01/2024', 'simple', '2',
+        sv = [self._SAMPLE_CEDULA, '15/01/2024', 'Simple (1.5x)', '2',
               '2083', '6250', 'Enero 2024', '⚠️ PRUEBA'] if sample else None
         ws = wb.create_sheet('⏱️ HORAS EXTRAS')
         self._sheet_title(ws, 'HORAS EXTRAS — Registros históricos a importar', len(cols))
         self._build_rows(ws, cols, sample_values=sv)
+        # col 3: Tipo de Hora Extra
+        self._dv(ws, 3, 'overtime_type', 4, title='Tipo de Hora Extra')
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # HOJA OCULTA DE LISTAS (fuente de los dropdowns)
+    # ══════════════════════════════════════════════════════════════════════════
     # ══════════════════════════════════════════════════════════════════════════
     # HOJA CATÁLOGOS
     # ══════════════════════════════════════════════════════════════════════════
@@ -496,10 +650,10 @@ class ImportTemplateWizard(models.TransientModel):
                 ('',  'Use el nombre del horario tal como aparece en Configuración → Tipos de Horario'),
             ]),
             ('frequency — Frecuencia de Pago', [
-                ('monthly',   'Mensual — 1 pago al mes'),
-                ('biweekly',  'Quincenal — 2 pagos al mes'),
-                ('weekly',    'Semanal — 4 pagos al mes'),
-                ('bimonthly', 'Bimensual — cada 2 meses'),
+                ('Mensual',    'Mensual — 1 pago al mes'),
+                ('Quincenal',  'Quincenal — 2 pagos al mes'),
+                ('Semanal',    'Semanal — 4 pagos al mes'),
+                ('Bimensual',  'Bimensual — cada 2 meses'),
             ]),
             ('ins_risk_class — Clase de Riesgo INS', [
                 ('I',   'Clase I   — Oficinas y administrativo (~0.87%)'),
@@ -509,12 +663,12 @@ class ImportTemplateWizard(models.TransientModel):
                 ('V',   'Clase V   — Actividades de alto riesgo (~6.88%)'),
             ]),
             ('ins_workday_type — Tipo de Jornada INS', [
-                ('01', 'Ordinaria — jornada diurna regular'),
-                ('02', 'Extraordinaria — horas extra autorizadas'),
-                ('03', 'Mixta — parte diurna y parte nocturna'),
-                ('04', 'Tiempo Parcial — menos de jornada completa'),
-                ('05', 'Por Horas — según horas efectivamente trabajadas'),
-                ('06', 'Ocasional — trabajo esporádico o temporal'),
+                ('Ordinaria',      'Jornada diurna regular'),
+                ('Extraordinaria', 'Horas extra autorizadas'),
+                ('Mixta',          'Parte diurna y parte nocturna'),
+                ('Tiempo Parcial', 'Menos de jornada completa'),
+                ('Por Horas',      'Según horas efectivamente trabajadas'),
+                ('Ocasional',      'Trabajo esporádico o temporal'),
             ]),
             ('ins_id_type — Tipo de ID INS', [
                 ('01', 'Cédula de Costa Rica'),
@@ -524,12 +678,12 @@ class ImportTemplateWizard(models.TransientModel):
                 ('05', 'Indocumentado'),
             ]),
             ('ins_civil_status — Estado Civil INS', [
-                ('01', 'Soltero/a'),
-                ('02', 'Casado/a'),
-                ('03', 'Divorciado/a'),
-                ('04', 'Viudo/a'),
-                ('05', 'Unión Libre'),
-                ('06', 'Separado/a'),
+                ('Soltero/a',    ''),
+                ('Casado/a',     ''),
+                ('Divorciado/a', ''),
+                ('Viudo/a',      ''),
+                ('Unión Libre',  ''),
+                ('Separado/a',   ''),
             ]),
             ('ins_nationality — Nacionalidad INS', [
                 ('CR', 'Costarricense'),
@@ -547,9 +701,9 @@ class ImportTemplateWizard(models.TransientModel):
                 ('OT', 'Otra nacionalidad'),
             ]),
             ('account_type — Tipo de Cuenta Banco', [
-                ('corriente', 'Cuenta Corriente / IBAN'),
-                ('ahorros',   'Cuenta de Ahorros'),
-                ('sinpe',     'SINPE Móvil'),
+                ('Cuenta Corriente', 'Cuenta corriente o IBAN'),
+                ('Cuenta de Ahorros','Cuenta de ahorros'),
+                ('SINPE Móvil',      'SINPE Móvil'),
             ]),
             ('bank — Banco', [
                 ('BNCR',       'Banco Nacional de Costa Rica'),
@@ -572,50 +726,50 @@ class ImportTemplateWizard(models.TransientModel):
                 ('OTRO',       'Otro banco / cooperativa'),
             ]),
             ('loan_type — Tipo de Préstamo', [
-                ('loan',    'Préstamo de empresa'),
-                ('advance', 'Adelanto de salario'),
+                ('Préstamo de Empresa', 'Préstamo otorgado por la empresa'),
+                ('Adelanto de Salario', 'Adelanto sobre el salario del período'),
             ]),
             ('loan_state — Estado del Préstamo', [
-                ('draft',     'Borrador — pendiente de aprobación'),
-                ('approved',  'Aprobado — se activará en la próxima boleta'),
-                ('active',    'En curso — descuento activo'),
-                ('paid',      'Cancelado — totalmente pagado'),
-                ('cancelled', 'Anulado'),
+                ('Aprobado', 'Se activará en la próxima boleta'),
+                ('En Curso', 'Descuento activo'),
+                ('Borrador', 'Pendiente de aprobación'),
+                ('Pagado',   'Totalmente cancelado'),
+                ('Anulado',  'Préstamo anulado'),
             ]),
             ('pension_relacion — Relación Beneficiario', [
-                ('hijo',    'Hijo/a'),
-                ('conyuge', 'Cónyuge / Conviviente'),
-                ('padre',   'Padre'),
-                ('madre',   'Madre'),
-                ('otro',    'Otro'),
+                ('Hijo/a',   ''),
+                ('Cónyuge',  'Cónyuge / Conviviente'),
+                ('Padre',    ''),
+                ('Madre',    ''),
+                ('Otro',     ''),
             ]),
             ('pension_calc — Tipo de Cálculo Pensión', [
-                ('percentage', 'Porcentaje del salario bruto'),
-                ('fixed',      'Monto fijo mensual en colones'),
+                ('Porcentaje del Salario', 'Porcentaje del salario bruto'),
+                ('Monto Fijo',             'Monto fijo mensual en colones'),
             ]),
             ('benefit_type — Tipo de Beneficio/Deducción', [
-                ('income',    'Ingreso / Beneficio (suma al bruto)'),
-                ('deduction', 'Deducción / Descuento (resta al neto)'),
+                ('Beneficio / Ingreso',    'Suma al salario bruto'),
+                ('Deducción / Descuento',  'Resta del salario neto'),
             ]),
             ('amount_type — Tipo de Monto', [
-                ('fixed',      'Monto fijo en colones'),
-                ('percentage', 'Porcentaje del salario base'),
+                ('Monto Fijo',  'Monto fijo en colones'),
+                ('Porcentaje',  'Porcentaje del salario base'),
             ]),
             ('disability_type — Tipo de Incapacidad', [
-                ('ccss',          'CCSS — Enfermedad común'),
-                ('ccss_accident', 'CCSS — Accidente laboral'),
-                ('ins',           'INS — Riesgo laboral'),
-                ('maternity',     'Maternidad / Paternidad'),
-                ('other',         'Otro tipo de incapacidad'),
+                ('Enfermedad Común (CCSS)',     'Enfermedad o accidente no laboral'),
+                ('Accidente de Trabajo (CCSS)', 'Accidente en el lugar de trabajo'),
+                ('Riesgo Laboral (INS)',         'Cubierto por póliza INS'),
+                ('Maternidad / Paternidad',      'Licencia pre/post natal'),
+                ('Otro',                         'Otro tipo de incapacidad'),
             ]),
             ('overtime_type — Tipo de Hora Extra', [
-                ('simple',  'Simple (1.5x) — hora extra ordinaria'),
-                ('double',  'Doble (2.0x) — hora extra nocturna o dominical'),
-                ('holiday', 'Día Feriado — trabajo en día feriado'),
+                ('Simple (1.5x)', 'Hora extra ordinaria — factor 1.5'),
+                ('Doble (2.0x)',  'Hora extra nocturna o dominical — factor 2.0'),
+                ('Día Feriado',   'Trabajo en día feriado nacional'),
             ]),
             ('calc_method — Método de Cálculo de Planilla', [
-                ('fixed',      'Salario Fijo — sin consultar asistencias'),
-                ('attendance', 'Por Horas Trabajadas — según módulo de asistencias'),
+                ('Salario Fijo',         'Sin consultar asistencias'),
+                ('Por Horas Trabajadas', 'Según módulo de asistencias'),
             ]),
         ]
 
@@ -676,6 +830,10 @@ class ImportTemplateWizard(models.TransientModel):
 
         wb = Workbook()
         s = self.include_sample_data
+
+        # Hoja oculta de listas — debe crearse ANTES de las demás hojas
+        # para que las referencias de DataValidation sean válidas
+        self._build_listas_sheet(wb)
 
         # Instrucciones siempre presentes
         self._build_instructions(wb)

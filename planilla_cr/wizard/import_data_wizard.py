@@ -30,6 +30,7 @@ INS_RISK = {
 }
 
 INS_WORKDAY = {
+    # Valores del dropdown (español legible)
     'ordinaria': '01', 'diurna': '01', '01': '01',
     'extraordinaria': '02', '02': '02',
     'mixta': '03', '03': '03',
@@ -41,25 +42,23 @@ INS_WORKDAY = {
 INS_NATIONALITY = {
     'cr': 'CR', 'costarricense': 'CR', 'costa rica': 'CR',
     'ni': 'NI', 'nicaraguense': 'NI', 'nicaragüense': 'NI',
-    'co': 'CO', 'colombiano': 'CO', 'colombiana': 'CO',
+    'co': 'CO', 'colombiano': 'CO', 'colombiana': 'CO', 'colombiano/a': 'CO',
     'us': 'US', 'estadounidense': 'US', 'americano': 'US',
-    'hn': 'HN', 'hondureno': 'HN', 'hondureño': 'HN',
-    'sv': 'SV', 'salvadoreno': 'SV', 'salvadoreño': 'SV',
-    'gt': 'GT', 'guatemalteco': 'GT', 'guatemalteca': 'GT',
-    'pa': 'PA', 'panameno': 'PA', 'panameño': 'PA',
-    'mx': 'MX', 'mexicano': 'MX', 'mexicana': 'MX',
-    've': 'VE', 'venezolano': 'VE', 'venezolana': 'VE',
-    'pe': 'PE', 'peruano': 'PE', 'peruana': 'PE',
-    'ec': 'EC', 'ecuatoriano': 'EC', 'ecuatoriana': 'EC',
-    'ot': 'OT', 'otro': 'OT', 'otra': 'OT', 'other': 'OT',
+    'hn': 'HN', 'hondureno': 'HN', 'hondureño': 'HN', 'hondureño/a': 'HN',
+    'sv': 'SV', 'salvadoreno': 'SV', 'salvadoreño': 'SV', 'salvadoreño/a': 'SV',
+    'gt': 'GT', 'guatemalteco': 'GT', 'guatemalteca': 'GT', 'guatemalteco/a': 'GT',
+    'pa': 'PA', 'panameno': 'PA', 'panameño': 'PA', 'panameño/a': 'PA',
+    'mx': 'MX', 'mexicano': 'MX', 'mexicana': 'MX', 'mexicano/a': 'MX',
+    've': 'VE', 'venezolano': 'VE', 'venezolana': 'VE', 'venezolano/a': 'VE',
+    'pe': 'PE', 'peruano': 'PE', 'peruana': 'PE', 'peruano/a': 'PE',
+    'ec': 'EC', 'ecuatoriano': 'EC', 'ecuatoriana': 'EC', 'ecuatoriano/a': 'EC',
+    'ot': 'OT', 'otro': 'OT', 'otra': 'OT', 'other': 'OT', 'otra': 'OT',
 }
 
 ACCOUNT_TYPE = {
-    # El modelo bank_account_type acepta: corriente / ahorros / sinpe
-    'iban': 'corriente', 'cr': 'corriente',         # IBAN es una cuenta corriente
-    'corriente': 'corriente', 'cuenta corriente': 'corriente',
-    'ahorros': 'ahorros', 'cuenta ahorros': 'ahorros',
-    'sinpe': 'sinpe', 'sinpe movil': 'sinpe', 'sinpe móvil': 'sinpe',
+    'cuenta corriente': 'corriente', 'corriente': 'corriente', 'iban': 'corriente',
+    'cuenta de ahorros': 'ahorros', 'ahorros': 'ahorros',
+    'sinpe movil': 'sinpe', 'sinpe móvil': 'sinpe', 'sinpe': 'sinpe',
 }
 
 GENDER = {
@@ -69,53 +68,58 @@ GENDER = {
 }
 
 INS_CIVIL = {
-    'soltero': '01', 'soltera': '01', '01': '01',
-    'casado': '02', 'casada': '02', '02': '02',
-    'divorciado': '03', 'divorciada': '03', '03': '03',
-    'viudo': '04', 'viuda': '04', '04': '04',
+    'soltero/a': '01', 'soltero': '01', 'soltera': '01', '01': '01',
+    'casado/a': '02', 'casado': '02', 'casada': '02', '02': '02',
+    'divorciado/a': '03', 'divorciado': '03', 'divorciada': '03', '03': '03',
+    'viudo/a': '04', 'viudo': '04', 'viuda': '04', '04': '04',
     'union libre': '05', 'unión libre': '05', '05': '05',
-    'separado': '06', 'separada': '06', '06': '06',
+    'separado/a': '06', 'separado': '06', 'separada': '06', '06': '06',
 }
 
 INS_ID_TYPE = {
-    'cedula': '01', 'cédula': '01', 'cedula nacional': '01', '01': '01',
-    'residencia': '02', 'dimex': '02', '02': '02',
-    'permiso': '03', 'permiso de trabajo': '03', '03': '03',
+    'cedula nacional': '01', 'cédula nacional': '01',
+    'cedula': '01', 'cédula': '01', '01': '01',
+    'residencia / dimex': '02', 'residencia': '02', 'dimex': '02', '02': '02',
+    'permiso de trabajo': '03', 'permiso': '03', '03': '03',
     'pasaporte': '04', '04': '04',
     'indocumentado': '05', '05': '05',
 }
 
 DISABILITY_TYPE = {
-    'enfermedad': 'ccss', 'ccss': 'ccss', 'ccss enfermedad': 'ccss',
+    'enfermedad común (ccss)': 'ccss', 'enfermedad comun (ccss)': 'ccss',
+    'enfermedad': 'ccss', 'ccss': 'ccss',
+    'accidente de trabajo (ccss)': 'ccss_accident',
     'accidente trabajo': 'ccss_accident', 'accidente_trabajo': 'ccss_accident',
-    'ccss accident': 'ccss_accident', 'ccss_accident': 'ccss_accident',
-    'ins': 'ins', 'riesgo laboral': 'ins', 'accidente ins': 'ins',
-    'maternidad': 'maternity', 'prenatal': 'maternity', 'postnatal': 'maternity',
-    'paternidad': 'maternity',
+    'riesgo laboral (ins)': 'ins', 'ins': 'ins', 'riesgo laboral': 'ins',
+    'maternidad / paternidad': 'maternity',
+    'maternidad': 'maternity', 'paternidad': 'maternity',
     'otro': 'other', 'otra': 'other', 'other': 'other',
 }
 
 BENEFIT_TYPE = {
-    'beneficio': 'income', 'ingreso': 'income', 'income': 'income', 'plus': 'income',
-    'deduccion': 'deduction', 'deducción': 'deduction', 'descuento': 'deduction',
-    'deduction': 'deduction', 'embargo': 'deduction',
+    'beneficio / ingreso': 'income', 'beneficio': 'income', 'ingreso': 'income',
+    'income': 'income', 'plus': 'income',
+    'deducción / descuento': 'deduction', 'deduccion / descuento': 'deduction',
+    'deduccion': 'deduction', 'deducción': 'deduction',
+    'descuento': 'deduction', 'deduction': 'deduction', 'embargo': 'deduction',
 }
 
 AMOUNT_TYPE = {
-    'fijo': 'fixed', 'fixed': 'fixed', 'monto fijo': 'fixed', 'monto': 'fixed',
+    'monto fijo': 'fixed', 'fijo': 'fixed', 'fixed': 'fixed',
     'porcentaje': 'percentage', 'percentage': 'percentage', '%': 'percentage',
 }
 
 PENSION_CALC = {
-    'porcentaje': 'percentage', 'percentage': 'percentage', '%': 'percentage',
-    'monto_fijo': 'fixed', 'monto fijo': 'fixed', 'fixed': 'fixed', 'fijo': 'fixed',
+    'porcentaje del salario': 'percentage', 'porcentaje': 'percentage',
+    'percentage': 'percentage', '%': 'percentage',
+    'monto fijo': 'fixed', 'monto_fijo': 'fixed', 'fixed': 'fixed', 'fijo': 'fixed',
 }
 
 OVERTIME_TYPE = {
-    'simple': 'simple', '1.5x': 'simple', '1.5': 'simple', 'ordinaria': 'simple',
-    'doble': 'double', '2x': 'double', '2.0': 'double', 'double': 'double',
-    'feriado': 'holiday', 'holiday': 'holiday', 'dia feriado': 'holiday',
-    'día feriado': 'holiday',
+    'simple (1.5x)': 'simple', 'simple': 'simple', '1.5x': 'simple', 'ordinaria': 'simple',
+    'doble (2.0x)': 'double', 'doble': 'double', '2x': 'double', 'double': 'double',
+    'día feriado': 'holiday', 'dia feriado': 'holiday', 'feriado': 'holiday',
+    'holiday': 'holiday',
 }
 
 BANK = {
@@ -140,36 +144,39 @@ BANK = {
 }
 
 CALC_METHOD = {
-    'fijo': 'fixed', 'fixed': 'fixed', 'salario fijo': 'fixed',
-    'asistencia': 'attendance', 'attendance': 'attendance', 'horas': 'attendance',
+    'salario fijo': 'fixed', 'fijo': 'fixed', 'fixed': 'fixed',
+    'por horas trabajadas': 'attendance', 'asistencia': 'attendance',
+    'attendance': 'attendance', 'horas': 'attendance',
 }
 
 LOAN_TYPE = {
+    'préstamo de empresa': 'loan', 'prestamo de empresa': 'loan',
     'loan': 'loan', 'prestamo': 'loan', 'préstamo': 'loan',
-    'advance': 'advance', 'adelanto': 'advance',
+    'adelanto de salario': 'advance', 'advance': 'advance', 'adelanto': 'advance',
 }
 
 LOAN_STATE = {
-    'draft': 'draft', 'borrador': 'draft',
-    'approved': 'approved', 'aprobado': 'approved',
-    'active': 'active', 'activo': 'active', 'en curso': 'active',
-    'paid': 'paid', 'pagado': 'paid', 'cancelado': 'paid',
-    'cancelled': 'cancelled', 'anulado': 'cancelled',
+    'aprobado': 'approved', 'approved': 'approved',
+    'en curso': 'active', 'active': 'active', 'activo': 'active',
+    'borrador': 'draft', 'draft': 'draft',
+    'pagado': 'paid', 'paid': 'paid', 'cancelado': 'paid',
+    'anulado': 'cancelled', 'cancelled': 'cancelled',
 }
 
 PENSION_RELATION = {
-    'hijo': 'hijo', 'hija': 'hijo', 'hijo/a': 'hijo',
-    'conyuge': 'conyuge', 'cónyuge': 'conyuge', 'compañero': 'conyuge',
+    'hijo/a': 'hijo', 'hijo': 'hijo', 'hija': 'hijo',
+    'cónyuge': 'conyuge', 'conyuge': 'conyuge', 'compañero': 'conyuge',
     'compañera': 'conyuge', 'conviviente': 'conyuge',
-    'padre': 'padre', 'madre': 'madre', 'otro': 'otro', 'otra': 'otro',
+    'padre': 'padre', 'madre': 'madre',
+    'otro': 'otro', 'otra': 'otro',
 }
 
 BOOL_MAP = {'si': True, 'sí': True, 'yes': True, '1': True, 'true': True, 'x': True}
 
 FREQUENCY = {
-    'semanal': 'weekly', 'weekly': 'weekly',
-    'quincenal': 'biweekly', 'biweekly': 'biweekly',
     'mensual': 'monthly', 'monthly': 'monthly',
+    'quincenal': 'biweekly', 'biweekly': 'biweekly',
+    'semanal': 'weekly', 'weekly': 'weekly',
     'bimensual': 'bimonthly', 'bimonthly': 'bimonthly',
 }
 
