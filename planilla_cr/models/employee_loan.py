@@ -13,14 +13,18 @@ class EmployeeLoan(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_granted desc'
 
+    # FIX I-04 v54: La constraint original UNIQUE(employee_id, date_granted, loan_type)
+    # era demasiado permisiva — permitía crear dos préstamos del mismo tipo el mismo día
+    # con diferentes montos. La nueva constraint incluye amount_total para cubrir ese caso.
+    # Se mantiene la constraint de BD para protección a nivel de base de datos.
     _unique_loan_employee_date_type = Constraint(
-        'UNIQUE(employee_id, date_granted, loan_type)',
-        'Ya existe un préstamo/adelanto del mismo tipo para este empleado en la misma fecha. Verifique antes de crear un nuevo préstamo.'
+        'UNIQUE(employee_id, date_granted, loan_type, amount_total)',
+        'Ya existe un préstamo del mismo tipo y monto para este empleado en la misma fecha.'
     )
 
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
     employee_id = fields.Many2one(
-        'hr.employee', string='Empleado', required=True, ondelete='restrict'
+        'hr.employee', string='Empleado', required=True, ondelete='restrict', index=True
     )
     branch_id = fields.Many2one(related='employee_id.branch_id', store=True)
     currency_id = fields.Many2one(related='employee_id.currency_id', store=True)
@@ -116,6 +120,31 @@ class EmployeeLoan(models.Model):
                 raise ValidationError('El monto total debe ser mayor a cero.')
             if rec.installments <= 0:
                 raise ValidationError('Las cuotas deben ser al menos 1.')
+
+    @api.constrains('employee_id', 'date_granted', 'loan_type', 'state')
+    def _check_duplicate_active(self):
+        """
+        FIX I-04 v54: Validación ORM para evitar múltiples préstamos activos del
+        mismo tipo en el mismo empleado. Un empleado no debería tener dos préstamos
+        simultáneos del mismo tipo (podría ser un error de carga de datos).
+        Solo aplica a préstamos en estado activo/aprobado, no a borradores ni cancelados.
+        """
+        for rec in self:
+            if rec.state not in ('approved', 'active'):
+                continue
+            duplicates = self.search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('loan_type', '=', rec.loan_type),
+                ('state', 'in', ('approved', 'active')),
+                ('id', '!=', rec.id),
+            ])
+            if duplicates:
+                tipo = dict(self._fields['loan_type'].selection).get(rec.loan_type, rec.loan_type)
+                raise ValidationError(
+                    f'El empleado {rec.employee_id.name} ya tiene un {tipo} activo '
+                    f'({duplicates[0].name}). Cancele o liquide el préstamo existente '
+                    f'antes de aprobar uno nuevo del mismo tipo.'
+                )
 
     @api.depends('employee_id', 'employee_id.base_salary')
     def _compute_max_installment(self):

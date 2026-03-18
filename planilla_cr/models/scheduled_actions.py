@@ -72,7 +72,150 @@ class PlanillaScheduledActions(models.AbstractModel):
                 _logger.info('Planilla CR: préstamo cerrado automáticamente — %s / %s',
                              loan.employee_id.name, loan.name)
 
+
         _logger.info('Planilla CR: cron_close_completed_loans — %d préstamos cerrados.', closed)
+
+    @api.model
+    def cron_alert_embargo_expiry(self):
+        """
+        Alerta cuando un embargo judicial esta proximo a vencer (30 dias antes de date_end).
+        El patrono debe notificar al juzgado y al empleado antes del vencimiento.
+        Art. 172 CT: responsabilidad solidaria del patrono.
+        Corre: diariamente.
+        """
+        from datetime import date as _date
+        from dateutil.relativedelta import relativedelta
+        today = _date.today()
+        threshold = today + relativedelta(days=30)
+
+        embargos = self.env['planilla.embargo'].search([
+            ('state', '=', 'active'),
+            ('date_end', '!=', False),
+            ('date_end', '>=', today),
+            ('date_end', '<=', threshold),
+        ])
+        if not embargos:
+            return
+
+        # Agrupar por empresa para enviar un email por empresa
+        by_company = {}
+        for emb in embargos:
+            comp = emb.company_id or self.env.company
+            by_company.setdefault(comp, []).append(emb)
+
+        for company, embs in by_company.items():
+            if not company.email:
+                continue
+            lines = '\n'.join(
+                f'  • {e.employee_id.name}: expediente {e.numero_expediente} '
+                f'— vence {e.date_end} ({e.juzgado})'
+                for e in embs
+            )
+            body = (
+                f'<p><strong>Alerta de Embargos Judiciales por Vencer — {company.name}</strong></p>'
+                f'<p>Los siguientes <strong>{len(embs)}</strong> embargo(s) vencen '
+                f'en los proximos 30 dias (Art. 172 CT):</p>'
+                f'<pre style="background:#FFF3CD;padding:10px;">{lines}</pre>'
+                f'<p>Contacte al juzgado correspondiente para renovar o finalizar el embargo.</p>'
+            )
+            try:
+                self.env['mail.mail'].create({
+                    'subject': f'⚖️ Embargos por vencer — {company.name}',
+                    'email_to': company.email,
+                    'body_html': body,
+                    'auto_delete': True,
+                }).send()
+                _logger.info('Planilla CR: alerta embargo %d registros enviada a %s',
+                             len(embs), company.name)
+            except Exception as e:
+
+                _logger.error('Planilla CR: error alerta embargo %s: %s', company.name, e)
+
+    @api.model
+    def cron_bono_antiguedad(self):
+        """
+        Crea automaticamente el bono de antiguedad para empleados que cumplen
+        su aniversario laboral HOY, segun la tabla configurada en
+        planilla.bono.antiguedad.config por empresa.
+        
+        En CR es comun que convenios colectivos o politicas de empresa
+        reconozcan la antiguedad con un bono anual (porcentaje del salario
+        o monto fijo segun tramo de anos).
+        
+        Corre: diariamente (misma frecuencia que cron_check_anniversaries).
+        """
+        today = date.today()
+        BonoConfig = self.env['planilla.bono.antiguedad.config']
+        BonoModel  = self.env['planilla.bono']
+
+        employees = self.env['hr.employee'].search([
+            ('active', '=', True),
+            ('entry_date', '!=', False),
+        ])
+
+        created = 0
+        for emp in employees:
+            # Solo los que cumplen aniversario HOY y llevan >= 1 año
+            if not (emp.entry_date.month == today.month and
+                    emp.entry_date.day == today.day and
+                    emp.entry_date.year < today.year):
+                continue
+
+            years = today.year - emp.entry_date.year
+            company_id = emp.company_id.id if emp.company_id else self.env.company.id
+
+            # Buscar configuracion de antigüedad aplicable
+            cfg = BonoConfig.get_config_for_years(company_id, years)
+            if not cfg:
+                continue  # No hay configuracion para este tramo — no crear bono
+
+            base_salary = emp.base_salary or 0.0
+            if not base_salary:
+                _logger.warning('Planilla CR: bono antiguedad — %s no tiene salario base', emp.name)
+                continue
+
+            monto = cfg.compute_bono_amount(base_salary, years)
+            if monto <= 0:
+                continue
+
+            # Verificar si ya existe un bono de antigüedad para este aniversario
+            # (evitar duplicados si el cron corre dos veces)
+            bono_name = f'Bono Antiguedad — {years} año(s)'
+            year_start = today.replace(month=1, day=1)
+            existing = BonoModel.search([
+                ('employee_id', '=', emp.id),
+                ('bono_type', '=', 'antiguedad'),
+                ('name', '=', bono_name),
+                ('date_start', '>=', year_start),
+            ], limit=1)
+            if existing:
+                continue
+
+            try:
+                BonoModel.create({
+                    'employee_id':   emp.id,
+                    'name':          bono_name,
+                    'bono_type':     'antiguedad',
+                    'amount_type':   cfg.amount_type,
+                    'amount':        monto if cfg.amount_type == 'fixed' else 0.0,
+                    'percentage':    cfg.percentage if cfg.amount_type == 'percentage' else 0.0,
+                    'is_recurring':  False,  # Es puntual: solo en el mes del aniversario
+                    'afecto_ccss':   True,   # Antigüedad es salarial (Art. 162 CT)
+                    'afecto_renta':  True,
+                    'date_start':    today,
+                    'date_end':      today.replace(day=28) if today.month == 2 else
+                                     today.replace(day=30) if today.month in (4,6,9,11) else
+                                     today.replace(day=31),
+                    'state':         'active',
+                    'note':          f'Creado automaticamente por el sistema al cumplir {years} año(s) de servicio.',
+                })
+                created += 1
+                _logger.info('Planilla CR: bono antiguedad creado para %s — %d año(s), ₡%s',
+                             emp.name, years, f'{monto:,.2f}')
+            except Exception as e:
+                _logger.error('Planilla CR: error creando bono antiguedad para %s: %s', emp.name, e)
+
+        _logger.info('Planilla CR: cron_bono_antiguedad — %d bonos creados.', created)
 
     @api.model
     def cron_alert_negative_vacations(self):

@@ -37,7 +37,16 @@ class CcssReport(models.TransientModel):
         ]
         if self.branch_id:
             domain.append(('branch_id', '=', self.branch_id.id))
-        return self.env['planilla.payslip.cr'].search(domain)
+        payslips = self.env['planilla.payslip.cr'].search(domain)
+        # FIX M-05 v59: Prefetch de campos de empleado para eliminar N+1.
+        # Sin esto, cada iteración del loop genera queries individuales.
+        if payslips:
+            payslips.mapped('employee_id.identification_id')
+            payslips.mapped('employee_id.name')
+            payslips.mapped('employee_id.ccss_number')
+            payslips.mapped('employee_id.branch_id.name')
+            payslips.mapped('employee_id.base_salary')
+        return payslips
 
     def action_generate(self):
         self.ensure_one()

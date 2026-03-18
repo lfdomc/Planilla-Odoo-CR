@@ -25,6 +25,8 @@ class ImportTemplateWizard(models.TransientModel):
     include_disabilities = fields.Boolean('Incapacidades',                 default=True)
     include_vacations    = fields.Boolean('Saldo de Vacaciones',           default=True)
     include_overtime     = fields.Boolean('⏱️  Horas Extras (histórico)',   default=True)
+    include_embargos     = fields.Boolean('⚖️  Embargos Judiciales',        default=True)
+    include_bonos        = fields.Boolean('🎯  Bonos e Incentivos',         default=True)
     include_sample_data  = fields.Boolean(
         '🧪  Incluir fila de prueba (EMPLEADO PRUEBA)',
         default=False,
@@ -79,6 +81,16 @@ class ImportTemplateWizard(models.TransientModel):
                          'Riesgo Laboral (INS)', 'Maternidad / Paternidad', 'Otro'],
         # Horas extras
         'overtime_type':['Simple (1.5x)', 'Doble (2.0x)', 'Día Feriado'],
+        # Embargos
+        'embargo_calc': ['Monto Fijo', 'Porcentaje del Neto Disponible'],
+        # Bonos
+        'bono_type':    ['Productividad / Rendimiento', 'Asistencia Perfecta',
+                         'Antigüedad por Años de Servicio', 'Subsidio de Transporte / Kilometraje',
+                         'Subsidio de Alimentación (en dinero)', 'Subsidio Educativo',
+                         'Subsidio de Salud / Médico', 'Gastos de Representación',
+                         'Comisión por Ventas', 'Incentivo / Premio Especial', 'Otro'],
+        'bono_calc':    ['Monto Fijo', 'Porcentaje del Salario Base'],
+        'si_no_recurrente': ['Si', 'No'],
     }
 
     # ── paleta ────────────────────────────────────────────────────────────────
@@ -316,9 +328,12 @@ class ImportTemplateWizard(models.TransientModel):
             ('', '👤  EMPLEADOS            → Datos principales (obligatorio completar)'),
             ('', '💰  PRESTAMOS            → Préstamos y adelantos activos del empleado'),
             ('', '👨‍👧  PENSION_ALIMENTARIA   → Órdenes judiciales de pensión alimentaria'),
-            ('', '➕  BENEFICIOS           → Pluses, subsidios, embargos recurrentes'),
+            ('', '➕  OTROS DESCUENTOS      → Cuota sindical, cooperativa, ahorro voluntario, seguro médico (no embargos ni bonos formales)'),
             ('', '🏥  INCAPACIDADES        → Incapacidades activas al momento de la carga'),
             ('', '🏖️  VACACIONES           → Saldo de vacaciones acumulado'),
+            ('', '⏱️  HORAS EXTRAS         → Horas extras históricas'),
+            ('', '⚖️  EMBARGOS             → Embargos judiciales (Art. 172 CT — máx. 25% neto)'),
+            ('', '🎯  BONOS                → Bonos e incentivos (productividad, transporte, etc.)'),
             ('', '📚  CATALOGOS            → Valores válidos para campos de lista (NO editar)'),
             ('', ''),
             ('INSTRUCCIONES', ''),
@@ -535,8 +550,8 @@ class ImportTemplateWizard(models.TransientModel):
     def _build_benefits(self, wb, sample=False):
         cols = [
             ('Cédula Empleado',   True,  18, '1-2345-6789',        'Cédula del empleado'),
-            ('Concepto',          True,  28, 'Plus de transporte',  'Nombre descriptivo del concepto'),
-            ('Tipo',              True,  14, 'Beneficio / Ingreso',  'Beneficio / Ingreso   o   Deducción / Descuento'),
+            ('Concepto',          True,  28, 'Cuota Sindical',      'Nombre descriptivo del descuento o deducción'),
+            ('Tipo',              True,  14, 'Deducción / Descuento','Deducción / Descuento   o   Beneficio / Ingreso'),
             ('Tipo de Monto',     True,  16, 'Monto Fijo',           'Monto Fijo / Porcentaje'),
             ('Monto (₡)',         False, 14, '15000',               'Si tipo_monto=fijo'),
             ('Porcentaje (%)',    False, 12, '',                    'Si tipo_monto=porcentaje, solo el número'),
@@ -545,10 +560,10 @@ class ImportTemplateWizard(models.TransientModel):
             ('Vigente Hasta',     False, 14, '',                    'Dejar vacío si es indefinido'),
             ('Nota',              False, 28, 'Acuerdo colectivo 2026','Descripción o referencia'),
         ]
-        sv = [self._SAMPLE_CEDULA, 'Plus Prueba', 'Beneficio / Ingreso', 'Monto Fijo',
-              '5000', '', '', '01/01/2024', '', '⚠️ PRUEBA'] if sample else None
-        ws = wb.create_sheet('➕ BENEFICIOS')
-        self._sheet_title(ws, 'BENEFICIOS Y DEDUCCIONES RECURRENTES — Pluses, subsidios, embargos, etc.', len(cols))
+        sv = [self._SAMPLE_CEDULA, 'Cuota Sindical Prueba', 'Deducción / Descuento', 'Monto Fijo',
+              '2000', '', '', '01/01/2024', '', '⚠️ PRUEBA'] if sample else None
+        ws = wb.create_sheet('➕ OTROS DESCUENTOS')
+        self._sheet_title(ws, 'OTROS DESCUENTOS / DEDUCCIONES RECURRENTES — Cuota sindical, cooperativa, ahorro voluntario, seguro médico, etc.', len(cols))
         self._build_rows(ws, cols, data_rows=100, sample_values=sv)
         # col 3: Tipo, col 4: Tipo de Monto
         self._dv(ws, 3, 'benefit_type', 4, title='Tipo (beneficio/deduccion)')
@@ -615,6 +630,63 @@ class ImportTemplateWizard(models.TransientModel):
     # ══════════════════════════════════════════════════════════════════════════
     # HOJA OCULTA DE LISTAS (fuente de los dropdowns)
     # ══════════════════════════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════════════════
+    # HOJA EMBARGOS JUDICIALES
+    # ══════════════════════════════════════════════════════════════════════════
+    def _build_embargos(self, wb, sample=False):
+        cols = [
+            ('Cédula Empleado',        True,  18, '1-2345-6789',          'Cédula del empleado afectado'),
+            ('N° Expediente Judicial', True,  24, '15-000456-0638-CI',    'Número del expediente del juzgado'),
+            ('Juzgado / Tribunal',     True,  30, 'Juzgado Civil SJ',     'Nombre completo del juzgado'),
+            ('Fecha de Resolución',    False, 16, '15/01/2024',           'DD/MM/AAAA'),
+            ('Nombre del Acreedor',    True,  28, 'Empresa XYZ S.A.',     'Nombre del beneficiario del embargo'),
+            ('IBAN del Acreedor',      False, 30, 'CR21015108010018023571','IBAN para girar el embargo (opcional)'),
+            ('Tipo de Cálculo',        True,  22, 'Monto Fijo',           'Ver CATALOGOS → embargo_calc'),
+            ('Monto Fijo (₡)',         False, 16, '50000',                'Si tipo = Monto Fijo'),
+            ('Porcentaje (%)',          False, 12, '',                     'Si tipo = Porcentaje. Máx 25% (Art. 172 CT)'),
+            ('Vigente Desde',          True,  14, '01/02/2024',           'DD/MM/AAAA'),
+            ('Vigente Hasta',          False, 14, '',                     'Dejar vacío si no tiene vencimiento'),
+            ('Observaciones',          False, 28, '',                     ''),
+        ]
+        sv = [self._SAMPLE_CEDULA, 'TEST-EMB-0000', 'Juzgado Prueba', '01/01/2024',
+              'Acreedor Prueba', '', 'Monto Fijo', '10000', '',
+              '01/01/2024', '', '⚠️ PRUEBA'] if sample else None
+        ws = wb.create_sheet('⚖️ EMBARGOS')
+        self._sheet_title(ws, 'EMBARGOS JUDICIALES — Art. 172 CT (máx. 25% del neto disponible)', len(cols))
+        self._build_rows(ws, cols, data_rows=80, sample_values=sv)
+        self._dv(ws, 7, 'embargo_calc', 4, title='Tipo de Cálculo')
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # HOJA BONOS E INCENTIVOS
+    # ══════════════════════════════════════════════════════════════════════════
+    def _build_bonos(self, wb, sample=False):
+        cols = [
+            ('Cédula Empleado',        True,  18, '1-2345-6789',                    'Cédula del empleado'),
+            ('Concepto / Nombre',      True,  28, 'Bono de Productividad Q1 2024',  'Nombre descriptivo del bono'),
+            ('Tipo de Bono',           True,  28, 'Productividad / Rendimiento',    'Ver CATALOGOS → bono_type'),
+            ('Tipo de Cálculo',        True,  18, 'Monto Fijo',                     'Monto Fijo / Porcentaje del Salario Base'),
+            ('Monto Fijo (₡)',         False, 16, '25000',                          'Si tipo cálculo = Monto Fijo'),
+            ('Porcentaje (%)',          False, 12, '',                               'Si tipo cálculo = Porcentaje'),
+            ('Es Recurrente',          True,  14, 'Si',                             'Si = se aplica cada boleta / No = solo una vez'),
+            ('Afecto CCSS',            True,  12, 'Si',                             'Si = suma a base CCSS (bonos salariales)'),
+            ('Afecto Renta',           True,  12, 'Si',                             'Si = suma a base de renta'),
+            ('Tope Exento (₡/mes)',    False, 16, '',                               'Solo para transporte (₡74 000/mes) o similar'),
+            ('Vigente Desde',          True,  14, '01/01/2024',                     'DD/MM/AAAA'),
+            ('Vigente Hasta',          False, 14, '',                               'Dejar vacío para aplicar indefinidamente'),
+            ('Observaciones',          False, 30, 'Acuerdo de junta 2024',          ''),
+        ]
+        sv = [self._SAMPLE_CEDULA, 'Bono Prueba', 'Productividad / Rendimiento',
+              'Monto Fijo', '5000', '', 'Si', 'Si', 'Si', '',
+              '01/01/2024', '', '⚠️ PRUEBA'] if sample else None
+        ws = wb.create_sheet('🎯 BONOS')
+        self._sheet_title(ws, 'BONOS E INCENTIVOS — Aplican automáticamente en cada boleta', len(cols))
+        self._build_rows(ws, cols, data_rows=100, sample_values=sv)
+        self._dv(ws, 3, 'bono_type',        4, title='Tipo de Bono')
+        self._dv(ws, 4, 'bono_calc',        4, title='Tipo de Cálculo')
+        self._dv(ws, 7, 'si_no_recurrente', 4, title='¿Es Recurrente?')
+        self._dv(ws, 8, 'si_no',            4, title='¿Afecto CCSS?')
+        self._dv(ws, 9, 'si_no',            4, title='¿Afecto Renta?')
+
     # ══════════════════════════════════════════════════════════════════════════
     # HOJA CATÁLOGOS
     # ══════════════════════════════════════════════════════════════════════════
@@ -747,9 +819,9 @@ class ImportTemplateWizard(models.TransientModel):
                 ('Porcentaje del Salario', 'Porcentaje del salario bruto'),
                 ('Monto Fijo',             'Monto fijo mensual en colones'),
             ]),
-            ('benefit_type — Tipo de Beneficio/Deducción', [
-                ('Beneficio / Ingreso',    'Suma al salario bruto'),
-                ('Deducción / Descuento',  'Resta del salario neto'),
+            ('benefit_type — Tipo de Descuento/Deducción Recurrente', [
+                ('Beneficio / Ingreso',    'Suma al salario bruto (ej: plus informal no cubierto por BONOS)'),
+                ('Deducción / Descuento',  'Resta del salario neto (ej: cuota sindical, cooperativa, ahorro)'),
             ]),
             ('amount_type — Tipo de Monto', [
                 ('Monto Fijo',  'Monto fijo en colones'),
@@ -766,6 +838,23 @@ class ImportTemplateWizard(models.TransientModel):
                 ('Simple (1.5x)', 'Hora extra ordinaria — factor 1.5'),
                 ('Doble (2.0x)',  'Hora extra nocturna o dominical — factor 2.0'),
                 ('Día Feriado',   'Trabajo en día feriado nacional'),
+            ]),
+            ('embargo_calc — Tipo de Cálculo Embargo', [
+                ('Monto Fijo',                  'Monto fijo en colones (₡) cada período'),
+                ('Porcentaje del Neto Disponible', 'Porcentaje del neto (bruto − CCSS − renta − pensiones). Máx 25% Art. 172 CT'),
+            ]),
+            ('bono_type — Tipo de Bono', [
+                ('Productividad / Rendimiento',          'Afecto CCSS y Renta — integra salario para aguinaldo/cesantía'),
+                ('Asistencia Perfecta',                   'Afecto CCSS y Renta — integra salario para aguinaldo/cesantía'),
+                ('Antigüedad por Años de Servicio',       'Afecto CCSS y Renta — integra salario para aguinaldo/cesantía'),
+                ('Subsidio de Transporte / Kilometraje',  'Exento CCSS/Renta hasta ₡74 000/mes (Reglamento 2023)'),
+                ('Subsidio de Alimentación (en dinero)',  'Afecto CCSS y Renta si se paga en dinero'),
+                ('Subsidio Educativo',                    'Generalmente exento según convenio colectivo'),
+                ('Subsidio de Salud / Médico',            'Exento CCSS (Art. 5 Ley 7983) si es póliza médica'),
+                ('Gastos de Representación',              'Exento CCSS si están debidamente documentados'),
+                ('Comisión por Ventas',                   'Afecto CCSS y Renta — integra salario'),
+                ('Incentivo / Premio Especial',           'Afecto CCSS y Renta'),
+                ('Otro',                                  'Consulte con su contador el tratamiento fiscal'),
             ]),
             ('calc_method — Método de Cálculo de Planilla', [
                 ('Salario Fijo',         'Sin consultar asistencias'),
@@ -852,6 +941,10 @@ class ImportTemplateWizard(models.TransientModel):
             self._build_vacations(wb, sample=s)
         if self.include_overtime:
             self._build_overtime(wb, sample=s)
+        if self.include_embargos:
+            self._build_embargos(wb, sample=s)
+        if self.include_bonos:
+            self._build_bonos(wb, sample=s)
 
         self._build_catalogs(wb)
 

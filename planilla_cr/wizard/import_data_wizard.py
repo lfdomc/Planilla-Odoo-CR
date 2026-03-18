@@ -5,6 +5,7 @@ Estrategia: si el empleado ya existe (por identification_id) → se salta.
 Al finalizar: resumen en pantalla + Excel de errores descargable.
 """
 from odoo import models, fields, api
+from ..models import planilla_const as K
 from odoo.exceptions import UserError
 import base64, io, logging, traceback
 from datetime import date, datetime
@@ -249,6 +250,8 @@ class ImportDataWizard(models.TransientModel):
     import_disabilities = fields.Boolean('🏥  Incapacidades',                  default=True)
     import_vacations    = fields.Boolean('🏖️  Vacaciones',                     default=True)
     import_overtime     = fields.Boolean('⏱️  Horas Extras',                   default=True)
+    import_embargos     = fields.Boolean('⚖️  Embargos Judiciales',            default=True)
+    import_bonos        = fields.Boolean('🎯  Bonos e Incentivos',             default=True)
     import_sample_data  = fields.Boolean(
         '🧪  Importar fila de prueba (cédula 1-0000-0001)',
         default=False,
@@ -270,8 +273,9 @@ class ImportDataWizard(models.TransientModel):
                 ], limit=1)
             )
 
-    # Cédula reservada para la fila de prueba (debe coincidir con import_template_wizard)
-    _SAMPLE_CEDULA = '1-0000-0001'
+    # FIX v512 BUG-07: unificada con K.TEST_CEDULA (era '1-0000-0001' hardcoded en la clase,
+    # desincronizado de planilla_const.py). Ahora un solo punto de verdad.
+    _SAMPLE_CEDULA = K.TEST_CEDULA
 
     # Resultados (readonly, visibles después de procesar)
     state = fields.Selection([
@@ -289,6 +293,8 @@ class ImportDataWizard(models.TransientModel):
     dis_created  = fields.Integer('Incapacidades creadas', readonly=True)
     vac_created  = fields.Integer('Saldos de vacaciones procesados', readonly=True)
     ot_created   = fields.Integer('Horas extras creadas',  readonly=True)
+    emb_created  = fields.Integer('Embargos creados',      readonly=True)
+    bon_created  = fields.Integer('Bonos creados',         readonly=True)
     total_errors = fields.Integer('Total errores',         readonly=True)
 
     result_summary = fields.Text('Resumen',   readonly=True)
@@ -301,11 +307,11 @@ class ImportDataWizard(models.TransientModel):
         if not OPENPYXL_OK:
             raise UserError('La librería openpyxl no está instalada en el servidor.')
         raw = base64.b64decode(self.excel_file)
-        return load_workbook(io.BytesIO(raw), data_only=True)
+        return load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
 
     def _sheet_rows(self, wb, sheet_names):
         """Retorna (headers_dict, filas) de la primera hoja encontrada."""
-        _EXAMPLE_CEDULA = '1-2345-6789'   # fila verde de ejemplo — siempre se salta
+        _EXAMPLE_CEDULA = K.SAMPLE_CEDULA   # fila verde de ejemplo — siempre se salta
         for name in sheet_names:
             for sn in wb.sheetnames:
                 if name.lower() in sn.lower():
@@ -548,7 +554,7 @@ class ImportDataWizard(models.TransientModel):
                     'cedula': cedula, 'nombre': nombre,
                     'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in (vals.items() if isinstance(locals().get('vals'), dict) else {}.items())},
+                    'vals': {k: str(val)[:120] for k, val in vals.items()},
                 })
                 _logger.warning('ImportDataWizard EMPLEADOS fila %s cedula %s: %s',
                                 row_num, cedula, e)
@@ -631,7 +637,7 @@ class ImportDataWizard(models.TransientModel):
                     'hoja': 'PRESTAMOS', 'fila': row_num, 'cedula': cedula,
                     'nombre': emp.name, 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in (vals.items() if isinstance(locals().get('vals'), dict) else {}.items())},
+                    'vals': {k: str(val)[:120] for k, val in vals.items()},
                 })
                 _logger.warning('ImportDataWizard PRESTAMOS fila %s: %s', row_num, e)
 
@@ -697,7 +703,7 @@ class ImportDataWizard(models.TransientModel):
                     'hoja': 'PENSION_ALIMENTARIA', 'fila': row_num, 'cedula': cedula,
                     'nombre': emp.name, 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in (vals.items() if isinstance(locals().get('vals'), dict) else {}.items())},
+                    'vals': {k: str(val)[:120] for k, val in vals.items()},
                 })
                 _logger.warning('ImportDataWizard PENSION fila %s: %s', row_num, e)
 
@@ -705,7 +711,7 @@ class ImportDataWizard(models.TransientModel):
 
     def _process_benefits(self, wb, errors):
         created = err_count = 0
-        hdrs, rows = self._sheet_rows(wb, ['BENEFICIO', 'BENEFIT'])
+        hdrs, rows = self._sheet_rows(wb, ['OTROS DESCUENTOS', 'DESCUENTO', 'BENEFICIO', 'BENEFIT'])
         if not rows:
             return 0, 0
 
@@ -721,7 +727,7 @@ class ImportDataWizard(models.TransientModel):
             if not emp:
                 err_count += 1
                 errors.append({
-                    'hoja': 'BENEFICIOS', 'fila': row_num, 'cedula': cedula,
+                    'hoja': 'OTROS DESCUENTOS', 'fila': row_num, 'cedula': cedula,
                     'nombre': '', 'error': 'Empleado no encontrado en Odoo',
                 })
                 continue
@@ -782,10 +788,10 @@ class ImportDataWizard(models.TransientModel):
             except Exception as e:
                 err_count += 1
                 errors.append({
-                    'hoja': 'BENEFICIOS', 'fila': row_num, 'cedula': cedula,
+                    'hoja': 'OTROS DESCUENTOS', 'fila': row_num, 'cedula': cedula,
                     'nombre': emp.name, 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in (vals.items() if isinstance(locals().get('vals'), dict) else {}.items())},
+                    'vals': {k: str(val)[:120] for k, val in vals.items()},
                 })
                 _logger.warning('ImportDataWizard BENEFICIOS fila %s: %s', row_num, e)
 
@@ -846,7 +852,7 @@ class ImportDataWizard(models.TransientModel):
                     'hoja': 'INCAPACIDADES', 'fila': row_num, 'cedula': cedula,
                     'nombre': emp.name, 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in (vals.items() if isinstance(locals().get('vals'), dict) else {}.items())},
+                    'vals': {k: str(val)[:120] for k, val in vals.items()},
                 })
                 _logger.warning('ImportDataWizard INCAPACIDADES fila %s: %s', row_num, e)
 
@@ -911,7 +917,7 @@ class ImportDataWizard(models.TransientModel):
                     'hoja': 'VACACIONES', 'fila': row_num, 'cedula': cedula,
                     'nombre': emp.name, 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in (vals.items() if isinstance(locals().get('vals'), dict) else {}.items())},
+                    'vals': {k: str(val)[:120] for k, val in vals.items()},
                 })
                 _logger.warning('ImportDataWizard VACACIONES fila %s: %s', row_num, e)
 
@@ -972,9 +978,217 @@ class ImportDataWizard(models.TransientModel):
                     'hoja': 'HORAS_EXTRAS', 'fila': row_num, 'cedula': cedula,
                     'nombre': emp.name, 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in (vals.items() if isinstance(locals().get('vals'), dict) else {}.items())},
+                    'vals': {k: str(val)[:120] for k, val in vals.items()},
                 })
                 _logger.warning('ImportDataWizard OVERTIME fila %s: %s', row_num, e)
+
+        return created, err_count
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PROCESADOR EMBARGOS JUDICIALES
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _process_embargos(self, wb, errors):
+        """Importa embargos judiciales desde la hoja EMBARGOS del machote."""
+        created = err_count = 0
+        hdrs, rows = self._sheet_rows(wb, ['EMBARGO', 'EMB'])
+        if not rows:
+            return 0, 0
+
+        EMBARGO_CALC = {
+            'monto fijo': 'fixed', 'fixed': 'fixed',
+            'porcentaje del neto disponible': 'percentage', 'porcentaje': 'percentage',
+            'percentage': 'percentage',
+        }
+
+        for row_num, row in enumerate(rows, start=1):
+            v = lambda *cols: self._v(row, hdrs, *cols)
+            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            if not cedula:
+                continue
+            if self._is_sample(cedula) and not self.import_sample_data:
+                continue
+
+            vals = {}
+            emp = self._find_employee(cedula)
+            if not emp:
+                err_count += 1
+                errors.append({
+                    'hoja': 'EMBARGOS', 'fila': row_num, 'cedula': cedula,
+                    'nombre': '', 'error': 'Empleado no encontrado en Odoo',
+                    'traceback': '', 'vals': {},
+                })
+                continue
+
+            try:
+                with self.env.cr.savepoint():
+                    calc_raw  = _normalize(v('Tipo de Cálculo', 'Tipo Calculo') or '')
+                    calc_type = EMBARGO_CALC.get(calc_raw, 'fixed')
+                    pct       = _parse_float(v('Porcentaje', 'Porcentaje (%)'))
+                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (₡)'))
+                    expediente= str(v('N° Expediente', 'Expediente') or '').strip()
+                    juzgado   = str(v('Juzgado', 'Juzgado / Tribunal') or '').strip()
+
+                    if not expediente:
+                        raise ValueError('El N° Expediente Judicial es obligatorio')
+                    if calc_type == 'fixed' and monto <= 0:
+                        raise ValueError('El Monto Fijo debe ser mayor a ₡0')
+                    if calc_type == 'percentage' and not (0 < pct <= 25):
+                        raise ValueError(f'El porcentaje ({pct}%) debe estar entre 0 y 25% (Art. 172 CT)')
+
+                    vals = {
+                        'employee_id':        emp.id,
+                        'numero_expediente':  expediente,
+                        'juzgado':            juzgado or 'Sin especificar',
+                        'fecha_resolucion':   _parse_date(v('Fecha de Resolución', 'Fecha Resolucion')),
+                        'beneficiario_nombre': str(v('Nombre del Acreedor', 'Acreedor') or '').strip() or 'Sin especificar',
+                        'beneficiario_cuenta': str(v('IBAN del Acreedor', 'IBAN Acreedor') or '').strip() or False,
+                        'calculation_type':   calc_type,
+                        'fixed_amount':       monto if calc_type == 'fixed' else 0.0,
+                        'percentage':         pct   if calc_type == 'percentage' else 0.0,
+                        'date_start':         _parse_date(v('Vigente Desde', 'Desde')) or date.today(),
+                        'date_end':           _parse_date(v('Vigente Hasta', 'Hasta')),
+                        'state':              'active',
+                        'note':               str(v('Observaciones') or '').strip() or False,
+                    }
+                    self.env['planilla.embargo'].create(vals)
+                    created += 1
+                    _logger.info('ImportDataWizard EMBARGOS: creado embargo %s para %s', vals.get('numero_expediente'), cedula)
+
+            except Exception as e:
+                err_count += 1
+                errors.append({
+                    'hoja': 'EMBARGOS', 'fila': row_num, 'cedula': cedula,
+                    'nombre': emp.name, 'error': str(e),
+                    'traceback': traceback.format_exc(),
+                    'vals': {k: str(val)[:120] for k, val in vals.items()},
+                })
+                _logger.warning('ImportDataWizard EMBARGOS fila %s: %s', row_num, e)
+
+        return created, err_count
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # PROCESADOR BONOS E INCENTIVOS
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _process_bonos(self, wb, errors):
+        """Importa bonos e incentivos desde la hoja BONOS del machote."""
+        created = err_count = 0
+        hdrs, rows = self._sheet_rows(wb, ['BONO', 'INCENTIVO'])
+        if not rows:
+            return 0, 0
+
+        BONO_TYPE_MAP = {
+            'productividad / rendimiento':         'productividad',
+            'productividad':                       'productividad',
+            'asistencia perfecta':                 'asistencia',
+            'asistencia':                          'asistencia',
+            'antigüedad por años de servicio':     'antiguedad',
+            'antiguedad':                          'antiguedad',
+            'subsidio de transporte / kilometraje':'transporte',
+            'transporte':                          'transporte',
+            'subsidio de alimentación (en dinero)':'alimentacion',
+            'alimentacion':                        'alimentacion',
+            'alimentación':                        'alimentacion',
+            'subsidio educativo':                  'educacion',
+            'educacion':                           'educacion',
+            'subsidio de salud / médico':          'salud',
+            'salud':                               'salud',
+            'gastos de representación':            'representacion',
+            'representacion':                      'representacion',
+            'comisión por ventas':                 'comision',
+            'comision':                            'comision',
+            'incentivo / premio especial':         'incentivo',
+            'incentivo':                           'incentivo',
+            'otro':                                'otro',
+        }
+        BONO_CALC_MAP = {
+            'monto fijo': 'fixed', 'fixed': 'fixed',
+            'porcentaje del salario base': 'percentage',
+            'porcentaje': 'percentage', 'percentage': 'percentage',
+        }
+
+        for row_num, row in enumerate(rows, start=1):
+            v = lambda *cols: self._v(row, hdrs, *cols)
+            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            if not cedula:
+                continue
+            if self._is_sample(cedula) and not self.import_sample_data:
+                continue
+
+            vals = {}
+            emp = self._find_employee(cedula)
+            if not emp:
+                err_count += 1
+                errors.append({
+                    'hoja': 'BONOS', 'fila': row_num, 'cedula': cedula,
+                    'nombre': '', 'error': 'Empleado no encontrado en Odoo',
+                    'traceback': '', 'vals': {},
+                })
+                continue
+
+            try:
+                with self.env.cr.savepoint():
+                    concepto  = str(v('Concepto', 'Nombre', 'Concepto / Nombre') or '').strip()
+                    tipo_raw  = _normalize(v('Tipo de Bono', 'Tipo') or '')
+                    calc_raw  = _normalize(v('Tipo de Cálculo', 'Tipo Calculo') or '')
+                    bono_type = BONO_TYPE_MAP.get(tipo_raw, 'otro')
+                    calc_type = BONO_CALC_MAP.get(calc_raw, 'fixed')
+                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (₡)'))
+                    pct       = _parse_float(v('Porcentaje', 'Porcentaje (%)'))
+                    recurrente= _parse_bool(v('Es Recurrente', 'Recurrente'))
+                    afecto_ccss  = _parse_bool(v('Afecto CCSS', 'CCSS'))
+                    afecto_renta = _parse_bool(v('Afecto Renta', 'Renta'))
+                    tope      = _parse_float(v('Tope Exento', 'Tope Exento (₡/mes)'))
+
+                    if not concepto:
+                        raise ValueError('El Concepto del bono es obligatorio')
+                    if calc_type == 'fixed' and monto <= 0:
+                        raise ValueError('El Monto Fijo debe ser mayor a ₡0')
+                    if calc_type == 'percentage' and pct <= 0:
+                        raise ValueError('El Porcentaje debe ser mayor a 0%')
+
+                    # Si no se especificó afecto_ccss/renta, aplicar defaults del tipo
+                    DEFAULTS_CCSS  = {'transporte': False, 'educacion': False,
+                                      'salud': False, 'representacion': False}
+                    DEFAULTS_RENTA = {'transporte': False, 'educacion': False,
+                                      'salud': False, 'representacion': False}
+                    if not v('Afecto CCSS', 'CCSS'):
+                        afecto_ccss  = DEFAULTS_CCSS.get(bono_type, True)
+                    if not v('Afecto Renta', 'Renta'):
+                        afecto_renta = DEFAULTS_RENTA.get(bono_type, True)
+                    if not tope and bono_type == 'transporte':
+                        tope = K.TOPE_TRANSPORTE
+
+                    vals = {
+                        'employee_id':  emp.id,
+                        'name':         concepto,
+                        'bono_type':    bono_type,
+                        'amount_type':  calc_type,
+                        'amount':       monto if calc_type == 'fixed' else 0.0,
+                        'percentage':   pct   if calc_type == 'percentage' else 0.0,
+                        'is_recurring': recurrente if v('Es Recurrente', 'Recurrente') else True,
+                        'afecto_ccss':  afecto_ccss,
+                        'afecto_renta': afecto_renta,
+                        'tope_exento':  tope,
+                        'date_start':   _parse_date(v('Vigente Desde', 'Desde')) or date.today(),
+                        'date_end':     _parse_date(v('Vigente Hasta', 'Hasta')),
+                        'state':        'active',
+                        'note':         str(v('Observaciones') or '').strip() or False,
+                    }
+                    self.env['planilla.bono'].create(vals)
+                    created += 1
+                    _logger.info('ImportDataWizard BONOS: creado bono "%s" para %s', vals.get('name'), cedula)
+
+            except Exception as e:
+                err_count += 1
+                errors.append({
+                    'hoja': 'BONOS', 'fila': row_num, 'cedula': cedula,
+                    'nombre': emp.name, 'error': str(e),
+                    'traceback': traceback.format_exc(),
+                    'vals': {k: str(val)[:120] for k, val in vals.items()},
+                })
+                _logger.warning('ImportDataWizard BONOS fila %s: %s', row_num, e)
 
         return created, err_count
 
@@ -1064,10 +1278,12 @@ class ImportDataWizard(models.TransientModel):
             ('👤 Empleados',      counters['emp_created'],  counters['emp_skipped'],  counters['emp_errors']),
             ('💰 Préstamos',      counters['loan_created'], 0,                        counters['loan_errors']),
             ('👨‍👧 Pensiones',       counters['pen_created'],  0,                        counters['pen_errors']),
-            ('➕ Beneficios',      counters['ben_created'],  0,                        counters['ben_errors']),
+            ('➕ Otros Descuentos',counters['ben_created'],  0,                        counters['ben_errors']),
             ('🏥 Incapacidades',   counters['dis_created'],  0,                        counters['dis_errors']),
             ('🏖️ Vacaciones',      counters['vac_created'],  0,                        counters['vac_errors']),
             ('⏱️ Horas Extras',    counters['ot_created'],   0,                        counters['ot_errors']),
+            ('⚖️ Embargos',        counters.get('emb_created', 0), 0,                 counters.get('emb_errors', 0)),
+            ('🎯 Bonos',           counters.get('bon_created', 0), 0,                 counters.get('bon_errors', 0)),
         ]
 
         for i, (hoja, created, skipped, errs) in enumerate(summary_data, start=7):
@@ -1327,6 +1543,8 @@ class ImportDataWizard(models.TransientModel):
         dis_c = dis_e = 0
         vac_c = vac_e = 0
         ot_c  = ot_e  = 0
+        emb_c = emb_e = 0
+        bon_c = bon_e = 0
 
         if self.import_employees:
             emp_c, emp_s, emp_e = self._process_employees(wb, errors)
@@ -1342,8 +1560,12 @@ class ImportDataWizard(models.TransientModel):
             vac_c, vac_e = self._process_vacations(wb, errors)
         if self.import_overtime:
             ot_c, ot_e = self._process_overtime(wb, errors)
+        if self.import_embargos:
+            emb_c, emb_e = self._process_embargos(wb, errors)
+        if self.import_bonos:
+            bon_c, bon_e = self._process_bonos(wb, errors)
 
-        total_err = emp_e + loan_e + pen_e + ben_e + dis_e + vac_e + ot_e
+        total_err = emp_e + loan_e + pen_e + ben_e + dis_e + vac_e + ot_e + emb_e + bon_e
 
         counters = {
             'emp_created': emp_c, 'emp_skipped': emp_s, 'emp_errors': emp_e,
@@ -1353,6 +1575,8 @@ class ImportDataWizard(models.TransientModel):
             'dis_created':  dis_c,  'dis_errors':  dis_e,
             'vac_created':  vac_c,  'vac_errors':  vac_e,
             'ot_created':   ot_c,   'ot_errors':   ot_e,
+            'emb_created':  emb_c,  'emb_errors':  emb_e,
+            'bon_created':  bon_c,  'bon_errors':  bon_e,
         }
 
         # ── Resumen texto ─────────────────────────────────────────────────────
@@ -1361,10 +1585,12 @@ class ImportDataWizard(models.TransientModel):
             f"👤 Empleados:        {emp_c} creados  |  {emp_s} omitidos (ya existían)  |  {emp_e} errores\n"
             f"💰 Préstamos:        {loan_c} creados  |  {loan_e} errores\n"
             f"👨‍👧 Pensiones:         {pen_c} creadas  |  {pen_e} errores\n"
-            f"➕ Beneficios:        {ben_c} creados  |  {ben_e} errores\n"
+            f"➕ Otros Descuentos:  {ben_c} creados  |  {ben_e} errores\n"
             f"🏥 Incapacidades:    {dis_c} creadas  |  {dis_e} errores\n"
             f"🏖️ Vacaciones:       {vac_c} procesadas  |  {vac_e} errores\n"
             f"⏱️ Horas Extras:     {ot_c} creadas  |  {ot_e} errores\n"
+            f"⚖️ Embargos:         {emb_c} creados  |  {emb_e} errores\n"
+            f"🎯 Bonos:            {bon_c} creados  |  {bon_e} errores\n"
             f"\n{'⚠️  Hay errores — descargue el reporte para ver el detalle.' if total_err else '✅ Sin errores.'}"
         )
 
@@ -1381,6 +1607,8 @@ class ImportDataWizard(models.TransientModel):
             'dis_created':    dis_c,
             'vac_created':    vac_c,
             'ot_created':     ot_c,
+            'emb_created':    emb_c,
+            'bon_created':    bon_c,
             'total_errors':   total_err,
             'result_summary': summary,
             'report_file':    report_data,
@@ -1419,6 +1647,8 @@ class ImportDataWizard(models.TransientModel):
             ('planilla.disability',         [('employee_id', '=', emp.id)], 'incapacidades'),
             ('planilla.vacation.payment',   [('employee_id', '=', emp.id)], 'vacaciones'),
             ('planilla.overtime',           [('employee_id', '=', emp.id)], 'horas extras'),
+            ('planilla.embargo',            [('employee_id', '=', emp.id)], 'embargos'),
+            ('planilla.bono',               [('employee_id', '=', emp.id)], 'bonos'),
             ('planilla.payslip.cr',         [('employee_id', '=', emp.id)], 'boletas'),
             ('planilla.salary.history',     [('employee_id', '=', emp.id)], 'historial salarial'),
             ('planilla.termination',        [('employee_id', '=', emp.id)], 'liquidaciones'),

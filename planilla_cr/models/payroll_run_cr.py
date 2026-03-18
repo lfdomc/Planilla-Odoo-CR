@@ -1,6 +1,8 @@
+import logging
 from odoo import models, fields, api
-from odoo.models import Constraint
 from odoo.exceptions import UserError, ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 class PayrollRunCR(models.Model):
@@ -9,11 +11,71 @@ class PayrollRunCR(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_end desc'
 
-    # M3 FIX — Constraint de BD para prevenir planillas duplicadas en concurrencia
-    _unique_run_company_period = Constraint(
-        'UNIQUE(company_id, date_start, date_end)',
-        'Ya existe una planilla para esta compañía en el mismo período. No se pueden crear dos planillas con las mismas fechas.'
-    )
+    # FIX v58: El constraint de BD UNIQUE y el ORM simple han sido reemplazados
+    # por _check_no_duplicate_employees_across_runs() que implementa la regla
+    # de negocio correcta: se permiten múltiples planillas en el mismo período
+    # siempre que no dupliquen empleados.
+
+    @api.constrains('company_id', 'date_start', 'date_end')
+    def _check_no_duplicate_employees_across_runs(self):
+        """
+        Regla de negocio central v58 para planillas:
+
+        Se PERMITEN múltiples planillas (runs) en el mismo período calendario
+        siempre que cumplan: ningún empleado aparece en dos planillas solapadas.
+
+        Criterios de agrupación VÁLIDOS para planillas del mismo período:
+          ✓ Por calendarización (quincenal, mensual, semanal)
+          ✓ Por sucursal (Alajuela, San José, Heredia)
+          ✓ Por departamento (Ventas, Producción, Admin)
+          ✓ Planilla especial de corrección con empleados distintos
+          ✓ Cualquier combinación, si no hay empleados duplicados
+
+        Lo que se BLOQUEA:
+          ✗ Mismo empleado en dos planillas con períodos que se solapan
+
+        NOTA: La validación efectiva del empleado ocurre al crear la boleta
+        (PayslipCR._check_no_duplicate_employee_period). Este constraint en el
+        Run es un guardia preventivo que verifica si las boletas YA EXISTENTES
+        de esta planilla cruzarían con los de otra planilla activa en el mismo
+        período de la misma empresa.
+        """
+        for rec in self:
+            if not rec.date_start or not rec.date_end:
+                continue
+            # Buscar otras planillas activas de la misma empresa que solapan
+            otras_runs = self.search([
+                ('company_id', '=', rec.company_id.id),
+                ('date_start', '<=', rec.date_end),
+                ('date_end',   '>=', rec.date_start),
+                ('state',      '!=', 'cancelled'),
+                ('id',         '!=', rec.id),
+            ])
+            if not otras_runs:
+                continue
+            # Verificar si algún empleado de esta planilla ya está en otra planilla solapada
+            mis_empleados = rec.payslip_ids.filtered(
+                lambda p: p.state != 'cancelled'
+            ).mapped('employee_id')
+            if not mis_empleados:
+                continue  # Sin boletas aún — no hay conflicto posible
+            for otra in otras_runs:
+                empleados_otra = otra.payslip_ids.filtered(
+                    lambda p: p.state != 'cancelled'
+                ).mapped('employee_id')
+                duplicados = mis_empleados & empleados_otra
+                if duplicados:
+                    nombres = ', '.join(duplicados.mapped('name'))
+                    raise ValidationError(
+                        f'La planilla "{rec.name}" ({rec.date_start} — {rec.date_end}) '
+                        f'tiene empleado(s) que ya aparecen en la planilla '
+                        f'"{otra.name}" ({otra.date_start} — {otra.date_end}):\n\n'
+                        f'  {nombres}\n\n'
+                        f'Un mismo empleado no puede tener boletas en dos planillas '
+                        f'con períodos que se solapan en el calendario. '
+                        f'Verifique que las planillas tengan empleados distintos o '
+                        f'que sus períodos no se crucen.'
+                    )
 
     name = fields.Char(string='Nombre', required=True, tracking=True)
     company_id = fields.Many2one(
@@ -71,6 +133,11 @@ class PayrollRunCR(models.Model):
         compute='_compute_totals', store=True,
         help='CCSS Obrero + Impuesto de Renta'
     )
+    total_rop_employer = fields.Monetary(
+        string='ROP Patronal Total', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+        help='Suma del ROP patronal (3.25%) de todas las boletas activas con rop_applies=True.'
+    )
     total_salary_payable = fields.Monetary(
         string='Salario a Pagar', currency_field='currency_id',
         compute='_compute_totals', store=True,
@@ -105,8 +172,8 @@ class PayrollRunCR(models.Model):
     @api.depends('payslip_ids.gross_salary', 'payslip_ids.net_salary',
                  'payslip_ids.salary_payable', 'payslip_ids.total_employer_cost',
                  'payslip_ids.ccss_employer', 'payslip_ids.ccss_employee',
-                 'payslip_ids.income_tax',
-                 'payslip_ids.state')  # FIX BUG-N11 v52: state para re-totalizar al cancelar boletas
+                 'payslip_ids.income_tax', 'payslip_ids.rop_employer',
+                 'payslip_ids.state')  # FIX v512 BUG-05: rop_employer agregado al depends
     def _compute_totals(self):
         for rec in self:
             # FIX NEW-06 v54: excluir boletas canceladas de los totales.
@@ -133,6 +200,12 @@ class PayrollRunCR(models.Model):
                 sum(active_slips.mapped('salary_payable')), 2
             )
 
+            # FIX v511: Agregar ROP al costo patronal total de la planilla
+            # (rop_employer = 3.25% del gross por empleado, si rop_applies=True)
+            rec.total_rop_employer = round(
+                sum(active_slips.mapped('rop_employer')), 2
+            )
+
             # Costo real por cada colon que el empleado recibe en mano
             if rec.total_salary_payable and rec.total_salary_payable > 0:
                 rec.cost_per_net_colon = round(rec.total_employer_cost / rec.total_salary_payable, 4)
@@ -140,7 +213,18 @@ class PayrollRunCR(models.Model):
                 rec.cost_per_net_colon = 0.0
 
     def action_generate_payslips(self):
-        """Genera boletas para todos los empleados activos de la calendarización."""
+        """
+        Genera boletas para todos los empleados activos según los filtros de la planilla.
+
+        v58: Antes de crear boletas, verifica si algún empleado ya tiene boleta activa
+        en OTRA planilla con período solapado. Reporta los conflictos claramente
+        para que RRHH pueda decidir qué hacer antes de continuar.
+
+        Filtros aplicados (acumulativos):
+          - Sucursal:         si branch_id está definido
+          - Departamento:     si department_id está definido
+          - Calendarización:  si payroll_calendar_id está definido
+        """
         self.ensure_one()
         if self.state != 'draft':
             raise UserError('Solo se pueden generar boletas en planillas en borrador.')
@@ -155,8 +239,7 @@ class PayrollRunCR(models.Model):
 
         employees = self.env['hr.employee'].search(domain)
 
-        # FIX C-07 v53: Advertir sobre empleados sin employee_status_id en lugar de
-        # excluirlos silenciosamente. El usuario debe saber cuáles quedaron fuera.
+        # Advertir sobre empleados sin employee_status_id
         without_status = employees.filtered(lambda e: not e.employee_status_id)
         employees_active = employees.filtered(
             lambda e: e.employee_status_id and e.employee_status_id.is_active_payroll
@@ -166,32 +249,86 @@ class PayrollRunCR(models.Model):
             self.message_post(
                 body=(
                     f'⚠️ <b>Empleados sin Estado de Nómina:</b> Los siguientes empleados '
-                    f'no tienen un "Estado de Empleado" configurado y fueron excluidos de '
-                    f'la planilla: <b>{names}</b>. '
-                    f'Configure el estado en el perfil de cada empleado '
-                    f'(Planilla → Empleados → Estado de Empleado).'
+                    f'no tienen un "Estado de Empleado" configurado y fueron excluidos: '
+                    f'<b>{names}</b>. '
+                    f'Configure el estado en Planilla → Empleados → Estado de Empleado.'
                 ),
                 message_type='notification',
             )
 
-        # FIX BUG-N09 v52: Excluir empleados con ccss_insured=False de la planilla estándar.
+        # Excluir empleados sin seguro CCSS de la planilla estándar
         employees_active = employees_active.filtered(
             lambda e: getattr(e, 'ccss_insured', True)
         )
 
-        for employee in employees_active:
-            # Verificar si ya existe boleta para este periodo
-            existing = self.env['planilla.payslip.cr'].search([
-                ('employee_id', '=', employee.id),
-                ('payroll_run_id', '=', self.id),
-            ])
-            if not existing:
-                self.env['planilla.payslip.cr'].create({
-                    'employee_id': employee.id,
-                    'payroll_run_id': self.id,
-                    'date_from': self.date_start,
-                    'date_to': self.date_end,
-                })
+        # ── Verificación cruzada: detectar empleados ya en otra planilla solapada ──
+        # Esto previene el error de constraint ANTES de intentar crear las boletas,
+        # dando un reporte completo de todos los conflictos en lugar de fallar uno a uno.
+        conflictos = []
+        otras_runs_activas = self.search([
+            ('company_id', '=', self.company_id.id),
+            ('date_start', '<=', self.date_end),
+            ('date_end',   '>=', self.date_start),
+            ('state',      '!=', 'cancelled'),
+            ('id',         '!=', self.id),
+        ])
+        if otras_runs_activas:
+            # Indexar empleados de otras planillas: {employee_id: [run_names]}
+            emp_en_otras = {}
+            for otra in otras_runs_activas:
+                for slip in otra.payslip_ids.filtered(lambda p: p.state != 'cancelled'):
+                    emp_en_otras.setdefault(slip.employee_id.id, []).append(
+                        f'{otra.name} ({otra.date_start} — {otra.date_end})'
+                    )
+            for emp in employees_active:
+                if emp.id in emp_en_otras:
+                    runs_texto = ', '.join(emp_en_otras[emp.id])
+                    conflictos.append(f'  • {emp.name} → ya en: {runs_texto}')
+
+        if conflictos:
+            raise UserError(
+                f'No se pueden generar boletas porque los siguientes empleados ya tienen '
+                f'boletas activas en otra(s) planilla(s) con período solapado '
+                f'({self.date_start} — {self.date_end}):\n\n'
+                + '\n'.join(conflictos) + '\n\n'
+                f'Opciones:\n'
+                f'  1. Ajuste los filtros de esta planilla (sucursal/departamento/calendarización) '
+                f'para excluir esos empleados.\n'
+                f'  2. Cancele las boletas en conflicto en las otras planillas.\n'
+                f'  3. Ajuste los períodos para que no se solapeen.'
+            )
+
+        # ── Generación por lotes (FIX B-10 v58) ──────────────────────────────────
+        BATCH_SIZE = int(self.env['ir.config_parameter'].sudo().get_param(
+            'planilla_cr.batch_size_generate', default=50
+        ))
+        employees_list = list(employees_active)
+        created_count  = 0
+        skipped_count  = 0
+
+        for i in range(0, len(employees_list), BATCH_SIZE):
+            batch = employees_list[i:i + BATCH_SIZE]
+            for employee in batch:
+                # Verificar si ya existe boleta en ESTA planilla (re-ejecución del botón)
+                existing = self.env['planilla.payslip.cr'].search([
+                    ('employee_id',    '=', employee.id),
+                    ('payroll_run_id', '=', self.id),
+                ])
+                if not existing:
+                    self.env['planilla.payslip.cr'].create({
+                        'employee_id':    employee.id,
+                        'payroll_run_id': self.id,
+                        'date_from':      self.date_start,
+                        'date_to':        self.date_end,
+                    })
+                    created_count += 1
+                else:
+                    skipped_count += 1
+
+        _logger.info(
+            'planilla_cr.action_generate_payslips: planilla "%s" — %d creadas, %d omitidas (lote=%d)',
+            self.name, created_count, skipped_count, BATCH_SIZE
+        )
 
         return {
             'type': 'ir.actions.act_window',
@@ -208,9 +345,10 @@ class PayrollRunCR(models.Model):
         if self.state != 'confirmed':
             raise UserError('Solo se pueden pagar planillas confirmadas.')
 
-        # M1 FIX — Verificar que todas las boletas están confirmadas antes de pagar
+        # FIX v512 BUG-03: estado real es 'done', no 'paid'.
+        # El filtro anterior usaba 'paid' silenciosamente y dejaba pasar boletas en 'done'.
         not_confirmed = self.payslip_ids.filtered(
-            lambda p: p.state not in ('confirmed', 'paid', 'cancelled')
+            lambda p: p.state not in ('confirmed', 'done', 'cancelled')
         )
         if not_confirmed:
             names = ', '.join(not_confirmed.mapped('employee_id.name'))
@@ -274,9 +412,27 @@ class PayrollRunCR(models.Model):
 
         # Deducciones adicionales de todas las boletas
         all_deduction_lines = payslips.mapped('deduction_line_ids')
-        total_extra_income = round(sum(
-            l.amount for l in all_deduction_lines if l.line_type == 'income'
+
+        # FIX v54: Separar bonos salariales, subsidios exentos y embargos
+        # para asientos correctos en modo per_run (mismo criterio que per_employee)
+        total_bonos_salariales = round(sum(p.bono_salarial_amount or 0.0 for p in payslips), 2)
+        total_rop_emp    = round(sum(p.rop_employer or 0.0 for p in payslips), 2)
+        total_rop_obrero = round(sum(
+            l.amount for p in payslips
+            for l in p.deduction_line_ids
+            if l.deduction_category == 'rop' and l.line_type == 'deduction'
         ), 2)
+        total_bonos_total = round(sum(
+            l.amount for l in all_deduction_lines
+            if l.line_type == 'income' and l.deduction_category == 'bonus'
+        ), 2)
+        total_subsidios_exentos = max(round(total_bonos_total - total_bonos_salariales, 2), 0.0)
+        total_otros_ingresos = round(sum(
+            l.amount for l in all_deduction_lines
+            if l.line_type == 'income' and l.deduction_category != 'bonus'
+        ), 2)
+        total_extra_income = round(total_bonos_total + total_otros_ingresos, 2)
+
         total_pensiones = round(sum(
             l.amount for l in all_deduction_lines
             if l.deduction_category == 'pension_alimentaria'
@@ -285,21 +441,29 @@ class PayrollRunCR(models.Model):
             l.amount for l in all_deduction_lines
             if l.deduction_category == 'loan'
         ), 2)
+        total_embargos = round(sum(
+            l.amount for l in all_deduction_lines
+            if l.deduction_category == 'embargo'
+        ), 2)
         total_ausencias = round(sum(
             l.amount for l in all_deduction_lines
             if l.deduction_category == 'ausencia'
         ), 2)
+        # FIX v512 BUG-CRÍTICO-01: 'rop' excluido de total_otras_ded.
+        # Mismo fix que en payslip_accounting_mixin: el ROP obrero va a account_rop_payable,
+        # no a account_salary_payable. Sin exclusión se descontaba dos veces del neto.
         total_otras_ded = round(sum(
             l.amount for l in all_deduction_lines
             if l.line_type == 'deduction'
-               and l.deduction_category not in ('pension_alimentaria', 'loan', 'ausencia')
+            and l.deduction_category not in ('pension_alimentaria', 'loan', 'ausencia', 'embargo', 'rop')
         ), 2)
 
-        # Neto total a depositar (calculado igual que en asiento individual)
+        # Neto total a depositar
         total_net_for_accounting = round(
             total_gross - total_ccss_employee - total_income_tax
             + total_subsidy + total_paternity + total_extra_income
-            - total_pensiones - total_prestamos - total_ausencias - total_otras_ded,
+            - total_pensiones - total_embargos - total_prestamos
+            - total_ausencias - total_rop_obrero - total_otras_ded,
             2
         )
 
@@ -348,9 +512,23 @@ class PayrollRunCR(models.Model):
                 ccss_subsidy_acct = config.account_ccss_payable
             add_line(ccss_subsidy_acct, debit=total_subsidy,
                      name=f'Subsidio CCSS por Cobrar (incapacidades) — Planilla {run_name}')
-        if total_extra_income > 0:
-            add_line(config.account_salary_expense, debit=total_extra_income,
-                     name=f'Ingresos Adicionales en Boletas — Planilla {run_name}')
+        # FIX v56: ROP patronal — costo del patrono
+        if total_rop_emp > 0:
+            add_line(config.account_social_charges_expense,
+                     debit=total_rop_emp,
+                     name=f'ROP Patronal 3.25% Ley 7983 — Planilla {run_name}')
+
+        if total_bonos_salariales > 0:
+            bono_acct = config.account_bono_expense or config.account_salary_expense
+            add_line(bono_acct, debit=total_bonos_salariales,
+                     name=f'Bonos e Incentivos Salariales — Planilla {run_name}')
+        if total_subsidios_exentos > 0:
+            subs_acct = config.account_subsidio_expense or config.account_salary_expense
+            add_line(subs_acct, debit=total_subsidios_exentos,
+                     name=f'Subsidios al Personal (exentos) — Planilla {run_name}')
+        if total_otros_ingresos > 0:
+            add_line(config.account_salary_expense, debit=total_otros_ingresos,
+                     name=f'Otros Ingresos en Boletas — Planilla {run_name}')
 
         # CRÉDITOS
         add_line(config.account_ccss_payable, credit=total_ccss_employee + total_ccss_employer, name='CCSS por Pagar — Planilla ' + self.name)
@@ -359,6 +537,23 @@ class PayrollRunCR(models.Model):
         add_line(config.account_aguinaldo_provision, credit=total_aguinaldo_prov, name='Provisión Aguinaldo — Planilla ' + self.name)
         add_line(config.account_cesantia_provision, credit=total_cesantia_prov, name='Provisión Cesantía — Planilla ' + self.name)
         add_line(config.account_vacation_provision, credit=total_vacation_prov, name='Provisión Vacaciones — Planilla ' + self.name)
+
+        # FIX C-01 v58: ROP obrero + patronal — consolidar en account_rop_payable.
+        # El bug anterior ponía el crédito del ROP obrero en account_ccss_payable,
+        # separado del HABER del ROP patronal, causando descuadre cuando rop_emp >0.
+        # Ambos tramos van al HABER en la misma cuenta 230350 para depósito al operador.
+        total_rop_pagar = round(total_rop_obrero + total_rop_emp, 2)
+        if total_rop_pagar > 0:
+            rop_acct = (getattr(config, 'account_rop_payable', None)
+                        or config.account_ccss_payable)
+            add_line(rop_acct, credit=total_rop_pagar,
+                     name=f'ROP por Pagar (obrero 1% + patronal 3.25%) — Planilla {run_name}')
+
+        # Embargos judiciales — cuenta separada 230960 para control judicial
+        if total_embargos > 0:
+            embargo_account = (config.account_embargo_payable or config.account_salary_payable)
+            add_line(embargo_account, credit=total_embargos,
+                     name=f'Embargos Judiciales Retenidos — Planilla {run_name}')
 
         # FIX NEW-01 v54: usar account_pension_alimentaria_payable (campo correcto).
         # La version anterior usaba hasattr('account_pension_payable') que no existe en
@@ -415,18 +610,17 @@ class PayrollRunCR(models.Model):
         })
         move.action_post()
         self.move_id = move.id
-
-    def action_view_accounting_entry(self):
-        self.ensure_one()
-        if not self.move_id:
-            return
-        return {
-            'type': 'ir.actions.act_window',
-            'name': 'Asiento Contable',
-            'res_model': 'account.move',
-            'view_mode': 'form',
-            'res_id': self.move_id.id,
-        }
+        # FIX M-05 v58: Logging de trazabilidad del asiento consolidado
+        _logger.info(
+            'planilla_cr.per_run._create_consolidated: asiento %s (id=%d) — '
+            '%d boleta(s), DEBE=₡%.2f HABER=₡%.2f planilla="%s"',
+            move.name, move.id, len(payslips),
+            total_debit, total_credit, self.name
+        )
+        # FIX v512 BUG-CRÍTICO-02: eliminado bloque de código muerto (ensure_one +
+        # return act_window) que apareció aquí por error en refactoring.
+        # El caller action_pay() no usa el valor de retorno de este método privado.
+        # La acción de ver el asiento ya existe en action_view_accounting_entry().
 
     def _check_no_duplicate_payment(self):
         """
@@ -445,7 +639,7 @@ class PayrollRunCR(models.Model):
             ('employee_id', 'in', employee_ids),
             ('date_from', '=', self.date_start),
             ('date_to', '=', self.date_end),
-            ('state', '=', 'paid'),
+            ('state', '=', 'done'),  # FIX v512 BUG-03: estado real es 'done'
             ('payroll_run_id', '!=', self.id),
         ])
         if duplicates:
@@ -460,28 +654,37 @@ class PayrollRunCR(models.Model):
 
     def action_confirm(self):
         self.ensure_one()
-        # FIX B-02 v51: verificar doble pago ANTES de confirmar, no solo al pagar.
+        if self.state != 'draft':
+            raise UserError('Solo se pueden confirmar planillas en borrador.')
+        # Verificar doble pago antes de confirmar
         self._check_no_duplicate_payment()
-        # FIX B-06 v53: Savepoint para atomicidad — si una boleta falla al confirmar,
-        # revertir toda la operación. Sin esto la planilla quedaba en estado inconsistente
-        # (algunas boletas confirmadas, otras en draft) y no se podía recuperar.
+        payslips_draft = self.payslip_ids.filtered(lambda p: p.state == 'draft')
+        if not payslips_draft:
+            raise UserError(
+                'No hay boletas en borrador para confirmar. '
+                'Todas las boletas ya están confirmadas, pagadas o canceladas.'
+            )
+        # FIX A-01 v58: Delegar al action_confirm del mixin que usa write() batch
+        # con atomicidad completa. El savepoint garantiza que si una boleta falla,
+        # ninguna queda confirmada (antes era loop individual — posible estado inconsistente).
         with self.env.cr.savepoint():
-            errors = []
-            for slip in self.payslip_ids:
-                try:
-                    slip.action_confirm()
-                except Exception as e:
-                    errors.append(f'  • {slip.employee_id.name}: {str(e)}')
-            if errors:
+            try:
+                payslips_draft.action_confirm()
+            except Exception as e:
                 raise UserError(
-                    'No se pudo confirmar la planilla. Los siguientes empleados '
-                    'presentaron errores (ninguna boleta fue confirmada):\n\n' +
-                    '\n'.join(errors)
+                    f'No se pudo confirmar la planilla "{self.name}". '
+                    f'Ninguna boleta fue confirmada (rollback automático).\n\n'
+                    f'Error: {str(e)}'
                 )
-            self.state = 'confirmed'
+            self.write({'state': 'confirmed'})
+        _logger.info(
+            'planilla_cr.run.action_confirm: planilla "%s" confirmada — %d boleta(s)',
+            self.name, len(payslips_draft)
+        )
 
     def action_send_all_payslips(self):
         """Envía todas las boletas por correo."""
+        self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'name': 'Enviar Boletas',
@@ -495,6 +698,7 @@ class PayrollRunCR(models.Model):
         }
 
     def action_view_payslips(self):
+        self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
             'name': 'Boletas de Pago',
@@ -504,9 +708,10 @@ class PayrollRunCR(models.Model):
         }
 
     def action_cancel(self):
-        for rec in self:
-            rec.payslip_ids.action_cancel()
-            rec.state = 'cancelled'
+        # FIX v512 BP-02: ensure_one() consistente con otros métodos del modelo
+        self.ensure_one()
+        self.payslip_ids.action_cancel()
+        self.state = 'cancelled'
 
     def unlink(self):
         for rec in self:
@@ -525,6 +730,20 @@ class PayrollRunCR(models.Model):
             rec.payslip_ids.filtered(lambda p: p.state in ('cancelled', 'confirmed')).action_reset_to_draft()
             rec.state = 'draft'
 
+    def action_view_accounting_entry(self):
+        self.ensure_one()
+        if not self.move_id:
+            raise UserError(
+                'Esta planilla no tiene asiento contable generado. '
+                'Pague la planilla primero para generar el asiento contable.'
+            )
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Asiento Contable',
+            'res_model': 'account.move',
+            'view_mode': 'form',
+            'res_id': self.move_id.id,
+        }
 
 class AccountMovePayrollSync(models.Model):
     _inherit = 'account.move'
@@ -542,10 +761,35 @@ class AccountMovePayrollSync(models.Model):
         if runs_to_check:
             for run in runs_to_check:
                 if run.move_id and run.move_id.state != 'posted':
-                    run.payslip_ids.filtered(
+                    # FIX v512 SEC-02: registrar trazabilidad ANTES de cancelar masivo.
+                    # Sin este log, era imposible auditar quién revirtió el asiento y cuándo.
+                    _logger.warning(
+                        'planilla_cr.AccountMovePayrollSync: asiento %s revertido/cancelado '
+                        'por usuario %s (id=%d) — cancelando planilla "%s" y %d boleta(s).',
+                        run.move_id.name, run.env.user.name, run.env.user.id,
+                        run.name, len(run.payslip_ids.filtered(lambda p: p.state != 'cancelled'))
+                    )
+                    slips_to_cancel = run.payslip_ids.filtered(
                         lambda p: p.state not in ('cancelled',)
-                    ).write({'state': 'cancelled'})
+                    )
+                    slips_to_cancel.write({'state': 'cancelled'})
                     run.write({'state': 'cancelled'})
+                    # Notificar al grupo aprobador para revisión inmediata
+                    try:
+                        run.message_post(
+                            body=(
+                                f'⚠️ <b>Planilla cancelada automáticamente</b> porque el asiento '
+                                f'contable <b>{run.move_id.name}</b> fue revertido o cancelado '
+                                f'por <b>{run.env.user.name}</b>. '
+                                f'Se cancelaron {len(slips_to_cancel)} boleta(s). '
+                                f'Revise si esto fue intencional y tome acción si corresponde.'
+                            ),
+                            message_type='notification',
+                        )
+                    except Exception as e:
+                        _logger.error(
+                            'planilla_cr.AccountMovePayrollSync: error enviando notificación: %s', e
+                        )
         return res
 
     def unlink(self):
@@ -556,8 +800,29 @@ class AccountMovePayrollSync(models.Model):
         ])
         res = super().unlink()
         for run in runs:
-            run.payslip_ids.filtered(
+            slips_to_cancel = run.payslip_ids.filtered(
                 lambda p: p.state not in ('cancelled',)
-            ).write({'state': 'cancelled'})
+            )
+            # FIX v512 SEC-02: trazabilidad en eliminación de asiento
+            _logger.warning(
+                'planilla_cr.AccountMovePayrollSync.unlink: asiento eliminado — '
+                'cancelando planilla "%s" y %d boleta(s). Usuario: %s.',
+                run.name, len(slips_to_cancel), run.env.user.name
+            )
+            slips_to_cancel.write({'state': 'cancelled'})
             run.write({'state': 'cancelled'})
+            try:
+                run.message_post(
+                    body=(
+                        f'⚠️ <b>Planilla cancelada automáticamente</b> porque el asiento '
+                        f'contable fue <b>eliminado</b> por <b>{run.env.user.name}</b>. '
+                        f'Se cancelaron {len(slips_to_cancel)} boleta(s). '
+                        f'Revise si esto fue intencional.'
+                    ),
+                    message_type='notification',
+                )
+            except Exception as e:
+                _logger.error(
+                    'planilla_cr.AccountMovePayrollSync.unlink: error notificación: %s', e
+                )
         return res

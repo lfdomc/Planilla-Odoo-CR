@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from . import planilla_const as K
 from odoo.exceptions import UserError, ValidationError
 from datetime import date
 from dateutil.relativedelta import relativedelta
@@ -18,7 +19,7 @@ class EmployeeTermination(models.Model):
         'res.company', required=True, default=lambda self: self.env.company
     )
     employee_id = fields.Many2one(
-        'hr.employee', string='Empleado', required=True,
+        'hr.employee', string='Empleado', required=True, index=True,
         domain=[('active', 'in', [True, False])]
     )
     entry_date = fields.Date(
@@ -303,16 +304,23 @@ class EmployeeTermination(models.Model):
         g = gross
         if not brackets:
             # Fallback tramos 2026 (DGT-R-016-2026)
-            if g <= 941000:
+            # FIX v56: usar K.constants (planilla_const.py)
+            if g <= K.RENTA_EXENTO:
                 return 0.0
-            elif g <= 1381000:
-                return (g - 941000) * 0.10
-            elif g <= 2423000:
-                return (440000 * 0.10) + ((g - 1381000) * 0.15)
-            elif g <= 4845000:
-                return (440000 * 0.10) + (1042000 * 0.15) + ((g - 2423000) * 0.20)
+            elif g <= K.RENTA_TOPE_10:
+                return (g - K.RENTA_EXENTO) * K.RENTA_TASA_1
+            elif g <= K.RENTA_TOPE_15:
+                return ((K.RENTA_TOPE_10 - K.RENTA_EXENTO) * K.RENTA_TASA_1
+                        + (g - K.RENTA_TOPE_10) * K.RENTA_TASA_2)
+            elif g <= K.RENTA_TOPE_20:
+                return ((K.RENTA_TOPE_10 - K.RENTA_EXENTO) * K.RENTA_TASA_1
+                        + (K.RENTA_TOPE_15 - K.RENTA_TOPE_10) * K.RENTA_TASA_2
+                        + (g - K.RENTA_TOPE_15) * K.RENTA_TASA_3)
             else:
-                return (440000 * 0.10) + (1042000 * 0.15) + (2422000 * 0.20) + ((g - 4845000) * 0.25)
+                return ((K.RENTA_TOPE_10 - K.RENTA_EXENTO) * K.RENTA_TASA_1
+                        + (K.RENTA_TOPE_15 - K.RENTA_TOPE_10) * K.RENTA_TASA_2
+                        + (K.RENTA_TOPE_20 - K.RENTA_TOPE_15) * K.RENTA_TASA_3
+                        + (g - K.RENTA_TOPE_20) * K.RENTA_TASA_4)
         tax = 0.0
         for bracket in brackets:
             if g <= bracket.limit_from:

@@ -80,9 +80,24 @@ class BankPaymentWizard(models.TransientModel):
     # ─────────────────────────────────────────────────────────────
     #  BCR  DAV  (CSV)
     # ─────────────────────────────────────────────────────────────
+    def _validate_bank_accounts(self, payslips):
+        """FIX P-03 v59: Verifica que todos los empleados tengan cuenta bancaria."""
+        sin_cuenta = payslips.filtered(
+            lambda p: not (p.employee_id.bank_account_number or '').strip()
+        ).mapped('employee_id.name')
+        if sin_cuenta:
+            raise UserError(
+                'Los siguientes empleados no tienen número de cuenta bancaria '
+                'y no pueden incluirse en el archivo de pago:\n\n'
+                + '\n'.join(f'  • {n}' for n in sin_cuenta)
+                + '\n\nConfigure la cuenta en el perfil del empleado '
+                '(Planilla → Empleados → Datos Bancarios).'
+            )
+
     def action_export_bcr_dav(self):
         self.ensure_one()
         payslips = self._get_payslips()
+        self._validate_bank_accounts(payslips)
         if not payslips:
             raise UserError('No hay boletas aprobadas en el periodo seleccionado.')
 
@@ -167,6 +182,7 @@ class BankPaymentWizard(models.TransientModel):
             raise UserError('Debe ingresar el Numero de Transferencia.')
 
         payslips = self._get_payslips()
+        self._validate_bank_accounts(payslips)
         if not payslips:
             raise UserError('No hay boletas aprobadas en el periodo seleccionado.')
 
@@ -328,6 +344,7 @@ class BankPaymentWizard(models.TransientModel):
         """
         self.ensure_one()
         payslips = self._get_payslips()
+        self._validate_bank_accounts(payslips)
         if not payslips:
             raise UserError('No hay boletas aprobadas en el periodo seleccionado.')
 

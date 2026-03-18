@@ -9,3 +9,4 @@ from . import termination_simulator
 from . import audit_zip_wizard
 from . import import_template_wizard
 from . import import_data_wizard
+from . import processors

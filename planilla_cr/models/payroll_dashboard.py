@@ -81,7 +81,6 @@ class PayrollDashboard(models.TransientModel):
         digits=(5, 2)
     )
 
-    @api.depends('company_id', 'date_from', 'date_to')
     @api.depends('company_id', 'date_from', 'date_to',
              'compare_date_from', 'compare_date_to', 'show_comparison')
     def _compute_comparison(self):
@@ -246,7 +245,79 @@ class PayrollDashboard(models.TransientModel):
             ],
         }
 
+    @api.depends('company_id', 'date_from', 'date_to')
+    def _compute_hr_kpis(self):
+        """
+        KPIs de RRHH: aniversarios, vacaciones negativas, prestamos activos,
+        nomina anterior y variacion porcentual.
+        """
+        today = fields.Date.today()
+        for rec in self:
+            company = rec.company_id
+
+            # ── Aniversarios laborales este mes ──────────────────────
+            emp_all = self.env['hr.employee'].search([
+                ('company_id', '=', company.id),
+                ('active', '=', True),
+                ('entry_date', '!=', False),
+            ])
+            rec.employees_anniversary = sum(
+                1 for emp in emp_all
+                if emp.entry_date.month == today.month
+                and emp.entry_date.year < today.year
+            )
+
+            # ── Vacaciones negativas ──────────────────────────────────
+            rec.employees_negative_vacation = self.env['hr.employee'].search_count([
+                ('company_id', '=', company.id),
+                ('active', '=', True),
+                ('vacation_days_available', '<', 0),
+            ])
+
+            # ── Prestamos activos ─────────────────────────────────────
+            loans = self.env['planilla.employee.loan'].search([
+                ('employee_id.company_id', '=', company.id),
+                ('state', 'in', ('approved', 'active')),
+            ])
+            rec.active_loans_count  = len(loans)
+            rec.active_loans_amount = round(sum(loans.mapped('amount_pending')), 2)
+
+            # ── Nomina mes anterior y variacion ───────────────────────
+            rec.prev_total_gross = 0.0
+            rec.variation_pct    = 0.0
+            if rec.date_from and rec.date_to:
+                from dateutil.relativedelta import relativedelta
+                prev_from = rec.date_from - relativedelta(months=1)
+                prev_to   = rec.date_to   - relativedelta(months=1)
+                prev_groups = self.env['planilla.payslip.cr'].read_group(
+                    domain=[
+                        ('date_from', '<=', prev_to),
+                        ('date_to',   '>=', prev_from),
+                        ('state', '=', 'done'),
+                        ('company_id', '=', company.id),
+                    ],
+                    fields=['gross_salary:sum'],
+                    groupby=[],
+                )
+                prev_gross = (prev_groups[0].get('gross_salary') or 0.0) if prev_groups else 0.0
+                rec.prev_total_gross = round(prev_gross, 2)
+                curr_groups = self.env['planilla.payslip.cr'].read_group(
+                    domain=[
+                        ('date_from', '<=', rec.date_to),
+                        ('date_to',   '>=', rec.date_from),
+                        ('state', '=', 'done'),
+                        ('company_id', '=', company.id),
+                    ],
+                    fields=['gross_salary:sum'],
+                    groupby=[],
+                )
+                curr_gross = (curr_groups[0].get('gross_salary') or 0.0) if curr_groups else 0.0
+                if prev_gross:
+                    rec.variation_pct = round((curr_gross - prev_gross) / prev_gross * 100, 2)
+
+
     def _compute_metrics(self):
+        """FIX N-01 v54: Reemplaza loop N+1 por read_group() -- una sola query SQL."""
         for rec in self:
             rec.active_employees = self.env['hr.employee'].search_count([
                 ('active', '=', True),
@@ -254,126 +325,53 @@ class PayrollDashboard(models.TransientModel):
             ])
 
             if not rec.date_from or not rec.date_to:
-                rec.payslips_count = 0
-                rec.total_gross = 0
-                rec.total_net = 0
-                rec.total_employer_cost = 0
-                rec.total_ccss = 0
-                rec.pending_payrolls = 0
-                rec.paid_payrolls = 0
+                rec.payslips_count = rec.total_gross = rec.total_net = 0
+                rec.total_employer_cost = rec.total_ccss = 0
+                rec.pending_payrolls = rec.paid_payrolls = 0
                 continue
 
-            payslips = self.env['planilla.payslip.cr'].search([
+            slip_domain = [
                 ('date_from', '<=', rec.date_to),
                 ('date_to', '>=', rec.date_from),
                 ('state', '=', 'done'),
                 ('company_id', '=', rec.company_id.id),
-            ])
-            rec.payslips_count = len(payslips)
+            ]
 
-            # Convertir todos los montos a la moneda de la compañía para sumar correctamente
-            company_currency = rec.company_id.currency_id or self.env.ref('base.USD')
-            rec.currency_id = company_currency.id
+            # Una sola query SQL en lugar de N llamadas _convert()
+            groups = self.env['planilla.payslip.cr'].read_group(
+                domain=slip_domain,
+                fields=[
+                    'gross_salary:sum', 'net_salary:sum',
+                    'total_employer_cost:sum',
+                    'ccss_employee:sum', 'ccss_employer:sum',
+                ],
+                groupby=[],
+            )
+            g = groups[0] if groups else {}
+            rec.payslips_count      = g.get('__count', 0)
+            rec.total_gross         = round(g.get('gross_salary', 0.0) or 0.0, 2)
+            rec.total_net           = round(g.get('net_salary', 0.0) or 0.0, 2)
+            rec.total_employer_cost = round(g.get('total_employer_cost', 0.0) or 0.0, 2)
+            rec.total_ccss          = round(
+                (g.get('ccss_employee', 0.0) or 0.0) +
+                (g.get('ccss_employer', 0.0) or 0.0), 2
+            )
 
-            total_gross = 0.0
-            total_net = 0.0
-            total_employer_cost = 0.0
-            total_ccss = 0.0
-
-            for slip in payslips:
-                slip_currency = slip.currency_id or company_currency
-                # Convertir a moneda de la compañía
-                total_gross += slip_currency._convert(
-                    slip.gross_salary, company_currency,
-                    rec.company_id, slip.date_to or fields.Date.today()
-                )
-                total_net += slip_currency._convert(
-                    slip.net_salary, company_currency,
-                    rec.company_id, slip.date_to or fields.Date.today()
-                )
-                total_employer_cost += slip_currency._convert(
-                    slip.total_employer_cost, company_currency,
-                    rec.company_id, slip.date_to or fields.Date.today()
-                )
-                total_ccss += slip_currency._convert(
-                    slip.ccss_employee + slip.ccss_employer, company_currency,
-                    rec.company_id, slip.date_to or fields.Date.today()
-                )
-
-            rec.total_gross = round(total_gross, 2)
-            rec.total_net = round(total_net, 2)
-            rec.total_employer_cost = round(total_employer_cost, 2)
-            rec.total_ccss = round(total_ccss, 2)
-
-            rec.pending_payrolls = self.env['planilla.run.cr'].search_count([
-                ('date_start', '<=', rec.date_to),
-                ('date_end', '>=', rec.date_from),
-                ('state', 'in', ('draft', 'confirmed')),
-                ('company_id', '=', rec.company_id.id),
-            ])
-            rec.paid_payrolls = self.env['planilla.run.cr'].search_count([
-                ('date_start', '<=', rec.date_to),
-                ('date_end', '>=', rec.date_from),
-                ('state', '=', 'done'),
-                ('company_id', '=', rec.company_id.id),
-            ])
-
-    @api.depends('company_id', 'date_from', 'date_to')
-    def _compute_hr_kpis(self):
-        for rec in self:
-            today = date.today()
-            company = rec.company_id
-
-            # ── Aniversarios este mes ──────────────────────────────────
-            employees = self.env['hr.employee'].search([
-                ('active', '=', True),
-                ('entry_date', '!=', False),
-                ('company_id', '=', company.id),
-            ])
-            anniversaries = 0
-            for emp in employees:
-                if emp.entry_date.month == today.month and emp.entry_date.day <= today.day:
-                    years = today.year - emp.entry_date.year
-                    if years > 0:
-                        anniversaries += 1
-            rec.employees_anniversary = anniversaries
-
-            # ── Vacaciones negativas ───────────────────────────────────
-            rec.employees_negative_vacation = self.env['hr.employee'].search_count([
-                ('active', '=', True),
-                ('vacation_balance_alert', '=', True),
-                ('company_id', '=', company.id),
-            ])
-
-            # ── Préstamos activos ──────────────────────────────────────
-            loans = self.env['planilla.employee.loan'].search([
-                ('state', 'in', ('approved', 'active')),
-                ('employee_id.company_id', '=', company.id),
-            ])
-            rec.active_loans_count  = len(loans)
-            rec.active_loans_amount = sum(loans.mapped('amount_pending'))
-
-            # ── Comparativo mes anterior ───────────────────────────────
-            if rec.date_from and rec.date_to:
-                prev_from = rec.date_from - relativedelta(months=1)
-                prev_to   = rec.date_to   - relativedelta(months=1)
-                prev_slips = self.env['planilla.payslip.cr'].search([
-                    ('date_from', '>=', prev_from),
-                    ('date_to',   '<=', prev_to),
-                    ('state', '=', 'done'),
-                    ('company_id', '=', company.id),
-                ])
-                prev_gross = sum(prev_slips.mapped('gross_salary'))
-                rec.prev_total_gross = round(prev_gross, 2)
-                if prev_gross > 0 and rec.total_gross:
-                    rec.variation_pct = round(
-                        ((rec.total_gross - prev_gross) / prev_gross) * 100, 2
-                    )
-                else:
-                    rec.variation_pct = 0.0
-            else:
-                rec.prev_total_gross = 0.0
-                rec.variation_pct = 0.0
+            run_groups = self.env['planilla.run.cr'].read_group(
+                domain=[
+                    ('date_start', '<=', rec.date_to),
+                    ('date_end', '>=', rec.date_from),
+                    ('company_id', '=', rec.company_id.id),
+                ],
+                fields=['state'],
+                groupby=['state'],
+            )
+            rec.pending_payrolls = sum(
+                g.get('__count', 0) for g in run_groups if g['state'] in ('draft', 'confirmed')
+            )
+            rec.paid_payrolls = sum(
+                g.get('__count', 0) for g in run_groups if g['state'] == 'done'
+            )
 
     def action_open_anniversary_employees(self):
         """Abre lista de empleados con aniversario este mes."""

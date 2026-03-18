@@ -33,6 +33,9 @@
                         <group string="Horario y Pago">
                             <field name="schedule_type_id"/>
                             <field name="payroll_calendar_id"/>
+                        <field name="rop_applies"
+                               widget="boolean_toggle"
+                               help="DESACTIVADO por defecto. Activar solo si el contador confirma que el ROP se procesará desde este módulo. Por defecto los contadores lo manejan con su propio proceso."/>
                             <field name="base_salary"/>
                             <field name="salary_effective_date"/>
                         </group>
@@ -158,6 +161,60 @@
                         <button name="action_print_salary_history" type="object"
                                 string="Imprimir Historial" class="btn btn-primary"/>
                     </div>
+                </page>
+
+                <!-- Pestaña embargos judiciales -->
+                <page name="embargos" string="⚖️ Embargos Judiciales">
+                    <div class="alert alert-warning" role="alert">
+                        <strong>Art. 172 CT:</strong> El embargo no puede superar el
+                        <strong>25 % del neto disponible</strong> (después de CCSS, renta y pensiones alimentarias).
+                    </div>
+                    <field name="embargo_ids">
+                        <list decoration-success="state=='active'"
+                              decoration-warning="state=='suspended'"
+                              decoration-muted="state=='ended'">
+                            <field name="numero_expediente"/>
+                            <field name="juzgado"/>
+                            <field name="beneficiario_nombre"/>
+                            <field name="calculation_type" string="Cálculo"/>
+                            <field name="fixed_amount" string="Monto (₡)" optional="show"/>
+                            <field name="percentage" string="%" optional="show"/>
+                            <field name="date_start"/>
+                            <field name="date_end" optional="show"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state=='active'"
+                                   decoration-warning="state=='suspended'"
+                                   decoration-danger="state=='ended'"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Pestaña bonos e incentivos -->
+                <page name="bonos" string="🎯 Bonos e Incentivos">
+                    <div class="alert alert-info" role="alert">
+                        Los bonos se aplican automáticamente en cada boleta.
+                        Los <strong>bonos recurrentes activos</strong> se sincronizan al generar la planilla.
+                    </div>
+                    <field name="bono_ids">
+                        <list decoration-success="state=='active'"
+                              decoration-warning="state=='suspended'"
+                              decoration-muted="state=='ended'">
+                            <field name="name" string="Concepto"/>
+                            <field name="bono_type" string="Tipo"/>
+                            <field name="amount_type" string="Cálculo"/>
+                            <field name="amount" string="Monto (₡)" optional="show"/>
+                            <field name="percentage" string="%" optional="show"/>
+                            <field name="afecto_ccss" string="CCSS"/>
+                            <field name="afecto_renta" string="Renta"/>
+                            <field name="is_recurring" string="Recurrente"/>
+                            <field name="date_start"/>
+                            <field name="date_end" optional="show"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state=='active'"
+                                   decoration-warning="state=='suspended'"
+                                   decoration-danger="state=='ended'"/>
+                        </list>
+                    </field>
                 </page>
             </xpath>
         </field>

@@ -11,7 +11,7 @@ class SalaryHistory(models.Model):
     _order = 'effective_date desc'
 
     employee_id    = fields.Many2one(
-        'hr.employee', string='Empleado', required=True, ondelete='cascade'
+        'hr.employee', string='Empleado', required=True, ondelete='cascade', index=True
     )
     branch_id      = fields.Many2one(related='employee_id.branch_id', string='Sucursal', store=True)
     effective_date = fields.Date(string='Fecha Efectiva', required=True)
@@ -36,14 +36,14 @@ class SalaryHistory(models.Model):
     # ── Salario anterior (para mostrar variación) ─────────────────────
     previous_salary = fields.Monetary(
         string='Salario Anterior (₡)', currency_field='currency_id',
-        compute='_compute_previous_salary', store=False
+        compute='_compute_previous_salary', store=True
     )
     variation_amount = fields.Monetary(
-        string='Variación (₡)', currency_field='currency_id',
-        compute='_compute_previous_salary', store=False
+        string='Variacion (₡)', currency_field='currency_id',
+        compute='_compute_previous_salary', store=True
     )
     variation_pct = fields.Float(
-        string='Variación (%)', compute='_compute_previous_salary', store=False
+        string='Variacion (%)', compute='_compute_previous_salary', store=True
     )
 
     @api.depends('employee_id', 'effective_date', 'gross_salary')
@@ -67,13 +67,30 @@ class SalaryHistory(models.Model):
         for rec in self:
             if not self.env.user.has_group('planilla_cr.group_planilla_aprobador'):
                 raise UserError('Solo un aprobador de planilla puede autorizar cambios salariales.')
+            if rec.state != 'draft':
+                raise UserError(f'El registro ya fue procesado (estado: {rec.state}).')
             rec.write({
-                'state':            'authorized',
+                'state':           'authorized',
                 'authorized_by':   self.env.user.id,
                 'authorized_date': fields.Datetime.now(),
                 'rejection_note':  False,
             })
-            # F9: Send email notification to employee
+            # FIX C-01 v59: Actualizar el salario base del empleado en hr.employee.
+            # Sin este paso, la autorización es solo administrativa — las próximas
+            # boletas calcularían CCSS, Renta y provisiones sobre el salario viejo.
+            if rec.gross_salary and rec.gross_salary > 0:
+                rec.employee_id.write({
+                    'base_salary':           rec.gross_salary,
+                    'salary_effective_date': rec.effective_date,
+                })
+                _logger.info(
+                    'planilla_cr.salary_history.authorize: empleado %s — '
+                    'base_salary ₡%.2f → ₡%.2f (efectivo: %s)',
+                    rec.employee_id.name,
+                    rec.previous_salary or 0.0,
+                    rec.gross_salary,
+                    rec.effective_date,
+                )
             if rec.employee_id.work_email:
                 try:
                     template = self.env.ref(
@@ -82,7 +99,9 @@ class SalaryHistory(models.Model):
                     if template:
                         template.send_mail(rec.id, force_send=False)
                 except Exception as e:
-                    _logger.warning(f"planilla_cr: No se pudo enviar email de historial salarial ({rec.id}): {e}")
+                    _logger.warning(
+                        'planilla_cr: email historial salarial fallido (%s): %s', rec.id, e
+                    )
 
     def action_reject(self):
         return {
@@ -107,7 +126,9 @@ class SalaryHistory(models.Model):
 class SalaryRejectWizard(models.TransientModel):
     _name = 'planilla.salary.reject.wizard'
     _description = 'Wizard Rechazo de Cambio Salarial'
-    _inherit = ['mail.thread', 'mail.activity.mixin']
+    # FIX P-04 v59: TransientModel no necesita mail.thread ni mail.activity.mixin.
+    # Heredarlos genera registros en mail.message en un modelo efímero, consumiendo
+    # espacio en BD innecesariamente.
 
     history_id = fields.Many2one('planilla.salary.history', required=True)
     reason     = fields.Text(string='Motivo de Rechazo', required=True)

@@ -18,7 +18,7 @@ class Overtime(models.Model):
         string='Referencia', compute='_compute_name', store=True
     )
     employee_id = fields.Many2one(
-        'hr.employee', string='Empleado', required=True, tracking=True
+        'hr.employee', string='Empleado', required=True, tracking=True, index=True
     )
     branch_id = fields.Many2one(
         related='employee_id.branch_id', string='Sucursal', store=True
@@ -106,14 +106,35 @@ class Overtime(models.Model):
 
     def action_approve(self):
         self.ensure_one()
-        # FIX B-03 v53: Advertencia si supera el límite legal de horas extras diarias.
-        # Art. 139 CT: jornada ordinaria máx 8h/día + horas extra máx 4h/día = 12h total.
+        from datetime import timedelta
+        # Validación diaria: máx 4h extras/día (Art. 139 CT)
         if self.hours > 4.0:
             raise ValidationError(
                 f'Las horas extras ({self.hours:.1f}h) superan el máximo legal de 4 horas '
                 f'diarias establecido en el Art. 139 del Código de Trabajo. '
                 f'Verifique si necesita dividir en varios días o solicitar autorización especial.'
             )
+        # FIX A-02 v59: Validación semanal — máx 12h extras/semana (Art. 139 CT)
+        if self.date:
+            day_of_week = self.date.weekday()  # 0 = lunes
+            week_start  = self.date - timedelta(days=day_of_week)
+            week_end    = week_start + timedelta(days=6)
+            other_he = self.env['planilla.overtime'].search([
+                ('employee_id', '=', self.employee_id.id),
+                ('date', '>=', week_start),
+                ('date', '<=', week_end),
+                ('state', '=', 'approved'),
+                ('id', '!=', self.id),
+            ])
+            total_semanal = sum(other_he.mapped('hours')) + self.hours
+            MAX_HE_SEMANAL = 12.0  # Art. 139 CT
+            if total_semanal > MAX_HE_SEMANAL:
+                raise ValidationError(
+                    f'Las horas extras de la semana {week_start} — {week_end} '
+                    f'({total_semanal:.1f}h) superarían el límite legal de '
+                    f'{MAX_HE_SEMANAL}h semanales (Art. 139 CT). '
+                    f'Ya aprobadas esta semana: {total_semanal - self.hours:.1f}h.'
+                )
         # FIX C-01 v53: Validar que overtime_type=holiday corresponda a un feriado real.
         if self.overtime_type == 'holiday' and self.date:
             is_holiday = self.env['planilla.public.holiday'].is_paid_holiday(

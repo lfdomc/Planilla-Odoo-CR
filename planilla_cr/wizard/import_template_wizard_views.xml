@@ -44,7 +44,7 @@
                     <group>
                         <field name="include_benefits"
                                widget="boolean_toggle"
-                               string="➕  Beneficios / Deducciones Recurrentes"/>
+                               string="➕  Otros Descuentos (Sindical, Coop, Ahorro…)"/>
                         <field name="include_disabilities"
                                widget="boolean_toggle"
                                string="🏥  Incapacidades"/>
@@ -54,6 +54,12 @@
                         <field name="include_vacations"
                                widget="boolean_toggle"
                                string="🏖️  Saldo de Vacaciones"/>
+                        <field name="include_embargos"
+                               widget="boolean_toggle"
+                               string="⚖️  Embargos Judiciales"/>
+                        <field name="include_bonos"
+                               widget="boolean_toggle"
+                               string="🎯  Bonos e Incentivos"/>
                     </group>
                 </group>
 

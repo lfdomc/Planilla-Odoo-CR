@@ -1,6 +1,7 @@
 from odoo import models, fields, api
 from odoo.models import Constraint
 from odoo.exceptions import ValidationError
+from . import planilla_const as K
 
 
 class PensionAlimentaria(models.Model):
@@ -18,7 +19,7 @@ class PensionAlimentaria(models.Model):
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
 
     employee_id = fields.Many2one(
-        'hr.employee', string='Empleado', required=True, tracking=True
+        'hr.employee', string='Empleado', required=True, tracking=True, index=True
     )
     branch_id = fields.Many2one(
         related='employee_id.branch_id', string='Sucursal', store=True
@@ -120,7 +121,7 @@ class PensionAlimentaria(models.Model):
                 continue
             gross = rec.employee_id.base_salary
             # Estimar neto: bruto − CCSS obrero (10.83%) − renta estimada 0%
-            approx_net = gross * (1 - 0.1083)
+            approx_net = gross * (1 - K.CCSS_EMP)
             if rec.calculation_type == 'percentage' and rec.percentage > 0:
                 monto = round(gross * rec.percentage / 100, 2)
             elif rec.calculation_type == 'fixed' and rec.fixed_amount > 0:

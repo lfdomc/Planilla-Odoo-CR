@@ -374,3 +374,113 @@ class TestPayslipCoverageNew04(TransactionCase):
             msg=f'Provisiones deben ser ~17.82% del bruto. '
                 f'Obtenido: ₡{total_prov:,.2f}, esperado: ₡{expected_amount:,.2f}'
         )
+
+    # ── TEST: Bono salarial afecta base CCSS ─────────────────────
+
+    def test_19_bono_salarial_suma_al_bruto(self):
+        """FIX C-01 v54 — Bono con afecto_ccss=True debe sumarse al gross_salary
+        para que CCSS y Renta se calculen sobre la base correcta (Art. 3 Ley 7983).
+        """
+        from odoo.fields import Date
+        # Crear código de deducción para bonos
+        bono_code = self.env['planilla.deduction.code'].search(
+            [('code', '=', 'BONO')], limit=1
+        )
+        if not bono_code:
+            bono_code = self.env['planilla.deduction.code'].create({
+                'code': 'BONO', 'name': 'Bono Test',
+                'deduction_type': 'employee', 'calculation_type': 'fixed',
+            })
+        # Crear bono salarial para el empleado
+        bono = self.env['planilla.bono'].create({
+            'employee_id': self.employee.id,
+            'name': 'Bono Productividad Test',
+            'bono_type': 'productividad',
+            'amount_type': 'fixed',
+            'amount': 50000,
+            'afecto_ccss': True,
+            'afecto_renta': True,
+            'is_recurring': True,
+            'date_start': '2026-01-01',
+            'state': 'active',
+        })
+        slip = self.env['planilla.payslip.cr'].create({
+            'employee_id': self.employee.id,
+            'date_from': '2026-05-01',
+            'date_to': '2026-05-31',
+            'company_id': self.company.id,
+        })
+        # _sync_bonos ya corrió en el create — solo recalcular
+        slip._compute_bono_salarial()
+        slip._compute_gross()
+        self.assertAlmostEqual(
+            slip.bono_salarial_amount, 50000, delta=1,
+            msg='bono_salarial_amount debe ser ₡50,000'
+        )
+        self.assertAlmostEqual(
+            slip.gross_salary, self.employee.base_salary + 50000, delta=1,
+            msg='gross_salary debe incluir el bono salarial'
+        )
+        ccss_expected = round((self.employee.base_salary + 50000) * 0.1083, 2)
+        slip._compute_deductions()
+        self.assertAlmostEqual(
+            slip.ccss_employee, ccss_expected, delta=1,
+            msg=f'CCSS obrera debe calcularse sobre salario+bono. '
+                f'Esperado: ₡{ccss_expected:,.2f}, obtenido: ₡{slip.ccss_employee:,.2f}'
+        )
+        bono.unlink()
+
+    # ── TEST: Embargo respeta límite 25% neto (Art. 172 CT) ─────
+
+    def test_20_embargo_limite_25_pct(self):
+        """FIX C-02 v54 — Embargo no debe superar 25% del neto disponible.
+        El modelo planilla.embargo debe rechazar porcentajes > 25%.
+        """
+        from odoo.exceptions import ValidationError
+        # Porcentaje válido (20%) — debe crearse sin error
+        embargo_valido = self.env['planilla.embargo'].create({
+            'employee_id': self.employee.id,
+            'numero_expediente': 'TEST-EMB-001',
+            'juzgado': 'Juzgado Test',
+            'beneficiario_nombre': 'Acreedor Test',
+            'calculation_type': 'percentage',
+            'percentage': 20.0,
+            'date_start': '2026-01-01',
+            'state': 'active',
+        })
+        self.assertEqual(embargo_valido.percentage, 20.0)
+        # Porcentaje inválido (30%) — debe fallar
+        with self.assertRaises(ValidationError,
+                msg='Porcentaje > 25% debe lanzar ValidationError (Art. 172 CT)'):
+            self.env['planilla.embargo'].create({
+                'employee_id': self.employee.id,
+                'numero_expediente': 'TEST-EMB-002',
+                'juzgado': 'Juzgado Test',
+                'beneficiario_nombre': 'Acreedor Test',
+                'calculation_type': 'percentage',
+                'percentage': 30.0,
+                'date_start': '2026-01-01',
+                'state': 'active',
+            })
+        embargo_valido.unlink()
+
+    # ── TEST: Paternity formula correcta ────────────────────────
+
+    def test_21_paternity_daily_rate(self):
+        """FIX I-01 v54 — Salario diario de paternidad = salario_mensual / 30.
+        El bug anterior usaba g * 2 / 30 generando el doble del valor correcto.
+        """
+        slip = self.env['planilla.payslip.cr'].create({
+            'employee_id': self.employee.id,
+            'date_from': '2026-06-01',
+            'date_to': '2026-06-30',
+            'company_id': self.company.id,
+            'paternity_days': 8,
+        })
+        slip._compute_deductions()
+        expected = round((self.employee.base_salary / 30) * 8, 2)
+        self.assertAlmostEqual(
+            slip.paternity_amount, expected, delta=1,
+            msg=f'Paternidad 8 días hábiles = salario/30 × 8 = ₡{expected:,.2f}. '
+                f'Obtenido: ₡{slip.paternity_amount:,.2f}'
+        )

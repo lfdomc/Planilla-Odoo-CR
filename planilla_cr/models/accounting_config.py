@@ -113,6 +113,14 @@ class PayrollAccountingConfig(models.Model):
     )
 
     # BUG #10 FIX v50 — Cuenta separada para Pensiones Alimentarias retenidas
+    account_rop_payable = fields.Many2one(
+        'account.account', string='ROP por Pagar (230350)',
+        domain=[('account_type', '=', 'liability_current')],
+        help='Cuenta del pasivo donde se acumula el ROP obrero (1%) + patronal (3.25%) '
+             'pendiente de depositar al operador de pensiones (Ley 7983). '
+             'Si queda vacío, se usa account_ccss_payable como fallback.'
+    )
+
     account_pension_alimentaria_payable = fields.Many2one(
         'account.account',
         string='Pensiones Alimentarias por Pagar',
@@ -144,6 +152,34 @@ class PayrollAccountingConfig(models.Model):
     account_termination_payable = fields.Many2one(
         'account.account', string='Liquidaciones por Pagar',
         help='CRÉDITO — Pasivo por liquidaciones pendientes.\nEj: 230800 Liquidaciones por Pagar'
+    )
+
+    # ── Embargos Judiciales ─────────────────────────────────────────────────
+    account_embargo_payable = fields.Many2one(
+        'account.account',
+        string='Embargos Judiciales por Pagar',
+        help='CRÉDITO — Embargos judiciales retenidos en planilla pendientes de girar al juzgado.\n'
+             'Mantener separado de Salarios por Pagar para control judicial (Art. 172 CT).\n'
+             'Ej: 230960 Embargos Judiciales por Pagar\n'
+             'Si no se configura, usa la cuenta Salarios por Pagar como fallback.'
+    )
+
+    # ── Bonos e Incentivos ──────────────────────────────────────────────────
+    account_bono_expense = fields.Many2one(
+        'account.account',
+        string='Bonos e Incentivos (Gasto)',
+        help='DÉBITO — Gasto por bonos salariales (productividad, asistencia, antigüedad,\n'
+             'comisiones). Estos bonos integran el salario para CCSS y renta.\n'
+             'Ej: 630600 Bonos e Incentivos\n'
+             'Si no se configura, usa la cuenta Sueldos y Salarios (630000).'
+    )
+    account_subsidio_expense = fields.Many2one(
+        'account.account',
+        string='Subsidios al Personal (Gasto)',
+        help='DÉBITO — Gasto por subsidios exentos de CCSS/Renta (transporte hasta tope,\n'
+             'alimentación en especie, gastos de representación documentados).\n'
+             'Ej: 630700 Subsidios al Personal\n'
+             'Si no se configura, usa la cuenta Sueldos y Salarios (630000).'
     )
 
     @api.model
@@ -262,9 +298,15 @@ class PayrollAccountingConfig(models.Model):
             'account_loans_payable':          ('230900', 'Cuotas Préstamos Retenidos por Pagar',           'liability_current'),
             'account_termination_payable':         ('230800', 'Liquidaciones por Pagar',                         'liability_current'),
             'account_preaviso_expense':            ('630500', 'Gasto por Preaviso',                              'expense'),
+            # Embargos judiciales separados de salarios por pagar (control judicial)
+            'account_embargo_payable':             ('230960', 'Embargos Judiciales por Pagar',                   'liability_current'),
+            # Bonos salariales (afectos CCSS/renta) y subsidios exentos
+            'account_bono_expense':                ('630600', 'Bonos e Incentivos al Personal',                  'expense'),
+            'account_subsidio_expense':            ('630700', 'Subsidios al Personal (Transporte/Alim.)',        'expense'),
             # FIX v49 Bug 5 — Cuenta para subsidio CCSS por cobrar (activo corriente)
             'account_ccss_subsidy_receivable':     ('120500', 'Subsidio CCSS por Cobrar',                        'asset_current'),
             # BUG #10 FIX v50 — Pensiones alimentarias separadas de salarios
+            'account_rop_payable':                 ('230350', 'ROP por Pagar (Obrero+Patronal)', 'liability_current'),
             'account_pension_alimentaria_payable':  ('230950', 'Pensiones Alimentarias por Pagar',              'liability_current'),
             # BUG #11 FIX v50 — Cuenta préstamos por cobrar explícita
             'account_loans_receivable':             ('115000', 'Préstamos a Empleados por Cobrar',             'asset_current'),

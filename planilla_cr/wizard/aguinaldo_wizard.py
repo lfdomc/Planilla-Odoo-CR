@@ -52,8 +52,13 @@ class AguinaldoWizard(models.TransientModel):
         Art. 228 CT: Aguinaldo = suma de salarios ordinarios recibidos
         en el periodo junio 1 - noviembre 30 del año, dividido entre 12.
         Para empleados con menos de un año, proporcional al tiempo trabajado.
+        FIX M-03 v59: Limpiar result_ids previos para evitar duplicados
+        si el usuario ejecuta el botón más de una vez.
         """
         self.ensure_one()
+        # FIX M-03 v59: Eliminar cálculos anteriores antes de recalcular
+        if self.result_ids:
+            self.result_ids.unlink()
         from datetime import date
 
         period_start = date(self.year, 6, 1)

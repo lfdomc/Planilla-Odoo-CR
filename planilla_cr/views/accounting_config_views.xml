@@ -50,6 +50,12 @@
                                            options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_cesantia_expense"
                                            options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
+                                    <field name="account_bono_expense"
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
+                                           help="Bonos salariales (productividad, asistencia, antigüedad, comisiones). Afectos CCSS y Renta. Si no se configura, usa Sueldos y Salarios."/>
+                                    <field name="account_subsidio_expense"
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
+                                           help="Subsidios exentos (transporte hasta ₡74,000/mes, gastos de representación documentados). Si no se configura, usa Sueldos y Salarios."/>
                                 </group>
                             </group>
                         </page>
@@ -88,6 +94,12 @@
                                            help="Cuenta Banco/Caja para desembolso de préstamos (FIX B-05)"/>
                                     <field name="account_termination_payable"
                                            options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
+                                    <field name="account_pension_alimentaria_payable"
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
+                                           help="Pensiones alimentarias retenidas pendientes de girar al Juzgado (Ley 8590). Cuenta separada para control judicial. Ej: 230950"/>
+                                    <field name="account_embargo_payable"
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
+                                           help="Embargos judiciales retenidos pendientes de girar al Juzgado (Art. 172 CT). Cuenta separada para control judicial. Ej: 230960"/>
                                 </group>
                             </group>
                         </page>
@@ -131,6 +143,16 @@
                                             <td class="text-end">cesantia_provision</td>
                                             <td></td>
                                         </tr>
+                                        <tr>
+                                            <td>Bonos e Incentivos Salariales ← 630600 (afectos CCSS/Renta)</td>
+                                            <td class="text-end">si aplica</td>
+                                            <td></td>
+                                        </tr>
+                                        <tr>
+                                            <td>Subsidios al Personal ← 630700 (exentos CCSS/Renta hasta tope)</td>
+                                            <td class="text-end">si aplica</td>
+                                            <td></td>
+                                        </tr>
                                         <tr style="background:#f8f9fa;">
                                             <td colspan="3"><strong>Pasivos por Planilla</strong></td>
                                         </tr>
@@ -165,12 +187,17 @@
                                             <td class="text-end">vacation_provision</td>
                                         </tr>
                                         <tr>
-                                            <td>Pensión Alimentaria Retenida</td>
+                                            <td>Pensión Alimentaria Retenida ← 230950</td>
                                             <td></td>
                                             <td class="text-end">si aplica</td>
                                         </tr>
                                         <tr>
-                                            <td>Cuotas Préstamos Retenidos ← cuenta 230900</td>
+                                            <td>Embargo Judicial Retenido ← 230960</td>
+                                            <td></td>
+                                            <td class="text-end">si aplica</td>
+                                        </tr>
+                                        <tr>
+                                            <td>Cuotas Préstamos Retenidos ← 230900</td>
                                             <td></td>
                                             <td class="text-end">si aplica</td>
                                         </tr>

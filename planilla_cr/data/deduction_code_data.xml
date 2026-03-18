@@ -135,7 +135,7 @@
         <field name="description">Cuota cooperativa voluntaria</field>
     </record>
 
-    <!-- Embargo Judicial -->
+    <!-- Embargo Judicial Art. 172 CT -->
     <record id="deduction_code_embargo" model="planilla.deduction.code">
         <field name="code">EMB</field>
         <field name="name">Embargo Judicial</field>
@@ -143,7 +143,7 @@
         <field name="calculation_type">fixed</field>
         <field name="employee_percentage">0</field>
         <field name="active">True</field>
-        <field name="description">Embargo judicial — máximo 25% salario neto Art. 172 CT</field>
+        <field name="description">Embargo judicial — máximo 25% salario neto Art. 172 CT. Prioridad después de pensión alimentaria.</field>
     </record>
 
     <!-- Pensión Alimentaria -->
@@ -168,5 +168,16 @@
         <field name="active">True</field>
         <field name="description">Régimen Obligatorio de Pensiones — Ley 7983</field>
     </record>
+
+    <!-- Bono / Incentivo por Empleado -->
+    <record id="deduction_code_bono" model="planilla.deduction.code">
+        <field name="code">BONO</field>
+        <field name="name">Bono / Incentivo</field>
+        <field name="deduction_type">employee</field>
+        <field name="calculation_type">fixed</field>
+        <field name="active">True</field>
+        <field name="description">Bonos e incentivos formales por empleado (productividad, asistencia, transporte, etc.)</field>
+    </record>
+
 
 </odoo>

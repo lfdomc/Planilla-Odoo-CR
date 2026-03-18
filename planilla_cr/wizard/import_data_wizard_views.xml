@@ -55,6 +55,12 @@
                             <field name="import_vacations"
                                    widget="boolean_toggle"
                                    string="🏖️  Saldo de Vacaciones"/>
+                            <field name="import_embargos"
+                                   widget="boolean_toggle"
+                                   string="⚖️  Embargos Judiciales"/>
+                            <field name="import_bonos"
+                                   widget="boolean_toggle"
+                                   string="🎯  Bonos e Incentivos"/>
                         </group>
                     </group>
 
@@ -126,12 +132,14 @@
                         <group>
                             <field name="loan_created" string="💰 Préstamos creados"    readonly="1"/>
                             <field name="pen_created"  string="👨‍👧 Pensiones creadas"    readonly="1"/>
-                            <field name="ben_created"  string="➕ Beneficios creados"    readonly="1"/>
+                            <field name="ben_created"  string="➕ Otros Descuentos creados"    readonly="1"/>
                         </group>
                         <group>
                             <field name="dis_created"  string="🏥 Incapacidades creadas"  readonly="1"/>
                             <field name="vac_created"  string="🏖️ Vacaciones procesadas"  readonly="1"/>
                             <field name="ot_created"   string="⏱️ Horas extras creadas"   readonly="1"/>
+                            <field name="emb_created"  string="⚖️ Embargos creados"       readonly="1"/>
+                            <field name="bon_created"  string="🎯 Bonos creados"          readonly="1"/>
                         </group>
                     </group>
 

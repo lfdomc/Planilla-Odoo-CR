@@ -16,7 +16,7 @@ class Disability(models.Model):
 
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
     employee_id = fields.Many2one(
-        'hr.employee', string='Empleado', required=True, tracking=True
+        'hr.employee', string='Empleado', required=True, tracking=True, index=True
     )
     branch_id = fields.Many2one(
         related='employee_id.branch_id', string='Sucursal', store=True

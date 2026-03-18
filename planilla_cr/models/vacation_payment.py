@@ -10,7 +10,7 @@ class VacationPayment(models.Model):
 
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
     employee_id = fields.Many2one(
-        'hr.employee', string='Empleado', required=True, tracking=True
+        'hr.employee', string='Empleado', required=True, tracking=True, index=True
     )
     branch_id = fields.Many2one(
         related='employee_id.branch_id', string='Sucursal', store=True
@@ -123,16 +123,28 @@ class VacationPayment(models.Model):
         BUG #5 FIX v50: action_approve ahora valida días disponibles,
         igual que action_approve_and_pay. Elimina la posibilidad de evadir
         la validación usando el botón simple de aprobación.
+        FIX A-01 v59: Agregar validación para tipo "adelanto" (sin límite anterior).
         """
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('Solo se pueden aprobar vacaciones en borrador.')
-            # Validar días disponibles (misma lógica que action_approve_and_pay)
-            if rec.days > rec.days_accrued:
-                raise ValidationError(
-                    f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} días '
-                    f'disponibles pero solicita {rec.days} días.'
-                )
+            # Validar días disponibles según tipo
+            if rec.vacation_type in ('disfrutadas', 'proporcionales'):
+                if rec.days > rec.days_accrued:
+                    raise ValidationError(
+                        f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} días '
+                        f'disponibles pero solicita {rec.days} días.'
+                    )
+            elif rec.vacation_type == 'adelanto':
+                # FIX A-01 v59: Adelanto máximo = días anuales (Art. 153 CT: 12 días/50 semanas)
+                MAX_ADELANTO = 12
+                if rec.days > MAX_ADELANTO:
+                    raise ValidationError(
+                        f'El adelanto de vacaciones ({rec.days} días) supera el máximo '
+                        f'permitido de {MAX_ADELANTO} días anuales (Art. 153 CT). '
+                        f'Consulte con RRHH si requiere una excepción documentada.'
+                    )
+
             rec.state = 'approved'
             # FIX A-01 v53: Modelo correcto planilla.payslip.cr (no planilla.payslip).
             # El modelo incorrecto generaba KeyError al aprobar vacaciones cuando

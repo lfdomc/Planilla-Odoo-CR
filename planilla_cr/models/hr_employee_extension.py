@@ -45,6 +45,17 @@ class HrEmployeeExtension(models.Model):
     schedule_type_id = fields.Many2one(
         'planilla.schedule.type', string='Tipo de Horario'
     )
+    # ── ROP — Régimen Obligatorio de Pensiones (Ley 7983) ──────────────────
+    rop_applies = fields.Boolean(
+        string='Aplicar ROP en Planilla',
+        default=False,
+        help='DESACTIVADO por defecto. Activar solo si el contador confirma que este '
+             'empleado debe llevar el ROP procesado desde el módulo de planilla. '
+             'Muchos contadores manejan el ROP con su propio proceso externo. '
+             'Al activar: el sistema deducirá 1%% obrero y registrará 3.25%% patronal '
+             'automáticamente al sincronizar cada boleta (Ley 7983 Art. 6).'
+    )
+
     payroll_calendar_id = fields.Many2one(
         'planilla.calendar', string='Calendarización de Planilla'
     )
@@ -686,6 +697,14 @@ class HrEmployeeExtension(models.Model):
     recurring_benefit_ids = fields.One2many(
         'planilla.recurring.benefit', 'employee_id',
         string='Beneficios/Deducciones Recurrentes'
+    )
+    embargo_ids = fields.One2many(
+        'planilla.embargo', 'employee_id',
+        string='Embargos Judiciales'
+    )
+    bono_ids = fields.One2many(
+        'planilla.bono', 'employee_id',
+        string='Bonos e Incentivos'
     )
     salary_history_ids = fields.One2many(
         'planilla.salary.history', 'employee_id', string='Historial de Salarios'

@@ -76,6 +76,13 @@ def _setup_accounting_config(env):
         'account_loans_payable':               '230900',
         # FIX v49 Bug 5 — Cuenta para subsidio CCSS por cobrar (activo corriente 120500)
         'account_ccss_subsidy_receivable':     '120500',
+        # FIX BUG #10 v50 — Pensiones alimentarias separadas de salarios
+        'account_rop_payable':                 '230350',
+        'account_pension_alimentaria_payable': '230950',
+        # FIX C-03 v54 — Cuentas nuevas para embargos y bonos (faltaban en hooks)
+        'account_embargo_payable':             '230960',
+        'account_bono_expense':                '630600',
+        'account_subsidio_expense':            '630700',
     }
 
     # Buscar diario de planilla
@@ -155,18 +162,51 @@ def _create_email_templates(env):
         <td style="padding:8px;font-weight:bold;">Concepto</td>
         <td style="padding:8px;font-weight:bold;text-align:right;">Monto (₡)</td>
       </tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;">Salario Bruto</td>
+      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;color:#555;">Salario Base</td>
           <td style="padding:8px;text-align:right;border-bottom:1px solid #E2E8F0;">
-            <t t-out="'{:,.2f}'.format(object.gross_salary)"/></td></tr>
-      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;">Deducciones</td>
+            <t t-out="'{:,.2f}'.format(object.base_salary)"/></td></tr>
+      <t t-if="object.overtime_amount &gt; 0">
+      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;color:#555;">Horas Extras</td>
           <td style="padding:8px;text-align:right;border-bottom:1px solid #E2E8F0;">
-            <t t-out="'{:,.2f}'.format(object.total_employee_deductions)"/></td></tr>
+            <t t-out="'{:,.2f}'.format(object.overtime_amount)"/></td></tr>
+      </t>
+      <t t-if="object.bono_salarial_amount &gt; 0">
+      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;color:#1a7f45;">&#43; Bonos e Incentivos</td>
+          <td style="padding:8px;text-align:right;border-bottom:1px solid #E2E8F0;color:#1a7f45;">
+            <t t-out="'{:,.2f}'.format(object.bono_salarial_amount)"/></td></tr>
+      </t>
+      <tr style="background:#EBF5FB;">
+        <td style="padding:8px;font-weight:bold;">Salario Bruto</td>
+        <td style="padding:8px;text-align:right;font-weight:bold;">
+          <t t-out="'{:,.2f}'.format(object.gross_salary)"/></td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;color:#555;">&#8722; CCSS Obrero (10.83%)</td>
+          <td style="padding:8px;text-align:right;border-bottom:1px solid #E2E8F0;color:#C0392B;">
+            <t t-out="'{:,.2f}'.format(object.ccss_employee)"/></td></tr>
+      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;color:#555;">&#8722; Impuesto de Renta</td>
+          <td style="padding:8px;text-align:right;border-bottom:1px solid #E2E8F0;color:#C0392B;">
+            <t t-out="'{:,.2f}'.format(object.income_tax)"/></td></tr>
+      <t t-foreach="object.deduction_line_ids.filtered(lambda l: l.deduction_category == 'pension_alimentaria')" t-as="l">
+      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;color:#8E44AD;">&#8722; <t t-out="l.description or 'Pension Alimentaria'"/></td>
+          <td style="padding:8px;text-align:right;border-bottom:1px solid #E2E8F0;color:#8E44AD;">
+            <t t-out="'{:,.2f}'.format(l.amount)"/></td></tr>
+      </t>
+      <t t-foreach="object.deduction_line_ids.filtered(lambda l: l.deduction_category == 'embargo')" t-as="l">
+      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;color:#8E44AD;">&#8722; <t t-out="l.description or 'Embargo Judicial'"/></td>
+          <td style="padding:8px;text-align:right;border-bottom:1px solid #E2E8F0;color:#8E44AD;">
+            <t t-out="'{:,.2f}'.format(l.amount)"/></td></tr>
+      </t>
+      <t t-foreach="object.deduction_line_ids.filtered(lambda l: l.deduction_category == 'loan')" t-as="l">
+      <tr><td style="padding:8px;border-bottom:1px solid #E2E8F0;color:#555;">&#8722; <t t-out="l.description or 'Prestamo'"/></td>
+          <td style="padding:8px;text-align:right;border-bottom:1px solid #E2E8F0;color:#C0392B;">
+            <t t-out="'{:,.2f}'.format(l.amount)"/></td></tr>
+      </t>
       <tr style="background:#F0FBF4;">
-        <td style="padding:8px;font-weight:bold;color:#27AE60;">Salario Neto</td>
+        <td style="padding:8px;font-weight:bold;color:#27AE60;">Salario a Depositar (Neto)</td>
         <td style="padding:8px;text-align:right;font-weight:bold;color:#27AE60;">
-          ₡ <t t-out="'{:,.2f}'.format(object.net_salary)"/></td></tr>
+          &#8353; <t t-out="'{:,.2f}'.format(object.salary_payable)"/></td></tr>
     </table>
-    <p style="color:#666;font-size:11px;">Generado automáticamente por Planilla CR — Odoo 19.</p>
+    <p style="color:#888;font-size:11px;">Generado automaticamente por Planilla CR — Odoo 19.
+       Este correo es informativo. Para consultas contacte a Recursos Humanos.</p>
   </div>
 </div>""",
         },

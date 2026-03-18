@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from ..models import planilla_const as K
 from odoo.exceptions import UserError
 from dateutil.relativedelta import relativedelta
 import datetime
@@ -141,7 +142,7 @@ class TerminationSimulator(models.TransientModel):
 
         # ── Totales ──────────────────────────────────────────────────────────
         total_gross = preaviso_amount + cesantia_amount + vac_amount + aguinaldo
-        ccss        = round(total_gross * 0.1083, 2)
+        ccss        = round(total_gross * K.CCSS_EMP, 2)
         total_net   = round(total_gross - ccss, 2)
 
         # ── Préstamos y adelantos pendientes ─────────────────────────────────
