@@ -43,7 +43,7 @@
             <form string="Planilla">
                 <header>
                     <button name="action_generate_payslips" type="object"
-                            string="Generar Boletas" class="btn-primary"
+                            string="Generar Planilla" class="btn-primary"
                             invisible="state != 'draft'"/>
                     <button name="action_confirm" type="object"
                             string="Confirmar Planilla" class="btn-secondary"

@@ -40,7 +40,7 @@
 
     <!-- ── NOVEDADES ──────────────────────────────────────────────── -->
     <menuitem id="menu_planilla_cr_novedades"
-              name="Novedades"
+              name="Acción de Personal"
               parent="menu_planilla_cr_root"
               sequence="20"/>
 
