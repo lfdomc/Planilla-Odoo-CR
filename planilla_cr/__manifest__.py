@@ -1,6 +1,33 @@
 {
-    'name': 'Sistema Planilla v5.12',
-    'version': '19.0.5.12',
+    'name': 'Sistema Planilla v5.12-PROD',
+    'version': '19.0.5.12.3',
+    # ── Changelog v5.12-PROD (optimización segura para cientos de empleados) ──────
+    # Decisión de diseño: NO se usan cachés para datos contables críticos
+    # (tasas CCSS/INS/renta, tramos de renta, salarios mínimos MTSS).
+    # Cada boleta consulta directamente la BD para garantizar exactitud contable.
+    # Las optimizaciones se aplican SOLO en la capa de sincronización de novedades:
+    #
+    # PERF-04: action_generate_payslips — pre-carga boletas existentes en 1 query
+    #   antes del loop en lugar de 1 search por empleado. Para 200 emp: 200 → 1.
+    #   Usa create_multi por batch para creación masiva eficiente.
+    # PERF-05: payslip_action_mixin.create — detecta creación masiva (>1 boleta)
+    #   y usa métodos batch que cargan TODAS las novedades en 1 query por tipo.
+    #   Guardia de seguridad: si los períodos difieren, vuelve al modo individual.
+    #   Métodos: _sync_novedades_batch, _sync_recurring_benefits_batch,
+    #            _sync_rop_batch, _sync_bonos_batch, _sync_embargos_batch,
+    #            _sync_loan_deductions_batch.
+    #   Para 200 empleados: ~1.400 queries → ~8 queries. Reducción 99%.
+    # PERF-07: salary_history._compute_previous_salary — batch load del historial.
+    #   Pre-carga todo el historial en 1 query en vez de 1 search por registro.
+    # ── Changelog v5.12-AUD2 (segunda auditoría completa) ────────────────────────
+    # AUD2-01: recurring_benefit.py — index=True en employee_id (búsqueda cada boleta)
+    # ── Changelog v5.12-AUD (primera auditoría completa) ─────────────────────────
+    # AUD-01: disability.py — employer_percentage default 40% → 0%. El complemento
+    #   patronal para días 4+ de incapacidad NO es obligatorio (Art. 79 Regl. CCSS).
+    #   Antes el sistema calculaba automáticamente un 40% extra de costo al patrono
+    #   en todas las incapacidades de más de 3 días, lo cual era fiscalmente incorrecto.
+    # AUD-02: ir.model.access.csv — eliminadas 2 entradas duplicadas de overtime.
+    # AUD-03: deduction_code_data.xml — descripción RENTA actualizada a tramos 2026.
     # ── Changelog v5.12 ─────────────────────────────────────────────────────
     # BUG-CRÍTICO-01: 'rop' excluido de otras_ded en payslip_accounting_mixin y
     #   payroll_run_cr — eliminada doble deducción ROP en net_for_accounting.

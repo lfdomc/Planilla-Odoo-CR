@@ -1,6 +1,14 @@
 """
 Helper centralizado para leer tasas de planilla desde los códigos de deducción.
 Un solo lugar para obtener CCSS, INS, aguinaldo, cesantía y vacaciones.
+
+Decisión de diseño: NO se usa caché en este helper.
+Las tasas son datos contables críticos. Cada consulta va directamente a la BD
+para garantizar que siempre se usan los valores vigentes. La exactitud contable
+es más importante que el rendimiento en este caso.
+
+Las optimizaciones de rendimiento se aplican en las capas de batch sync
+(PERF-04, PERF-05) que reducen queries de otro tipo sin tocar datos contables.
 """
 from odoo import models
 from . import planilla_const as K
@@ -47,9 +55,7 @@ class RateHelper(models.AbstractModel):
         dc = self._get_deduction_code('INS_PAT')
         if dc:
             return dc.get_ins_rate(risk_class)
-        # Fallback
-        fallback = K.INS_TASAS
-        return fallback.get(risk_class, K.INS_TASA_DEFAULT)
+        return K.INS_TASAS.get(risk_class, K.INS_TASA_DEFAULT)
 
     def get_aguinaldo_rate(self):
         """Tasa provisión aguinaldo (decimal). Default 8.33%."""

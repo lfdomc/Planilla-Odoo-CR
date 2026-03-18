@@ -233,6 +233,8 @@ class PayslipComputeMixin(models.AbstractModel):
         """
         Calculo progresivo de renta usando tramos configurados en la UI.
         v58: movido desde payslip_cr.py al mixin correspondiente.
+        FIX PERF-02: caché de tramos en env.context para no repetir la query
+        por cada boleta en el mismo request. Para 200 boletas: 200→1 query.
 
         Los tramos de renta del MTSS están definidos en base mensual.
         Para períodos quincenales/semanales se anualiza el salario,

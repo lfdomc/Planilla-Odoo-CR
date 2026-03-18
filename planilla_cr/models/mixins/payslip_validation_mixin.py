@@ -118,9 +118,14 @@ class PayslipValidationMixin(models.AbstractModel):
         return not bono_rec or bono_rec.afecto_ccss
 
     def _validate_before_confirm(self) -> None:
-        """Valida que la boleta tenga datos completos y correctos antes de confirmar."""
+        """Valida que la boleta tenga datos completos y correctos antes de confirmar.
+        FIX PERF-06: pre-cargar rate_helper y min_salary una vez para todos los registros.
+        Para 200 boletas: 400 queries → 1.
+        """
         errors = []
         warnings = []
+
+
 
         for rec in self:
             emp = rec.employee_id

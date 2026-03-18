@@ -47,7 +47,12 @@ class Disability(models.Model):
         string='% Subsidio CCSS', default=60.0,
         help='Porcentaje que paga la CCSS del salario durante la incapacidad'
     )
-    employer_percentage = fields.Float(string='% Cargo Patrono', default=40.0)
+    employer_percentage = fields.Float(
+        string='% Complemento Patronal (días 4+)', default=0.0,
+        help='Porcentaje adicional que el patrono paga a partir del día 4. '
+             'Por defecto 0 %% — NO es obligatorio (Art. 79 Regl. CCSS). '
+             'Active solo si su empresa tiene política voluntaria de complemento.'
+    )
 
     daily_salary = fields.Monetary(
         string='Salario Diario', currency_field='currency_id',
@@ -169,12 +174,14 @@ class Disability(models.Model):
             else:
                 # BUG #13 FIX v50: Días 1-3 SIEMPRE son 100% patrono (Art. 79 Reglamento CCSS)
                 # No usar employer_percentage para días 1-3 — es un mandato legal fijo.
-                # employer_percentage (40%) solo aplica para días 4+ cuando CCSS subsidia.
+                # employer_percentage aplica para días 4+ SOLO si la empresa tiene
+                # política voluntaria de complemento (default=0 desde v512 AUD).
+                # Art. 79 Regl. CCSS: patrono paga días 1-3 al 100%, días 4+ a cargo CCSS.
                 first_days = min(rec.days, 3)
                 remaining_days = max(rec.days - 3, 0)
                 rec.employer_cost = round(
                     (first_days * rec.daily_salary * 1.0) +          # 100% patrono días 1-3 (hardcoded)
-                    (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2  # 40% días 4+
+                    (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2  # complemento voluntario
                 )
                 rec.ccss_subsidy = round(
                     remaining_days * rec.daily_salary * rec.subsidy_percentage / 100, 2
@@ -187,7 +194,7 @@ class Disability(models.Model):
             self.employer_percentage = 0.0
         elif self.disability_type in ('ccss', 'ccss_accident'):
             self.subsidy_percentage = 60.0
-            self.employer_percentage = 40.0
+            self.employer_percentage = 0.0  # FIX v512 AUD: complemento patronal NO obligatorio
         elif self.disability_type == 'ins':
             self.subsidy_percentage = 100.0
             self.employer_percentage = 0.0
@@ -281,7 +288,7 @@ class Disability(models.Model):
                 remaining_days = max(days - 3, 0)
                 employer_cost = round(
                     (first_days * daily * 1.0) +
-                    (remaining_days * daily * (rec.employer_percentage or 40.0) / 100), 2
+                    (remaining_days * daily * (rec.employer_percentage or 0.0) / 100), 2  # FIX AUD-01: default 0%
                 )
                 ccss_subsidy = round(
                     remaining_days * daily * (rec.subsidy_percentage or 60.0) / 100, 2

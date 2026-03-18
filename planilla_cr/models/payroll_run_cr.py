@@ -306,24 +306,34 @@ class PayrollRunCR(models.Model):
         created_count  = 0
         skipped_count  = 0
 
+        # FIX PERF-04: Pre-cargar en UNA query los empleados que ya tienen boleta
+        # en esta planilla (re-ejecución del botón). Elimina el search() por empleado
+        # en el loop: N queries → 1 query. Para 200 emp: 200 → 1.
+        emp_ids_con_boleta = set(
+            self.env['planilla.payslip.cr'].search([
+                ('payroll_run_id', '=', self.id),
+            ]).mapped('employee_id.id')
+        )
+
         for i in range(0, len(employees_list), BATCH_SIZE):
             batch = employees_list[i:i + BATCH_SIZE]
+            vals_to_create = []
             for employee in batch:
-                # Verificar si ya existe boleta en ESTA planilla (re-ejecución del botón)
-                existing = self.env['planilla.payslip.cr'].search([
-                    ('employee_id',    '=', employee.id),
-                    ('payroll_run_id', '=', self.id),
-                ])
-                if not existing:
-                    self.env['planilla.payslip.cr'].create({
+                if employee.id not in emp_ids_con_boleta:
+                    vals_to_create.append({
                         'employee_id':    employee.id,
                         'payroll_run_id': self.id,
                         'date_from':      self.date_start,
                         'date_to':        self.date_end,
                     })
-                    created_count += 1
                 else:
                     skipped_count += 1
+            # create_multi para todo el batch de una vez
+            if vals_to_create:
+                self.env['planilla.payslip.cr'].create(vals_to_create)
+                created_count += len(vals_to_create)
+                # Actualizar el set para re-ejecuciones del botón en el mismo batch
+                # (no relevante en primer uso, pero protege la idempotencia)
 
         _logger.info(
             'planilla_cr.action_generate_payslips: planilla "%s" — %d creadas, %d omitidas (lote=%d)',

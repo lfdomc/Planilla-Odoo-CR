@@ -111,3 +111,4 @@ class DeductionCode(models.Model):
         elif self.calculation_type == 'fixed':
             return {'employee': self.fixed_amount, 'employer': 0.0}
         return {'employee': 0.0, 'employer': 0.0}
+

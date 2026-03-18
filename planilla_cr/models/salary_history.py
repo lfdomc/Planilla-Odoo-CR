@@ -48,14 +48,30 @@ class SalaryHistory(models.Model):
 
     @api.depends('employee_id', 'effective_date', 'gross_salary')
     def _compute_previous_salary(self):
+        # FIX PERF-07: cuando se computa sobre un recordset (ej. al crear varias historias
+        # juntas), pre-cargar todos los históricos de los empleados involucrados en una sola
+        # query y resolver en Python, en lugar de 1 search() por registro.
+        if not self:
+            return
+        emp_ids = self.mapped('employee_id.id')
+        all_hist = self.search([
+            ('employee_id', 'in', emp_ids),
+            ('state', '=', 'authorized'),
+        ], order='employee_id, effective_date desc')
+        # Índice: employee_id → lista ordenada desc por fecha
+        by_emp = {}
+        for h in all_hist:
+            by_emp.setdefault(h.employee_id.id, []).append(h)
+
         for rec in self:
-            prev = self.search([
-                ('employee_id', '=', rec.employee_id.id),
-                ('effective_date', '<', rec.effective_date),
-                ('state', '=', 'authorized'),
-                ('id', '!=', rec.id),
-            ], order='effective_date desc', limit=1)
-            prev_salary = prev.gross_salary or 0.0
+            hist_list = by_emp.get(rec.employee_id.id, [])
+            # Buscar el más reciente ANTERIOR a rec.effective_date, excluyendo rec mismo
+            prev_salary = 0.0
+            for h in hist_list:
+                if h.id != rec.id and h.effective_date and rec.effective_date:
+                    if h.effective_date < rec.effective_date:
+                        prev_salary = h.gross_salary or 0.0
+                        break
             rec.previous_salary  = prev_salary
             rec.variation_amount = rec.gross_salary - prev_salary
             rec.variation_pct    = (

@@ -8,7 +8,7 @@ class RecurringBenefit(models.Model):
     _description = 'Beneficio o Deducción Recurrente por Empleado'
     _order = 'employee_id, sequence'
 
-    employee_id    = fields.Many2one('hr.employee', required=True, ondelete='cascade')
+    employee_id    = fields.Many2one('hr.employee', required=True, ondelete='cascade', index=True)
     sequence       = fields.Integer(default=10)
     deduction_code_id = fields.Many2one(
         'planilla.deduction.code', string='Código', required=True

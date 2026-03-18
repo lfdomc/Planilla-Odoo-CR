@@ -596,3 +596,464 @@ class PayslipSyncMixin(models.AbstractModel):
                 'percentage':         bono.percentage if bono.amount_type == 'percentage' else 0.0,
             })
 
+    # ══════════════════════════════════════════════════════════════════════
+    # MÉTODOS DE SYNC POR LOTE (BATCH)
+    # FIX PERF-05: Para planillas grupales, pre-cargar TODOS los datos de
+    # TODOS los empleados en UNA query y distribuir. Elimina el patrón N+1
+    # donde cada boleta hace sus propias búsquedas independientes.
+    #
+    # Reducción para 200 empleados:
+    #   sync individual: ~200 × 8 = 1.600 queries
+    #   sync batch:      ~8 queries (una por tipo de novedad)
+    # ══════════════════════════════════════════════════════════════════════
+
+    def _sync_novedades_batch(self) -> None:
+        """Versión batch de _sync_novedades — carga todas las novedades en queries mínimas."""
+        if not self:
+            return
+        # Todos los recordsets en self comparten el mismo date_from/date_to (planilla grupal)
+        date_from = self[0].date_from
+        date_to   = self[0].date_to
+        emp_ids   = self.mapped('employee_id.id')
+        # Índice: employee_id → boleta
+        slip_by_emp = {s.employee_id.id: s for s in self}
+
+        # ── Horas extras — UNA query para todos ──────────────────────────
+        overtimes = self.env['planilla.overtime'].search([
+            ('employee_id', 'in', emp_ids),
+            ('state', '=', 'approved'),
+            ('date', '>=', date_from),
+            ('date', '<=', date_to),
+            '|', ('payslip_id', '=', False), ('payslip_id', 'in', self.ids),
+        ])
+        by_emp = {}
+        for o in overtimes:
+            by_emp.setdefault(o.employee_id.id, []).append(o)
+        for emp_id, recs in by_emp.items():
+            slip = slip_by_emp.get(emp_id)
+            if slip:
+                self.env['planilla.overtime'].browse([r.id for r in recs]).write(
+                    {'payslip_id': slip.id}
+                )
+
+        # ── Incapacidades — UNA query para todos ─────────────────────────
+        disabilities = self.env['planilla.disability'].search([
+            ('employee_id', 'in', emp_ids),
+            ('state', 'in', ('confirmed', 'paid')),
+            ('date_start', '<=', date_to),
+            ('date_end',   '>=', date_from),
+            '|', ('payslip_id', '=', False), ('payslip_id', 'in', self.ids),
+        ])
+        by_emp = {}
+        for d in disabilities:
+            by_emp.setdefault(d.employee_id.id, []).append(d)
+        for emp_id, recs in by_emp.items():
+            slip = slip_by_emp.get(emp_id)
+            if slip:
+                self.env['planilla.disability'].browse([r.id for r in recs]).write(
+                    {'payslip_id': slip.id}
+                )
+
+        # ── Vacaciones — UNA query para todos ────────────────────────────
+        vacations = self.env['planilla.vacation.payment'].search([
+            ('employee_id', 'in', emp_ids),
+            ('state', 'in', ('approved', 'paid')),
+            ('date_start', '<=', date_to),
+            ('date_end',   '>=', date_from),
+            '|', ('payslip_id', '=', False), ('payslip_id', 'in', self.ids),
+        ])
+        by_emp = {}
+        for v in vacations:
+            by_emp.setdefault(v.employee_id.id, []).append(v)
+        for emp_id, recs in by_emp.items():
+            slip = slip_by_emp.get(emp_id)
+            if slip:
+                self.env['planilla.vacation.payment'].browse([r.id for r in recs]).write(
+                    {'payslip_id': slip.id}
+                )
+
+        # ── Pensiones alimentarias — sync individual (complejo, bajo volumen) ──
+        pension_code = self.env['planilla.deduction.code'].search(
+            [('code', '=', 'PENSION_ALIM')], limit=1
+        )
+        if not pension_code:
+            try:
+                pension_code = self.env['planilla.deduction.code'].sudo().create({
+                    'name': 'Pensión Alimentaria', 'code': 'PENSION_ALIM',
+                    'deduction_type': 'employee',
+                })
+            except Exception:
+                pension_code = self.env['planilla.deduction.code'].search(
+                    [('code', '=', 'PENSION_ALIM')], limit=1
+                )
+
+        # Pensiones: UNA query para todos
+        pensiones = self.env['planilla.pension.alimentaria'].search([
+            ('employee_id', 'in', emp_ids),
+            ('state', '=', 'active'),
+            ('active', '=', True),
+            ('date_start', '<=', date_to),
+            '|', ('date_end', '=', False), ('date_end', '>=', date_from),
+        ])
+        by_emp = {}
+        for pen in pensiones:
+            by_emp.setdefault(pen.employee_id.id, []).append(pen)
+
+        for emp_id, pens in by_emp.items():
+            slip = slip_by_emp.get(emp_id)
+            if not slip or not pension_code:
+                continue
+            for pension in pens:
+                existing = slip.deduction_line_ids.filtered(
+                    lambda l: l.deduction_category == 'pension_alimentaria'
+                    and l.numero_resolucion == pension.numero_expediente
+                )
+                if existing:
+                    continue
+                monto = pension.compute_amount(slip.gross_salary or 0.0)
+                self.env['planilla.payslip.deduction.line'].create({
+                    'payslip_id':         slip.id,
+                    'deduction_code_id':  pension_code.id,
+                    'description':        f'Pensión Alimentaria — {pension.beneficiario_nombre} ({pension.numero_expediente})',
+                    'line_type':          'deduction',
+                    'deduction_category': 'pension_alimentaria',
+                    'amount_type':        pension.calculation_type,
+                    'amount':             monto,
+                    'percentage':         pension.percentage if pension.calculation_type == 'percentage' else 0.0,
+                    'numero_resolucion':  pension.numero_expediente,
+                })
+
+        # ── Ausencias sin goce — UNA query para todos ─────────────────
+        absence_code = self.env['planilla.deduction.code'].search(
+            [('code', '=', 'AUSENCIA')], limit=1
+        )
+        if not absence_code:
+            try:
+                absence_code = self.env['planilla.deduction.code'].sudo().create({
+                    'name': 'Ausencia Sin Goce de Sueldo', 'code': 'AUSENCIA',
+                    'deduction_type': 'employee',
+                })
+            except Exception:
+                absence_code = self.env['planilla.deduction.code'].search(
+                    [('code', '=', 'AUSENCIA')], limit=1
+                )
+        if absence_code:
+            from odoo import fields as _fields
+            leaves = self.env['hr.leave'].search([
+                ('employee_id', 'in', emp_ids),
+                ('state', '=', 'validate'),
+                ('date_from', '<=', _fields.Datetime.to_datetime(date_to)),
+                ('date_to',   '>=', _fields.Datetime.to_datetime(date_from)),
+            ])
+            by_emp_leaves = {}
+            for lv in leaves:
+                by_emp_leaves.setdefault(lv.employee_id.id, []).append(lv)
+            for emp_id, lv_list in by_emp_leaves.items():
+                slip = slip_by_emp.get(emp_id)
+                if slip:
+                    for leave in lv_list:
+                        slip._sync_ausencias_single(leave, absence_code)
+
+    def _sync_ausencias_single(self, leave, absence_code):
+        """Sincroniza una ausencia individual en esta boleta (usado en batch mode)."""
+        holiday_type = leave.holiday_status_id
+        is_unpaid = bool(getattr(holiday_type, 'unpaid', False))
+        if not is_unpaid and hasattr(holiday_type, 'work_time_rate'):
+            is_unpaid = (holiday_type.work_time_rate == 0)
+        elif not is_unpaid:
+            name_lower = (holiday_type.name or '').lower()
+            is_unpaid = any(k in name_lower for k in (
+                'sin goce', 'injustificad', 'unpaid', 'sin remuner', 'no remuner'))
+        if not is_unpaid:
+            return
+        existing = self.deduction_line_ids.filtered(lambda l: l.hr_leave_id == leave)
+        if existing:
+            return
+        leave_start = leave.date_from.date() if leave.date_from else self.date_from
+        leave_end   = leave.date_to.date()   if leave.date_to   else self.date_to
+        effective_start = max(leave_start, self.date_from)
+        effective_end   = min(leave_end,   self.date_to)
+        if effective_end < effective_start:
+            return
+        if leave_start >= self.date_from and leave_end <= self.date_to:
+            days_absent = getattr(leave, 'number_of_days', None) or (effective_end - effective_start).days + 1
+        else:
+            days_absent = (effective_end - effective_start).days + 1
+        if days_absent <= 0:
+            return
+        salary_daily = round((self.base_salary or 0.0) / max(self.days_in_period or 30, 1), 2)
+        amount = round(salary_daily * days_absent, 2)
+        if amount <= 0:
+            return
+        self.env['planilla.payslip.deduction.line'].create({
+            'payslip_id':         self.id,
+            'deduction_code_id':  absence_code.id,
+            'description':        f'Ausencia sin goce — {leave.holiday_status_id.name} ({effective_start} al {effective_end}, {days_absent} día(s))',
+            'amount':             amount,
+            'deduction_category': 'ausencia',
+            'hr_leave_id':        leave.id,
+        })
+
+    def _sync_recurring_benefits_batch(self) -> None:
+        """Batch: carga beneficios recurrentes de TODOS los empleados en una query."""
+        if not self:
+            return
+        date_from = self[0].date_from
+        emp_ids = self.mapped('employee_id.id')
+        slip_by_emp = {s.employee_id.id: s for s in self}
+
+        benefits = self.env['planilla.recurring.benefit'].search([
+            ('employee_id', 'in', emp_ids),
+            ('active', '=', True),
+            '|', ('date_start', '=', False), ('date_start', '<=', date_from),
+            '|', ('date_end', '=', False),   ('date_end', '>=', date_from),
+        ])
+        by_emp = {}
+        for b in benefits:
+            by_emp.setdefault(b.employee_id.id, []).append(b)
+
+        for emp_id, bens in by_emp.items():
+            slip = slip_by_emp.get(emp_id)
+            if not slip:
+                continue
+            for ben in bens:
+                amt = ben.get_amount_for_salary(slip.gross_salary or 0.0)
+                self.env['planilla.payslip.deduction.line'].create({
+                    'payslip_id':           slip.id,
+                    'deduction_code_id':    ben.deduction_code_id.id,
+                    'description':          ben.name,
+                    'line_type':            'income' if ben.benefit_type == 'income' else 'deduction',
+                    'amount_type':          ben.amount_type,
+                    'amount':               amt,
+                    'percentage':           ben.percentage,
+                    'recurring_benefit_id': ben.id,
+                })
+
+    def _sync_rop_batch(self) -> None:
+        """Batch: sincroniza ROP para todos los empleados con rop_applies=True."""
+        if not self:
+            return
+        rop_slips = self.filtered(
+            lambda s: s.state == 'draft' and getattr(s.employee_id, 'rop_applies', False)
+                      and (s.gross_salary or 0) > 0
+        )
+        if not rop_slips:
+            return
+        rh = self.env['planilla.rate.helper'].with_company(self[0].company_id)
+        rop_emp_dc = rh._get_deduction_code('ROP_EMP')
+        rop_pat_dc = rh._get_deduction_code('ROP_PAT')
+        from . import planilla_const as _K
+        rop_emp_rate = (rop_emp_dc.employee_percentage / 100) if rop_emp_dc else _K.ROP_EMP
+        rop_pat_rate = (rop_pat_dc.employer_percentage / 100) if rop_pat_dc else _K.ROP_PAT
+        rop_code = self.env['planilla.deduction.code'].search([('code', '=', 'ROP')], limit=1)
+        if not rop_code:
+            try:
+                rop_code = self.env['planilla.deduction.code'].sudo().create({
+                    'code': 'ROP', 'name': 'ROP — Régimen Obligatorio de Pensiones (Ley 7983)',
+                    'deduction_type': 'employee',
+                })
+            except Exception:
+                rop_code = self.env['planilla.deduction.code'].search([('code', '=', 'ROP')], limit=1)
+        lines_to_create = []
+        for slip in rop_slips:
+            g = slip.gross_salary
+            monto_emp = round(g * rop_emp_rate, 2)
+            monto_pat = round(g * rop_pat_rate, 2)
+            lines_to_create.append({
+                'payslip_id':         slip.id,
+                'deduction_code_id':  rop_code.id,
+                'description':        f'ROP Obrero {rop_emp_rate*100:.1f}% — Ley 7983',
+                'line_type':          'deduction',
+                'deduction_category': 'rop',
+                'amount_type':        'percentage',
+                'percentage':         rop_emp_rate * 100,
+                'amount':             monto_emp,
+            })
+            slip.rop_employer = monto_pat
+        if lines_to_create:
+            self.env['planilla.payslip.deduction.line'].create(lines_to_create)
+
+    def _sync_bonos_batch(self) -> None:
+        """Batch: carga bonos activos de TODOS los empleados en una query."""
+        if not self:
+            return
+        date_from = self[0].date_from
+        date_to   = self[0].date_to
+        emp_ids   = self.mapped('employee_id.id')
+        slip_by_emp = {s.employee_id.id: s for s in self}
+
+        bono_code = self.env['planilla.deduction.code'].search([('code', '=', 'BONO')], limit=1)
+        if not bono_code:
+            bono_code = self.env['planilla.deduction.code'].create({
+                'code': 'BONO', 'name': 'Bono / Incentivo', 'deduction_type': 'employee',
+                'calculation_type': 'fixed',
+            })
+
+        bonos = self.env['planilla.bono'].search([
+            ('employee_id', 'in', emp_ids),
+            ('state', '=', 'active'),
+            ('date_start', '<=', date_to),
+            '|', ('date_end', '=', False), ('date_end', '>=', date_from),
+        ])
+        by_emp = {}
+        for b in bonos:
+            by_emp.setdefault(b.employee_id.id, []).append(b)
+
+        lines_to_create = []
+        for emp_id, bono_list in by_emp.items():
+            slip = slip_by_emp.get(emp_id)
+            if not slip:
+                continue
+            for bono in bono_list:
+                if bono.amount_type == 'fixed':
+                    monto = bono.amount
+                else:
+                    monto = round((slip.employee_id.base_salary or 0.0) * bono.percentage / 100.0, 2)
+                if monto <= 0:
+                    continue
+                lines_to_create.append({
+                    'payslip_id':         slip.id,
+                    'deduction_code_id':  bono_code.id,
+                    'description':        f'Bono: {bono.name}',
+                    'line_type':          'income',
+                    'deduction_category': 'bonus',
+                    'amount_type':        bono.amount_type,
+                    'amount':             monto,
+                    'percentage':         bono.percentage if bono.amount_type == 'percentage' else 0.0,
+                })
+        if lines_to_create:
+            self.env['planilla.payslip.deduction.line'].create(lines_to_create)
+
+    def _sync_embargos_batch(self) -> None:
+        """Batch: carga embargos activos de TODOS los empleados en una query."""
+        if not self:
+            return
+        date_from = self[0].date_from
+        date_to   = self[0].date_to
+        emp_ids   = self.mapped('employee_id.id')
+        slip_by_emp = {s.employee_id.id: s for s in self}
+
+        embargo_code = self.env['planilla.deduction.code'].search([('code', '=', 'EMB')], limit=1)
+        if not embargo_code:
+            try:
+                embargo_code = self.env['planilla.deduction.code'].sudo().create({
+                    'code': 'EMB', 'name': 'Embargo Judicial',
+                    'deduction_type': 'employee',
+                })
+            except Exception:
+                embargo_code = self.env['planilla.deduction.code'].search([('code', '=', 'EMB')], limit=1)
+
+        embargos = self.env['planilla.embargo'].search([
+            ('employee_id', 'in', emp_ids),
+            ('state', '=', 'active'),
+            ('date_start', '<=', date_to),
+            '|', ('date_end', '=', False), ('date_end', '>=', date_from),
+        ])
+        by_emp = {}
+        for e in embargos:
+            by_emp.setdefault(e.employee_id.id, []).append(e)
+
+        lines_to_create = []
+        for emp_id, emb_list in by_emp.items():
+            slip = slip_by_emp.get(emp_id)
+            if not slip or not embargo_code:
+                continue
+            gross     = slip.gross_salary or 0.0
+            ccss_emp  = slip.ccss_employee or 0.0
+            renta     = slip.income_tax or 0.0
+            pensiones = sum(l.amount for l in slip.deduction_line_ids
+                           if l.deduction_category == 'pension_alimentaria')
+            ausencias = sum(l.amount for l in slip.deduction_line_ids
+                           if l.deduction_category == 'ausencia')
+            neto_disp = max(0.0, gross - ccss_emp - renta - pensiones - ausencias)
+            from . import planilla_const as _K
+            limite_total = round(neto_disp * _K.MAX_PCT_EMBARGO / 100, 2)
+            ya_embargado = 0.0
+            for embargo in emb_list:
+                existing = slip.deduction_line_ids.filtered(
+                    lambda l, e=embargo: l.deduction_category == 'embargo'
+                    and l.numero_resolucion == e.numero_expediente
+                )
+                if existing:
+                    continue
+                monto = embargo.compute_amount(neto_disp)
+                espacio = max(0.0, limite_total - ya_embargado)
+                monto = min(monto, espacio)
+                if monto <= 0:
+                    continue
+                lines_to_create.append({
+                    'payslip_id':         slip.id,
+                    'deduction_code_id':  embargo_code.id,
+                    'description':        f'Embargo Judicial — {embargo.beneficiario_nombre} ({embargo.numero_expediente})',
+                    'line_type':          'deduction',
+                    'deduction_category': 'embargo',
+                    'amount_type':        embargo.calculation_type,
+                    'amount':             monto,
+                    'percentage':         embargo.percentage if embargo.calculation_type == 'percentage' else 0.0,
+                    'numero_resolucion':  embargo.numero_expediente,
+                })
+                ya_embargado += monto
+        if lines_to_create:
+            self.env['planilla.payslip.deduction.line'].create(lines_to_create)
+
+    def _sync_loan_deductions_batch(self) -> None:
+        """Batch: carga cuotas de préstamos de TODOS los empleados en una query."""
+        if not self:
+            return
+        date_from = self[0].date_from
+        date_to   = self[0].date_to
+        emp_ids   = self.mapped('employee_id.id')
+        slip_by_emp = {s.employee_id.id: s for s in self}
+
+        loan_code = self.env['planilla.deduction.code'].search([('code', '=', 'PRESTAMO')], limit=1)
+        if not loan_code:
+            return
+
+        loans = self.env['planilla.employee.loan'].search([
+            ('employee_id', 'in', emp_ids),
+            ('state', 'in', ['approved', 'active']),
+        ])
+        # Cargar todas las cuotas pendientes en una query
+        all_installments = self.env['planilla.loan.installment'].search([
+            ('loan_id', 'in', loans.ids),
+            ('state', '=', 'pending'),
+        ])
+        # Indexar cuotas por loan_id
+        inst_by_loan = {}
+        for inst in all_installments:
+            inst_by_loan.setdefault(inst.loan_id.id, []).append(inst)
+
+        lines_to_create = []
+        for loan in loans:
+            slip = slip_by_emp.get(loan.employee_id.id)
+            if not slip:
+                continue
+            insts = inst_by_loan.get(loan.id, [])
+            # Buscar cuota del período
+            months_in_period = set()
+            y, m = date_from.year, date_from.month
+            ey, em = date_to.year, date_to.month
+            while (y, m) <= (ey, em):
+                months_in_period.add((y, m))
+                m += 1
+                if m > 12:
+                    m = 1
+                    y += 1
+            matching = [i for i in insts
+                        if i.due_date and (i.due_date.year, i.due_date.month) in months_in_period]
+            if not matching:
+                continue
+            installment = matching[0]
+            existing = slip.deduction_line_ids.filtered(
+                lambda l: l.loan_installment_id == installment
+            )
+            if not existing:
+                lines_to_create.append({
+                    'payslip_id':          slip.id,
+                    'deduction_code_id':   loan_code.id,
+                    'description':         loan.name,
+                    'amount':              installment.amount,
+                    'loan_installment_id': installment.id,
+                })
+        if lines_to_create:
+            self.env['planilla.payslip.deduction.line'].create(lines_to_create)

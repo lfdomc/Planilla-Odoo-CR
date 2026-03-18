@@ -41,6 +41,8 @@ class MinimumSalary(models.Model):
         """
         Retorna el salario mínimo más reciente vigente.
         Si se pasa category, filtra por esa categoría.
+        No usa caché — los salarios mínimos son datos contables críticos
+        que deben consultarse directamente a la BD en cada operación.
         """
         domain = [('active', '=', True)]
         if category:

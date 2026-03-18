@@ -50,7 +50,7 @@
         <field name="calculation_type">table</field>
         <field name="employee_percentage">0.0</field>
         <field name="is_income_tax">True</field>
-        <field name="description">Tabla progresiva MH: Exento hasta ₡929,000; 10% hasta ₡1,362,000; 15% hasta ₡2,414,000; 20% hasta ₡4,830,000; 25% en adelante</field>
+        <field name="description">Tabla progresiva MH 2026 (DGT-R-016-2026): Exento hasta ₡941.000; 10% hasta ₡1.381.000; 15% hasta ₡2.423.000; 20% hasta ₡4.845.000; 25% en adelante</field>
     </record>
 
     <!-- Aguinaldo (provisión) -->

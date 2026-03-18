@@ -59,8 +59,6 @@ access_planilla_aguinaldo_wizard,planilla.aguinaldo.wizard,model_planilla_aguina
 access_planilla_aguinaldo_line,planilla.aguinaldo.line,model_planilla_aguinaldo_line,planilla_cr.group_planilla_admin,1,1,1,1
 access_planilla_import_overtime_wizard,planilla.import.overtime.wizard,model_planilla_import_overtime_wizard,planilla_cr.group_planilla_admin,1,1,1,1
 access_planilla_import_overtime_line,planilla.import.overtime.line,model_planilla_import_overtime_line,planilla_cr.group_planilla_admin,1,1,1,1
-access_planilla_import_overtime_wizard,planilla.import.overtime.wizard,model_planilla_import_overtime_wizard,planilla_cr.group_planilla_admin,1,1,1,1
-access_planilla_import_overtime_line,planilla.import.overtime.line,model_planilla_import_overtime_line,planilla_cr.group_planilla_admin,1,1,1,1
 planilla.public.holiday.admin,planilla.public.holiday admin,model_planilla_public_holiday,planilla_cr.group_planilla_admin,1,1,1,1
 planilla.public.holiday.operador,planilla.public.holiday operador,model_planilla_public_holiday,planilla_cr.group_planilla_operador,1,0,0,0
 planilla.vacation.balance.wizard,planilla.vacation.balance.wizard,model_planilla_vacation_balance_wizard,planilla_cr.group_planilla_aprobador,1,1,1,1

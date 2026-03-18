@@ -23,13 +23,40 @@ class PayslipActionMixin(models.AbstractModel):
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
-        for rec in records:
+        # FIX PERF-05: Si se crean muchas boletas (planilla grupal), usar
+        # sync por lote para reducir queries. Threshold: >1 boleta = modo batch.
+        if len(records) == 1:
+            # Creación individual (UI): sync normal por boleta
+            rec = records
             rec._sync_novedades()
             rec._sync_recurring_benefits()
             rec._sync_rop()
             rec._sync_bonos()
             rec._sync_embargos()
             rec._sync_loan_deductions()
+        else:
+            # Creación masiva (planilla grupal): sync por lote
+            # Guardia: verificar que todas las boletas tienen el mismo período.
+            # Si hay fechas mixtas (caso atípico), hacer sync individual seguro.
+            date_froms = set(r.date_from for r in records if r.date_from)
+            date_tos   = set(r.date_to   for r in records if r.date_to)
+            if len(date_froms) == 1 and len(date_tos) == 1:
+                # Mismo período para todos → modo batch (óptimo)
+                records._sync_novedades_batch()
+                records._sync_recurring_benefits_batch()
+                records._sync_rop_batch()
+                records._sync_bonos_batch()
+                records._sync_embargos_batch()
+                records._sync_loan_deductions_batch()
+            else:
+                # Períodos distintos → sync individual seguro
+                for rec in records:
+                    rec._sync_novedades()
+                    rec._sync_recurring_benefits()
+                    rec._sync_rop()
+                    rec._sync_bonos()
+                    rec._sync_embargos()
+                    rec._sync_loan_deductions()
         return records
 
     def action_sync_novedades(self) -> bool:
