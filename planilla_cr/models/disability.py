@@ -148,6 +148,11 @@ class Disability(models.Model):
                 history = rec.env['planilla.salary.history'].search([
                     ('employee_id', '=', rec.employee_id.id),
                     ('effective_date', '<=', rec.date_start or fields.Date.today()),
+                    # FIX-F6: filtrar solo registros autorizados para consistencia
+                    # con _compute_avg_last_4_weeks y _onchange_employee.
+                    # Sin este filtro podían entrar registros en 'draft' o 'rejected'
+                    # que distorsionarían el promedio de maternidad (Regl. CCSS).
+                    ('state', '=', 'authorized'),
                 ], order='effective_date desc', limit=3)
                 if history:
                     # Promedio de ultimos 3 salarios brutos cotizados (Reglamento CCSS)
@@ -267,6 +272,7 @@ class Disability(models.Model):
             history = rec.env['planilla.salary.history'].search([
                 ('employee_id', '=', rec.employee_id.id),
                 ('effective_date', '<=', rec.date_start or fields.Date.today()),
+                ('state', '=', 'authorized'),  # FIX-G3: solo registros autorizados
             ], order='effective_date desc', limit=3)
             if history:
                 avg = sum(history.mapped('gross_salary')) / len(history)

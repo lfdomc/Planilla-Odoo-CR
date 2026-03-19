@@ -84,6 +84,7 @@ class Overtime(models.Model):
                 history = self.env['planilla.salary.history'].search([
                     ('employee_id', '=', rec.employee_id.id),
                     ('effective_date', '<=', rec.date),
+                    ('state', '=', 'authorized'),  # FIX-G2: solo registros autorizados
                 ], order='effective_date desc', limit=1)
                 if history:
                     base_salary = history.gross_salary

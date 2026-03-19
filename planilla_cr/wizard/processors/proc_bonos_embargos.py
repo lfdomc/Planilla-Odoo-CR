@@ -4,6 +4,8 @@ Cada procesador es un método del wizard ImportDataWizard.
 Se importan desde import_data_wizard.py via herencia múltiple.
 """
 import logging
+import traceback  # FIX-L3: faltaba — usado en bloques except
+from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K

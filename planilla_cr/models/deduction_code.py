@@ -7,9 +7,15 @@ class DeductionCode(models.Model):
     _name = 'planilla.deduction.code'
     _description = 'Código de Deducción'
     _inherit = ['mail.thread']
+    # FIX-G5: constraint company-aware para soporte multi-empresa.
+    # La versión anterior (UNIQUE(code)) impedía que dos empresas distintas
+    # tuvieran el mismo código (ej: ambas con 'CCSS_OBR'), lo cual es correcto
+    # cuando company_id es NULL (código global), pero bloqueaba codes por empresa.
+    # La lógica correcta: code es único POR empresa (o único globalmente si company_id es NULL).
+    # Odoo maneja esto con @api.constrains a nivel ORM para mayor flexibilidad.
     _unique_deduction_code = Constraint(
-        'UNIQUE(code)',
-        'El código de deducción ya existe. Cada código debe ser único en el sistema.'
+        'UNIQUE(code, company_id)',
+        'El código de deducción ya existe para esta empresa. Cada código debe ser único por empresa.'
     )
 
 

@@ -26,7 +26,7 @@ class ImportTemplateWizard(models.TransientModel):
     include_vacations    = fields.Boolean('Saldo de Vacaciones',           default=True)
     include_overtime     = fields.Boolean('⏱️  Horas Extras (histórico)',   default=True)
     include_embargos     = fields.Boolean('⚖️  Embargos Judiciales',        default=True)
-    include_bonos        = fields.Boolean('🎯  Bonos e Incentivos',         default=True)
+    include_bonos        = fields.Boolean('🎯  Bonos y Beneficios',          default=True)
     include_sample_data  = fields.Boolean(
         '🧪  Incluir fila de prueba (EMPLEADO PRUEBA)',
         default=False,
@@ -449,6 +449,12 @@ class ImportTemplateWizard(models.TransientModel):
             ('Número de Dependientes',    False, 12, '0',                        'Hijos u otros dependientes'),
             ('Dirección',                 False, 30, 'San José, Escazú',         'Dirección de habitación'),
             ('Teléfono Personal',         False, 14, '88887777',                 ''),
+            # Salario variable — columna crítica para Art. 153 CT
+            ('Salario Variable',          True,  16, 'No',
+             'Si / No — Active "Si" si el empleado recibe comisiones por ventas, '
+             'horas extras recurrentes u otros ingresos variables.\n'
+             'Con "Si" activado el sistema usa automáticamente el promedio de las\n'
+             'últimas 4 semanas al calcular vacaciones y liquidaciones (Art. 153 CT).'),
             ('Observaciones',             False, 30, '',                         'Notas internas del empleado'),
         ]
 
@@ -461,6 +467,7 @@ class ImportTemplateWizard(models.TransientModel):
                 '', 'Si', '', '', 'BNCR', 'Cuenta Corriente',
                 '500000', '01/01/2024', 'Mensual', 'Salario Fijo', '4110', 'Costarricense',
                 'Soltero/a', 'Masculino', '0', 'San José', '88880000',
+                'No',  # Salario Variable
                 '⚠️ FILA DE PRUEBA — eliminar después de verificar importación',
             ]
         self._build_rows(ws, cols, data_rows=100, header_row=3, example_row=4,
@@ -488,6 +495,8 @@ class ImportTemplateWizard(models.TransientModel):
         self._dv(ws, 32, 'ins_nat',      5, title='Nacionalidad INS')
         # col 33: Estado Civil INS
         self._dv(ws, 33, 'ins_civil',    5, title='Estado Civil INS')
+        # col 38: Salario Variable (si/no) — FIX-K22: col 38, no 37
+        self._dv(ws, 38, 'si_no',        5, title='Salario Variable (si/no)')
         # col 34: Género
         self._dv(ws, 34, 'gender',       5, title='Género')
 
@@ -593,20 +602,69 @@ class ImportTemplateWizard(models.TransientModel):
 
     def _build_vacations(self, wb, sample=False):
         cols = [
-            ('Cédula Empleado',              True,  18, '1-2345-6789',      ''),
-            ('Días Acumulados',              True,  16, '8.5',              'Total de días ganados hasta la fecha de corte'),
-            ('Días Tomados',                 False, 14, '3',                'Días ya disfrutados en el período'),
-            ('Días Disponibles',             False, 14, '5.5',              'Solo referencia: Acumulados − Tomados'),
-            ('Última Fecha de Corte',        False, 18, '31/12/2025',       'Hasta cuándo se calcularon los días'),
-            ('Salario Diario Referencia (₡)',False, 20, '25000',            'Para calcular el pago en colones'),
-            ('Período de Referencia',        False, 22, 'Ene–Dic 2025',     'Período al que corresponden los días'),
-            ('Observaciones',                False, 28, '',                  ''),
+            # ── Identificación ────────────────────────────────────────────────
+            ('Cédula Empleado',               True,  18, '1-2345-6789',   'Cédula del empleado tal como está en el sistema'),
+            # ── Saldo inicial pre-implementación ─────────────────────────────
+            ('Saldo Inicial (días)',           True,  18, '8.50',
+             'OBLIGATORIO: días de vacaciones disponibles a la Fecha de Corte.\n'
+             'Es el saldo REAL que tiene el empleado hoy (lo que le falta por disfrutar).\n'
+             'Ejemplo: si tiene 8.5 días pendientes, escriba 8.5'),
+            ('Fecha de Corte del Saldo',      True,  20, '31/12/2025',
+             'OBLIGATORIO: fecha exacta hasta la cual se calculó el saldo inicial.\n'
+             'El sistema acumulará días solo a partir de esta fecha.\n'
+             'Use el último día antes de que empiece a usar el sistema.\n'
+             'Formato: DD/MM/AAAA'),
+            # ── Información de referencia (solo para documentación) ───────────
+            ('Días Acumulados Totales (ref)', False, 20, '24.00',
+             'Referencia: total de días que le correspondían desde su ingreso.\n'
+             'No se importa, solo para documentar el cálculo.'),
+            ('Días Tomados Historial (ref)',  False, 20, '15.50',
+             'Referencia: días que ya disfrutó antes de la implementación.\n'
+             'No se importa, solo para documentar el cálculo.\n'
+             'Verificación: Acumulados − Tomados = Saldo Inicial'),
+            ('Salario Diario Ref. (₡)',       False, 20, '25000',
+             'Referencia: salario diario del empleado a la fecha de corte.\n'
+             'No se importa, solo para documentar cuánto valdría cada día.'),
+            ('Observaciones',                 False, 30, 'Saldo calculado por RRHH a dic-2025',
+             'Notas internas, quien calculó el saldo, fuente del dato, etc.'),
         ]
-        sv = [self._SAMPLE_CEDULA, '5', '2', '3', '31/12/2023',
-              '16667', 'Ene–Dic 2023', '⚠️ PRUEBA'] if sample else None
+        sv = [self._SAMPLE_CEDULA, '5.0', '31/12/2025', '17.0', '12.0',
+              '16667', '⚠️ PRUEBA'] if sample else None
         ws = wb.create_sheet('🏖️ VACACIONES')
-        self._sheet_title(ws, 'SALDO DE VACACIONES — Días acumulados al momento de la carga', len(cols))
+        self._sheet_title(
+            ws,
+            'SALDO INICIAL DE VACACIONES — Para empresas con empleados pre-existentes',
+            len(cols)
+        )
         self._build_rows(ws, cols, sample_values=sv)
+
+        # Instrucciones adicionales al final de la hoja
+        last_row = ws.max_row + 2
+        inst_fill = PatternFill('solid', fgColor='EBF5FB')
+        inst_font = Font(name='Calibri', size=10, italic=True, color='1A5276')
+
+        instructions = [
+            '📋  INSTRUCCIONES DE USO:',
+            '',
+            '  1. Complete CÉDULA + SALDO INICIAL + FECHA DE CORTE para cada empleado.',
+            '  2. El "Saldo Inicial" es la cantidad de días disponibles en esa fecha exacta.',
+            '     Ejemplo: Juan tiene derecho a 24 días y ha tomado 15.5 → Saldo = 8.5 días.',
+            '  3. La "Fecha de Corte" debe ser el día anterior a que el sistema empiece a controlar.',
+            '     Ejemplo: si arranca en Enero 2026 → use 31/12/2025.',
+            '  4. A partir de esa fecha el sistema acumulará días nuevos automáticamente.',
+            '  5. Las columnas "Días Acumulados" y "Días Tomados" son solo para documentar —',
+            '     NO afectan la importación. Use la columna de verificación: Acumulados − Tomados = Saldo.',
+            '  6. Si el empleado NO tiene saldo inicial (ingresó después del sistema), deje en 0.',
+        ]
+        for i, line in enumerate(instructions):
+            cell = ws.cell(row=last_row + i, column=1, value=line)
+            cell.fill = inst_fill
+            cell.font = inst_font
+            ws.merge_cells(
+                start_row=last_row + i, start_column=1,
+                end_row=last_row + i,   end_column=len(cols)
+            )
+
 
     def _build_overtime(self, wb, sample=False):
         cols = [

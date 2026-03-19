@@ -95,7 +95,7 @@ class PayrollDashboard(models.TransientModel):
             def get_period_data(df, dt):
                 ps = self.env['planilla.payslip.cr'].search([
                     ('company_id', '=', rec.company_id.id),
-                    ('state', '=', 'paid'),
+                    ('state', '=', 'done'),  # FIX-C19: estado pagado es 'done', no 'paid'
                     ('date_from', '>=', df), ('date_to', '<=', dt),
                 ])
                 return {

@@ -81,18 +81,25 @@ class BankPaymentWizard(models.TransientModel):
     #  BCR  DAV  (CSV)
     # ─────────────────────────────────────────────────────────────
     def _validate_bank_accounts(self, payslips):
-        """FIX P-03 v59: Verifica que todos los empleados tengan cuenta bancaria."""
+        """FIX-P3: Verifica que todos los empleados tengan datos de pago.
+        BCR/BNCR usan bank_iban; SINPE Movil usa sinpe_phone.
+        La version anterior bloqueaba empleados con IBAN pero sin bank_account_number.
+        """
         sin_cuenta = payslips.filtered(
-            lambda p: not (p.employee_id.bank_account_number or '').strip()
+            lambda p: not (
+                (p.employee_id.bank_iban or '').strip() or
+                (p.employee_id.bank_account_number or '').strip() or
+                (getattr(p.employee_id, 'sinpe_phone', None) or '').strip()
+            )
         ).mapped('employee_id.name')
         if sin_cuenta:
-            raise UserError(
-                'Los siguientes empleados no tienen número de cuenta bancaria '
-                'y no pueden incluirse en el archivo de pago:\n\n'
-                + '\n'.join(f'  • {n}' for n in sin_cuenta)
-                + '\n\nConfigure la cuenta en el perfil del empleado '
-                '(Planilla → Empleados → Datos Bancarios).'
+            msg = (
+                'Los siguientes empleados no tienen datos bancarios registrados\n'
+                '(IBAN, cuenta bancaria o telefono SINPE):\n\n'
             )
+            msg += '\n'.join(f'  - {n}' for n in sin_cuenta)
+            msg += '\n\nConfigure en: Planilla -> Empleados -> Datos Bancarios.'
+            raise UserError(msg)
 
     def action_export_bcr_dav(self):
         self.ensure_one()

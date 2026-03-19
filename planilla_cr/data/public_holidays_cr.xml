@@ -46,6 +46,14 @@
         <field name="date">2026-09-15</field>
         <field name="type">national</field>
     </record>
+    <!-- FIX-K14: 8 de diciembre — Inmaculada Concepción (Virgen de los Ángeles)
+         Art. 148 CT: feriado de pago obligatorio. Faltaba en la lista original. -->
+    <record id="holiday_cr_2026_12_08" model="planilla.public.holiday">
+        <field name="name">Virgen de los Ángeles (Inmaculada Concepción)</field>
+        <field name="date">2026-12-08</field>
+        <field name="type">national</field>
+        <field name="is_paid">True</field>
+    </record>
     <record id="holiday_cr_2026_12_25" model="planilla.public.holiday">
         <field name="name">Navidad</field>
         <field name="date">2026-12-25</field>
@@ -59,7 +67,7 @@
     <!-- Trabajar este día devenga doble salario sin excepción. -->
     <record id="holiday_cr_2026_10_01" model="planilla.public.holiday">
         <field name="name">Día de la Cultura</field>
-        <field name="date">2026-10-01</field>
+        <field name="date">2026-10-12</field>
         <field name="type">national</field>
         <field name="is_paid">True</field>
         <field name="note">Art. 148 CT + Ley 8442: feriado de pago OBLIGATORIO. Trabajar este día devuelve doble salario.</field>

@@ -65,24 +65,58 @@ class VacationPayment(models.Model):
     # Se calcula automaticamente como el promedio de los ultimos 4 registros
     # de salary_history del empleado. Si no hay historial, cae al salario diario normal.
     avg_last_4_weeks = fields.Monetary(
-        string='Promedio Ultimas 4 Semanas', currency_field='currency_id',
+        string='Salario Diario Promedio Hist. (Art. 153 CT)', currency_field='currency_id',  # FIX-I1: daily rate
         compute='_compute_avg_last_4_weeks', store=True, readonly=False,
-        help='Promedio del salario de las ultimas 4 semanas (Art. 153 CT). '
-             'Se calcula automaticamente desde el historial salarial. '
-             'Puede editarse manualmente si incluye HE, comisiones u otros ingresos variables.'
+        help='Promedio del salario bruto de las últimas 4 semanas antes del inicio de vacaciones.\n'
+             'Se calcula automáticamente desde el historial salarial (boletas pagadas).\n'
+             'Incluye salario base + horas extras + comisiones de cada boleta.\n'
+             'Puede editarse manualmente si necesita ajustar el cálculo.\n'
+             'Obligatorio para empleados con salario variable (Art. 153 CT).'
     )
     use_average = fields.Boolean(
-        string='Usar Promedio 4 Semanas',
+        string='Usar Promedio 4 Semanas (Art. 153 CT)',
         default=False,
-        help='Si el empleado tuvo HE, comisiones u otros ingresos variables, '
-             'activar para calcular con el promedio Art. 153 CT'
+        help='OBLIGATORIO para empleados con comisiones, horas extras recurrentes u otros ingresos variables.\n'
+             'Se activa automáticamente si el empleado tiene el flag "Salario Variable" activo.\n'
+             'Art. 153 CT: durante vacaciones el trabajador recibe el promedio de lo devengado\n'
+             'en las últimas 4 semanas antes del inicio de las vacaciones.'
     )
+    # Campo informativo: indica si el promedio difiere significativamente del salario base
+    avg_vs_base_diff_pct = fields.Float(
+        string='Diferencia Promedio vs Base (%)',
+        compute='_compute_avg_vs_base',
+        help='Diferencia porcentual entre el promedio 4 semanas y el salario base diario.\n'
+             'Si es mayor a 5%, el sistema advierte que se debe usar el promedio.'
+    )
+
+    @api.depends('avg_last_4_weeks', 'daily_salary')
+    def _compute_avg_vs_base(self):
+        for rec in self:
+            if rec.daily_salary and rec.daily_salary > 0 and rec.avg_last_4_weeks:
+                rec.avg_vs_base_diff_pct = round(
+                    abs(rec.avg_last_4_weeks - rec.daily_salary) / rec.daily_salary * 100, 1
+                )
+            else:
+                rec.avg_vs_base_diff_pct = 0.0
 
     @api.depends('employee_id', 'date_start')
     def _compute_avg_last_4_weeks(self):
-        """FIX NEW-05 v54: calcula el promedio salarial de las ultimas 4 semanas
-        desde salary_history. Toma los 4 registros autorizados mas recientes antes
-        de la fecha de inicio de vacaciones.
+        """
+        Art. 153 CT CR: calcula el salario diario promedio de las últimas 4 boletas pagadas.
+
+        FIX-I1: El campo almacena la TARIFA DIARIA promedio (avg_monthly / 30),
+        NO la tarifa semanal. _compute_total multiplica este valor por los días
+        de vacaciones — igual que hace con daily_salary — así ambas rutas son
+        intercambiables y consistentes.
+
+        Error anterior: se guardaba avg_monthly * 12/52 (tarifa semanal ≈ 115k
+        para salario de 500k) y se multiplicaba por días → 12 días * 115k = 1.38M
+        en lugar de 12 días * 16,667 = 200k. Overpayment de 7x cuando use_average=True.
+
+        El historial salarial guarda el gross_salary MENSUAL real de cada boleta —
+        que incluye salario base + HE + comisiones + bonos. El promedio de esos 4
+        registros da el salario mensual promedio representativo, que dividido entre
+        30 da la tarifa diaria correcta para el cálculo de vacaciones.
         """
         for rec in self:
             if not rec.employee_id or not rec.date_start:
@@ -95,14 +129,25 @@ class VacationPayment(models.Model):
             ], order='effective_date desc', limit=4)
             if history:
                 salaries = [h.gross_salary or h.salary or 0.0 for h in history]
-                # Promedio semanal = (salario mensual * 12 meses) / 52 semanas
+                # Promedio mensual de las últimas 4 boletas
                 avg_monthly = sum(salaries) / len(salaries)
-                avg_weekly = avg_monthly * 12 / 52
-                rec.avg_last_4_weeks = round(avg_weekly, 2)
+                # Tarifa diaria = promedio mensual / 30 días (Art. 153 CT)
+                # Se almacena como tarifa DIARIA para ser consistente con daily_salary
+                avg_daily = round(avg_monthly / 30, 2)
+                rec.avg_last_4_weeks = avg_daily
             else:
-                # Sin historial: usar el salario base actual como referencia
+                # Sin historial: usar salario base actual como aproximación
                 base = rec.employee_id.base_salary or 0.0
-                rec.avg_last_4_weeks = round(base * 12 / 52, 2)
+                rec.avg_last_4_weeks = round(base / 30, 2)
+
+    @api.onchange('employee_id')
+    def _onchange_employee_variable_income(self):
+        """
+        MEJORA: si el empleado tiene has_variable_income=True, activa automáticamente
+        use_average para cumplir con Art. 153 CT sin depender del operador.
+        """
+        if self.employee_id and getattr(self.employee_id, 'has_variable_income', False):
+            self.use_average = True
     days_in_money = fields.Integer(
         string='Días a Pagar en Dinero',
         help='Para tipo Mixto: días que se pagan en efectivo (Art. 156 CT)'

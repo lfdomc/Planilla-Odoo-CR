@@ -1,7 +1,7 @@
 {
-    'name': 'Sistema Planilla v5.12-PROD',
-    'version': '19.0.5.12.3',
-    # ── Changelog v5.12-PROD (optimización segura para cientos de empleados) ──────
+    'name': 'Sistema Planilla v5.14-PROD',
+    'version': '19.0.5.14.0',
+    # ── Changelog v5.13 (Licencias Especiales CR + Auditoría Producción) ────
     # Decisión de diseño: NO se usan cachés para datos contables críticos
     # (tasas CCSS/INS/renta, tramos de renta, salarios mínimos MTSS).
     # Cada boleta consulta directamente la BD para garantizar exactitud contable.
@@ -57,7 +57,7 @@
     # ─────────────────────────────────────────────────────────────────────────
     
     'category': 'Human Resources/Payroll',
-    'summary': 'Sistema de Planilla Costa Rica v5.12 — Legislación CR 2026',
+    'summary': 'Sistema de Planilla Costa Rica v5.14 — Legislación CR 2026',
     # ── Changelog v58 ──────────────────────────────────────────────────────────
     # FIX B-04    — planilla_const.py: PERIODOS_POR_MES['bimonthly']=0.5 (era 1 — error fiscal)
     # FIX B-05    — _create_accounting_entry: elimina N+1 query en loop de bonos
@@ -155,6 +155,7 @@
         'data/income_tax_data.xml',
         'data/minimum_salary_data.xml',
         'data/deduction_code_data.xml',
+        'data/leave_cr_data.xml',
         'data/default_data.xml',
         # Views - Configuración
         'views/income_tax_bracket_views.xml',
@@ -179,6 +180,7 @@
         'views/termination_views.xml',
         'views/embargo_views.xml',
         'views/bono_views.xml',
+        'views/leave_cr_views.xml',
         'views/bono_antiguedad_config_views.xml',
         'views/payslip_cr_views.xml',
         'views/payroll_run_cr_views.xml',

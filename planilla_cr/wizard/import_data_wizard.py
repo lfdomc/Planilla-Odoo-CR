@@ -251,7 +251,7 @@ class ImportDataWizard(models.TransientModel):
     import_vacations    = fields.Boolean('🏖️  Vacaciones',                     default=True)
     import_overtime     = fields.Boolean('⏱️  Horas Extras',                   default=True)
     import_embargos     = fields.Boolean('⚖️  Embargos Judiciales',            default=True)
-    import_bonos        = fields.Boolean('🎯  Bonos e Incentivos',             default=True)
+    import_bonos        = fields.Boolean('🎯  Bonos y Beneficios',             default=True)
     import_sample_data  = fields.Boolean(
         '🧪  Importar fila de prueba (cédula 1-0000-0001)',
         default=False,
@@ -487,6 +487,7 @@ class ImportDataWizard(models.TransientModel):
                         'payroll_calculation_method': _map(CALC_METHOD, v('Método', 'Metodo', 'Método de Cálculo')) or 'fixed',
                         'ccss_number':                str(v('CCSS', 'Número CCSS', 'Numero CCSS') or '').strip() or False,
                         'ccss_insured':               _parse_bool(v('Asegurado CCSS', 'CCSS Asegurado')),
+                        'has_variable_income':        _parse_bool(v('Salario Variable', 'Comisiones', 'Ingreso Variable')),
                         'bank_account_number':        str(v('Cuenta Bancaria', 'Cuenta') or '').strip() or False,
                         'bank_iban':                  str(v('IBAN') or '').strip() or False,
                         'sinpe_phone':                str(v('SINPE', 'Sinpe Móvil', 'Sinpe Movil') or '').strip() or False,
@@ -633,11 +634,15 @@ class ImportDataWizard(models.TransientModel):
 
             except Exception as e:
                 err_count += 1
+                # FIX-A3: _process_loans no usa dict 'vals' (crea el objeto loan directamente).
+                # El bloque except referenciaba vals.items() que causa NameError secundario
+                # cuando el error ocurre antes de que loan se cree. Usar locals() como fallback.
+                _safe_vals = locals().get('vals', {}) or {}
                 errors.append({
                     'hoja': 'PRESTAMOS', 'fila': row_num, 'cedula': cedula,
                     'nombre': emp.name, 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in vals.items()},
+                    'vals': {k: str(v)[:120] for k, v in _safe_vals.items()},
                 })
                 _logger.warning('ImportDataWizard PRESTAMOS fila %s: %s', row_num, e)
 
@@ -831,7 +836,9 @@ class ImportDataWizard(models.TransientModel):
                         'date_start':           _parse_date(v('Fecha Inicio')) or date.today(),
                         'date_end':             _parse_date(v('Fecha Fin')) or date.today(),
                         'subsidy_percentage':   _parse_float(v('% Subsidiado', 'Subsidiado CCSS')),
-                        'employer_percentage':  _parse_float(v('% Patrono', 'Cargo Patrono')) or 40.0,
+                        'employer_percentage':  _parse_float(v('% Patrono', 'Cargo Patrono')) or 0.0,
+                        # FIX-A2: default 0.0 — el complemento patronal NO es obligatorio
+                        # (Art. 79 Regl. CCSS). El valor anterior 40.0 era fiscalmente incorrecto.
                         'certificate_number':   str(v('Número Certificado', 'Certificado') or '').strip() or False,
                         'diagnosis':            str(v('Diagnóstico', 'Diagnostico') or '').strip() or False,
                         'note':                 str(v('Observaciones') or '').strip() or False,
@@ -860,8 +867,16 @@ class ImportDataWizard(models.TransientModel):
 
     def _process_vacations(self, wb, errors):
         """
-        Registra los días tomados como registros de vacation.payment tipo 'disfrutadas'.
-        Los días acumulados son computados automáticamente por entry_date.
+        Carga el saldo inicial de vacaciones directamente en los campos
+        vacation_initial_balance y vacation_initial_balance_date del empleado.
+
+        Estrategia:
+          - Lee 'Saldo Inicial (días)' y 'Fecha de Corte del Saldo' del Excel.
+          - Actualiza el empleado con esos valores.
+          - El cálculo automático (_compute_vacation_balance) usará estos campos
+            como punto de partida y acumulará días solo a partir de esa fecha.
+          - Si el empleado ya tiene saldo inicial configurado, lo SOBREESCRIBE
+            (idempotente: se puede reimportar sin duplicar datos).
         """
         created = err_count = 0
         hdrs, rows = self._sheet_rows(wb, ['VACACION', 'VACATION'])
@@ -887,41 +902,60 @@ class ImportDataWizard(models.TransientModel):
 
             try:
                 with self.env.cr.savepoint():
-                    days_taken = _parse_float(v('Días Tomados', 'Dias Tomados'))
-                    cutoff     = _parse_date(v('Última Fecha', 'Fecha de Corte')) or date.today()
-                    obs        = str(v('Observaciones', 'Período') or '').strip()
+                    # Columnas principales (obligatorias para saldo inicial)
+                    saldo_raw = v('Saldo Inicial', 'Saldo Inicial (días)', 'Días Disponibles', 'Dias Disponibles')
+                    # Distinguir celda vacía (None/'') de cero real
+                    saldo_vacio = (saldo_raw is None or str(saldo_raw).strip() == '')
+                    saldo_inicial = _parse_float(saldo_raw)  # 0.0 si vacío
+                    fecha_corte = _parse_date(
+                        v('Fecha de Corte del Saldo', 'Fecha de Corte', 'Última Fecha de Corte', 'Ultima Fecha')
+                    )
+                    obs = str(v('Observaciones', 'Período', 'Periodo') or '').strip()
 
-                    branch = self._find_m2o('planilla.branch', v('Sucursal'),
-                                extra_domain=[('company_id', '=', self.company_id.id)])
+                    vals_emp = {}
 
-                    # Solo crear registro si hay días tomados que registrar
-                    if days_taken > 0:
-                        days_int = int(days_taken)
-                        vals = {
-                            'employee_id':    emp.id,
-                            'vacation_type':  'disfrutadas',
-                            'date_start':     emp.entry_date or cutoff,
-                            'date_end':       cutoff,
-                            'state':          'paid',
-                            'note':           obs or f'Saldo inicial importación — {days_int} días tomados',
-                        }
-                        if branch:
-                            vals['branch_id'] = branch.id
+                    # Solo actualizar si la celda tiene un valor (incluso 0 explícito es válido)
+                    if not saldo_vacio:
+                        vals_emp['vacation_initial_balance'] = round(saldo_inicial, 2)
 
-                        self.env['planilla.vacation.payment'].create(vals)
+                    if fecha_corte:
+                        vals_emp['vacation_initial_balance_date'] = fecha_corte
+                    elif not saldo_vacio and saldo_inicial > 0 and not fecha_corte:
+                        # Hay saldo pero no fecha → advertir y usar hoy
+                        vals_emp['vacation_initial_balance_date'] = date.today()
+                        errors.append({
+                            'hoja': 'VACACIONES', 'fila': row_num, 'cedula': cedula,
+                            'nombre': emp.name,
+                            'error': 'Advertencia: no se encontró Fecha de Corte del Saldo. '
+                                     'Se usó la fecha de hoy como corte. '
+                                     'Corrija manualmente en el perfil del empleado.',
+                        })
+
+                    if vals_emp:
+                        emp.write(vals_emp)
+                        # Forzar recálculo del saldo
+                        emp._compute_vacation_balance()
                         created += 1
+
+                        if obs:
+                            emp.message_post(
+                                body=f'<b>Saldo inicial de vacaciones importado:</b> '
+                                     f'{saldo_inicial} días al {fecha_corte}. '
+                                     f'Obs: {obs}',
+                                message_type='notification',
+                            )
 
             except Exception as e:
                 err_count += 1
                 errors.append({
                     'hoja': 'VACACIONES', 'fila': row_num, 'cedula': cedula,
-                    'nombre': emp.name, 'error': str(e),
+                    'nombre': emp.name if emp else '', 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in vals.items()},
                 })
                 _logger.warning('ImportDataWizard VACACIONES fila %s: %s', row_num, e)
 
         return created, err_count
+
 
     def _process_overtime(self, wb, errors):
         created = err_count = 0
@@ -1220,11 +1254,17 @@ class ImportDataWizard(models.TransientModel):
         total_errors = sum(e for e in [
             counters['emp_errors'], counters['loan_errors'], counters['pen_errors'],
             counters['ben_errors'], counters['dis_errors'], counters['vac_errors'],
-            counters['ot_errors']] if e)
+            counters['ot_errors'],
+            # FIX-O4: faltaban embargos y bonos — el resumen subestimaba errores
+            counters.get('emb_errors', 0), counters.get('bon_errors', 0),
+        ] if e)
         total_ok = sum(e for e in [
             counters['emp_created'], counters['loan_created'], counters['pen_created'],
             counters['ben_created'], counters['dis_created'], counters['vac_created'],
-            counters['ot_created']] if e)
+            counters['ot_created'],
+            # FIX-O4: faltaban embargos y bonos — el resumen subestimaba importaciones
+            counters.get('emb_created', 0), counters.get('bon_created', 0),
+        ] if e)
 
         # ══════════════════════════════════════════════════════════════════════
         # HOJA 1 — RESUMEN

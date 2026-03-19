@@ -104,7 +104,6 @@ class CcssReport(models.TransientModel):
 
     def action_generate_excel(self):
         self.ensure_one()
-        self.ensure_one()
 
         data = self.get_report_data()
         if not data['rows']:

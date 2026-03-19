@@ -87,3 +87,6 @@ access_planilla_bono_aprobador,planilla.bono.aprobador,model_planilla_bono,plani
 access_planilla_bono_operador,planilla.bono.operador,model_planilla_bono,planilla_cr.group_planilla_operador,1,1,1,0
 access_bono_antiguedad_config_admin,planilla.bono.antiguedad.config.admin,model_planilla_bono_antiguedad_config,planilla_cr.group_planilla_admin,1,1,1,1
 access_bono_antiguedad_config_aprobador,planilla.bono.antiguedad.config.aprobador,model_planilla_bono_antiguedad_config,planilla_cr.group_planilla_aprobador,1,0,0,0
+access_planilla_leave_cr_admin,planilla.leave.cr.admin,model_planilla_leave_cr,planilla_cr.group_planilla_admin,1,1,1,1
+access_planilla_leave_cr_aprobador,planilla.leave.cr.aprobador,model_planilla_leave_cr,planilla_cr.group_planilla_aprobador,1,1,1,1
+access_planilla_leave_cr_operador,planilla.leave.cr.operador,model_planilla_leave_cr,planilla_cr.group_planilla_operador,1,1,0,0

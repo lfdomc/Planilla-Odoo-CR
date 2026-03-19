@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         LISTA
+    ════════════════════════════════════════════════════════════════════ -->
+    <record id="view_leave_cr_list" model="ir.ui.view">
+        <field name="name">planilla.leave.cr.list</field>
+        <field name="model">planilla.leave.cr</field>
+        <field name="arch" type="xml">
+            <list string="Licencias Especiales"
+                  decoration-success="state=='approved'"
+                  decoration-info="state=='paid'"
+                  decoration-muted="state=='cancelled'">
+                <field name="employee_id"/>
+                <field name="branch_id" optional="show"/>
+                <field name="leave_type"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="days"/>
+                <field name="working_days" optional="show"/>
+                <field name="has_salary" widget="boolean_toggle"/>
+                <field name="leave_amount"/>
+                <field name="state" widget="badge"
+                       decoration-success="state=='approved'"
+                       decoration-info="state=='paid'"
+                       decoration-muted="state=='cancelled'"/>
+                <field name="payslip_id" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         FORMULARIO
+    ════════════════════════════════════════════════════════════════════ -->
+    <record id="view_leave_cr_form" model="ir.ui.view">
+        <field name="name">planilla.leave.cr.form</field>
+        <field name="model">planilla.leave.cr</field>
+        <field name="arch" type="xml">
+            <form string="Licencia Especial">
+                <header>
+                    <button name="action_approve" type="object"
+                            string="Aprobar"
+                            invisible="state != 'draft'"
+                            class="btn-primary"/>
+                    <button name="action_reset_draft" type="object"
+                            string="Volver a Borrador"
+                            invisible="state not in ('approved',)"
+                            class="btn-secondary"/>
+                    <button name="action_cancel" type="object"
+                            string="Cancelar"
+                            invisible="state in ('paid', 'cancelled')"
+                            confirm="¿Está seguro de cancelar esta licencia?"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved,paid"/>
+                </header>
+
+                <sheet>
+                    <!-- Alerta base legal -->
+                    <div class="alert alert-info col-12" role="alert"
+                         invisible="not leave_type">
+                        <strong>Base Legal: </strong>
+                        <field name="legal_basis" readonly="1" nolabel="1"/>
+                        <span invisible="max_days_info == 0">
+                            — Máximo <field name="max_days_info" readonly="1" nolabel="1"/> días hábiles.
+                        </span>
+                    </div>
+
+                    <!-- Alerta si procesada en boleta -->
+                    <div class="alert alert-success col-12" role="alert"
+                         invisible="not payslip_id">
+                        <strong>✔ Procesada en boleta:</strong>
+                        <field name="payslip_id" readonly="1" nolabel="1"/>
+                    </div>
+
+                    <group>
+                        <group string="Empleado">
+                            <field name="employee_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="branch_id" readonly="1"/>
+                            <field name="company_id" readonly="1"/>
+                        </group>
+                        <group string="Tipo de Licencia">
+                            <field name="leave_type"
+                                   readonly="state != 'draft'"/>
+                            <field name="has_salary" readonly="1"/>
+                            <field name="has_salary_override"
+                                   invisible="has_salary"
+                                   readonly="state != 'draft'"
+                                   string="¿Pagar voluntariamente?"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group string="Período">
+                            <field name="date_start"
+                                   readonly="state != 'draft'"/>
+                            <field name="date_end"
+                                   readonly="state != 'draft'"/>
+                            <field name="days" readonly="1"/>
+                            <field name="working_days"
+                                   readonly="state != 'draft'"
+                                   help="Si la ley habla de días HÁBILES (duelo, paternidad, matrimonio), ingrese aquí los días hábiles. El sistema calculará el monto sobre este valor. Si queda en 0 se usan los días calendario."/>
+                        </group>
+                        <group string="Montos">
+                            <field name="daily_salary" readonly="1"/>
+                            <field name="leave_amount" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <!-- Sección Duelo -->
+                    <group string="Datos del Fallecido (Ley 8698 / Art. 37 bis CT)"
+                           invisible="leave_type not in ('duelo_primer_grado', 'duelo_otro')">
+                        <group>
+                            <field name="relative_name"
+                                   readonly="state != 'draft'"
+                                   required="leave_type in ('duelo_primer_grado', 'duelo_otro')"/>
+                            <field name="relative_relationship"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                        <div class="alert alert-warning col-12" role="alert"
+                             invisible="leave_type != 'duelo_primer_grado'">
+                            <strong>Art. 37 bis CT (Ley 8698):</strong>
+                            El trabajador tiene derecho a <strong>3 días hábiles</strong>
+                            con goce de sueldo por fallecimiento de cónyuge, compañero(a),
+                            hijo(a), padre, madre o hermano(a).<br/>
+                            Se requiere presentar el <strong>acta de defunción</strong>
+                            y documento que acredite el parentesco.
+                        </div>
+                        <div class="alert alert-info col-12" role="alert"
+                             invisible="leave_type != 'duelo_otro'">
+                            <strong>Duelo — Otros parientes:</strong>
+                            La ley no obliga al patrono a pagar licencia por fallecimiento
+                            de parientes fuera del primer grado de consanguinidad.<br/>
+                            Puede activar <em>"¿Pagar voluntariamente?"</em> si la
+                            política de la empresa así lo establece.
+                        </div>
+                    </group>
+
+                    <!-- Sección Paternidad -->
+                    <div class="alert alert-info col-12" role="alert"
+                         invisible="leave_type not in ('paternidad', 'paternidad_adopcion')">
+                        <strong>Ley 8107 / Art. 95 CT:</strong>
+                        El padre tiene derecho a <strong>8 días hábiles</strong>
+                        con goce de sueldo al 100%, a cargo del patrono.<br/>
+                        Debe presentar el <strong>acta de nacimiento o de adopción</strong>
+                        dentro de los 8 días hábiles del parto o de la resolución de adopción.
+                    </div>
+
+                    <!-- Sección Adopción -->
+                    <div class="alert alert-warning col-12" role="alert"
+                         invisible="leave_type != 'adopcion'">
+                        <strong>Ley 9406 — Licencia por Adopción:</strong>
+                        La persona adoptante primaria tiene derecho a
+                        <strong>3 meses (90 días)</strong> con goce de sueldo.<br/>
+                        Si el trabajador cotiza a la CCSS, el subsidio lo cubre la CCSS
+                        (igual que maternidad). En ese caso, regístrelo también en
+                        <strong>Novedades → Incapacidades</strong> con tipo <em>Maternidad</em>
+                        para que el sistema calcule el subsidio CCSS correctamente.<br/>
+                        Si la empresa lo paga directamente (sin trámite CCSS), manténgalo
+                        aquí y el monto se registrará como gasto patronal (cuenta 630800).
+                    </div>
+
+                    <!-- Sección Lactancia -->
+                    <div class="alert alert-info col-12" role="alert"
+                         invisible="leave_type != 'lactancia'">
+                        <strong>Art. 95 CT — Período de Lactancia:</strong>
+                        La madre tiene derecho a <strong>dos períodos de 15 minutos</strong>
+                        cada uno durante la jornada laboral, por un mínimo de 1 año
+                        desde el parto.<br/>
+                        Este registro documenta el período de lactancia activo.
+                        No genera deducción salarial.
+                    </div>
+
+                    <!-- Sección Matrimonio -->
+                    <div class="alert alert-info col-12" role="alert"
+                         invisible="leave_type != 'matrimonio'">
+                        <strong>Art. 37 CT — Licencia por Matrimonio:</strong>
+                        El trabajador tiene derecho a <strong>2 días</strong>
+                        con goce de sueldo por su matrimonio.<br/>
+                        Se requiere presentar el <strong>acta de matrimonio</strong>.
+                    </div>
+
+                    <group string="Documentación y Notas">
+                        <field name="certificate_number"
+                               string="N° Documento (Acta/Certificado)"
+                               readonly="state != 'draft'"
+                               placeholder="Ej: 2024-00123-TS1"/>
+                        <field name="note" readonly="state != 'draft'"/>
+                    </group>
+                </sheet>
+
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         BÚSQUEDA
+    ════════════════════════════════════════════════════════════════════ -->
+    <record id="view_leave_cr_search" model="ir.ui.view">
+        <field name="name">planilla.leave.cr.search</field>
+        <field name="model">planilla.leave.cr</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Licencias">
+                <field name="employee_id"/>
+                <field name="leave_type"/>
+                <field name="date_start"/>
+                <separator/>
+                <filter string="Borrador"   name="draft"     domain="[('state','=','draft')]"/>
+                <filter string="Aprobadas"  name="approved"  domain="[('state','=','approved')]"/>
+                <filter string="Procesadas" name="paid"      domain="[('state','=','paid')]"/>
+                <filter string="Canceladas" name="cancelled" domain="[('state','=','cancelled')]"/>
+                <separator/>
+                <filter string="Con Goce"  name="con_goce" domain="[('has_salary','=',True)]"/>
+                <filter string="Sin Goce"  name="sin_goce" domain="[('has_salary','=',False)]"/>
+                <separator/>
+                <filter string="Duelo"      name="duelo"
+                        domain="[('leave_type','in',['duelo_primer_grado','duelo_otro'])]"/>
+                <filter string="Paternidad" name="paternidad"
+                        domain="[('leave_type','in',['paternidad','paternidad_adopcion'])]"/>
+                <separator/>
+                <filter string="▾ Por Empleado" name="by_employee" context="{'group_by':'employee_id'}"/>
+                <filter string="▾ Por Tipo"     name="by_type"     context="{'group_by':'leave_type'}"/>
+                <filter string="▾ Por Sucursal" name="by_branch"   context="{'group_by':'branch_id'}"/>
+                <filter string="▾ Por Estado"   name="by_state"    context="{'group_by':'state'}"/>
+                <filter string="▾ Por Mes"      name="by_month"    context="{'group_by':'date_start:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         ACCIÓN
+    ════════════════════════════════════════════════════════════════════ -->
+    <record id="action_leave_cr" model="ir.actions.act_window">
+        <field name="name">Licencias Especiales</field>
+        <field name="res_model">planilla.leave.cr</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_leave_cr_search"/>
+        <field name="context">{'search_default_approved': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No hay licencias especiales registradas.
+            </p>
+            <p>
+                Registre aquí las licencias laborales con base legal costarricense:
+                duelo, paternidad, matrimonio, adopción, lactancia, sin goce, etc.
+            </p>
+        </field>
+    </record>
+
+</odoo>

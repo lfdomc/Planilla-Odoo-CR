@@ -41,10 +41,11 @@ class SendPayslipWizard(models.TransientModel):
                 continue
 
             try:
-                # Odoo 17+ requiere pasar el xml_id como string, no el recordset
-                pdf_content, _ = report._render_qweb_pdf(
-                    'planilla_cr.report_payslip_cr_document',
-                    [payslip.id]
+                # FIX-I9: usar mismo patrón que audit_zip_wizard — pasar el record,
+                # no el xml_id del template. La firma correcta en Odoo 19 es:
+                # env['ir.actions.report']._render_qweb_pdf(report_record, res_ids)
+                pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(
+                    report, [payslip.id]
                 )
                 pdf_b64 = base64.b64encode(pdf_content).decode('utf-8')
             except Exception as e:

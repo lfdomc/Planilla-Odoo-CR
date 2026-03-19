@@ -99,10 +99,15 @@ class PayslipAccountingMixin(models.AbstractModel):
             else:
                 bonos_salariales = round(bonos_salariales + line.amount, 2)
 
-        # Otros ingresos adicionales (recurring_benefit tipo income, no bonos)
+        # Otros ingresos adicionales (recurring_benefit tipo income, no bonos, no licencias)
+        # FIX-F5: excluir 'licencia_con_goce' de otros_ingresos — se contabiliza
+        # por separado en account_licencia_expense (630800). Incluirla aquí causaba
+        # doble DEBE: una vez en extra_income y otra en add_line(licencias_con_goce),
+        # haciendo que el asiento no cuadrara cuando hay licencias especiales.
         otros_ingresos = round(sum(
             l.amount for l in self.deduction_line_ids
-            if l.line_type == 'income' and l.deduction_category != 'bonus'
+            if l.line_type == 'income'
+            and l.deduction_category not in ('bonus', 'licencia_con_goce')
         ), 2)
         extra_income = round(bonos_salariales + subsidios_exentos + otros_ingresos, 2)
 
@@ -122,6 +127,16 @@ class PayslipAccountingMixin(models.AbstractModel):
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'ausencia'
         ), 2)
+        # Licencias CON goce: ingreso adicional en la boleta (gasto patronal → DEBE 630800)
+        licencias_con_goce = round(sum(
+            l.amount for l in self.deduction_line_ids
+            if l.deduction_category == 'licencia_con_goce' and l.line_type == 'income'
+        ), 2)
+        # Licencias SIN goce: deducción al empleado (reduce neto a pagar → HABER 230000)
+        licencias_sin_goce = round(sum(
+            l.amount for l in self.deduction_line_ids
+            if l.deduction_category == 'licencia_sin_goce' and l.line_type == 'deduction'
+        ), 2)
         # FIX v512 BUG-CRÍTICO-01: 'rop' excluido de otras_ded.
         # El ROP obrero va a account_rop_payable (230350), no a account_salary_payable.
         # Sin esta exclusión, el ROP se descontaba dos veces de net_for_accounting
@@ -131,13 +146,17 @@ class PayslipAccountingMixin(models.AbstractModel):
             l.amount for l in self.deduction_line_ids
             if l.line_type == 'deduction'
                and l.deduction_category not in (
-                   'pension_alimentaria', 'loan', 'ausencia', 'embargo', 'rop'
+                   'pension_alimentaria', 'loan', 'ausencia', 'embargo', 'rop',
+                   'licencia_sin_goce',
                )
         ), 2)
 
         # salary_payable calculado localmente para garantizar cuadre
         # = gross - ccss_emp - renta + subsidio_ccss + paternidad + extra_income
-        #   - pensiones - embargos - prestamos - ausencias - rop_obrero - otras_ded
+        #   + licencias_con_goce  (se pagan al empleado → aumentan el neto)
+        #   - pensiones - embargos - prestamos - ausencias
+        #   - licencias_sin_goce  (se descuentan al empleado → reducen el neto)
+        #   - rop_obrero - otras_ded
         # ROP obrero va a 230350 (rop_payable), no a 230000 (salary_payable)
         rop_obrero_net = round(sum(
             l.amount for l in self.deduction_line_ids
@@ -145,14 +164,16 @@ class PayslipAccountingMixin(models.AbstractModel):
         ), 2)
         net_for_accounting = round(
             gross - ccss_emp - renta
-            + subsidy       # subsidio CCSS días 4+ (la CCSS lo deposita al empleado)
-            + pat_amount    # paternidad: patrono asume los 8 días
-            + extra_income  # ingresos adicionales en boleta (bonos + subsidios)
+            + subsidy            # subsidio CCSS días 4+ (la CCSS lo deposita al empleado)
+            + pat_amount         # paternidad: patrono asume los 8 días
+            + extra_income       # ingresos adicionales en boleta (bonos + subsidios)
+            + licencias_con_goce # licencias pagadas (duelo, matrimonio, etc.) → aumentan neto
             - pensiones
-            - embargos      # embargos judiciales retenidos
+            - embargos           # embargos judiciales retenidos
             - prestamos
             - ausencias
-            - rop_obrero_net   # ROP obrero 1% — va a 230350, reduce lo que va a 230000
+            - licencias_sin_goce # permisos sin goce → reducen neto
+            - rop_obrero_net     # ROP obrero 1% — va a 230350, reduce lo que va a 230000
             - otras_ded,
             2
         )
@@ -245,6 +266,14 @@ class PayslipAccountingMixin(models.AbstractModel):
                      debit=otros_ingresos,
                      name=f'Ingresos Adicionales en Boleta — {emp}')
 
+        # Licencias con goce: gasto patronal a cuenta 630800 (o fallback 630000)
+        # Duelo 1er grado, paternidad/adopción, matrimonio, donación de sangre, etc.
+        if licencias_con_goce > 0:
+            lic_acct = getattr(config, 'account_licencia_expense', None) or config.account_salary_expense
+            add_line(lic_acct,
+                     debit=licencias_con_goce,
+                     name=f'Licencias con Goce (duelo/paternidad/matrimonio…) — {emp}')
+
         # ── CRÉDITOS (Pasivos y retenciones) ─────────────────────────────────
         add_line(config.account_ccss_payable,
                  credit=round(ccss_emp + ccss_pat, 2),
@@ -296,6 +325,11 @@ class PayslipAccountingMixin(models.AbstractModel):
             add_line(config.account_salary_payable,
                      credit=ausencias,
                      name=f'Descuento Ausencias Sin Goce — {emp}')
+
+        if licencias_sin_goce > 0:
+            add_line(config.account_salary_payable,
+                     credit=licencias_sin_goce,
+                     name=f'Descuento Licencias Sin Goce — {emp}')
 
         # FIX v56: ROP — HABER para ambos tramos (obrero + patronal)
         # El ROP obrero reduce el neto; el ROP patronal es costo adicional del patrono.

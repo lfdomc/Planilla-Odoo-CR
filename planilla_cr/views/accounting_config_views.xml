@@ -56,6 +56,9 @@
                                     <field name="account_subsidio_expense"
                                            options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
                                            help="Subsidios exentos (transporte hasta ₡74,000/mes, gastos de representación documentados). Si no se configura, usa Sueldos y Salarios."/>
+                                    <field name="account_licencia_expense"
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
+                                           help="Licencias especiales con goce: duelo 1er grado (3 días), paternidad (8 días), matrimonio (2 días), adopción (3 meses), etc. Ej: 630800. Si no se configura, usa Sueldos y Salarios."/>
                                 </group>
                             </group>
                         </page>

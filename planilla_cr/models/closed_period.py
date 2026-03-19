@@ -51,12 +51,14 @@ class PlanillaClosedPeriod(models.Model):
     def create(self, vals_list):
         records = super().create(vals_list)
         for rec in records:
-            # Auto-capturar planillas pagadas en el período al momento del cierre
+            # Auto-capturar planillas pagadas en el período al momento del cierre.
+            # FIX-AUD-14: planilla.run.cr usa date_start/date_end (no date_from/date_to)
+            # y el estado pagado es 'done' (no 'paid').
             runs = self.env['planilla.run.cr'].search([
                 ('company_id', '=', rec.company_id.id),
-                ('state', '=', 'paid'),
-                ('date_from', '>=', rec.date_from),
-                ('date_to',   '<=', rec.date_to),
+                ('state', '=', 'done'),
+                ('date_start', '>=', rec.date_from),
+                ('date_end',   '<=', rec.date_to),
             ])
             if runs:
                 rec.run_ids = [(6, 0, runs.ids)]

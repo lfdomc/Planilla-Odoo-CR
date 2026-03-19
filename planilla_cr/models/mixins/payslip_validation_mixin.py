@@ -25,6 +25,7 @@ class PayslipValidationMixin(models.AbstractModel):
         'paternity_amount',
         'ccss_employer', 'ins_employer', 'rop_employer', 'aguinaldo_provision',
         'cesantia_provision', 'vacation_provision', 'deduction_line_ids.amount',
+        'deduction_line_ids.line_type', 'deduction_line_ids.deduction_category',
         'bono_salarial_amount',
     )
     def _compute_totals(self) -> None:
@@ -34,6 +35,18 @@ class PayslipValidationMixin(models.AbstractModel):
             # (afecto_ccss=False: transporte, representación, etc.) como extra_income.
             # FIX v54b N+1: cargamos el set de nombres salariales UNA vez para el loop.
             nombres_salariales = rec._get_bono_salarial_names()
+
+            # Licencias con goce: son ingresos adicionales que el patrono paga
+            licencias_con_goce = sum(
+                l.amount for l in rec.deduction_line_ids
+                if l.deduction_category == 'licencia_con_goce' and l.line_type == 'income'
+            )
+            # Licencias sin goce: deducciones al empleado
+            licencias_sin_goce = sum(
+                l.amount for l in rec.deduction_line_ids
+                if l.deduction_category == 'licencia_sin_goce' and l.line_type == 'deduction'
+            )
+
             extra_income = sum(
                 l.amount for l in rec.deduction_line_ids
                 if l.line_type == 'income'
@@ -42,47 +55,43 @@ class PayslipValidationMixin(models.AbstractModel):
                     and (l.description or '').replace('Bono: ', '').strip() in nombres_salariales
                 )
             )
-            # Deducciones adicionales: sindicato, cooperativa, embargo, préstamos
+            # Deducciones adicionales: sindicato, cooperativa, embargo, préstamos, licencias sin goce
             extra_deductions = sum(
                 l.amount for l in rec.deduction_line_ids
                 if l.line_type == 'deduction'
             )
 
             # Total Deducciones Obrero = CCSS + Renta + otras legales + deducciones adicionales
-            # (sindicato, cooperativa, embargo, cuotas préstamo, pensión alimentaria, etc.)
-            # FIX M-03 v51: agregar extra_deductions para que el total refleje todas las
-            # deducciones reales al empleado, no solo las legales obligatorias.
             rec.total_employee_deductions = round(
                 (rec.ccss_employee or 0.0) +
                 (rec.income_tax or 0.0) +
                 (rec.other_deductions or 0.0) +
                 extra_deductions, 2
             )
+            # FIX-AUD-03: licencias con goce son costo patronal (igual que paternidad)
             rec.total_employer_cost = round(
                 (rec.gross_salary or 0.0) +
                 (rec.ccss_employer or 0.0) +
                 (rec.ins_employer or 0.0) +
-                (rec.rop_employer or 0.0) +      # FIX v56: ROP patronal 3.25% (Ley 7983)
+                (rec.rop_employer or 0.0) +
                 (rec.aguinaldo_provision or 0.0) +
                 (rec.cesantia_provision or 0.0) +
                 (rec.vacation_provision or 0.0) +
                 (rec.paternity_amount or 0.0) +
-                # C4: días 1-3 incapacidad CCSS a cargo del patrono (Art. 79 Reglamento CCSS)
-                (rec.employer_disability_cost or 0.0), 2
+                (rec.employer_disability_cost or 0.0) +
+                licencias_con_goce, 2  # FIX-AUD-03: duelo, matrimonio, paternidad, etc.
             )
             # Salario Neto = Bruto − TODAS las deducciones del obrero
-            # (ccss + renta + otras legales + sindicato/embargo/préstamos)
-            # + subsidio CCSS incapacidad + paternidad + ingresos adicionales
+            # + subsidio CCSS + paternidad + ingresos adicionales (incl. licencias con goce)
+            # − licencias sin goce (ya están en extra_deductions → total_employee_deductions)
             rec.net_salary = round(
                 (rec.gross_salary or 0.0) - rec.total_employee_deductions +
                 (rec.ccss_subsidy_total or 0.0) +
                 (rec.paternity_amount or 0.0) +
                 extra_income, 2
             )
-            # Salario a Pagar = Neto (extra_deductions ya están incluidas en total_employee_deductions)
             rec.salary_payable = rec.net_salary
 
-            # KPI: costo total patronal por cada ₡1 que el empleado recibe en mano
             if rec.salary_payable and rec.salary_payable > 0:
                 rec.cost_per_net_colon = round(rec.total_employer_cost / rec.salary_payable, 2)
             else:
@@ -125,7 +134,12 @@ class PayslipValidationMixin(models.AbstractModel):
         errors = []
         warnings = []
 
-
+        # FIX-D2: pre-cargar el salario mínimo UNA vez fuera del loop.
+        # El comentario original decía "FIX PERF-06: pre-cargar..." pero el código
+        # lo llamaba dentro del loop (1 query por empleado → N queries).
+        # get_current_minimum sin categoría devuelve el mínimo global (trabajador no calificado)
+        # — suficiente para detectar salarios claramente bajo el mínimo legal.
+        min_salary_global = self.env['planilla.minimum.salary'].get_current_minimum()
 
         for rec in self:
             emp = rec.employee_id
@@ -145,12 +159,17 @@ class PayslipValidationMixin(models.AbstractModel):
             if rec.gross_salary <= 0:
                 errors.append(f'{prefix} El salario bruto calculado es 0 o negativo ({rec.gross_salary:,.2f}).')
 
-            # ── Validación salario mínimo MTSS — FIX M-03 v54 ────────
-            # Consulta el mínimo por categoría y ajusta según la frecuencia de pago.
-            # Error si el base_salary del período está bajo el mínimo proporcional.
-            min_salary = self.env['planilla.minimum.salary'].get_current_minimum(
-                category=rec.employee_id.employee_type_id.name if rec.employee_id.employee_type_id else None
-            )
+            # ── Validación salario mínimo MTSS — FIX M-03 v54 / FIX-D2 ──────
+            # FIX-D2: usar el valor pre-cargado fuera del loop (1 query total).
+            # Se usa el mínimo global; si el empleado tiene tipo configurado se intenta
+            # una consulta más específica solo cuando el global no es suficiente.
+            min_salary = min_salary_global
+            if rec.employee_id.employee_type_id and rec.employee_id.employee_type_id.name:
+                specific = self.env['planilla.minimum.salary'].get_current_minimum(
+                    category=rec.employee_id.employee_type_id.name
+                )
+                if specific > 0:
+                    min_salary = specific
             if min_salary > 0:
                 freq = rec.payroll_calendar_id.frequency if rec.payroll_calendar_id else 'monthly'
                 # FIX P-02 v58: usar K.FREQ_FACTORS centralizado
@@ -175,10 +194,23 @@ class PayslipValidationMixin(models.AbstractModel):
                     f'Las deducciones superan el salario bruto.'
                 )
 
-            if rec.net_salary > rec.gross_salary:
+            # FIX-AUD-05: el neto puede superar el bruto cuando hay licencias con goce
+            # (duelo, paternidad, matrimonio), subsidio CCSS por incapacidad, o paternidad —
+            # todos son ingresos adicionales legítimos que el patrono agrega al neto.
+            # La validación correcta es: neto no debe superar bruto + todos los ingresos adicionales legítimos.
+            # FIX-M3: NO separar licencias_con_goce del sum(income_lines) — ya están incluidas
+            # en ese total. Separarlas y sumarlas por separado causaba doble conteo, haciendo
+            # que max_net_expected fuera mayor de lo correcto y la validación nunca detectara errores.
+            max_net_expected = round(
+                rec.gross_salary
+                + (rec.ccss_subsidy_total or 0.0)
+                + (rec.paternity_amount or 0.0)
+                + sum(l.amount for l in rec.deduction_line_ids if l.line_type == 'income'), 2
+            )
+            if rec.net_salary > max_net_expected + 1.0:  # tolerancia ₡1 por redondeo
                 errors.append(
-                    f'{prefix} El salario neto ({rec.net_salary:,.2f}) es mayor al bruto '
-                    f'({rec.gross_salary:,.2f}). Verifique las deducciones.'
+                    f'{prefix} El salario neto ({rec.net_salary:,.2f}) supera '
+                    f'el máximo esperado ({max_net_expected:,.2f}). Verifique las deducciones e ingresos adicionales.'
                 )
 
             # ── CCSS coherente ───────────────────────────────────────

@@ -80,6 +80,30 @@
                                 <td class="text-end"><t t-out="'{:,.2f}'.format(doc.vacation_amount)"/></td>
                                 <td></td><td></td>
                             </tr>
+                            <!-- Licencias Especiales con Goce -->
+                            <t t-foreach="doc.leave_cr_ids" t-as="lic">
+                                <tr t-if="lic.has_salary or lic.has_salary_override">
+                                    <td>
+                                        <t t-out="dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)"/>
+                                        (<t t-out="lic.working_days if lic.working_days > 0 else lic.days"/> día(s))
+                                    </td>
+                                    <td class="text-end text-success">
+                                        <t t-out="'{:,.2f}'.format(lic.leave_amount)"/>
+                                    </td>
+                                    <td></td><td></td>
+                                </tr>
+                                <tr t-if="not lic.has_salary and not lic.has_salary_override">
+                                    <td></td><td></td>
+                                    <td>
+                                        Lic. sin goce —
+                                        <t t-out="dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)"/>
+                                        (<t t-out="lic.working_days if lic.working_days > 0 else lic.days"/> día(s))
+                                    </td>
+                                    <td class="text-end text-danger">
+                                        <t t-out="'{:,.2f}'.format(lic.leave_amount)"/>
+                                    </td>
+                                </tr>
+                            </t>
                             <tr t-if="doc.other_income > 0">
                                 <td>Otros Ingresos</td>
                                 <td class="text-end"><t t-out="'{:,.2f}'.format(doc.other_income)"/></td>

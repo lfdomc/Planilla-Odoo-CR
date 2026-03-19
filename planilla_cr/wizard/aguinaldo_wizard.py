@@ -56,9 +56,11 @@ class AguinaldoWizard(models.TransientModel):
         si el usuario ejecuta el botón más de una vez.
         """
         self.ensure_one()
-        # FIX M-03 v59: Eliminar cálculos anteriores antes de recalcular
-        if self.result_ids:
-            self.result_ids.unlink()
+        # FIX M-03 / FIX-B1: Eliminar cálculos anteriores UNA sola vez al inicio.
+        # La versión anterior llamaba unlink() dos veces (líneas 61 y 108),
+        # la segunda podía fallar silenciosamente o borrar líneas recién creadas
+        # si el loop tardaba y el usuario recargaba.
+        self.result_ids.unlink()
         from datetime import date
 
         period_start = date(self.year, 6, 1)
@@ -104,8 +106,7 @@ class AguinaldoWizard(models.TransientModel):
                 employee_data[eid]['total_ordinary'] += slip.base_salary or 0.0
             employee_data[eid]['slip_count'] += 1
 
-        # Calcular aguinaldo por empleado
-        self.result_ids.unlink()
+        # Calcular aguinaldo por empleado (result_ids ya se limpió al inicio del método)
         lines = []
         for eid, data in employee_data.items():
             # Meses trabajados en el periodo (máx 6)

@@ -74,7 +74,21 @@ class TerminationSimulator(models.TransientModel):
         if self.employee_id:
             emp = self.employee_id
             self.currency_id = emp.currency_id
-            self.last_salary = emp.base_salary or 0.0
+            # FIX-B2: para empleados con salario variable (comisiones, HE recurrentes),
+            # usar el promedio de los últimos 4 meses del historial salarial.
+            # Consistente con employee_termination._onchange_employee (Art. 153 CT).
+            if getattr(emp, 'has_variable_income', False):
+                history = self.env['planilla.salary.history'].search([
+                    ('employee_id', '=', emp.id),
+                    ('state', '=', 'authorized'),
+                ], order='effective_date desc', limit=4)
+                if history:
+                    salaries = [h.gross_salary or h.salary or 0.0 for h in history]
+                    self.last_salary = round(sum(salaries) / len(salaries), 2)
+                else:
+                    self.last_salary = emp.base_salary or 0.0
+            else:
+                self.last_salary = emp.base_salary or 0.0
 
     def action_simulate(self):
         self.ensure_one()
@@ -86,9 +100,16 @@ class TerminationSimulator(models.TransientModel):
         entry_date = emp.entry_date
         diff   = relativedelta(exit_date, entry_date)
         years  = diff.years + diff.months / 12.0 + diff.days / 365.0
-        salary = emp.base_salary or 0.0
+        # FIX-B2: usar last_salary (ya tiene el promedio si is variable income)
+        # en lugar de recalcular desde emp.base_salary
+        salary = self.last_salary or emp.base_salary or 0.0
         daily  = salary / 30.0
         notes_lines = []
+        if getattr(emp, 'has_variable_income', False) and self.last_salary != emp.base_salary:
+            notes_lines.append(
+                f'⚠️  Empleado con salario variable: se usa promedio histórico '
+                f'₡{salary:,.2f} (salario base: ₡{emp.base_salary:,.2f}) — Art. 153 CT'
+            )
 
         # ── Preaviso (Art. 28 CT) ────────────────────────────────────────────
         preaviso_applies = self.termination_reason in ('dismissal', 'mutual')
@@ -96,9 +117,11 @@ class TerminationSimulator(models.TransientModel):
             preaviso_days = 7
         elif years < 0.5:
             preaviso_days = 14
-        elif years < 1.0:
-            preaviso_days = 21
         else:
+            # FIX-O5: Art. 28 CT establece 1 mes (30 días) tanto para 6-12 meses
+            # como para más de 1 año. La versión anterior usaba 21 días para el
+            # tramo 0.5-1.0 año, que no corresponde a ningún tramo legal del Art. 28 CT.
+            # employee_termination.py ya tenía los 30 días correctamente.
             preaviso_days = 30
         preaviso_amount = (daily * preaviso_days) if preaviso_applies else 0.0
         notes_lines.append(
@@ -109,19 +132,29 @@ class TerminationSimulator(models.TransientModel):
         # ── Cesantía (Art. 29 CT — máx 8 años) ──────────────────────────────
         cesantia_applies = self.termination_reason == 'dismissal'
         if cesantia_applies:
-            years_capped = min(years, 8.0)
-            if years_capped < 1:
+            # FIX-O6: la versión anterior usaba salary * years * factor (incorrecto).
+            # Art. 29 CT establece una tabla de DÍAS POR AÑO (no un factor del salario mensual).
+            # Fórmula correcta: daily_salary × suma_de_días_tabla, igual que employee_termination.py.
+            # Error anterior: para 4 años con ₡1M de salario daba ₡800k en vez de ₡2.7M (3.4x menos).
+            cesantia_days_table = {
+                1: 19.5, 2: 20.0, 3: 20.5, 4: 21.0,
+                5: 21.24, 6: 21.5, 7: 22.0, 8: 22.0,
+            }
+            years_int = min(int(years), 8)
+            fraction = years - int(years)
+            cesantia_days = 0.0
+            for y in range(1, years_int + 1):
+                cesantia_days += cesantia_days_table.get(y, 22.0)
+            # Fracción del año en curso (proporcional)
+            if years_int < 8:
+                days_this_year = cesantia_days_table.get(years_int + 1, 22.0)
+                cesantia_days += days_this_year * fraction
+            cesantia_amount = round(daily * cesantia_days, 2)
+            if years < 1:
                 cesantia_amount = 0.0
                 notes_lines.append('Cesantía Art.29 CT: menos de 1 año — no aplica')
-            elif years_capped <= 3:
-                cesantia_amount = round(salary * years_capped * 0.195, 2)
-                notes_lines.append(f'Cesantía Art.29 CT: {years_capped:.2f} años × 19.5 días/año')
-            elif years_capped <= 6:
-                cesantia_amount = round(salary * years_capped * 0.20, 2)
-                notes_lines.append(f'Cesantía Art.29 CT: {years_capped:.2f} años × 20 días/año')
             else:
-                cesantia_amount = round(salary * years_capped * 0.21, 2)
-                notes_lines.append(f'Cesantía Art.29 CT: {years_capped:.2f} años × 21 días/año')
+                notes_lines.append(f'Cesantía Art.29 CT: {years:.2f} años × {cesantia_days:.1f} días (tabla Art. 29)')
         else:
             cesantia_amount = 0.0
             notes_lines.append('Cesantía Art.29 CT: no aplica para este tipo de salida')

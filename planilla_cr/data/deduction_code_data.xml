@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo noupdate="0">
+<odoo noupdate="1">
     <!-- CCSS Obrero (10.83%) -->
     <record id="deduction_ccss_employee" model="planilla.deduction.code">
         <field name="name">CCSS - Seguro Social (Obrero)</field>

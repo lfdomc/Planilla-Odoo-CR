@@ -46,6 +46,21 @@
                             <field name="branch_id" readonly="1"/>
                             <field name="disability_type"/>
                         </group>
+
+                        <!-- Nota: maternidad se gestiona aquí (subsidio CCSS) -->
+                        <div class="alert alert-info col-12" role="alert"
+                             invisible="disability_type != 'maternity'">
+                            <strong>ℹ️ ¿Por qué la maternidad está en Incapacidades?</strong><br/>
+                            La licencia de maternidad se gestiona aquí porque involucra
+                            un <strong>subsidio económico de la CCSS</strong> (Art. 94 CT):
+                            la CCSS paga el 100% del salario promedio directamente.
+                            El sistema calcula el monto del subsidio y registra el costo patronal (₡0).<br/>
+                            <strong>Licencias sin subsidio</strong> (paternidad, duelo, matrimonio, etc.)
+                            se gestionan en
+                            <a href="/odoo/planilla-cr/licencias" target="_blank">
+                                <strong>Novedades → Licencias Especiales</strong>
+                            </a>.
+                        </div>
                         <group string="Período">
                             <field name="date_start"
                                    string="Fecha Inicio (Prenatal)"

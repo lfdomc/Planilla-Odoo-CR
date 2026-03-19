@@ -247,6 +247,7 @@ class PayslipCR(models.Model):
     )
     overtime_ids   = fields.One2many('planilla.overtime', 'payslip_id', string='Horas Extras')
     vacation_ids   = fields.One2many('planilla.vacation.payment', 'payslip_id', string='Vacaciones')
+    leave_cr_ids   = fields.One2many('planilla.leave.cr', 'payslip_id', string='Licencias Especiales CR')
     deduction_line_ids = fields.One2many(
         'planilla.payslip.deduction.line', 'payslip_id', string='Deducciones Adicionales'
     )
@@ -352,6 +353,8 @@ class PayslipDeductionLine(models.Model):
         ('bonus',              'Bono / Incentivo'),
         ('pension_alimentaria','Pensión Alimentaria'),
         ('ausencia',           'Ausencia Injustificada / Sin Goce'),
+        ('licencia_con_goce',  'Licencia con Goce (Duelo, Paternidad, Matrimonio...)'),
+        ('licencia_sin_goce',  'Licencia Sin Goce de Sueldo'),
         ('other',              'Otro'),
     ], string='Categoría', default='other')
     amount_type = fields.Selection([
@@ -377,6 +380,12 @@ class PayslipDeductionLine(models.Model):
         readonly=True, ondelete='set null',
         help='Referencia a la ausencia aprobada que originó esta deducción. '
              'Evita duplicados al re-sincronizar.'
+    )
+    leave_cr_id = fields.Many2one(
+        'planilla.leave.cr', string='Licencia Especial CR',
+        readonly=True, ondelete='set null',
+        help='Referencia a la licencia especial CR (duelo, paternidad, matrimonio, etc.) '
+             'que originó esta línea. Evita duplicados al re-sincronizar.'
     )
 
     @api.constrains('amount', 'deduction_category', 'payslip_id')
@@ -405,7 +414,11 @@ class PayslipDeductionLine(models.Model):
                 l.amount for l in slip.deduction_line_ids
                 if l.deduction_category == 'ausencia'
             )
-            neto_disponible = gross - ccss_emp - renta - pensiones - ausencias
+            licencias_sg = sum(
+                l.amount for l in slip.deduction_line_ids
+                if l.deduction_category == 'licencia_sin_goce'
+            )
+            neto_disponible = gross - ccss_emp - renta - pensiones - ausencias - licencias_sg
             # FIX M-02 v58: usar K.MAX_PCT_EMBARGO para consistencia con _sync_embargos
             limit = round(neto_disponible * K.MAX_PCT_EMBARGO / 100, 2)
             if line.amount > limit and limit > 0:

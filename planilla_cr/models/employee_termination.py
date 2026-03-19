@@ -1,9 +1,12 @@
+import logging
 from odoo import models, fields, api
 from . import planilla_const as K
 from odoo.exceptions import UserError, ValidationError
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from .closed_period import PlanillaClosedPeriod
+
+_logger = logging.getLogger(__name__)
 
 
 class EmployeeTermination(models.Model):
@@ -299,7 +302,13 @@ class EmployeeTermination(models.Model):
         La liquidacion se trata como pago unico mensual (freq = monthly).
         """
         brackets = self.env['planilla.income.tax.bracket'].search(
-            [('active', '=', True)], order='sequence asc'
+            # FIX-R12: mismo fix que payslip_compute_mixin — filtrar por empresa
+            # para evitar mezcla de tramos en entornos multi-empresa.
+            ['|',
+             ('company_id', '=', self.company_id.id),
+             ('company_id', '=', False),
+             ('active', '=', True)],
+            order='sequence asc'
         )
         g = gross
         if not brackets:
@@ -366,8 +375,25 @@ class EmployeeTermination(models.Model):
     def _onchange_employee(self):
         if self.employee_id:
             emp = self.employee_id
-            self.last_salary = emp.base_salary or 0
             self.entry_date = emp.entry_date or False
+
+            # MEJORA: para empleados con salario variable (comisiones, HE recurrentes),
+            # calcular el salario bruto promedio de los últimos 4 meses del historial
+            # en lugar de usar solo el salario base fijo.
+            # Art. 153 CT: la liquidación debe basarse en el salario real percibido.
+            if getattr(emp, 'has_variable_income', False):
+                history = self.env['planilla.salary.history'].search([
+                    ('employee_id', '=', emp.id),
+                    ('state', '=', 'authorized'),
+                ], order='effective_date desc', limit=4)
+                if history:
+                    salaries = [h.gross_salary or h.salary or 0.0 for h in history]
+                    avg_monthly = round(sum(salaries) / len(salaries), 2)
+                    self.last_salary = avg_monthly
+                else:
+                    self.last_salary = emp.base_salary or 0
+            else:
+                self.last_salary = emp.base_salary or 0
 
     # ── Actions ──────────────────────────────────────────────────
 
@@ -445,6 +471,20 @@ class EmployeeTermination(models.Model):
                 'state': 'paid',
                 'move_id': move.id if move else False,
             })
+            # FIX-AUD-08: cancelar préstamos activos del empleado al pagar la liquidación.
+            # Si las deducciones ya contemplaban el saldo, los préstamos deben cerrarse
+            # para que no sigan apareciendo como activos ni generen cuotas futuras.
+            active_loans = self.env['planilla.employee.loan'].search([
+                ('employee_id', '=', self.employee_id.id),
+                ('state', 'in', ('approved', 'active')),
+            ])
+            if active_loans:
+                active_loans.write({'state': 'cancelled'})
+                _logger.info(
+                    'planilla_cr.termination.action_pay: %d préstamo(s) cancelados '
+                    'automáticamente al pagar liquidación de %s.',
+                    len(active_loans), self.employee_id.name
+                )
 
     def _create_termination_accounting_entry(self):
         # FIX BUG-N01 v52: pasar company_id del registro de liquidación, no la compañía
@@ -548,25 +588,39 @@ class EmployeeTermination(models.Model):
                 name=f'Retencion Renta en liquidacion — {emp}'
             )
 
-        # ── CREDITO (pasivo por pagar) ───────────────────────────────
+        # ── CRÉDITO (pasivo por pagar) ───────────────────────────────
         # FIX A-03 v53: neto = total_gross - CCSS obrero.
         # FIX NEW-02 v54: neto = total_gross - CCSS obrero - renta.
+        # FIX-H1: las deducciones (préstamos) reducen el neto a depositar al empleado
+        # pero NO son un gasto adicional para la empresa — la empresa ya prestó ese dinero
+        # antes. El asiento correcto es: el pasivo por pagar al empleado se reduce en el
+        # monto de las deducciones. Se registra UN SOLO crédito con el neto real a depositar.
+        # La versión anterior creaba un DEBE adicional (payable_account, debit=deductions)
+        # sin contrapartida en HABER, lo que hacía el asiento no cuadrar por ese monto.
         payable_account = config.account_termination_payable or config.account_salary_payable
-        net_to_pay = round(self.total_gross - ccss_emp_on_termination - income_tax_liq, 2)
+        net_to_pay = round(
+            self.total_gross - ccss_emp_on_termination - income_tax_liq - (self.deductions or 0.0),
+            2
+        )
         add_line(
             payable_account,
-            credit=net_to_pay if net_to_pay > 0 else self.total_gross,
-            name=f'Liquidación por pagar (neto) — {emp}'
+            credit=max(net_to_pay, 0.0),
+            name=f'Liquidación por pagar (neto a depositar) — {emp}'
         )
 
-        # ── Deducción (si aplica) ────────────────────────────────────
-        # DÉBITO en la misma cuenta de Liquidaciones por Pagar → reduce el pasivo.
-        # El neto a depositar al empleado = total_gross - deductions (gestionado en banco).
-        if self.deductions:
+        # Si las deducciones superan el neto, registrar como DEBE en la cuenta de liquidación
+        # (el empleado queda a deber; contablemente reduce el pasivo a cero y registra
+        # el saldo como cuenta por cobrar, pero en la práctica esto es inusual).
+        if self.deductions and net_to_pay < 0:
+            loans_receivable = (
+                getattr(config, 'account_loans_receivable', None)
+                or config.account_loans_payable
+                or config.account_salary_payable
+            )
             add_line(
-                payable_account,
-                debit=self.deductions,
-                name=f'Deducción liquidación — {emp}: {self.deductions_note or ""}'
+                loans_receivable,
+                debit=abs(net_to_pay),
+                name=f'Deducción supera liquidación — {emp}: {self.deductions_note or ""}'
             )
 
         if not lines:

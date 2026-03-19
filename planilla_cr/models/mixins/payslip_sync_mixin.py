@@ -84,6 +84,8 @@ class PayslipSyncMixin(models.AbstractModel):
                     'payslip_id':          self.id,
                     'deduction_code_id':   loan_code.id,
                     'description':         loan.name,
+                    'line_type':           'deduction',        # FIX-E9: faltaba
+                    'deduction_category':  'loan',             # FIX-E9: faltaba → salary_payable correcto
                     'amount':              installment.amount,
                     'loan_installment_id': installment.id,
                 })
@@ -200,8 +202,106 @@ class PayslipSyncMixin(models.AbstractModel):
         # ── Pensiones Alimentarias ─────────────────────────────────────────
         self._sync_pension_alimentaria()
 
+        # ── Licencias Especiales CR (duelo, paternidad, matrimonio, etc.) ─
+        self._sync_licencias()
+
         # ── Ausencias aprobadas (hr_holidays) ─────────────────────────────
         self._sync_ausencias()
+
+    def _sync_licencias(self) -> None:
+        """
+        Sincroniza licencias especiales CR (planilla.leave.cr) con la boleta.
+
+        Licencias CON goce (duelo 1er grado, paternidad, matrimonio, adopción, etc.):
+          → Se registran como INGRESO adicional (line_type='income') en la boleta.
+          → No reducen el salario base; son gasto patronal adicional.
+          → La boleta refleja el monto pagado y el asiento contable lo debita en 630800.
+
+        Licencias SIN goce (permiso sin goce, duelo 2do grado sin override, etc.):
+          → Se registran como DEDUCCIÓN (deduction_category='licencia_sin_goce').
+          → Reducen el neto a pagar al empleado.
+          → Siguen la misma lógica que ausencias: salario_diario × días ausentes.
+
+        Se vincula la licencia a la boleta (payslip_id) para trazabilidad.
+        Evita duplicados verificando si ya existe una línea con leave_cr_id.
+        """
+        self.ensure_one()
+        if self.state != 'draft':
+            return
+        if not self.employee_id or not self.date_from or not self.date_to:
+            return
+
+        # ── Códigos de deducción ──────────────────────────────────────────────
+        def _get_or_create_code(code, name, ded_type):
+            dc = self.env['planilla.deduction.code'].search([('code', '=', code)], limit=1)
+            if not dc:
+                try:
+                    dc = self.env['planilla.deduction.code'].sudo().create({
+                        'code': code, 'name': name, 'deduction_type': ded_type,
+                    })
+                except Exception:
+                    dc = self.env['planilla.deduction.code'].search([('code', '=', code)], limit=1)
+            return dc
+
+        code_con_goce  = _get_or_create_code('LIC-GOCE',  'Licencia con Goce de Sueldo', 'employer')
+        code_sin_goce  = _get_or_create_code('LIC-SGOCE', 'Licencia Sin Goce de Sueldo', 'employee')
+
+        # ── Buscar licencias aprobadas del período ────────────────────────────
+        # FIX-AUD-10: filtrar por company_id para seguridad multi-empresa.
+        licencias = self.env['planilla.leave.cr'].search([
+            ('employee_id', '=', self.employee_id.id),
+            ('company_id',  '=', self.company_id.id),
+            ('state', '=', 'approved'),
+            ('date_start', '<=', self.date_to),
+            ('date_end',   '>=', self.date_from),
+            '|', ('payslip_id', '=', False), ('payslip_id', '=', self.id),
+        ])
+
+        for lic in licencias:
+            # Verificar si ya existe línea para esta licencia
+            existing = self.deduction_line_ids.filtered(
+                lambda l, lid=lic.id: l.leave_cr_id.id == lid
+            )
+            if existing:
+                continue
+
+            pays = lic.has_salary or lic.has_salary_override
+            monto = lic.leave_amount or 0.0
+            if monto <= 0:
+                continue
+
+            tipo_label = dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)
+            dias_efectivos = lic.working_days if lic.working_days > 0 else lic.days
+
+            if pays:
+                # Licencia CON goce → ingreso adicional (gasto patronal)
+                self.env['planilla.payslip.deduction.line'].create({
+                    'payslip_id':          self.id,
+                    'deduction_code_id':   code_con_goce.id,
+                    'description':         f'Licencia: {tipo_label} ({lic.date_start} al {lic.date_end}, {dias_efectivos} día(s))',
+                    'line_type':           'income',
+                    'deduction_category':  'licencia_con_goce',
+                    'amount':              monto,
+                    'leave_cr_id':         lic.id,
+                })
+            else:
+                # Licencia SIN goce → deducción al empleado
+                self.env['planilla.payslip.deduction.line'].create({
+                    'payslip_id':          self.id,
+                    'deduction_code_id':   code_sin_goce.id,
+                    'description':         f'Licencia sin goce: {tipo_label} ({lic.date_start} al {lic.date_end}, {dias_efectivos} día(s))',
+                    'line_type':           'deduction',
+                    'deduction_category':  'licencia_sin_goce',
+                    'amount':              monto,
+                    'leave_cr_id':         lic.id,
+                })
+
+            # Vincular licencia a la boleta para trazabilidad
+            # FIX-AUD-07: NO marcar 'paid' aquí — la licencia pasa a 'paid' solo cuando
+            # la boleta se paga (action_pay), igual que vacation_ids/overtime_ids/disability_ids.
+            # Marcar 'paid' en sync (boleta en draft) causaba que la licencia quedara
+            # bloqueada si la boleta se cancelaba antes de pagarse.
+            lic.write({'payslip_id': self.id})
 
     def _sync_ausencias(self) -> None:
         """
@@ -480,7 +580,14 @@ class PayslipSyncMixin(models.AbstractModel):
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'ausencia'
         )
-        neto_disponible = max(0.0, gross - ccss_emp - renta - pensiones - ausencias_sg)
+        licencias_sg = sum(
+            l.amount for l in self.deduction_line_ids
+            if l.deduction_category == 'licencia_sin_goce'
+        )
+        # Art. 172 CT: el neto disponible se calcula descontando CCSS, renta,
+        # pensiones alimentarias, ausencias sin goce Y licencias sin goce,
+        # antes de aplicar el tope del 25% de embargo.
+        neto_disponible = max(0.0, gross - ccss_emp - renta - pensiones - ausencias_sg - licencias_sg)
         limite_total    = round(neto_disponible * K.MAX_PCT_EMBARGO / 100, 2)
         ya_embargado    = sum(
             l.amount for l in self.deduction_line_ids
@@ -754,6 +861,9 @@ class PayslipSyncMixin(models.AbstractModel):
                     for leave in lv_list:
                         slip._sync_ausencias_single(leave, absence_code)
 
+        # ── Licencias Especiales CR — UNA query para todos ──────────────────
+        self._sync_licencias_batch()
+
     def _sync_ausencias_single(self, leave, absence_code):
         """Sincroniza una ausencia individual en esta boleta (usado en batch mode)."""
         holiday_type = leave.holiday_status_id
@@ -794,6 +904,102 @@ class PayslipSyncMixin(models.AbstractModel):
             'hr_leave_id':        leave.id,
         })
 
+    def _sync_licencias_batch(self) -> None:
+        """
+        PERF: versión batch de _sync_licencias.
+        Carga TODAS las licencias del período en 1 query y las distribuye
+        a cada boleta, en lugar de 1 query por empleado.
+        Para 200 empleados: 200 queries → 1 query.
+        """
+        if not self:
+            return
+        # Guardia de seguridad: si los períodos difieren, volver al modo individual
+        dates = {(s.date_from, s.date_to) for s in self}
+        if len(dates) > 1:
+            for slip in self:
+                slip._sync_licencias()
+            return
+
+        date_from, date_to = next(iter(dates))
+        emp_ids = self.mapped('employee_id.id')
+        slip_by_emp = {s.employee_id.id: s for s in self}
+        company_id = self[0].company_id.id  # FIX-AUD-10: filtro empresa batch
+
+        # ── Códigos de deducción (1 query cada uno) ──────────────────────────
+        def _get_or_create_code(code, name, ded_type):
+            dc = self.env['planilla.deduction.code'].search([('code', '=', code)], limit=1)
+            if not dc:
+                try:
+                    dc = self.env['planilla.deduction.code'].sudo().create({
+                        'code': code, 'name': name, 'deduction_type': ded_type,
+                    })
+                except Exception:
+                    dc = self.env['planilla.deduction.code'].search([('code', '=', code)], limit=1)
+            return dc
+
+        code_con_goce = _get_or_create_code('LIC-GOCE',  'Licencia con Goce de Sueldo', 'employer')
+        code_sin_goce = _get_or_create_code('LIC-SGOCE', 'Licencia Sin Goce de Sueldo', 'employee')
+
+        # ── 1 QUERY: todas las licencias aprobadas del período ───────────────
+        # FIX-AUD-10: filtro company_id para seguridad multi-empresa en modo batch
+        licencias = self.env['planilla.leave.cr'].search([
+            ('employee_id', 'in', emp_ids),
+            ('company_id',  '=', company_id),
+            ('state', '=', 'approved'),
+            ('date_start', '<=', date_to),
+            ('date_end',   '>=', date_from),
+        ])
+
+        by_emp = {}
+        for lic in licencias:
+            by_emp.setdefault(lic.employee_id.id, []).append(lic)
+
+        processed_ids = []
+        for emp_id, lics in by_emp.items():
+            slip = slip_by_emp.get(emp_id)
+            if not slip:
+                continue
+            for lic in lics:
+                slip._sync_licencias_single(lic, code_con_goce, code_sin_goce)
+                processed_ids.append(lic.id)
+
+        # FIX-AUD-07: NO marcar 'paid' en sincronización — solo vincular payslip_id.
+        # El estado 'paid' se asigna en action_pay igual que vacation_ids/overtime_ids.
+
+    def _sync_licencias_single(self, lic, code_con_goce, code_sin_goce) -> None:
+        """Sincroniza una licencia especial individual en esta boleta (batch mode)."""
+        existing = self.deduction_line_ids.filtered(
+            lambda l, lid=lic.id: l.leave_cr_id.id == lid
+        )
+        if existing:
+            return
+        pays = lic.has_salary or lic.has_salary_override
+        monto = lic.leave_amount or 0.0
+        if monto <= 0:
+            return
+        tipo_label = dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)
+        dias_efectivos = lic.working_days if lic.working_days > 0 else lic.days
+        vals = {
+            'payslip_id':        self.id,
+            'description':       f'{"Licencia" if pays else "Licencia sin goce"}: {tipo_label} ({lic.date_start} al {lic.date_end}, {dias_efectivos} día(s))',
+            'amount':            monto,
+            'leave_cr_id':       lic.id,
+        }
+        if pays:
+            vals.update({
+                'deduction_code_id':  code_con_goce.id,
+                'line_type':          'income',
+                'deduction_category': 'licencia_con_goce',
+            })
+        else:
+            vals.update({
+                'deduction_code_id':  code_sin_goce.id,
+                'line_type':          'deduction',
+                'deduction_category': 'licencia_sin_goce',
+            })
+        self.env['planilla.payslip.deduction.line'].create(vals)
+        lic.write({'payslip_id': self.id})
+
     def _sync_recurring_benefits_batch(self) -> None:
         """Batch: carga beneficios recurrentes de TODOS los empleados en una query."""
         if not self:
@@ -816,7 +1022,17 @@ class PayslipSyncMixin(models.AbstractModel):
             slip = slip_by_emp.get(emp_id)
             if not slip:
                 continue
+            # FIX-E1: pre-indexar las líneas existentes del slip para evitar duplicados.
+            # El modo single verifica existentes; el batch no lo hacía → podía duplicar
+            # beneficios si el botón "Sincronizar" se presionaba más de una vez.
+            existing_ben_ids = set(
+                slip.deduction_line_ids.filtered(
+                    lambda l: l.recurring_benefit_id
+                ).mapped('recurring_benefit_id.id')
+            )
             for ben in bens:
+                if ben.id in existing_ben_ids:
+                    continue  # ya sincronizado → omitir
                 amt = ben.get_amount_for_salary(slip.gross_salary or 0.0)
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':           slip.id,
@@ -904,7 +1120,17 @@ class PayslipSyncMixin(models.AbstractModel):
             slip = slip_by_emp.get(emp_id)
             if not slip:
                 continue
+            # FIX-E2: verificar bonos ya sincronizados antes de agregar al batch.
+            # El modo single verifica por description; aquí hacemos lo mismo.
+            existing_desc = set(
+                slip.deduction_line_ids.filtered(
+                    lambda l: l.line_type == 'income' and l.deduction_category == 'bonus'
+                ).mapped('description')
+            )
             for bono in bono_list:
+                desc = f'Bono: {bono.name}'
+                if desc in existing_desc:
+                    continue  # ya sincronizado → omitir
                 if bono.amount_type == 'fixed':
                     monto = bono.amount
                 else:
@@ -914,7 +1140,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 lines_to_create.append({
                     'payslip_id':         slip.id,
                     'deduction_code_id':  bono_code.id,
-                    'description':        f'Bono: {bono.name}',
+                    'description':        desc,
                     'line_type':          'income',
                     'deduction_category': 'bonus',
                     'amount_type':        bono.amount_type,
@@ -965,7 +1191,12 @@ class PayslipSyncMixin(models.AbstractModel):
                            if l.deduction_category == 'pension_alimentaria')
             ausencias = sum(l.amount for l in slip.deduction_line_ids
                            if l.deduction_category == 'ausencia')
-            neto_disp = max(0.0, gross - ccss_emp - renta - pensiones - ausencias)
+            # FIX-M2: incluir licencias_sin_goce en la base para el tope Art. 172 CT.
+            # El modo individual sí las incluía; el batch las omitía → tope inflado
+            # en planillas grupales con empleados que tienen permisos sin goce.
+            licencias_sg = sum(l.amount for l in slip.deduction_line_ids
+                               if l.deduction_category == 'licencia_sin_goce')
+            neto_disp = max(0.0, gross - ccss_emp - renta - pensiones - ausencias - licencias_sg)
             from . import planilla_const as _K
             limite_total = round(neto_disp * _K.MAX_PCT_EMBARGO / 100, 2)
             ya_embargado = 0.0
@@ -1052,6 +1283,8 @@ class PayslipSyncMixin(models.AbstractModel):
                     'payslip_id':          slip.id,
                     'deduction_code_id':   loan_code.id,
                     'description':         loan.name,
+                    'line_type':           'deduction',       # FIX-E9: faltaba
+                    'deduction_category':  'loan',            # FIX-E9: faltaba → salary_payable correcto
                     'amount':              installment.amount,
                     'loan_installment_id': installment.id,
                 })

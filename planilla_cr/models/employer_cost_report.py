@@ -23,7 +23,7 @@ class EmployerCostReport(models.TransientModel):
 
     def _get_payslips(self):
         domain = [
-            ('state', '=', 'paid'),
+            ('state', '=', 'done'),   # FIX-C19: estado pagado es 'done', no 'paid'
             ('company_id', '=', self.company_id.id),
             ('date_from', '>=', self.date_from),
             ('date_to',   '<=', self.date_to),

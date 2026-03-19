@@ -267,9 +267,27 @@
     </record>
 
     <!-- FIX A-03 v59: Record rule multi-empresa para planilla.bono.antiguedad.config -->
-    <record id="rule_bono_antiguedad_config_company" model="ir.rule">
+    <!-- FIX-N7: id renombrado de rule_bono_antiguedad_config_company a
+         rule_bono_antiguedad_config_operador para evitar sobreescribir la regla
+         del grupo aprobador definida arriba. En Odoo, dos registros con el mismo
+         id.xml hacen que el segundo REEMPLACE al primero — se perdía el acceso del aprobador. -->
+    <record id="rule_bono_antiguedad_config_operador" model="ir.rule">
         <field name="name">Bono Antigüedad Config: solo compañía activa</field>
         <field name="model_id" ref="model_planilla_bono_antiguedad_config"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- FIX-A4: Record rule multi-empresa para planilla.leave.cr
+         Sin esta regla un operador podría ver licencias de otras empresas
+         (duelo, paternidad, etc. — datos sensibles de RR.HH.) -->
+    <record id="rule_leave_cr_company" model="ir.rule">
+        <field name="name">Licencias Especiales: solo compañía activa</field>
+        <field name="model_id" ref="model_planilla_leave_cr"/>
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
         <field name="groups" eval="[(4, ref('planilla_cr.group_planilla_operador'))]"/>
         <field name="perm_read" eval="True"/>

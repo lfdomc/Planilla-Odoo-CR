@@ -30,12 +30,12 @@ class AuditZipWizard(models.TransientModel):
             if self.include_payslips_pdf:
                 payslips = self.env['planilla.payslip.cr'].search([
                     ('company_id', '=', self.company_id.id),
-                    ('state', '=', 'paid'),
+                    ('state', '=', 'done'),  # FIX-C18: estado pagado es 'done', no 'paid'
                     ('date_from', '>=', self.date_from),
                     ('date_to',   '<=', self.date_to),
                 ])
                 if payslips:
-                    report = self.env.ref('planilla_cr.action_report_payslip')
+                    report = self.env.ref('planilla_cr.action_report_payslip_cr')  # FIX-I10: corrected XML ID
                     pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(
                         report, payslips.ids
                     )

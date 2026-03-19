@@ -47,29 +47,31 @@ Módulo completo de gestión de planillas adaptado a la legislación costarricen
 - `hr_expense` (Gastos)
 - `account` (Contabilidad)
 
-## Tasas legales CR (2024-2025)
+## Tasas legales CR (2026)
 
 ### Deducciones Obrero
 | Concepto | % |
 |---|---|
-| CCSS Obrero | 10.67% |
+| CCSS Obrero | 10.83% |
+| ROP Obrero (Ley 7983) | 1.00% |
 | Impuesto Renta | Tabla progresiva |
 
 ### Cargas Patronales
 | Concepto | % |
 |---|---|
-| CCSS Patronal | 26.17% |
-| INS (varía por actividad) | ~1.00% |
+| CCSS Patronal | 26.83% |
+| ROP Patronal (Ley 7983) | 3.25% |
+| INS (varía por clase de riesgo) | 0.87% – 6.88% |
 | Provisión Aguinaldo | 8.33% |
 | Provisión Cesantía | 5.33% |
 | Provisión Vacaciones | 4.16% |
 
-### Tabla de Renta (salarios mensuales 2024)
+### Tabla de Renta (salarios mensuales 2026 — DGT-R-016-2026)
 | Rango | Tasa |
 |---|---|
-| Hasta ₡929,000 | Exento |
-| ₡929,001 - ₡1,362,000 | 10% |
-| ₡1,362,001 - ₡2,414,000 | 15% |
+| Hasta ₡941,000 | Exento |
+| ₡941,001 - ₡1,381,000 | 10% |
+| ₡1,381,001 - ₡2,423,000 | 15% |
 | ₡2,414,001 - ₡4,830,000 | 20% |
 | Más de ₡4,830,000 | 25% |
 

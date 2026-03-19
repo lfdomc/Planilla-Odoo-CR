@@ -56,7 +56,8 @@
                     <group>
                         <group>
                             <field name="employee_id" options="{'no_create': True}"/>
-                            <field name="last_salary" string="Salario Bruto Mensual (₡)"/>
+                            <field name="last_salary" string="Salario Bruto Mensual (₡)"
+                                   help="Para empleados con salario variable (comisiones, HE recurrentes), el sistema auto-completa este campo con el promedio de las últimas 4 boletas pagadas. Verifique y ajuste si es necesario."/>
                         </group>
                         <group>
                             <field name="entry_date" string="Fecha de Ingreso"/>
@@ -64,6 +65,19 @@
                             <field name="termination_reason" string="Motivo de Salida"/>
                         </group>
                     </group>
+
+                    <!-- Alerta salario variable -->
+                    <div class="alert alert-info col-12" role="alert"
+                         invisible="not employee_id">
+                        <i class="fa fa-info-circle" title="Información sobre salario variable"/>
+                        <strong>Salario Bruto Mensual:</strong>
+                        Para empleados con comisiones o ingresos variables, este campo
+                        se auto-completó con el <strong>promedio de las últimas 4 boletas pagadas</strong>
+                        (Art. 153 CT). Verifique que el monto refleje correctamente el
+                        ingreso promedio real antes de confirmar la liquidación.
+                        Si el empleado no tiene historial salarial en el sistema, ingrese
+                        el promedio manualmente consultando los recibos de pago anteriores.
+                    </div>
 
                     <!-- Resumen tiempo de servicio -->
                     <div invisible="not employee_id"

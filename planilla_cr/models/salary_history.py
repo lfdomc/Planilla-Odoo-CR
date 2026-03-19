@@ -94,8 +94,12 @@ class SalaryHistory(models.Model):
             # FIX C-01 v59: Actualizar el salario base del empleado en hr.employee.
             # Sin este paso, la autorización es solo administrativa — las próximas
             # boletas calcularían CCSS, Renta y provisiones sobre el salario viejo.
+            # FIX-Q15: usar skip_salary_history=True en el contexto para que
+            # hr_employee_extension.write() NO cree un segundo registro de historial
+            # salarial. El registro ya existe (este mismo rec) y acaba de ser autorizado.
+            # Sin este contexto, action_authorize creaba un duplicado en planilla.salary.history.
             if rec.gross_salary and rec.gross_salary > 0:
-                rec.employee_id.write({
+                rec.employee_id.with_context(skip_salary_history=True).write({
                     'base_salary':           rec.gross_salary,
                     'salary_effective_date': rec.effective_date,
                 })

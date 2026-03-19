@@ -83,6 +83,10 @@ def _setup_accounting_config(env):
         'account_embargo_payable':             '230960',
         'account_bono_expense':                '630600',
         'account_subsidio_expense':            '630700',
+        'account_licencia_expense':            '630800',  # FIX-A1: licencias con goce
+        # FIX-L10: cuentas de préstamos faltaban en ACCOUNT_MAP — sin estas la
+        # primera aprobación de préstamo buscaba / creaba la cuenta manualmente.
+        'account_loans_receivable':            '115000',  # Préstamos a Empleados por Cobrar
     }
 
     # Buscar diario de planilla

@@ -181,6 +181,15 @@ class PayrollAccountingConfig(models.Model):
              'Ej: 630700 Subsidios al Personal\n'
              'Si no se configura, usa la cuenta Sueldos y Salarios (630000).'
     )
+    account_licencia_expense = fields.Many2one(
+        'account.account',
+        string='Licencias Especiales con Goce (Gasto)',
+        help='DÉBITO — Gasto por licencias laborales con goce de sueldo pagadas por el\n'
+             'patrono: duelo 1er grado (3 días), paternidad (8 días), matrimonio (2 días),\n'
+             'adopción (3 meses), donación de sangre (1 día), etc.\n'
+             'Ej: 630800 Licencias y Permisos con Goce\n'
+             'Si no se configura, usa la cuenta Sueldos y Salarios (630000).'
+    )
 
     @api.model
     def get_config(self, company_id=None):
@@ -303,6 +312,7 @@ class PayrollAccountingConfig(models.Model):
             # Bonos salariales (afectos CCSS/renta) y subsidios exentos
             'account_bono_expense':                ('630600', 'Bonos e Incentivos al Personal',                  'expense'),
             'account_subsidio_expense':            ('630700', 'Subsidios al Personal (Transporte/Alim.)',        'expense'),
+            'account_licencia_expense':            ('630800', 'Licencias y Permisos con Goce',                   'expense'),
             # FIX v49 Bug 5 — Cuenta para subsidio CCSS por cobrar (activo corriente)
             'account_ccss_subsidy_receivable':     ('120500', 'Subsidio CCSS por Cobrar',                        'asset_current'),
             # BUG #10 FIX v50 — Pensiones alimentarias separadas de salarios

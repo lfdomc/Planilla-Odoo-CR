@@ -97,30 +97,20 @@ class SalaryIncreaseWizard(models.TransientModel):
             current = emp.base_salary or 0
             new_salary = self._calc_new_salary(current)
             if new_salary != current:
-                emp.write({
-                    'base_salary': new_salary,
-                    'salary_effective_date': self.effective_date,
-                })
-                # Registrar en historial de salarios
-                # FIX NEW-08 v54: registrar en salary_history con gross_salary,
-                # reason obligatorio y estado 'authorized' (incremento masivo
-                # ya fue aprobado por quien ejecuta el wizard — es accion explicita).
-                # Sin esto la tarifa horaria de HE queda desactualizada porque
-                # _compute_overtime_rate lee salary_history para el salario vigente.
+                # FIX-Q5: pasar reason y note via contexto para que hr_employee_extension.write()
+                # use la razón correcta en el historial salarial que crea automáticamente.
+                # La versión anterior creaba UN SEGUNDO registro de historial salarial aquí,
+                # duplicando cada incremento masivo en planilla.salary.history.
                 reason_text = (
                     f'Incremento masivo: {self.percent}%' if self.increase_type == 'percent'
                     else f'Incremento masivo: ₡{self.fixed_amount:,.0f}'
                 )
-                self.env['planilla.salary.history'].create({
-                    'employee_id': emp.id,
-                    'salary': new_salary,
-                    'gross_salary': new_salary,
-                    'effective_date': self.effective_date,
-                    'reason': self.note or reason_text,
-                    'note': self.note,
-                    'state': 'authorized',
-                    'authorized_by': self.env.user.id,
-                    'authorized_date': fields.Datetime.now(),
+                emp.with_context(
+                    salary_history_reason=self.note or reason_text,
+                    salary_history_note=self.note,
+                ).write({
+                    'base_salary': new_salary,
+                    'salary_effective_date': self.effective_date,
                 })
                 count += 1
 

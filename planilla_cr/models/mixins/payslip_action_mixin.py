@@ -1,5 +1,5 @@
 import logging
-from odoo import models, api
+from odoo import models, fields, api
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -60,14 +60,19 @@ class PayslipActionMixin(models.AbstractModel):
         return records
 
     def action_sync_novedades(self) -> bool:
-        """Botón manual: re-sincroniza novedades del período en la boleta."""
+        """Botón manual: re-sincroniza novedades del período en la boleta.
+        FIX-N2: agrega _sync_loan_deductions que faltaba. Sin este método,
+        al presionar el botón "Sincronizar" las cuotas de préstamos no se
+        actualizaban en la boleta aunque el préstamo estuviera activo.
+        """
         for rec in self:
             if rec.state == 'draft':
-                rec._sync_novedades()
+                rec._sync_novedades()        # incluye _sync_licencias() internamente
                 rec._sync_recurring_benefits()
                 rec._sync_rop()
                 rec._sync_bonos()
                 rec._sync_embargos()
+                rec._sync_loan_deductions()  # FIX-N2: faltaba — préstamos no se sincronizaban
         return True
 
     def action_confirm(self) -> None:
@@ -103,6 +108,8 @@ class PayslipActionMixin(models.AbstractModel):
                 rec.overtime_ids.filtered(lambda o: o.state == 'approved').write({'state': 'paid'})
                 rec.vacation_ids.filtered(lambda v: v.state == 'approved').write({'state': 'paid'})
                 rec.disability_ids.filtered(lambda d: d.state == 'confirmed').write({'state': 'paid'})
+                # FIX-AUD-07: licencias pasan a 'paid' al pagar la boleta (no en sync)
+                rec.leave_cr_ids.filtered(lambda l: l.state == 'approved').write({'state': 'paid'})
                 loan_lines = rec.deduction_line_ids.filtered(lambda l: l.loan_installment_id)
                 for line in loan_lines:
                     line.loan_installment_id.write({'state': 'deducted', 'payslip_id': rec.id})
@@ -115,6 +122,14 @@ class PayslipActionMixin(models.AbstractModel):
                     'effective_date': rec.date_to,
                     'payslip_id':     rec.id,
                     'reason':         f'Planilla {rec.name}',
+                    # FIX-D1: estado 'authorized' para que _compute_avg_last_4_weeks
+                    # y _onchange_employee (liquidaciones/simulador) encuentren este
+                    # registro al calcular el promedio de salarios variables (Art. 153 CT).
+                    # Sin este campo el historial queda en 'draft' y es invisible
+                    # para todas las consultas de promedio → salario variable no funciona.
+                    'state':          'authorized',
+                    'authorized_by':  self.env.user.id,
+                    'authorized_date': fields.Datetime.now(),
                 })
             if rec.employee_id.work_email:
                 try:
@@ -156,12 +171,24 @@ class PayslipActionMixin(models.AbstractModel):
             rec.vacation_ids.filtered(lambda v: v.state == 'paid').write({'state': 'approved'})
             rec.disability_ids.filtered(lambda d: d.state == 'paid').write({'state': 'confirmed'})
             rec.overtime_ids.filtered(lambda o: o.state == 'paid').write({'state': 'approved'})
+            # FIX-AUD-01: restaurar licencias especiales al estado aprobado
+            # Si no se hace, la licencia queda en 'paid' huérfana y no se puede
+            # sincronizar a otra boleta en caso de que se regenere la planilla.
+            rec.leave_cr_ids.filtered(lambda l: l.state == 'paid').write({
+                'state': 'approved',
+                'payslip_id': False,
+            })
             rec.state = 'cancelled'
 
     def action_reset_to_draft(self) -> None:
         for rec in self:
             if rec.state not in ('cancelled', 'confirmed'):
                 raise UserError('Solo se pueden reactivar boletas canceladas o confirmadas.')
+            # FIX-AUD-12: limpiar el vínculo payslip_id en licencias para que
+            # puedan resincronizarse si la boleta vuelve a confirmarse/pagarse.
+            rec.leave_cr_ids.filtered(
+                lambda l: l.state in ('paid', 'approved')
+            ).write({'payslip_id': False, 'state': 'approved'})
             rec.state = 'draft'
 
     def action_send_payslip(self):

@@ -377,22 +377,33 @@ class Eddi7Export(models.TransientModel):
         total_ccss_patronal = 0
         worker_count = 0
 
-        # Agrupar boletas por empleado (tomar la última del mes si hay varias)
-        payslips_by_emp = {}
+        # FIX-P2: Agrupar boletas por empleado SUMANDO todos los salarios del mes.
+        # La versión anterior tomaba solo la última boleta — para empleados quincenales
+        # o semanales esto reportaba la mitad (o menos) del salario mensual real a la CCSS,
+        # lo cual constituye una subdeclaración con posibles sanciones patronales.
+        # EDDI-7 requiere el salario MENSUAL total cotizable (suma de todos los períodos).
+        payslips_by_emp = {}  # emp_id -> {'payslip': last_ps, 'total_gross': sum}
         for ps in payslips:
             emp_id = ps.employee_id.id
             if emp_id not in payslips_by_emp:
-                payslips_by_emp[emp_id] = ps
+                payslips_by_emp[emp_id] = {
+                    'payslip': ps,               # referencia para datos del empleado
+                    'total_gross': ps.gross_salary or 0.0,
+                }
             else:
-                # Tomar la más reciente
-                if ps.date_to > payslips_by_emp[emp_id].date_to:
-                    payslips_by_emp[emp_id] = ps
+                # Acumular salario y guardar la boleta más reciente para datos del empleado
+                payslips_by_emp[emp_id]['total_gross'] += ps.gross_salary or 0.0
+                if ps.date_to > payslips_by_emp[emp_id]['payslip'].date_to:
+                    payslips_by_emp[emp_id]['payslip'] = ps
 
         # Construir registros Tipo 2
-        for emp_id, payslip in sorted(payslips_by_emp.items()):
+        for emp_id, emp_info in sorted(payslips_by_emp.items()):
+            payslip = emp_info['payslip']
             emp = payslip.employee_id
             try:
                 emp_data = self._get_employee_data(payslip)
+                # Usar el salario MENSUAL total (suma de boletas) no el de la última boleta
+                emp_data['salario_bruto'] = round(emp_info['total_gross'])
 
                 # Validar cédula obligatoria
                 if not emp_data['cedula']:

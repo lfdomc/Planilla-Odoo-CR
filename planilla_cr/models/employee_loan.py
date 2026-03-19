@@ -171,15 +171,14 @@ class EmployeeLoan(models.Model):
 
     def action_approve(self):
         self.ensure_one()
-        for rec in self:
-            if rec.state != 'draft':
-                raise UserError('Solo se pueden aprobar préstamos en borrador.')
-            # Verificar límite del 50% del salario neto (Art. 172 CT)
-            rec._check_installment_salary_limit()
-            rec._generate_installments()
-            rec.state = 'approved'
-            # H4 FIX — Generar asiento contable de otorgamiento
-            rec._create_loan_accounting_entry()
+        if self.state != 'draft':
+            raise UserError('Solo se pueden aprobar préstamos en borrador.')
+        # Verificar límite del 50% del salario neto (Art. 172 CT)
+        self._check_installment_salary_limit()
+        self._generate_installments()
+        self.state = 'approved'
+        # H4 FIX — Generar asiento contable de otorgamiento
+        self._create_loan_accounting_entry()
 
     def _create_loan_accounting_entry(self):
         """
@@ -212,7 +211,7 @@ class EmployeeLoan(models.Model):
             # Fallback: buscar por código exacto
             loan_receivable = self.env['account.account'].search([
                 ('code', '=', '115000'),
-                ('company_ids', 'in', self.env.company.id),
+                ('company_ids', 'in', self.employee_id.company_id.id),
             ], limit=1)
         if not loan_receivable:
             # Último fallback: crear cuenta 115000
@@ -221,7 +220,7 @@ class EmployeeLoan(models.Model):
                 'code': '115000',
                 'name': 'Préstamos a Empleados por Cobrar',
                 'account_type': 'asset_current',
-                'company_ids': [(4, self.env.company.id)],  # (4,id) compatible Odoo 14-19',
+                'company_ids': [(4, self.employee_id.company_id.id)],
             })
             self.message_post(
                 body='<b>Aviso:</b> Se creó la cuenta 115000 Préstamos a Empleados por Cobrar. '
@@ -229,16 +228,15 @@ class EmployeeLoan(models.Model):
                 message_type='notification',
             )
 
-        # FIX B-05 v53: Usar cuenta de banco configurada en accounting_config.
-        # La búsqueda anterior por código '1%' podía devolver cualquier activo corriente
-        # (inventarios, cuentas por cobrar, etc.) en lugar de una cuenta bancaria real.
-        config = self.env['planilla.accounting.config'].get_config()
-        bank_account = config.account_bank_disbursement if config else None
+        # FIX-L2: usar la MISMA config (con company_id del empleado) para bank_account.
+        # La versión anterior hacía get_config() sin argumento (sesión del usuario),
+        # lo que en multi-empresa podía mezclar la config de dos compañías distintas.
+        bank_account = config.account_bank_disbursement
         if not bank_account:
-            # Fallback: buscar cuenta de Caja/Banco activa en la empresa
+            # Fallback: buscar cuenta de Caja/Banco activa en la empresa del empleado
             bank_account = self.env['account.account'].search([
                 ('account_type', 'in', ('asset_cash',)),
-                ('company_ids', 'in', self.env.company.id),
+                ('company_ids', 'in', self.employee_id.company_id.id),
                 ('deprecated', '=', False),
             ], limit=1)
         if not bank_account:
@@ -281,17 +279,30 @@ class EmployeeLoan(models.Model):
         )
 
     def _generate_installments(self):
-        """Genera las líneas de cuota con fechas a partir de date_first_deduction."""
+        """Genera las líneas de cuota con fechas a partir de date_first_deduction.
+        FIX-L4: La última cuota se ajusta para cubrir el residuo de redondeo.
+        Ej: ₡100,000 en 3 cuotas → ₡33,333.33 * 3 = ₡99,999.99 (falta ₡0.01).
+        Sin el ajuste, action_check_paid nunca marcaría el préstamo como pagado
+        porque la suma de cuotas no iguala exactamente amount_total.
+        """
         self.ensure_one()
         self.installment_ids.unlink()
         base_date = self.date_first_deduction
-        for i in range(self.installments):
+        base_amount = self.installment_amount
+        n = self.installments
+        for i in range(n):
             due_date = base_date + relativedelta(months=i)
+            # Última cuota: ajustar para cubrir exactamente el monto total
+            if i == n - 1:
+                already = round(base_amount * (n - 1), 2)
+                amount = round(self.amount_total - already, 2)
+            else:
+                amount = base_amount
             self.env['planilla.loan.installment'].create({
                 'loan_id':    self.id,
                 'sequence':   i + 1,
                 'due_date':   due_date,
-                'amount':     self.installment_amount,
+                'amount':     amount,
             })
 
     def action_activate(self):

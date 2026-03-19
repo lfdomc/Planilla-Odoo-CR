@@ -33,6 +33,7 @@ from . import bono_antiguedad_config
 from . import recurring_benefit
 from . import employee_loan
 from . import employee_termination
+from . import leave_cr
 
 # ── Boleta y Planilla (dependen de mixins + catálogos + novedades) ────────────
 from . import payslip_cr

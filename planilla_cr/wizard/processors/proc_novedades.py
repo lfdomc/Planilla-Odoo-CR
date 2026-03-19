@@ -4,6 +4,8 @@ Cada procesador es un método del wizard ImportDataWizard.
 Se importan desde import_data_wizard.py via herencia múltiple.
 """
 import logging
+import traceback  # FIX-L3: faltaba — usado en bloques except
+from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K
@@ -49,7 +51,8 @@ class ImportProcessorNovedades(models.AbstractModel):
                         'date_start':           _parse_date(v('Fecha Inicio')) or date.today(),
                         'date_end':             _parse_date(v('Fecha Fin')) or date.today(),
                         'subsidy_percentage':   _parse_float(v('% Subsidiado', 'Subsidiado CCSS')),
-                        'employer_percentage':  _parse_float(v('% Patrono', 'Cargo Patrono')) or 40.0,
+                        'employer_percentage':  _parse_float(v('% Patrono', 'Cargo Patrono')) or 0.0,
+                        # FIX-B3b: sync con fix A2 — default 0.0 (no 40.0). Art. 79 Regl. CCSS.
                         'certificate_number':   str(v('Número Certificado', 'Certificado') or '').strip() or False,
                         'diagnosis':            str(v('Diagnóstico', 'Diagnostico') or '').strip() or False,
                         'note':                 str(v('Observaciones') or '').strip() or False,

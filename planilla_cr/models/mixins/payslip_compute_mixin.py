@@ -247,7 +247,14 @@ class PayslipComputeMixin(models.AbstractModel):
         monthly_equiv     = gross * periods_per_month
 
         brackets = self.env['planilla.income.tax.bracket'].search(
-            [('active', '=', True)], order='sequence asc'
+            # FIX-R12: filtrar por empresa actual o globales (company_id=False).
+            # Sin este filtro, en multi-empresa se mezclaban los tramos de todas las
+            # compañías y el impuesto de renta se calculaba incorrectamente.
+            ['|',
+             ('company_id', '=', self.company_id.id),
+             ('company_id', '=', False),
+             ('active', '=', True)],
+            order='sequence asc'
         )
         if not brackets:
             # Fallback hardcoded — Tramos 2026 (DGT-R-016-2026)

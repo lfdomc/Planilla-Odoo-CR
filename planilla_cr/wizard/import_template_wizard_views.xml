@@ -59,7 +59,7 @@
                                string="⚖️  Embargos Judiciales"/>
                         <field name="include_bonos"
                                widget="boolean_toggle"
-                               string="🎯  Bonos e Incentivos"/>
+                               string="🎯  Bonos y Beneficios"/>
                     </group>
                 </group>
 

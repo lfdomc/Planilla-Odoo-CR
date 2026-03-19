@@ -4,6 +4,8 @@ Cada procesador es un método del wizard ImportDataWizard.
 Se importan desde import_data_wizard.py via herencia múltiple.
 """
 import logging
+import traceback  # FIX-L3: faltaba — usado en los bloques except para traceback.format_exc()
+from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K
@@ -87,11 +89,14 @@ class ImportProcessorLoans(models.AbstractModel):
 
             except Exception as e:
                 err_count += 1
+                # FIX-L3: _process_loans no usa dict 'vals' (crea el loan directamente).
+                # Usar locals() como fallback para no lanzar un NameError secundario.
+                _safe_vals = locals().get('vals', {}) or {}
                 errors.append({
                     'hoja': 'PRESTAMOS', 'fila': row_num, 'cedula': cedula,
                     'nombre': emp.name, 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in vals.items()},
+                    'vals': {k: str(v)[:120] for k, v in _safe_vals.items()},
                 })
                 _logger.warning('ImportDataWizard PRESTAMOS fila %s: %s', row_num, e)
 

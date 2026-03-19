@@ -60,6 +60,18 @@
                            statusbar_visible="draft,confirmed,done"/>
                 </header>
                 <sheet>
+                    <!-- Alerta salario variable: empleado con comisiones sin bonos en boleta -->
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not employee_id or not employee_id.has_variable_income or bono_salarial_amount > 0">
+                        <i class="fa fa-exclamation-triangle" title="Advertencia: empleado con salario variable"/>
+                        <strong>Empleado con Salario Variable:</strong>
+                        Este empleado tiene comisiones o ingresos variables configurados,
+                        pero esta boleta no tiene bonos/comisiones registrados en el período.
+                        Si corresponde, registre las comisiones en
+                        <strong>Novedades → Bonos → tipo "Comisión por Ventas"</strong>
+                        y luego sincronice la boleta con el botón ↺.
+                    </div>
+
                     <!-- Encabezado -->
                     <group>
                         <group string="Empleado">
@@ -83,8 +95,10 @@
                                 <!-- Salario base y proporcionalidad -->
                                 <group string="Salario">
                                     <field name="base_salary" readonly="1"/>
-                                    <field name="is_proportional"/>
-                                    <field name="days_worked" invisible="not is_proportional"/>
+                                    <field name="is_proportional"
+                                           readonly="state != 'draft'"/>
+                                    <field name="days_worked" invisible="not is_proportional"
+                                           readonly="state != 'draft'"/>
                                     <field name="days_in_period" readonly="1" invisible="not is_proportional"/>
                                     <field name="proportional_factor" readonly="1"
                                            invisible="not is_proportional" string="Factor proporcional (%)"/>
@@ -93,7 +107,8 @@
                                 <group string="Ingresos Adicionales">
                                     <field name="overtime_amount" readonly="1"/>
                                     <field name="vacation_amount" readonly="1"/>
-                                    <field name="other_income"/>
+                                    <field name="other_income"
+                                           readonly="state != 'draft'"/>
                                     <field name="gross_salary" readonly="1" class="fw-bold"/>
                                 </group>
                             </group>
@@ -136,6 +151,23 @@
                                 </list>
                             </field>
 
+                            <!-- Licencias Especiales del período -->
+                            <separator string="Licencias Especiales del Período"
+                                       invisible="leave_cr_ids == []"/>
+                            <field name="leave_cr_ids" readonly="1"
+                                   invisible="leave_cr_ids == []">
+                                <list decoration-success="has_salary == True"
+                                      decoration-warning="has_salary == False">
+                                    <field name="leave_type"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="days"/>
+                                    <field name="working_days" string="Días Hábiles"/>
+                                    <field name="has_salary" string="Con Goce" widget="boolean_toggle"/>
+                                    <field name="leave_amount" string="Monto"/>
+                                </list>
+                            </field>
+
                             <!-- Asistencias (solo si aplica) -->
                             <separator string="Asistencias"
                                        invisible="calculation_method != 'attendance'"/>
@@ -158,7 +190,8 @@
                                 <group string="Deducciones Legales">
                                     <field name="ccss_employee" readonly="1"/>
                                     <field name="income_tax" readonly="1"/>
-                                    <field name="other_deductions"/>
+                                    <field name="other_deductions"
+                                           readonly="state != 'draft'"/>
                                 </group>
                                 <group string="Total Obrero">
                                     <field name="total_employee_deductions" readonly="1"
@@ -249,6 +282,29 @@
                                     <field name="state"/>
                                 </list>
                             </field>
+                        </page>
+
+                        <!-- ══ LICENCIAS ESPECIALES ══════════════════════════════ -->
+                        <page string="Licencias Especiales" name="licencias_cr">
+                            <field name="leave_cr_ids" readonly="1">
+                                <list decoration-success="has_salary == True"
+                                      decoration-warning="has_salary == False">
+                                    <field name="leave_type"/>
+                                    <field name="date_start"/>
+                                    <field name="date_end"/>
+                                    <field name="days"/>
+                                    <field name="working_days"/>
+                                    <field name="has_salary" string="Con Goce" widget="boolean_toggle"/>
+                                    <field name="leave_amount" string="Monto"/>
+                                    <field name="state"/>
+                                </list>
+                            </field>
+                            <div class="alert alert-info mt-2" role="alert"
+                                 invisible="leave_cr_ids != []">
+                                No hay licencias especiales vinculadas a esta boleta.
+                                Las licencias aprobadas se sincronizan automáticamente
+                                al generar o recalcular la boleta.
+                            </div>
                         </page>
 
                         <!-- ══ OBSERVACIONES ════════════════════════════════════ -->

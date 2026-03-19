@@ -4,6 +4,8 @@ Cada procesador es un método del wizard ImportDataWizard.
 Se importan desde import_data_wizard.py via herencia múltiple.
 """
 import logging
+import traceback  # FIX-L3: faltaba — usado en bloques except
+from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K
@@ -96,6 +98,7 @@ class ImportProcessorEmployees(models.AbstractModel):
                         'payroll_calculation_method': _map(CALC_METHOD, v('Método', 'Metodo', 'Método de Cálculo')) or 'fixed',
                         'ccss_number':                str(v('CCSS', 'Número CCSS', 'Numero CCSS') or '').strip() or False,
                         'ccss_insured':               _parse_bool(v('Asegurado CCSS', 'CCSS Asegurado')),
+                        'has_variable_income':        _parse_bool(v('Salario Variable', 'Comisiones', 'Ingreso Variable')),
                         'bank_account_number':        str(v('Cuenta Bancaria', 'Cuenta') or '').strip() or False,
                         'bank_iban':                  str(v('IBAN') or '').strip() or False,
                         'sinpe_phone':                str(v('SINPE', 'Sinpe Móvil', 'Sinpe Movil') or '').strip() or False,

@@ -180,11 +180,13 @@ class PayrollRunCR(models.Model):
             # Antes se sumaban TODAS las boletas incluidas las canceladas, inflando
             # los totales cuando se cancelaba una boleta dentro de una planilla.
             active_slips = rec.payslip_ids.filtered(lambda p: p.state != 'cancelled')
-            rec.total_gross         = sum(active_slips.mapped('gross_salary'))
-            rec.total_ccss_employee = sum(active_slips.mapped('ccss_employee'))
-            rec.total_income_tax    = sum(active_slips.mapped('income_tax'))
-            rec.total_ccss_employer = sum(active_slips.mapped('ccss_employer'))
-            rec.total_employer_cost = sum(active_slips.mapped('total_employer_cost'))
+            # FIX-K9: round() en sumas de muchas boletas para evitar acumulación
+            # de error de punto flotante (ej: 200 * 16666.67 = 3333333.9999999995)
+            rec.total_gross         = round(sum(active_slips.mapped('gross_salary')), 2)
+            rec.total_ccss_employee = round(sum(active_slips.mapped('ccss_employee')), 2)
+            rec.total_income_tax    = round(sum(active_slips.mapped('income_tax')), 2)
+            rec.total_ccss_employer = round(sum(active_slips.mapped('ccss_employer')), 2)
+            rec.total_employer_cost = round(sum(active_slips.mapped('total_employer_cost')), 2)
 
             # Total Deducciones = CCSS Obrero + Renta
             rec.total_deductions = round(
@@ -229,7 +231,10 @@ class PayrollRunCR(models.Model):
         if self.state != 'draft':
             raise UserError('Solo se pueden generar boletas en planillas en borrador.')
 
-        domain = [('active', '=', True)]
+        domain = [
+            ('active', '=', True),
+            ('company_id', '=', self.company_id.id),  # FIX-C1: seguridad multi-empresa
+        ]
         if self.branch_id:
             domain.append(('branch_id', '=', self.branch_id.id))
         if self.department_id:
@@ -437,10 +442,24 @@ class PayrollRunCR(models.Model):
             if l.line_type == 'income' and l.deduction_category == 'bonus'
         ), 2)
         total_subsidios_exentos = max(round(total_bonos_total - total_bonos_salariales, 2), 0.0)
+        # FIX-AUD-04: separar licencias con goce del resto de ingresos adicionales
+        # para contabilizarlas en cuenta 630800 (no 630000) y no descuadrar el asiento.
+        total_licencias_con_goce = round(sum(
+            l.amount for l in all_deduction_lines
+            if l.line_type == 'income' and l.deduction_category == 'licencia_con_goce'
+        ), 2)
+        total_licencias_sin_goce = round(sum(
+            l.amount for l in all_deduction_lines
+            if l.line_type == 'deduction' and l.deduction_category == 'licencia_sin_goce'
+        ), 2)
         total_otros_ingresos = round(sum(
             l.amount for l in all_deduction_lines
-            if l.line_type == 'income' and l.deduction_category != 'bonus'
+            if l.line_type == 'income'
+            and l.deduction_category not in ('bonus', 'licencia_con_goce')
         ), 2)
+        # FIX-G4: excluir licencias_con_goce de total_extra_income — se agregan
+        # como línea de DEBE separada (account_licencia_expense 630800).
+        # Incluirlas aquí causaba doble DEBE idéntico al bug F5 en modo per_employee.
         total_extra_income = round(total_bonos_total + total_otros_ingresos, 2)
 
         total_pensiones = round(sum(
@@ -460,20 +479,26 @@ class PayrollRunCR(models.Model):
             if l.deduction_category == 'ausencia'
         ), 2)
         # FIX v512 BUG-CRÍTICO-01: 'rop' excluido de total_otras_ded.
-        # Mismo fix que en payslip_accounting_mixin: el ROP obrero va a account_rop_payable,
-        # no a account_salary_payable. Sin exclusión se descontaba dos veces del neto.
+        # FIX-AUD-04: 'licencia_sin_goce' excluida de otras_ded — tiene su propia línea HABER.
         total_otras_ded = round(sum(
             l.amount for l in all_deduction_lines
             if l.line_type == 'deduction'
-            and l.deduction_category not in ('pension_alimentaria', 'loan', 'ausencia', 'embargo', 'rop')
+            and l.deduction_category not in (
+                'pension_alimentaria', 'loan', 'ausencia', 'embargo', 'rop', 'licencia_sin_goce'
+            )
         ), 2)
 
         # Neto total a depositar
+        # FIX-J1: total_licencias_con_goce se agrega al neto porque el patrono las
+        # paga al empleado (igual que vacaciones o paternidad). FIX-G4 las excluyó
+        # de total_extra_income (evitar doble DEBE) pero deben seguir en el HABER
+        # para que el empleado reciba el pago correcto.
         total_net_for_accounting = round(
             total_gross - total_ccss_employee - total_income_tax
             + total_subsidy + total_paternity + total_extra_income
+            + total_licencias_con_goce    # licencias con goce: el patrono las paga al empleado
             - total_pensiones - total_embargos - total_prestamos
-            - total_ausencias - total_rop_obrero - total_otras_ded,
+            - total_ausencias - total_licencias_sin_goce - total_rop_obrero - total_otras_ded,
             2
         )
 
@@ -539,6 +564,11 @@ class PayrollRunCR(models.Model):
         if total_otros_ingresos > 0:
             add_line(config.account_salary_expense, debit=total_otros_ingresos,
                      name=f'Otros Ingresos en Boletas — Planilla {run_name}')
+        # FIX-AUD-04: licencias con goce → DEBE 630800 (gasto patronal)
+        if total_licencias_con_goce > 0:
+            lic_acct = getattr(config, 'account_licencia_expense', None) or config.account_salary_expense
+            add_line(lic_acct, debit=total_licencias_con_goce,
+                     name=f'Licencias con Goce (duelo/paternidad/matrimonio…) — Planilla {run_name}')
 
         # CRÉDITOS
         add_line(config.account_ccss_payable, credit=total_ccss_employee + total_ccss_employer, name='CCSS por Pagar — Planilla ' + self.name)
@@ -582,6 +612,10 @@ class PayrollRunCR(models.Model):
         if total_ausencias > 0:
             add_line(config.account_salary_payable, credit=total_ausencias,
                      name=f'Descuento Ausencias Sin Goce — Planilla {run_name}')
+        # FIX-AUD-04: licencias sin goce → HABER 230000 (reduce neto a pagar)
+        if total_licencias_sin_goce > 0:
+            add_line(config.account_salary_payable, credit=total_licencias_sin_goce,
+                     name=f'Descuento Licencias Sin Goce — Planilla {run_name}')
         if total_otras_ded > 0:
             add_line(config.account_salary_payable, credit=total_otras_ded,
                      name=f'Otras Deducciones Retenidas — Planilla {run_name}')

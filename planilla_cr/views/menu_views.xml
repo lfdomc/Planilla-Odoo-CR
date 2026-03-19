@@ -56,6 +56,13 @@
               action="action_disability"
               sequence="20"/>
 
+    <menuitem id="menu_leave_cr"
+              name="Licencias Especiales"
+              parent="menu_planilla_cr_novedades"
+              action="planilla_cr.action_leave_cr"
+              sequence="25"
+              groups="planilla_cr.group_planilla_operador"/>
+
     <menuitem id="menu_vacation_payment"
               name="Vacaciones"
               parent="menu_planilla_cr_novedades"

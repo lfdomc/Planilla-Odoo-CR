@@ -38,6 +38,10 @@
                                help="DESACTIVADO por defecto. Activar solo si el contador confirma que el ROP se procesará desde este módulo. Por defecto los contadores lo manejan con su propio proceso."/>
                             <field name="base_salary"/>
                             <field name="salary_effective_date"/>
+                            <field name="has_variable_income"
+                                   widget="boolean_toggle"
+                                   string="Salario Variable (comisiones / HE recurrentes)"
+                                   help="Active si el empleado recibe comisiones, horas extras recurrentes u otros ingresos variables. El sistema usará automáticamente el promedio de las últimas 4 semanas (Art. 153 CT) al calcular vacaciones y liquidaciones, en lugar del salario base fijo."/>
                         </group>
                     </group>
                     <group>
@@ -63,21 +67,31 @@
 
                     <!-- Saldo de Vacaciones -->
                     <group string="Saldo de Vacaciones (Art. 153 CT)">
-                        <group>
-                            <field name="vacation_days_accrued" string="Días Acumulados"/>
-                            <field name="vacation_days_taken" string="Días Tomados"/>
+                        <!-- Saldo inicial pre-implementación -->
+                        <group string="Saldo Inicial (Pre-Implementación)"
+                               col="2">
+                            <field name="vacation_initial_balance"
+                                   string="Saldo Inicial (días)"
+                                   help="Días disponibles al momento de arrancar el sistema. Use este campo para empleados pre-existentes cuyo saldo real difiere del calculado desde la fecha de ingreso."/>
+                            <field name="vacation_initial_balance_date"
+                                   string="Fecha de Corte del Saldo"
+                                   help="Fecha hasta la cual se calculó el saldo inicial. El sistema acumulará días adicionales solo a partir de esta fecha."/>
                         </group>
-                        <group>
-                            <field name="vacation_days_available" string="Días Disponibles"/>
+                        <div class="alert alert-info col-12" role="alert"
+                             invisible="vacation_initial_balance == 0">
+                            <i class="fa fa-info-circle"/> El saldo disponible se calcula como:
+                            <strong>Saldo Inicial + días acumulados desde la fecha de corte − días tomados en el sistema.</strong>
+                        </div>
+                        <group string="Saldo Calculado" col="2">
+                            <field name="vacation_days_accrued" string="Total Acumulado (incluye inicial)" readonly="1"/>
+                            <field name="vacation_days_taken" string="Días Tomados en Sistema" readonly="1"/>
+                            <field name="vacation_days_available" string="Días Disponibles" readonly="1"/>
                             <field name="vacation_balance_alert" invisible="1"/>
                         </group>
                         <div invisible="not vacation_balance_alert"
                              style="background:#f8d7da; border-radius:4px; padding:8px; color:#721c24; font-size:12px;">
-                            <i class="fa fa-exclamation-triangle" title="Exclamation Triangle"/> Este empleado tiene saldo negativo de vacaciones.
-                            Ha tomado más días de los acumulados según su antigüedad.
-                        </div>
-                        <div invisible="vacation_balance_alert or vacation_days_available &gt; 10"
-                             style="background:#fff3cd; border-radius:4px; padding:8px; color:#856404; font-size:12px; display:none;">
+                            <i class="fa fa-exclamation-triangle" title="Exclamación"/> Este empleado tiene saldo negativo de vacaciones.
+                            Ha tomado más días de los disponibles.
                         </div>
                     </group>
                 </page>
@@ -190,7 +204,7 @@
                 </page>
 
                 <!-- Pestaña bonos e incentivos -->
-                <page name="bonos" string="🎯 Bonos e Incentivos">
+                <page name="bonos" string="🎯 Bonos y Beneficios">
                     <div class="alert alert-info" role="alert">
                         Los bonos se aplican automáticamente en cada boleta.
                         Los <strong>bonos recurrentes activos</strong> se sincronizan al generar la planilla.

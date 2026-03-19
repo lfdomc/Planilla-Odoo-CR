@@ -55,6 +55,22 @@ class HrEmployeeExtension(models.Model):
              'Al activar: el sistema deducirá 1%% obrero y registrará 3.25%% patronal '
              'automáticamente al sincronizar cada boleta (Ley 7983 Art. 6).'
     )
+    has_variable_income = fields.Boolean(
+        string='Salario Variable (comisiones / HE recurrentes)',
+        default=False,
+        help='Active si el empleado recibe comisiones por ventas, horas extras recurrentes\n'
+             'u otros ingresos variables que fluctúan mes a mes.\n\n'
+             'Con este flag activo el sistema:\n'
+             '  • Activa automáticamente "Usar Promedio 4 Semanas" al crear vacaciones\n'
+             '    (Art. 153 CT — obligatorio para salarios variables)\n'
+             '  • Calcula el "Salario Bruto Mensual" en liquidaciones como promedio\n'
+             '    de los últimos 4 meses del historial salarial\n'
+             '  • Muestra una advertencia en la boleta si no hay bonos del período\n\n'
+             'NOTA: El sistema solo puede promediar lo que encuentra en el historial\n'
+             'salarial (planilla.salary.history). Si las comisiones se registran como\n'
+             'bonos en cada boleta y las boletas se pagan, el historial se actualiza\n'
+             'automáticamente con el bruto real.'
+    )
 
     payroll_calendar_id = fields.Many2one(
         'planilla.calendar', string='Calendarización de Planilla'
@@ -651,6 +667,29 @@ class HrEmployeeExtension(models.Model):
         'planilla.vacation.payment', 'employee_id',
         string='Vacaciones'
     )
+
+    # ── Saldo inicial pre-implementación ─────────────────────────────
+    # Cuando una empresa instala el sistema con empleados ya activos,
+    # estos tienen un saldo de vacaciones real que difiere del calculado
+    # desde la fecha de ingreso (porque ya tomaron días antes del sistema).
+    # Estos dos campos permiten "arrancar" desde el saldo correcto.
+    vacation_initial_balance = fields.Float(
+        string='Saldo Inicial de Vacaciones (días)',
+        default=0.0,
+        help='Días de vacaciones disponibles al momento de la implementación del sistema.\n'
+             'Use este campo cuando el saldo real del empleado difiere del calculado\n'
+             'automáticamente desde la fecha de ingreso (empleados pre-existentes).\n'
+             'El sistema sumará este saldo al cálculo normal a partir de la fecha de corte.\n'
+             'Si queda en 0, el sistema calcula todo desde la fecha de ingreso.'
+    )
+    vacation_initial_balance_date = fields.Date(
+        string='Fecha de Corte del Saldo Inicial',
+        help='Fecha exacta hasta la cual se calculó el saldo inicial.\n'
+             'El sistema acumulará días adicionales a partir de esta fecha.\n'
+             'Ejemplo: si la empresa arranca en Enero 2026, ponga 31/12/2025\n'
+             'y en "Saldo Inicial" los días reales disponibles a esa fecha.'
+    )
+
     vacation_days_accrued = fields.Float(
         string='Días Acumulados',
         compute='_compute_vacation_balance', store=True,
@@ -659,12 +698,12 @@ class HrEmployeeExtension(models.Model):
     vacation_days_taken = fields.Float(
         string='Días Tomados',
         compute='_compute_vacation_balance', store=True,
-        help='Días de vacaciones ya utilizados (estado aprobado o pagado)'
+        help='Días de vacaciones ya utilizados en el sistema (estado aprobado o pagado)'
     )
     vacation_days_available = fields.Float(
         string='Días Disponibles',
         compute='_compute_vacation_balance', store=True,
-        help='Saldo disponible = Acumulados − Tomados'
+        help='Saldo disponible = Saldo Inicial + Acumulados desde corte − Tomados en sistema'
     )
     vacation_balance_alert = fields.Boolean(
         string='Alerta Vacaciones',
@@ -747,6 +786,12 @@ class HrEmployeeExtension(models.Model):
                     'gross_salary': employee.base_salary,  # FIX: también el bruto
                     'effective_date': employee.salary_effective_date or fields.Date.today(),
                     'reason': 'Salario Inicial',
+                    # FIX-G1: state='authorized' para que las consultas de promedio
+                    # (vacaciones Art.153, liquidaciones, simulador) encuentren este
+                    # registro. Sin esto queda en 'draft' y es invisible para el promedio.
+                    'state': 'authorized',
+                    'authorized_by': self.env.user.id,
+                    'authorized_date': fields.Datetime.now(),
                 })
         return employees
 
@@ -754,6 +799,17 @@ class HrEmployeeExtension(models.Model):
         old_salaries = {emp.id: emp.base_salary for emp in self} if 'base_salary' in vals else {}
         result = super().write(vals)
         if 'base_salary' in vals:
+            # FIX-Q15: si skip_salary_history=True en contexto, no crear historial.
+            # Evita duplicado cuando salary_history.action_authorize actualiza base_salary:
+            # ese registro ya existe (el que se está autorizando), no debe crearse otro.
+            if self.env.context.get('skip_salary_history'):
+                self._check_minimum_salary_warning()
+                return result
+            # FIX-Q5: leer razón del contexto para que wizards (salary_increase_wizard)
+            # puedan personalizar la razón sin crear un registro duplicado.
+            # Si no hay razón en el contexto, usar el valor por defecto 'Ajuste Salarial'.
+            salary_reason = self.env.context.get('salary_history_reason', 'Ajuste Salarial')
+            salary_note   = self.env.context.get('salary_history_note', False)
             for employee in self:
                 old_sal = old_salaries.get(employee.id, 0.0)
                 if employee.base_salary and employee.base_salary != old_sal:
@@ -762,18 +818,34 @@ class HrEmployeeExtension(models.Model):
                         'salary': employee.base_salary,
                         'gross_salary': employee.base_salary,  # FIX BUG-N10 v52
                         'effective_date': vals.get('salary_effective_date') or fields.Date.today(),
-                        'reason': 'Ajuste Salarial',
+                        'reason': salary_reason,
+                        'note':   salary_note,
+                        # FIX-G1: state='authorized' — mismo fix que action_pay (D1).
+                        'state': 'authorized',
+                        'authorized_by': self.env.user.id,
+                        'authorized_date': fields.Datetime.now(),
                     })
             self._check_minimum_salary_warning()
         return result
 
     @api.depends('entry_date', 'exit_date',
+                 'vacation_initial_balance', 'vacation_initial_balance_date',
                  'planilla_vacation_ids.state', 'planilla_vacation_ids.days',
                  'planilla_vacation_ids.vacation_type')
     def _compute_vacation_balance(self):
         """
         Art. 153 CT CR: 12 días hábiles por cada 50 semanas laboradas.
-        Acumula proporcional: (semanas_trabajadas / 50) * 12 días.
+
+        Lógica con saldo inicial pre-implementación:
+          Si el empleado tiene vacation_initial_balance (saldo real a una fecha de corte):
+            1. Toma el saldo inicial como punto de partida.
+            2. Calcula días acumulados SOLO desde vacation_initial_balance_date hasta hoy.
+            3. Resta los días tomados en el sistema (vacation.payment aprobados/pagados).
+            Saldo = vacation_initial_balance + días_acumulados_desde_corte - días_tomados
+
+          Si NO tiene saldo inicial (instalación desde cero):
+            Calcula todo desde entry_date como antes.
+
         Art. 153 párrafo 2: incapacidades > 3 meses continuos NO cuentan
         como tiempo trabajado para el cálculo de vacaciones.
         """
@@ -785,30 +857,53 @@ class HrEmployeeExtension(models.Model):
                 emp.vacation_balance_alert = False
                 continue
 
-            # Fecha de corte: salida si existe, hoy si no
             cutoff = emp.exit_date or date.today()
-            total_days = (cutoff - emp.entry_date).days
 
             # ── Descontar incapacidades > 3 meses continuos (Art. 153 CT) ──
-            # FIX D-03 v53: Solo descontar incapacidades donde los días son CONTINUOS.
-            # Una incapacidad de 95 días continuos sí excede 90 días.
-            # Dos incapacidades de 50 días cada una NO deben sumarse para llegar a 100.
-            # La continuidad se determina por la duración de cada registro individual.
             disability_days_excluded = 0
             long_disabilities = self.env['planilla.disability'].search([
                 ('employee_id', '=', emp.id),
                 ('state', 'in', ('confirmed', 'paid')),
-                ('days', '>', 90),  # > 3 meses continuos = 90 días en un solo registro
+                ('days', '>', 90),
             ])
             for dis in long_disabilities:
-                # Solo descontar los días que EXCEDEN los primeros 90 días continuos
                 disability_days_excluded += max(dis.days - 90, 0)
 
-            effective_days = max(total_days - disability_days_excluded, 0)
-            weeks_worked = effective_days / 7.0
-            accrued = round((weeks_worked / 50.0) * 12.0, 2)
+            # ── Determinar desde cuándo acumular ─────────────────────────────
+            has_initial = (
+                emp.vacation_initial_balance > 0
+                and emp.vacation_initial_balance_date
+            )
 
-            # Días tomados: registros aprobados o pagados no cancelados
+            if has_initial:
+                # Acumular solo desde la fecha de corte del saldo inicial
+                accrual_start = emp.vacation_initial_balance_date
+                # No acumular si la fecha de corte es futura o igual a hoy
+                if accrual_start >= cutoff:
+                    accrued_since_cutoff = 0.0
+                else:
+                    days_since_cutoff = (cutoff - accrual_start).days
+                    # Descontar solo incapacidades que caen DESPUÉS del corte
+                    long_dis_after_cutoff = self.env['planilla.disability'].search([
+                        ('employee_id', '=', emp.id),
+                        ('state', 'in', ('confirmed', 'paid')),
+                        ('days', '>', 90),
+                        ('date_start', '>=', accrual_start),
+                    ])
+                    dis_after = sum(max(d.days - 90, 0) for d in long_dis_after_cutoff)
+                    effective_days = max(days_since_cutoff - dis_after, 0)
+                    weeks_since_cutoff = effective_days / 7.0
+                    accrued_since_cutoff = round((weeks_since_cutoff / 50.0) * 12.0, 2)
+
+                accrued = round(emp.vacation_initial_balance + accrued_since_cutoff, 2)
+            else:
+                # Cálculo normal desde fecha de ingreso
+                total_days = (cutoff - emp.entry_date).days
+                effective_days = max(total_days - disability_days_excluded, 0)
+                weeks_worked = effective_days / 7.0
+                accrued = round((weeks_worked / 50.0) * 12.0, 2)
+
+            # Días tomados en el sistema (solo registros creados en el sistema)
             taken_recs = self.env['planilla.vacation.payment'].search([
                 ('employee_id', '=', emp.id),
                 ('state', 'in', ['approved', 'paid']),
@@ -821,6 +916,7 @@ class HrEmployeeExtension(models.Model):
             emp.vacation_days_taken     = taken
             emp.vacation_days_available = available
             emp.vacation_balance_alert  = available < 0
+
 
     def _check_minimum_salary_warning(self):
         """FIX B-08 v53: Advertencia de salario mínimo como notificación (no UserError).
