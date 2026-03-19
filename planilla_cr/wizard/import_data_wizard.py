@@ -883,11 +883,49 @@ class ImportDataWizard(models.TransientModel):
         if not rows:
             return 0, 0
 
+        import re as _re
+
+        def _is_valid_id(s):
+            """
+            FIX-V1: Distingue un número de identificación real de texto de instrucciones.
+            La hoja VACACIONES incluye un bloque de instrucciones al final del machote
+            (añadido por _build_vacations). Esas filas tienen texto libre en la columna
+            'Cédula' en lugar de un ID real.
+            Acepta: cédulas CR (9 dígitos), DIMEX (12 dígitos), pasaportes alfanuméricos.
+            Rechaza: texto con dos puntos, listas numeradas ("1. ..."), emoji, o frases
+            que contienen palabras clave de las instrucciones.
+            """
+            s = s.strip()
+            if not s:
+                return False
+            # Colon → instrucción ("INSTRUCCIONES:", "Ejemplo:")
+            if ':' in s:
+                return False
+            # Lista numerada: "1. Texto", "5. Las columnas..."
+            if _re.search(r'\d+\.\s', s):
+                return False
+            # Emoji u otros caracteres Unicode especiales (> U+1F00)
+            if any(ord(c) > 0x1F00 for c in s):
+                return False
+            # Palabras que solo aparecen en instrucciones, nunca en un ID
+            _lower = s.lower()
+            if any(w in _lower for w in (
+                'complete', 'ejemplo', 'instrucciones', 'acumulados', 'columnas',
+                'afectan', 'saldo', 'tomados', 'empleado', 'arranca', 'sistema',
+                'verificación', 'verificacion',
+            )):
+                return False
+            # Tras pasar los filtros: el ID limpio debe ser alfanumérico
+            cleaned = _re.sub(r'[-\s]', '', s)
+            return bool(cleaned) and bool(_re.match(r'^[A-Za-z0-9]+$', cleaned))
+
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
             cedula = str(v('Cédula', 'Cedula') or '').strip()
             if not cedula:
                 continue
+            if not _is_valid_id(cedula):
+                continue  # fila de instrucciones al pie de la hoja VACACIONES
             if self._is_sample(cedula) and not self.import_sample_data:
                 continue
 
