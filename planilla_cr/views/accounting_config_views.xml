@@ -103,6 +103,9 @@
                                     <field name="account_embargo_payable"
                                            options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
                                            help="Embargos judiciales retenidos pendientes de girar al Juzgado (Art. 172 CT). Cuenta separada para control judicial. Ej: 230960"/>
+                                    <field name="account_cobro_empleado_payable"
+                                           options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
+                                           help="Cobros al empleado retenidos (almuerzos, productos, uniformes, parqueo, etc.) pendientes de liquidar con el proveedor. Ej: 230970. Si no se configura usa Salarios por Pagar."/>
                                 </group>
                             </group>
                         </page>

@@ -414,7 +414,7 @@ class EmployeeTermination(models.Model):
                 f'Pague o cancele esas boletas antes de confirmar la liquidación.'
             )
         # Verificar período cerrado
-        termination_date = self.termination_date or fields.Date.today()
+        termination_date = self.termination_date or fields.Date.context_today(self)
         closed = PlanillaClosedPeriod.is_period_closed(
             self.env, self.company_id.id,
             termination_date, termination_date,
@@ -640,7 +640,7 @@ class EmployeeTermination(models.Model):
 
         move = self.env['account.move'].create({
             'journal_id': journal.id,
-            'date': self.termination_date or fields.Date.today(),
+            'date': self.termination_date or fields.Date.context_today(self),
             'ref': f'Liquidación — {emp} — {self.termination_date}',
             'move_type': 'entry',
             'line_ids': lines,

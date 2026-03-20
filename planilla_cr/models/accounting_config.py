@@ -191,6 +191,19 @@ class PayrollAccountingConfig(models.Model):
              'Si no se configura, usa la cuenta Sueldos y Salarios (630000).'
     )
 
+    # ── Cobros al Empleado ──────────────────────────────────────────────────
+    account_cobro_empleado_payable = fields.Many2one(
+        'account.account',
+        string='Cobros al Empleado por Liquidar',
+        domain=[('account_type', 'in', ['liability_current', 'asset_current'])],
+        help='CRÉDITO — Cuenta donde se acumulan los cobros descontados al empleado\n'
+             '(almuerzos, productos, uniformes, parqueo, etc.) pendientes de liquidar\n'
+             'con el proveedor o de trasladar a la cuenta de ingresos correspondiente.\n'
+             'Ej: 230970 Cobros al Empleado por Liquidar\n\n'
+             'Si no se configura, el sistema usa la cuenta Salarios por Pagar (230000)\n'
+             'como fallback. Se recomienda una cuenta separada para mayor control.'
+    )
+
     @api.model
     def get_config(self, company_id=None):
         company = company_id or self.env.company.id
@@ -318,6 +331,7 @@ class PayrollAccountingConfig(models.Model):
             # BUG #10 FIX v50 — Pensiones alimentarias separadas de salarios
             'account_rop_payable':                 ('230350', 'ROP por Pagar (Obrero+Patronal)', 'liability_current'),
             'account_pension_alimentaria_payable':  ('230950', 'Pensiones Alimentarias por Pagar',              'liability_current'),
+            'account_cobro_empleado_payable':       ('230970', 'Cobros al Empleado por Liquidar',               'liability_current'),
             # BUG #11 FIX v50 — Cuenta préstamos por cobrar explícita
             'account_loans_receivable':             ('115000', 'Préstamos a Empleados por Cobrar',             'asset_current'),
         }

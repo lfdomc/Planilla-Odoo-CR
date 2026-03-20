@@ -147,9 +147,25 @@ class PayslipAccountingMixin(models.AbstractModel):
             if l.line_type == 'deduction'
                and l.deduction_category not in (
                    'pension_alimentaria', 'loan', 'ausencia', 'embargo', 'rop',
-                   'licencia_sin_goce',
+                   'licencia_sin_goce', 'other',
                )
         ), 2)
+        # Cobros al empleado (almuerzos, productos, uniformes, etc.)
+        # Categoría 'other' con employee_charge_id → van a cuenta 230970
+        cobros_empleado = round(sum(
+            l.amount for l in self.deduction_line_ids
+            if l.line_type == 'deduction'
+               and l.deduction_category == 'other'
+               and l.employee_charge_id
+        ), 2)
+        # Otras deducciones 'other' sin employee_charge_id (manuales)
+        otras_ded_manual = round(sum(
+            l.amount for l in self.deduction_line_ids
+            if l.line_type == 'deduction'
+               and l.deduction_category == 'other'
+               and not l.employee_charge_id
+        ), 2)
+        otras_ded = round(otras_ded + otras_ded_manual, 2)
 
         # salary_payable calculado localmente para garantizar cuadre
         # = gross - ccss_emp - renta + subsidio_ccss + paternidad + extra_income
@@ -174,6 +190,7 @@ class PayslipAccountingMixin(models.AbstractModel):
             - ausencias
             - licencias_sin_goce # permisos sin goce → reducen neto
             - rop_obrero_net     # ROP obrero 1% — va a 230350, reduce lo que va a 230000
+            - cobros_empleado    # cobros retenidos (almuerzos, productos…) → van a 230970
             - otras_ded,
             2
         )
@@ -350,6 +367,14 @@ class PayslipAccountingMixin(models.AbstractModel):
             add_line(config.account_salary_payable,
                      credit=otras_ded,
                      name=f'Otras Deducciones Retenidas — {emp}')
+
+        # Cobros al empleado: van a cuenta 230970 (separada de 230000 para control)
+        if cobros_empleado > 0:
+            cobro_acct = (getattr(config, 'account_cobro_empleado_payable', None)
+                          or config.account_salary_payable)
+            add_line(cobro_acct,
+                     credit=cobros_empleado,
+                     name=f'Cobros al Empleado Retenidos (almuerzos/productos…) — {emp}')
 
         # Días 1-3 de incapacidad se pagan al empleado pero son gasto patronal
         if dis_cost > 0:

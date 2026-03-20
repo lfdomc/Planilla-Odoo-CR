@@ -96,6 +96,13 @@
               sequence="50"
               groups="planilla_cr.group_planilla_operador"/>
 
+    <menuitem id="menu_employee_charge"
+              name="Cobros a Empleados"
+              parent="menu_planilla_cr_novedades"
+              action="planilla_cr.action_employee_charge"
+              sequence="55"
+              groups="planilla_cr.group_planilla_operador"/>
+
     <!-- ── REPORTES ───────────────────────────────────────────────── -->
     <menuitem id="menu_planilla_cr_reports"
               name="Reportes"
@@ -275,5 +282,12 @@
               action="action_closed_period"
               sequence="85"
               groups="planilla_cr.group_planilla_aprobador"/>
+
+    <menuitem id="menu_charge_type"
+              name="Tipos de Cobro al Empleado"
+              parent="menu_planilla_cr_config"
+              action="planilla_cr.action_charge_type"
+              sequence="86"
+              groups="planilla_cr.group_planilla_admin"/>
 
 </odoo>

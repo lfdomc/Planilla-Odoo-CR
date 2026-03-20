@@ -15,7 +15,7 @@ class AguinaldoWizard(models.TransientModel):
 
     year = fields.Integer(
         string='Año', required=True,
-        default=lambda self: fields.Date.today().year
+        default=lambda self: fields.Date.context_today(self).year
     )
     branch_id = fields.Many2one('planilla.branch', string='Sucursal (opcional)')
     company_id = fields.Many2one(

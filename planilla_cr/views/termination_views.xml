@@ -69,7 +69,7 @@
                     <!-- Alerta salario variable -->
                     <div class="alert alert-info col-12" role="alert"
                          invisible="not employee_id">
-                        <i class="fa fa-info-circle" title="Información sobre salario variable"/>
+                        <i class="fa fa-info-circle" title="Información"/>
                         <strong>Salario Bruto Mensual:</strong>
                         Para empleados con comisiones o ingresos variables, este campo
                         se auto-completó con el <strong>promedio de las últimas 4 boletas pagadas</strong>

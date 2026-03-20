@@ -63,6 +63,10 @@
                             <field name="entry_date"/>
                             <field name="exit_date"/>
                         </group>
+                        <group string="Contacto">
+                            <field name="work_email"/>
+                            <field name="work_phone"/>
+                        </group>
                     </group>
 
                     <!-- Saldo de Vacaciones -->
@@ -79,7 +83,7 @@
                         </group>
                         <div class="alert alert-info col-12" role="alert"
                              invisible="vacation_initial_balance == 0">
-                            <i class="fa fa-info-circle"/> El saldo disponible se calcula como:
+                            <i class="fa fa-info-circle" title="Información"/> El saldo disponible se calcula como:
                             <strong>Saldo Inicial + días acumulados desde la fecha de corte − días tomados en el sistema.</strong>
                         </div>
                         <group string="Saldo Calculado" col="2">
@@ -129,6 +133,13 @@
                             <field name="ins_occupation"/>
                             <field name="ins_risk_class"/>
                         </group>
+                        <group string="Datos Médicos">
+                            <field name="blood_type"/>
+                        </group>
+                    </group>
+                    <group invisible="not ins_include">
+                        <field name="medical_notes"
+                               placeholder="Diagnósticos, alergias, condiciones crónicas, medicamentos, notas de emergencia..."/>
                     </group>
                 </page>
 
@@ -227,6 +238,35 @@
                                    decoration-success="state=='active'"
                                    decoration-warning="state=='suspended'"
                                    decoration-danger="state=='ended'"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Pestaña cobros al empleado -->
+                <page name="cobros_empleado" string="🛒 Cobros al Empleado">
+                    <div class="alert alert-info" role="alert">
+                        Los cobros aprobados se descuentan automáticamente en cada boleta.
+                        Los <strong>cobros recurrentes</strong> se aplican cada período
+                        mientras estén vigentes sin intervención manual.
+                    </div>
+                    <field name="employee_charge_ids">
+                        <list decoration-success="state == 'applied'"
+                              decoration-warning="state == 'approved'"
+                              decoration-muted="state == 'cancelled'"
+                              decoration-info="state == 'draft'">
+                            <field name="charge_type_id" string="Tipo"/>
+                            <field name="date_from" string="Desde"/>
+                            <field name="date_to" string="Hasta"/>
+                            <field name="is_recurring" string="Recurrente"/>
+                            <field name="recurrence_end" string="Fin Recurrencia" optional="show"/>
+                            <field name="employee_amount" string="Cargo (₡)"/>
+                            <field name="subsidy_pct" string="Subsidio %" optional="show"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state == 'applied'"
+                                   decoration-warning="state == 'approved'"
+                                   decoration-danger="state == 'cancelled'"
+                                   decoration-info="state == 'draft'"/>
+                            <field name="payslip_id" string="Última Boleta" optional="show"/>
                         </list>
                     </field>
                 </page>

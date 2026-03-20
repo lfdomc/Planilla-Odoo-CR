@@ -90,3 +90,9 @@ access_bono_antiguedad_config_aprobador,planilla.bono.antiguedad.config.aprobado
 access_planilla_leave_cr_admin,planilla.leave.cr.admin,model_planilla_leave_cr,planilla_cr.group_planilla_admin,1,1,1,1
 access_planilla_leave_cr_aprobador,planilla.leave.cr.aprobador,model_planilla_leave_cr,planilla_cr.group_planilla_aprobador,1,1,1,1
 access_planilla_leave_cr_operador,planilla.leave.cr.operador,model_planilla_leave_cr,planilla_cr.group_planilla_operador,1,1,0,0
+access_planilla_charge_type_admin,planilla.charge.type.admin,model_planilla_charge_type,planilla_cr.group_planilla_admin,1,1,1,1
+access_planilla_charge_type_aprobador,planilla.charge.type.aprobador,model_planilla_charge_type,planilla_cr.group_planilla_aprobador,1,1,0,0
+access_planilla_charge_type_operador,planilla.charge.type.operador,model_planilla_charge_type,planilla_cr.group_planilla_operador,1,0,0,0
+access_planilla_employee_charge_admin,planilla.employee.charge.admin,model_planilla_employee_charge,planilla_cr.group_planilla_admin,1,1,1,1
+access_planilla_employee_charge_aprobador,planilla.employee.charge.aprobador,model_planilla_employee_charge,planilla_cr.group_planilla_aprobador,1,1,1,1
+access_planilla_employee_charge_operador,planilla.employee.charge.operador,model_planilla_employee_charge,planilla_cr.group_planilla_operador,1,1,1,0

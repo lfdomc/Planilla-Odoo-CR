@@ -387,6 +387,13 @@ class PayslipDeductionLine(models.Model):
         help='Referencia a la licencia especial CR (duelo, paternidad, matrimonio, etc.) '
              'que originó esta línea. Evita duplicados al re-sincronizar.'
     )
+    employee_charge_id = fields.Integer(
+        string='ID Cobro al Empleado',
+        readonly=True,
+        help='ID del cobro al empleado (almuerzo, producto, uniforme, etc.) '
+             'que originó esta deducción. Evita duplicados al re-sincronizar. '
+             'Se usa como Integer para evitar dependencia circular en BD.'
+    )
 
     @api.constrains('amount', 'deduction_category', 'payslip_id')
     def _check_deduction_limits(self):

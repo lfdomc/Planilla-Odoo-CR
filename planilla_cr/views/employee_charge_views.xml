@@ -1,0 +1,305 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         PLANILLA.CHARGE.TYPE — Catálogo de Tipos de Cobro
+    ════════════════════════════════════════════════════════════════ -->
+
+    <record id="view_charge_type_list" model="ir.ui.view">
+        <field name="name">planilla.charge.type.list</field>
+        <field name="model">planilla.charge.type</field>
+        <field name="arch" type="xml">
+            <list string="Tipos de Cobro al Empleado" editable="top">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="charge_mode"/>
+                <field name="default_unit_price"/>
+                <field name="unit_label"/>
+                <field name="subsidy_pct" string="Subsidio %"/>
+                <field name="affects_ccss"/>
+                <field name="deduction_code_id"/>
+                <field name="charge_count" string="Cobros"/>
+                <field name="active" invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_charge_type_form" model="ir.ui.view">
+        <field name="name">planilla.charge.type.form</field>
+        <field name="model">planilla.charge.type</field>
+        <field name="arch" type="xml">
+            <form string="Tipo de Cobro al Empleado">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_charges"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-list">
+                            <field name="charge_count" widget="statinfo" string="Cobros"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archivado" bg_color="bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Ej: Almuerzo Comedor"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Identificación">
+                            <field name="code"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Código Contable">
+                            <field name="deduction_code_id"/>
+                        </group>
+                    </group>
+                    <group string="Configuración de Cobro">
+                        <group>
+                            <field name="charge_mode"/>
+                            <field name="default_unit_price"/>
+                            <field name="unit_label"
+                                   invisible="charge_mode == 'fixed'"/>
+                        </group>
+                        <group>
+                            <field name="subsidy_pct"/>
+                            <field name="affects_ccss"/>
+                        </group>
+                    </group>
+                    <group string="Política / Descripción">
+                        <field name="description" nolabel="1"/>
+                    </group>
+                    <div class="alert alert-info" role="alert"
+                         invisible="not affects_ccss">
+                        <strong>⚠ Atención:</strong> Este tipo de cobro tiene activado
+                        "Afecta Base CCSS". El monto subsidiado por la empresa se considerará
+                        salario en especie (Art. 166 CT). Verifique con su asesor legal.
+                    </div>
+                    <div class="alert alert-success" role="alert"
+                         invisible="subsidy_pct &lt; 100">
+                        <strong>ℹ Subsidio 100%:</strong> La empresa asume el costo completo.
+                        No se generará ningún cargo en la boleta del empleado.
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_charge_type" model="ir.actions.act_window">
+        <field name="name">Tipos de Cobro al Empleado</field>
+        <field name="res_model">planilla.charge.type</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'active_test': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Defina los tipos de cobros que puede hacerle a sus empleados
+            </p>
+            <p>
+                Ejemplos: Almuerzo Comedor, Productos de Tienda, Uniformes,
+                Seguros Voluntarios, Parqueo, etc.
+            </p>
+        </field>
+    </record>
+
+    <!-- ════════════════════════════════════════════════════════════════
+         PLANILLA.EMPLOYEE.CHARGE — Cobros por Empleado/Período
+    ════════════════════════════════════════════════════════════════ -->
+
+    <record id="view_employee_charge_list" model="ir.ui.view">
+        <field name="name">planilla.employee.charge.list</field>
+        <field name="model">planilla.employee.charge</field>
+        <field name="arch" type="xml">
+            <list string="Cobros a Empleados"
+                  decoration-success="state == 'applied'"
+                  decoration-warning="state == 'approved'"
+                  decoration-muted="state == 'cancelled'"
+                  decoration-info="state == 'draft'">
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="branch_id" optional="show"/>
+                <field name="charge_type_id"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="quantity" invisible="charge_mode == 'fixed'"/>
+                <field name="unit_label" invisible="charge_mode == 'fixed'" optional="hide"/>
+                <field name="unit_price"/>
+                <field name="subsidy_pct" optional="show"/>
+                <field name="total_amount"/>
+                <field name="employer_amount" optional="show"/>
+                <field name="employee_amount" string="Cargo Boleta"/>
+                <field name="is_recurring" string="Recurrente" optional="show"/>
+                <field name="charge_mode" invisible="1"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'applied'"
+                       decoration-warning="state == 'approved'"
+                       decoration-danger="state == 'cancelled'"
+                       decoration-info="state == 'draft'"/>
+                <field name="payslip_id" optional="show"/>
+                <button name="action_approve" type="object" string="Aprobar"
+                        icon="fa-check" invisible="state != 'draft'"
+                        groups="planilla_cr.group_planilla_aprobador"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_employee_charge_form" model="ir.ui.view">
+        <field name="name">planilla.employee.charge.form</field>
+        <field name="model">planilla.employee.charge</field>
+        <field name="arch" type="xml">
+            <form string="Cobro al Empleado">
+                <header>
+                    <button name="action_approve" type="object" string="Aprobar"
+                            class="btn-primary"
+                            invisible="state != 'draft'"
+                            groups="planilla_cr.group_planilla_aprobador"/>
+                    <button name="action_cancel" type="object" string="Cancelar"
+                            invisible="state in ('applied', 'cancelled')"
+                            groups="planilla_cr.group_planilla_aprobador"
+                            confirm="¿Está seguro de cancelar este cobro?"/>
+                    <button name="action_reset_to_draft" type="object"
+                            string="Reactivar a Borrador"
+                            invisible="state != 'cancelled'"
+                            groups="planilla_cr.group_planilla_aprobador"/>
+                    <button name="action_print_charge" type="object"
+                            string="🖨 Imprimir" class="btn-secondary"
+                            invisible="state == 'draft'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved,applied"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Empleado">
+                            <field name="employee_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="branch_id"/>
+                            <field name="company_id"
+                                   groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Tipo de Cobro">
+                            <field name="charge_type_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="charge_mode"/>
+                            <field name="affects_ccss"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Período">
+                            <field name="date_from" readonly="state != 'draft'"/>
+                            <field name="date_to" readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Cálculo">
+                            <field name="quantity"
+                                   invisible="charge_mode == 'fixed'"
+                                   readonly="state != 'draft'"/>
+                            <field name="unit_label"
+                                   invisible="charge_mode == 'fixed'"/>
+                            <field name="unit_price" readonly="state != 'draft'"/>
+                            <field name="subsidy_pct" readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+                    <group string="Recurrencia">
+                        <field name="is_recurring" readonly="state != 'draft'"/>
+                        <field name="recurrence_end"
+                               invisible="not is_recurring"
+                               readonly="state != 'draft'"/>
+                        <field name="applied_periods"
+                               invisible="not is_recurring"
+                               readonly="1"/>
+                    </group>
+                    <group string="Resumen de Montos" col="3">
+                        <field name="total_amount" readonly="1"/>
+                        <field name="employer_amount" readonly="1"/>
+                        <field name="employee_amount" readonly="1"
+                               class="oe_subtotal_footer_separator"/>
+                    </group>
+                    <group string="Trazabilidad" invisible="state != 'applied'">
+                        <field name="payslip_id" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="notes" placeholder="Observaciones adicionales..."/>
+                    </group>
+                    <div class="alert alert-success" role="alert"
+                         invisible="state != 'applied'">
+                        ✅ Cobro único aplicado en la boleta
+                        <strong><field name="payslip_id" readonly="1" nolabel="1"/></strong>
+                    </div>
+                    <div class="alert alert-primary" role="alert"
+                         invisible="not is_recurring or state == 'cancelled'">
+                        🔄 <strong>Cobro Recurrente:</strong> se aplica automáticamente
+                        en cada período de planilla. Última aplicación:
+                        <strong><field name="payslip_id" readonly="1" nolabel="1"/></strong>
+                    </div>
+                    <div class="alert alert-info" role="alert"
+                         invisible="employee_amount &gt; 0">
+                        ℹ El subsidio patronal cubre el 100% del costo.
+                        No se generará cargo en la boleta del empleado.
+                    </div>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- Filtros de búsqueda -->
+    <record id="view_employee_charge_search" model="ir.ui.view">
+        <field name="name">planilla.employee.charge.search</field>
+        <field name="model">planilla.employee.charge</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Cobros">
+                <field name="employee_id"/>
+                <field name="charge_type_id"/>
+                <field name="branch_id"/>
+                <separator/>
+                <filter string="Borrador" name="draft"
+                        domain="[('state','=','draft')]"/>
+                <filter string="Aprobados" name="approved"
+                        domain="[('state','=','approved')]"/>
+                <filter string="Aplicados" name="applied"
+                        domain="[('state','=','applied')]"/>
+                <filter string="Cancelados" name="cancelled"
+                        domain="[('state','=','cancelled')]"/>
+                <separator/>
+                <filter string="Sin subsidio" name="no_subsidy"
+                        domain="[('subsidy_pct','=',0)]"/>
+                <filter string="Con subsidio patronal" name="with_subsidy"
+                        domain="[('subsidy_pct','&gt;',0)]"/>
+                <separator/>
+                <filter string="▾ Por Empleado" name="by_employee"
+                        context="{'group_by': 'employee_id'}"/>
+                <filter string="▾ Por Tipo de Cobro" name="by_type"
+                        context="{'group_by': 'charge_type_id'}"/>
+                <filter string="▾ Por Sucursal" name="by_branch"
+                        context="{'group_by': 'branch_id'}"/>
+                <filter string="▾ Por Estado" name="by_state"
+                        context="{'group_by': 'state'}"/>
+                <filter string="▾ Por Período" name="by_period"
+                        context="{'group_by': 'date_from:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_employee_charge" model="ir.actions.act_window">
+        <field name="name">Cobros a Empleados</field>
+        <field name="res_model">planilla.employee.charge</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_approved': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No hay cobros registrados para este período
+            </p>
+            <p>
+                Registre cobros como almuerzos, productos, uniformes u otros
+                cargos que se descontarán automáticamente en la boleta del empleado.
+            </p>
+        </field>
+    </record>
+
+</odoo>

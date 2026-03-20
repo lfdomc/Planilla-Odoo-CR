@@ -1290,3 +1290,211 @@ class PayslipSyncMixin(models.AbstractModel):
                 })
         if lines_to_create:
             self.env['planilla.payslip.deduction.line'].create(lines_to_create)
+
+    # ── Cobros al Empleado ────────────────────────────────────────────
+
+    def _sync_employee_charges(self) -> None:
+        """
+        Sincroniza cobros aprobados al empleado (planilla.employee.charge)
+        como líneas de deducción en la boleta.
+
+        Maneja dos modalidades:
+          - Cobro único (is_recurring=False): se consume al aplicarse → 'applied'
+          - Cobro recurrente (is_recurring=True): permanece en 'approved', se aplica
+            cada período nuevo. Deduplicación por applied_periods (YYYY-MM).
+
+        Si employee_amount=0 (subsidio 100%), no crea línea pero sí registra
+        el período o marca el cobro como aplicado para trazabilidad.
+        """
+        self.ensure_one()
+        if self.state != 'draft':
+            return
+
+        charges = self.env['planilla.employee.charge'].search([
+            ('employee_id', '=', self.employee_id.id),
+            ('state', '=', 'approved'),
+            '|',
+            # Cobros únicos: período solapa con la boleta
+            '&', ('is_recurring', '=', False),
+                 '&', ('date_from', '<=', self.date_to),
+                      ('date_to', '>=', self.date_from),
+            # Cobros recurrentes: vigentes en el período de la boleta
+            '&', ('is_recurring', '=', True),
+                 '&', ('date_from', '<=', self.date_to),
+                      '|', ('recurrence_end', '=', False),
+                           ('recurrence_end', '>=', self.date_from),
+        ])
+        if not charges:
+            return
+
+        default_code = self.env['planilla.deduction.code'].search(
+            [('code', '=', 'COBRO_EMP')], limit=1
+        )
+
+        lines_to_create   = []
+        charges_to_apply  = []   # únicos → marcar 'applied'
+        charges_recurring = []   # recurrentes → registrar período
+
+        for charge in charges:
+            # ── Deduplicación ─────────────────────────────────────────
+            if charge.is_recurring:
+                if charge._is_period_already_applied(self.date_from):
+                    continue
+            else:
+                existing = self.deduction_line_ids.filtered(
+                    lambda l, c=charge: l.employee_charge_id == c.id
+                )
+                if existing:
+                    continue
+
+            ded_code = charge.charge_type_id.deduction_code_id or default_code
+            if not ded_code:
+                _logger.warning(
+                    'planilla_cr._sync_employee_charges: sin código de deducción '
+                    'para cobro "%s" del empleado %s — omitido.',
+                    charge.name, self.employee_id.name
+                )
+                continue
+
+            if charge.is_recurring:
+                charges_recurring.append(charge)
+            else:
+                charges_to_apply.append(charge)
+
+            if charge.employee_amount <= 0:
+                continue
+
+            desc = charge.charge_type_id.name
+            if charge.notes:
+                desc = f'{desc}: {charge.notes}'
+
+            lines_to_create.append({
+                'payslip_id':          self.id,
+                'deduction_code_id':   ded_code.id,
+                'description':         desc,
+                'line_type':           'deduction',
+                'deduction_category':  'other',
+                'amount_type':         'fixed',
+                'amount':              charge.employee_amount,
+                'employee_charge_id':  charge.id,
+            })
+
+        if lines_to_create:
+            self.env['planilla.payslip.deduction.line'].create(lines_to_create)
+
+        # Cobros únicos → consumed, pasan a 'applied'
+        if charges_to_apply:
+            self.env['planilla.employee.charge'].browse(
+                [c.id for c in charges_to_apply]
+            ).write({'state': 'applied', 'payslip_id': self.id})
+
+        # Cobros recurrentes → registrar período, mantener 'approved'
+        for charge in charges_recurring:
+            charge._mark_period_applied(self.date_from)
+            charge.payslip_id = self.id
+
+    def _sync_employee_charges_batch(self) -> None:
+        """
+        Batch: carga cobros aprobados de TODOS los empleados en una query.
+        Para 200 empleados: 200 queries → 1 query. Reducción 99%.
+        Se activa automáticamente en la creación masiva de boletas.
+
+        Maneja cobros únicos y recurrentes con deduplicación correcta.
+        """
+        if not self:
+            return
+
+        date_from = self[0].date_from
+        date_to   = self[0].date_to
+        emp_ids   = self.mapped('employee_id.id')
+        slip_by_emp = {s.employee_id.id: s for s in self}
+
+        # Cargar todos los cobros aprobados en una sola query
+        all_charges = self.env['planilla.employee.charge'].search([
+            ('employee_id', 'in', emp_ids),
+            ('state', '=', 'approved'),
+            '|',
+            '&', ('is_recurring', '=', False),
+                 '&', ('date_from', '<=', date_to),
+                      ('date_to', '>=', date_from),
+            '&', ('is_recurring', '=', True),
+                 '&', ('date_from', '<=', date_to),
+                      '|', ('recurrence_end', '=', False),
+                           ('recurrence_end', '>=', date_from),
+        ])
+        if not all_charges:
+            return
+
+        charges_by_emp: dict = {}
+        for charge in all_charges:
+            charges_by_emp.setdefault(charge.employee_id.id, []).append(charge)
+
+        default_code = self.env['planilla.deduction.code'].search(
+            [('code', '=', 'COBRO_EMP')], limit=1
+        )
+
+        lines_to_create   = []
+        unique_to_apply   = []        # (charge_id, slip_id) únicos
+        recurring_to_mark = []        # (charge, date_from, slip_id) recurrentes
+
+        for slip in self:
+            if slip.state != 'draft':
+                continue
+            emp_charges = charges_by_emp.get(slip.employee_id.id, [])
+            for charge in emp_charges:
+                # ── Deduplicación ──────────────────────────────────────
+                if charge.is_recurring:
+                    if charge._is_period_already_applied(slip.date_from):
+                        continue
+                # (cobros únicos: no hay líneas aún en la boleta recién creada)
+
+                ded_code = charge.charge_type_id.deduction_code_id or default_code
+                if not ded_code:
+                    _logger.warning(
+                        'planilla_cr._sync_employee_charges_batch: sin código de '
+                        'deducción para cobro "%s" del empleado %s — omitido.',
+                        charge.name, slip.employee_id.name
+                    )
+                    continue
+
+                if charge.is_recurring:
+                    recurring_to_mark.append((charge, slip.date_from, slip.id))
+                else:
+                    unique_to_apply.append((charge.id, slip.id))
+
+                if charge.employee_amount <= 0:
+                    continue
+
+                desc = charge.charge_type_id.name
+                if charge.notes:
+                    desc = f'{desc}: {charge.notes}'
+
+                lines_to_create.append({
+                    'payslip_id':          slip.id,
+                    'deduction_code_id':   ded_code.id,
+                    'description':         desc,
+                    'line_type':           'deduction',
+                    'deduction_category':  'other',
+                    'amount_type':         'fixed',
+                    'amount':              charge.employee_amount,
+                    'employee_charge_id':  charge.id,
+                })
+
+        if lines_to_create:
+            self.env['planilla.payslip.deduction.line'].create(lines_to_create)
+
+        # Cobros únicos → 'applied'
+        if unique_to_apply:
+            # Agrupar por slip para batch write
+            by_slip: dict = {}
+            for cid, sid in unique_to_apply:
+                by_slip.setdefault(sid, []).append(cid)
+            for slip_id, cids in by_slip.items():
+                self.env['planilla.employee.charge'].browse(cids).write({
+                    'state': 'applied', 'payslip_id': slip_id
+                })
+
+        # Cobros recurrentes → registrar período
+        for charge, df, slip_id in recurring_to_mark:
+            charge._mark_period_applied(df)
+            charge.payslip_id = slip_id

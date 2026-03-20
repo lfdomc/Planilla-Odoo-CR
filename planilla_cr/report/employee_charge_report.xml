@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ════════════════════════════════════════════
+         REPORTE PDF — Cobro al Empleado (individual)
+    ════════════════════════════════════════════ -->
+
+    <template id="report_employee_charge_document">
+        <t t-call="web.external_layout">
+            <div class="page">
+                <div class="row mb-4">
+                    <div class="col-8">
+                        <h2>Reporte de Cobros al Empleado</h2>
+                        <h4 t-field="o.employee_id.name"/>
+                        <p class="text-muted mb-0">
+                            <strong>Tipo de Cobro:</strong>
+                            <span t-field="o.charge_type_id.name"/>
+                        </p>
+                        <p class="text-muted mb-0">
+                            <strong>Período:</strong>
+                            <span t-field="o.date_from"/> —
+                            <span t-field="o.date_to"/>
+                        </p>
+                    </div>
+                    <div class="col-4 text-end">
+                        <p><strong>Estado:</strong> <span t-field="o.state"/></p>
+                        <p t-if="o.is_recurring">
+                            <span class="badge text-bg-primary">Recurrente</span>
+                        </p>
+                    </div>
+                </div>
+
+                <table class="table table-sm table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Concepto</th>
+                            <th class="text-end">Cantidad</th>
+                            <th class="text-end">Precio Unit.</th>
+                            <th class="text-end">Costo Total</th>
+                            <th class="text-end">Subsidio Emp.</th>
+                            <th class="text-end">Cargo Empleado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>
+                                <t t-esc="o.charge_type_id.name"/>
+                                <br/>
+                                <small class="text-muted" t-if="o.notes">
+                                    <t t-esc="o.notes"/>
+                                </small>
+                            </td>
+                            <td class="text-end">
+                                <t t-if="o.charge_mode == 'per_unit'">
+                                    <t t-esc="'%.2f' % o.quantity"/>
+                                    <small class="text-muted">
+                                        <t t-esc="o.unit_label or ''"/>
+                                    </small>
+                                </t>
+                                <t t-else="">—</t>
+                            </td>
+                            <td class="text-end">&#x20A1;<t t-esc="'{:,.2f}'.format(o.unit_price)"/></td>
+                            <td class="text-end">&#x20A1;<t t-esc="'{:,.2f}'.format(o.total_amount)"/></td>
+                            <td class="text-end">
+                                &#x20A1;<t t-esc="'{:,.2f}'.format(o.employer_amount)"/>
+                                (<t t-esc="'%.0f' % o.subsidy_pct"/>%)
+                            </td>
+                            <td class="text-end">
+                                <strong>&#x20A1;<t t-esc="'{:,.2f}'.format(o.employee_amount)"/></strong>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="3"><strong>Totales</strong></td>
+                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(o.total_amount)"/></strong></td>
+                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(o.employer_amount)"/></strong></td>
+                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(o.employee_amount)"/></strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="alert alert-info mt-3" t-if="o.is_recurring">
+                    <strong>Cobro Recurrente</strong> — Se aplica cada período de planilla
+                    <t t-if="o.recurrence_end">
+                        hasta el <span t-field="o.recurrence_end"/>.
+                    </t>
+                    <t t-else="">de forma indefinida.</t>
+                    <t t-if="o.applied_periods">
+                        <br/><strong>Períodos aplicados:</strong>
+                        <span t-esc="o.applied_periods"/>
+                    </t>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-6">
+                        <p class="text-muted small">
+                            Generado el
+                            <span t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/>
+                        </p>
+                    </div>
+                    <div class="col-6 text-end">
+                        <p class="text-muted small">Sistema Planilla CR — Legislación CR 2026</p>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- ════════════════════════════════════════════
+         REPORTE PDF — Resumen (multi-registro)
+    ════════════════════════════════════════════ -->
+
+    <template id="report_employee_charge_summary_document">
+        <t t-call="web.external_layout">
+            <div class="page">
+                <h2>Resumen de Cobros a Empleados</h2>
+                <p class="text-muted">
+                    <strong>Total de registros:</strong>
+                    <t t-esc="len(docs)"/>
+                </p>
+                <table class="table table-sm table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Empleado</th>
+                            <th>Tipo de Cobro</th>
+                            <th>Período</th>
+                            <th>Rec.</th>
+                            <th class="text-end">Costo Total</th>
+                            <th class="text-end">Subsidio Emp.</th>
+                            <th class="text-end">Cargo Empleado</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="docs" t-as="charge">
+                            <tr>
+                                <td><t t-esc="charge.employee_id.name"/></td>
+                                <td><t t-esc="charge.charge_type_id.name"/></td>
+                                <td><t t-esc="str(charge.date_from)[:7]"/></td>
+                                <td class="text-center">
+                                    <t t-if="charge.is_recurring">R</t>
+                                    <t t-else="">—</t>
+                                </td>
+                                <td class="text-end">&#x20A1;<t t-esc="'{:,.2f}'.format(charge.total_amount)"/></td>
+                                <td class="text-end">&#x20A1;<t t-esc="'{:,.2f}'.format(charge.employer_amount)"/></td>
+                                <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(charge.employee_amount)"/></strong></td>
+                                <td><t t-esc="charge.state"/></td>
+                            </tr>
+                        </t>
+                    </tbody>
+                    <tfoot class="table-secondary">
+                        <tr>
+                            <td colspan="4"><strong>TOTALES</strong></td>
+                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(sum(docs.mapped('total_amount')))"/></strong></td>
+                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(sum(docs.mapped('employer_amount')))"/></strong></td>
+                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(sum(docs.mapped('employee_amount')))"/></strong></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div class="row mt-3">
+                    <div class="col-12 text-end">
+                        <p class="text-muted small">
+                            Generado el
+                            <span t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/>
+                            — Sistema Planilla CR 2026
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- Acciones de reporte -->
+    <record id="action_report_employee_charge" model="ir.actions.report">
+        <field name="name">Cobro al Empleado</field>
+        <field name="model">planilla.employee.charge</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_employee_charge_document</field>
+        <field name="report_file">planilla_cr.report_employee_charge_document</field>
+        <field name="print_report_name">'Cobro - %s - %s' % (object.employee_id.name, str(object.date_from)[:7])</field>
+    </record>
+
+    <record id="action_report_employee_charge_summary" model="ir.actions.report">
+        <field name="name">Resumen de Cobros a Empleados</field>
+        <field name="model">planilla.employee.charge</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_employee_charge_summary_document</field>
+        <field name="report_file">planilla_cr.report_employee_charge_summary_document</field>
+        <field name="print_report_name">'Resumen Cobros Empleados'</field>
+    </record>
+
+</odoo>

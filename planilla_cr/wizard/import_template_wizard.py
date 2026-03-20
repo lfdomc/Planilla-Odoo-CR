@@ -67,6 +67,21 @@ class ImportTemplateWizard(models.TransientModel):
         # Género y si/no
         'gender':       ['Masculino', 'Femenino', 'Otro'],
         'si_no':        ['Si', 'No'],
+        # Horarios — sincronizado con default_data.xml
+        'schedule':     [
+            'Jornada Completa (8 horas - Lun a Vie)',
+            'Jornada Completa (8 horas - Lun a Sáb)',
+            'Jornada Mixta (7 horas)',
+            'Jornada Nocturna (6 horas)',
+            'Jornada Acumulada 4x10 (10 horas - 4 días)',
+            'Jornada Acumulada 3x12 (12 horas - 3 días)',
+            'Medio Tiempo (4 horas)',
+            'Tres Cuartos (6 horas)',
+            'Horario de Confianza',
+            'Guardias / Turnos 24 horas',
+            'Turno Rotativo (Mañana / Tarde / Noche)',
+            'Fines de Semana (Sáb y Dom)',
+        ],
         # Préstamos
         'loan_type':    ['Préstamo de Empresa', 'Adelanto de Salario'],
         'loan_state':   ['Aprobado', 'En Curso', 'Borrador', 'Pagado', 'Anulado'],
@@ -91,6 +106,262 @@ class ImportTemplateWizard(models.TransientModel):
                          'Comisión por Ventas', 'Incentivo / Premio Especial', 'Otro'],
         'bono_calc':    ['Monto Fijo', 'Porcentaje del Salario Base'],
         'si_no_recurrente': ['Si', 'No'],
+        # Tipo de sangre
+        'blood_type':   ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'],
+        # Ocupaciones INS — COCR-2023 (INEC), basada en CIUO-08 OIT
+        'ins_occupation': [
+            '[1111] Miembros del poder legislativo y ejecutivo',
+            '[1112] Personal directivo de la administración pública',
+            '[1113] Jefes de comunidades étnicas',
+            '[1114] Dirigentes de organizaciones que presentan un interés especial',
+            '[1120] Directores y gerentes generales',
+            '[1211] Directores y gerentes de servicios financieros',
+            '[1212] Directores y gerentes de recursos humanos',
+            '[1213] Directores y gerentes de políticas y planificación',
+            '[1219] Directores y gerentes de administración y servicios no clasificados bajo otros',
+            '[1221] Directores y gerentes de venta y comercialización',
+            '[1222] Directores y gerentes de publicidad y relaciones públicas',
+            '[1223] Directores y gerentes de investigación y desarrollo',
+            '[1311] Directores y gerentes de producción agropecuaria y silvicultura',
+            '[1312] Directores y gerentes de producción acuícola, piscícola y de pesca',
+            '[1321] Directores y gerentes de industrias manufactureras',
+            '[1322] Directores y gerentes de explotaciones de minería',
+            '[1323] Directores y gerentes de empresas de construcción',
+            '[1324] Directores y gerentes de empresas de abastecimiento, distribución y afines',
+            '[1330] Directores y gerentes de servicios de tecnología de la información',
+            '[1341] Directores y gerentes de servicios de cuidados infantiles',
+            '[1342] Directores y gerentes de servicios de salud',
+            '[1343] Directores y gerentes de servicios de atención a personas adultas mayores',
+            '[1344] Directores y gerentes de servicios de bienestar social',
+            '[1345] Directores y gerentes de servicios de educación',
+            '[1346] Directores y gerentes de sucursales de bancos y servicios financieros',
+            '[1349] Directores y gerentes de servicios profesionales no clasificados bajo otros',
+            '[1411] Directores y gerentes de hoteles',
+            '[1412] Directores y gerentes de restaurantes',
+            '[1420] Gerentes de comercios al por mayor y al por menor',
+            '[1431] Directores y gerentes de centros deportivos, de esparcimiento y culturales',
+            '[1439] Directores y gerentes de servicios no clasificados bajo otros',
+            '[2111] Físicos y astrónomos', '[2112] Meteorólogos', '[2113] Químicos',
+            '[2114] Geólogos y geofísicos', '[2120] Matemáticos, actuarios y estadísticos',
+            '[2131] Biólogos, botánicos, zoólogos y afines',
+            '[2132] Agrónomos, zootecnistas y afines',
+            '[2133] Profesionales de la protección medioambiental',
+            '[2141] Ingenieros industriales y de producción', '[2142] Ingenieros civiles',
+            '[2143] Ingenieros medioambientales',
+            '[2144] Ingenieros mecánicos, navales y aeronáuticos',
+            '[2145] Ingenieros químicos', '[2146] Ingenieros de minas, metalúrgicos y afines',
+            '[2149] Ingenieros no clasificados bajo otros epígrafes',
+            '[2151] Ingenieros eléctricos', '[2152] Ingenieros electrónicos',
+            '[2153] Ingenieros en telecomunicaciones, audio y sonido',
+            '[2161] Arquitectos', '[2162] Arquitectos paisajistas',
+            '[2163] Diseñadores industriales de productos y moda',
+            '[2164] Urbanistas e ingenieros de tránsito', '[2165] Topógrafos',
+            '[2166] Diseñadores gráficos y multimedia',
+            '[2211] Médicos generales', '[2212] Médicos geriatras',
+            '[2213] Médicos ginecólogos y obstetras', '[2214] Médicos psiquiatras',
+            '[2215] Médicos ortopedistas y traumatólogos',
+            '[2219] Especialistas médicos no clasificados bajo otros epígrafes',
+            '[2220] Enfermeros profesionales y profesionales de partería',
+            '[2230] Profesionales de medicina tradicional y alternativa',
+            '[2250] Veterinarios', '[2261] Dentistas',
+            '[2262] Cirujanos orales y maxilofaciales', '[2271] Farmacéuticos',
+            '[2272] Profesionales de la salud y la higiene laboral y ambiental',
+            '[2273] Fisioterapeutas', '[2274] Nutricionistas',
+            '[2275] Audiólogos y terapeutas del lenguaje', '[2276] Optometristas',
+            '[2279] Profesionales de la salud no clasificados bajo otros epígrafes',
+            '[2310] Profesores de instituciones de educación superior',
+            '[2320] Profesores de formación profesional',
+            '[2330] Profesores de educación secundaria',
+            '[2341] Profesores de educación primaria', '[2342] Profesores de educación preescolar',
+            '[2351] Especialistas en métodos pedagógicos',
+            '[2352] Profesores de educación especial', '[2353] Otros profesores de idiomas',
+            '[2354] Otros profesores de música', '[2355] Otros profesores de artes',
+            '[2356] Instructores en tecnología de la información',
+            '[2359] Profesionales de la educación no clasificados bajo otros epígrafes',
+            '[2411] Contadores y auditores financieros',
+            '[2412] Asesores financieros y en inversiones', '[2413] Analistas financieros',
+            '[2421] Analistas de gestión y organización',
+            '[2422] Profesionales en políticas sociales y de administración',
+            '[2423] Profesionales de gestión de talento humano',
+            '[2424] Profesionales en formación, desarrollo de personal y evaluación',
+            '[2431] Profesionales de la publicidad y la comercialización',
+            '[2432] Profesionales de relaciones públicas',
+            '[2433] Profesionales de ventas técnicas y médicas',
+            '[2434] Profesionales de ventas de tecnología de la información',
+            '[2511] Analistas de sistemas', '[2512] Desarrolladores de software',
+            '[2513] Desarrolladores web y multimedia', '[2514] Programadores de aplicaciones',
+            '[2519] Desarrolladores y analistas de software no clasificados bajo otros',
+            '[2521] Diseñadores y administradores de bases de datos',
+            '[2522] Administradores de sistemas', '[2523] Profesionales en redes de computadores',
+            '[2529] Profesionales en bases de datos y redes no clasificados bajo otros',
+            '[2611] Abogados', '[2612] Jueces',
+            '[2619] Profesionales en derecho no clasificados bajo otros epígrafes',
+            '[2621] Archivistas, curadores de arte y restauradores',
+            '[2622] Bibliotecólogos, documentalistas y afines',
+            '[2631] Economistas', '[2632] Sociólogos, antropólogos y afines',
+            '[2633] Filósofos, historiadores y especialistas en ciencias políticas',
+            '[2634] Psicólogos', '[2635] Profesionales del trabajo social',
+            '[2636] Profesionales religiosos',
+            '[2639] Profesionales en ciencias sociales no clasificados bajo otros',
+            '[2641] Autores literarios y otros escritores',
+            '[2642] Periodistas, editores y redactores',
+            '[2643] Traductores, intérpretes, lingüistas y filólogos',
+            '[2651] Escultores, pintores artísticos y afines',
+            '[2652] Músicos, cantantes y compositores',
+            '[2653] Coreógrafos, directores de danza y bailarines profesionales',
+            '[2654] Directores y productores de cine, de teatro y afines', '[2655] Actores',
+            '[3111] Técnicos en ciencias físicas y químicas', '[3112] Técnicos en ingeniería civil',
+            '[3113] Electrotécnicos', '[3114] Técnicos en electrónica',
+            '[3115] Técnicos en ingeniería mecánica', '[3116] Técnicos en química industrial',
+            '[3117] Técnicos en ingeniería de minas y metalurgia',
+            '[3118] Delineantes y dibujantes técnicos',
+            '[3119] Otros técnicos en ciencias físicas, química e ingeniería no clasificados',
+            '[3121] Supervisores en ingeniería de minas',
+            '[3122] Supervisores en industrias manufactureras',
+            '[3123] Supervisores de la construcción',
+            '[3131] Operadores de plantas de generación y distribución de energía',
+            '[3132] Operadores de incineradores y plantas de tratamiento de agua',
+            '[3133] Controladores de instalaciones de procesamiento de productos químicos',
+            '[3134] Operadores de instalaciones de refinación de petróleo y gas natural',
+            '[3135] Controladores de procesos de producción de metales',
+            '[3139] Técnicos en control de procesos no clasificados bajo otros',
+            '[3141] Técnicos en ciencias biológicas',
+            '[3142] Técnicos agropecuarios', '[3143] Técnicos forestales',
+            '[3151] Maquinistas en navegación marítima',
+            '[3152] Capitanes y oficiales de cubierta',
+            '[3153] Pilotos de aviación y afines', '[3154] Controladores de tráfico aéreo',
+            '[3155] Técnicos en seguridad aeronáutica',
+            '[3211] Técnicos en aparatos de diagnóstico y tratamiento médico',
+            '[3212] Técnicos de laboratorios médicos',
+            '[3213] Técnicos y asistentes en farmacia',
+            '[3214] Técnicos de prótesis médicas y dentales',
+            '[3220] Profesionales de nivel medio de enfermería',
+            '[3230] Profesionales de nivel medio de medicina tradicional y alternativa',
+            '[3240] Técnicos y asistentes veterinarios',
+            '[3250] Técnico en emergencias médicas',
+            '[3261] Auxiliares y técnicos de odontología',
+            '[3262] Técnicos en documentación sanitaria',
+            '[3263] Trabajadores comunitarios de la salud',
+            '[3264] Técnicos en optometría y ópticos',
+            '[3265] Técnicos y asistentes fisioterapeutas',
+            '[3266] Practicantes y asistentes médicos',
+            '[3267] Inspectores de la salud laboral y medioambiental',
+            '[3268] Auxiliar de ambulancias en emergencias médicas',
+            '[3269] Técnicos de las ciencias de la salud no clasificados bajo otros',
+            '[3311] Agentes de bolsa, cambio y otros servicios financieros',
+            '[3312] Oficiales de préstamos y créditos',
+            '[3313] Técnicos y auxiliares de contabilidad',
+            '[3314] Profesionales de nivel medio de servicios estadísticos y matemáticos',
+            '[3315] Tasadores', '[3316] Técnicos y asistentes en administración y economía',
+            '[3321] Agentes de seguros', '[3322] Representantes comerciales',
+            '[3323] Agentes de proveeduría', '[3324] Agentes de compras y consignatarios',
+            '[3331] Declarantes o gestores de aduana',
+            '[3332] Organizadores de conferencias y eventos',
+            '[3333] Agentes de empleo y contratistas de mano de obra',
+            '[3334] Agentes inmobiliarios',
+            '[3339] Otros agentes comerciales y corredores no clasificados bajo otros',
+            '[3341] Supervisores de oficina', '[3342] Secretarios jurídicos',
+            '[3343] Secretarios administrativos y ejecutivos', '[3344] Secretarios médicos',
+            '[3351] Inspectores de aduanas y fronteras',
+            '[3352] Agentes de administración tributaria',
+            '[3353] Agentes de servicios de seguridad social',
+            '[3354] Funcionarios de servicios de expedición de licencias y permisos',
+            '[3355] Inspectores de policía y detectives',
+            '[3411] Profesionales de nivel medio del derecho y servicios legales',
+            '[3412] Técnicos y asistentes en trabajo social',
+            '[3421] Atletas y deportistas',
+            '[3422] Entrenadores, instructores y árbitros de actividades deportivas',
+            '[3423] Instructores de educación física y actividades recreativas',
+            '[3431] Fotógrafos', '[3432] Diseñadores y decoradores de interior',
+            '[3511] Técnicos en operaciones de tecnología de la información',
+            '[3512] Técnicos en asistencia al usuario de tecnología de la información',
+            '[3513] Técnicos en redes y sistemas de computadores', '[3514] Técnicos de la web',
+            '[3521] Técnicos de radiodifusión y grabación audiovisual',
+            '[3522] Técnicos de ingeniería de las telecomunicaciones',
+            '[4110] Oficinistas generales', '[4120] Secretarios generales',
+            '[4131] Operadores de máquinas de procesamiento de texto y mecanógrafos',
+            '[4132] Digitadores de datos', '[4211] Cajeros de bancos y afines',
+            '[4221] Recepcionistas',
+            '[4222] Empleados de atención y asesoramiento de llamadas',
+            '[4229] Empleados de servicios de información al cliente no clasificados bajo otros',
+            '[4311] Empleados de contabilidad y cálculo de costos',
+            '[4312] Empleados de servicios estadísticos, financieros y de seguros',
+            '[4313] Empleados encargados de las nóminas',
+            '[4321] Empleados de control de abastecimientos e inventario',
+            '[4322] Empleados de servicios de apoyo a la producción',
+            '[4323] Empleados de servicio de transporte',
+            '[5111] Auxiliares de servicio abordo', '[5120] Cocineros', '[5131] Saloneros',
+            '[5132] Bartenders',
+            '[5141] Especialistas en tratamientos del cabello',
+            '[5142] Especialistas en tratamientos de belleza estética y afines',
+            '[5151] Supervisores limpieza en oficinas, hoteles y otros establecimientos',
+            '[5153] Encargados de mantenimiento de edificios',
+            '[5165] Instructores de manejo', '[5169] Otros trabajadores de servicios personales',
+            '[5211] Vendedores de quioscos y de puestos de mercado',
+            '[5221] Propietarios y comerciantes encargados de pequeñas tiendas',
+            '[5222] Supervisores de tiendas y almacenes',
+            '[5223] Asistentes de ventas de tiendas y almacenes',
+            '[5230] Cajeros y expendedores de boletos y tiquetes',
+            '[5243] Vendedores puerta a puerta', '[5244] Vendedores por teléfono',
+            '[5246] Vendedores de comidas al mostrador',
+            '[5249] Vendedores no clasificados bajo otros epígrafes',
+            '[5311] Cuidadores de niños', '[5312] Ayudantes de maestros',
+            '[5321] Trabajadores de los cuidados personales en instituciones',
+            '[5322] Trabajadores de los cuidados personales a domicilio',
+            '[5411] Bomberos', '[5412] Policías e inspectores de tránsito',
+            '[5414] Guardas de protección en establecimientos',
+            '[5415] Vigilante de casas particulares',
+            '[5419] Otros trabajadores que prestan servicios de protección y vigilancia',
+            '[6111] Agricultores y trabajadores calificados de cultivos',
+            '[6121] Criadores de ganado', '[6122] Avicultores y trabajadores de avicultura',
+            '[6130] Productores y trabajadores de explotaciones agropecuarias mixtas',
+            '[6210] Trabajadores forestales calificados y afines',
+            '[7111] Albañiles',
+            '[7113] Operarios en cemento armado, encofradores y afines',
+            '[7114] Carpinteros de armar y de obra blanca',
+            '[7121] Techadores', '[7122] Revestidores e instaladores de pisos',
+            '[7126] Fontaneros e instaladores de tuberías',
+            '[7127] Mecánicos de instalaciones de refrigeración y aire acondicionado',
+            '[7131] Pintores y empapeladores',
+            '[7211] Moldeadores de metal', '[7212] Soldadores y oxicortadores',
+            '[7214] Montadores de estructuras metálicas',
+            '[7221] Herreros y forjadores', '[7222] Herramentistas y afines',
+            '[7223] Reguladores y operadores de máquinas herramientas',
+            '[7231] Mecánicos y reparadores de vehículos de motor',
+            '[7232] Mecánicos y reparadores de motores de avión',
+            '[7233] Mecánicos y reparadores de máquinas agrícolas e industriales',
+            '[7311] Mecánicos y reparadores de instrumentos de precisión',
+            '[7313] Joyeros, orfebres y plateros',
+            '[7411] Electricistas de obras y afines',
+            '[7412] Mecánicos y ajustadores electricistas',
+            '[7413] Instaladores y reparadores de líneas eléctricas',
+            '[7421] Mecánicos y reparadores en electrónica',
+            '[7422] Instaladores y reparadores en tecnología de la información',
+            '[7511] Carniceros, pescadores y afines',
+            '[7512] Panaderos, pasteleros, golosineros y confiteros',
+            '[8111] Mineros y operadores de instalaciones mineras',
+            '[8211] Ensambladores de maquinaria mecánica',
+            '[8212] Ensambladores de equipos eléctricos y electrónicos',
+            '[8322] Conductores de automóviles, taxis y camionetas',
+            '[8331] Conductores de autobuses y tranvías',
+            '[8332] Conductores de camiones pesados',
+            '[8341] Operadores de maquinaria agrícola y forestal móvil',
+            '[8342] Operadores de máquinas de movimiento de tierras y afines',
+            '[8343] Operadores de grúas, aparatos elevadores y afines',
+            '[9111] Limpiadores y asistentes domésticos',
+            '[9112] Limpiadores y asistentes de oficinas, hoteles y otros establecimientos',
+            '[9211] Peones de explotaciones agrícolas',
+            '[9311] Peones de minas y canteras',
+            '[9312] Peones de obras públicas y mantenimiento',
+            '[9313] Peones de la construcción de edificios',
+            '[9321] Empacadores manuales',
+            '[9329] Peones de la industria manufacturera no clasificados bajo otros',
+            '[9333] Peones de carga', '[9334] Reponedores de estanterías',
+            '[9411] Cocineros de comidas rápidas', '[9412] Ayudantes de cocina',
+            '[9611] Recolectores de basura y material reciclable',
+            '[9621] Mensajeros, mandaderos, maleteros y repartidores',
+            '[9629] Ocupaciones elementales no clasificadas bajo otros epígrafes',
+        ],
     }
 
     # ── paleta ────────────────────────────────────────────────────────────────
@@ -255,24 +526,195 @@ class ImportTemplateWizard(models.TransientModel):
         cell.font      = self._font(italic=True, bold=True, size=9, color='7B2D00')
 
     def _build_listas_sheet(self, wb):
-        """Crea hoja oculta con todas las listas para DataValidation."""
-        ws = wb.create_sheet('_LISTAS')
+        """Crea hoja de listas para DataValidation.
+        IMPORTANTE: la hoja se deja VISIBLE (no oculta) porque Excel 2016/2019
+        y algunas versiones de Excel Online no muestran el dropdown cuando la
+        hoja fuente está oculta. Se protege y se estiliza como hoja de sistema
+        para que el usuario no la modifique accidentalmente.
+        """
+        ws = wb.create_sheet('⚙ LISTAS')
+        C = self._C
+
+        # Encabezado de advertencia fila 1
+        ws.merge_cells('A1:Z1')
+        c = ws['A1']
+        c.value  = '⚠  HOJA DE SISTEMA — No modificar. Contiene las listas de los desplegables.'
+        c.font   = self._font(bold=True, color='FFFFFF', size=9)
+        c.fill   = self._fill('7F7F7F')
+        c.alignment = self._center()
+        ws.row_dimensions[1].height = 18
+
+        # Escribir cada lista empezando en fila 2 con header de columna
         for col_idx, (key, vals) in enumerate(self._DV_LISTS.items(), 1):
-            for row_idx, val in enumerate(vals, 1):
-                ws.cell(row_idx, col_idx, value=val)
-        ws.sheet_state = 'hidden'
-        return ws
+            # Header de la columna
+            hdr = ws.cell(2, col_idx)
+            hdr.value = key
+            hdr.font  = self._font(bold=True, color='FFFFFF', size=8)
+            hdr.fill  = self._fill('404040')
+            hdr.alignment = self._center()
+            # Valores desde fila 3
+            for row_idx, val in enumerate(vals, 3):
+                cell = ws.cell(row_idx, col_idx, value=val)
+                cell.font = Font(name='Arial', size=8, color='333333')
+                cell.fill = PatternFill('solid', fgColor='F2F2F2')
+
+        # Ajustar anchos mínimos
+        ws.column_dimensions['A'].width = 20
+        # Columna de ocupaciones — más ancha
+        keys = list(self._DV_LISTS.keys())
+        if 'ins_occupation' in keys:
+            occ_col = get_column_letter(keys.index('ins_occupation') + 1)
+            ws.column_dimensions[occ_col].width = 70
+
+        # Proteger la hoja para que no se edite accidentalmente
+        ws.protection.sheet     = True
+        ws.protection.password  = 'planilla_cr_sys'
+        ws.protection.enable()
+
+        ws.sheet_properties.tabColor = '808080'
+
+        return ws, len(self._DV_LISTS)  # retorna nro de columnas estáticas
+
+    def _build_dynamic_lists(self, wb, company_id, static_cols):
+        """Agrega listas dinámicas (desde BD) a la hoja ⚙ LISTAS.
+        Se llama desde action_generate DESPUÉS de _build_listas_sheet.
+        Retorna dict {clave: (col_letter, first_row, last_row)} para _dv_dynamic.
+        """
+        ws = wb['⚙ LISTAS']
+        ws.protection.sheet = False  # desproteger temporalmente para escribir
+
+        next_col = static_cols + 1  # columna donde empiezan las listas dinámicas
+
+        HDR_FONT  = self._font(bold=True, color='FFFFFF', size=8)
+        HDR_FILL  = self._fill('1F4E79')
+        GREY_FILL = self._fill('999999')
+        DATA_FONT = Font(name='Arial', size=8, color='333333')
+        DATA_FILL = PatternFill('solid', fgColor='EBF3FB')
+        GREY_FONT = Font(name='Arial', size=8, color='999999', italic=True)
+
+        co = company_id
+        dyn = {}  # key → (col_letter, first_row, last_row)
+
+        def _write_list(key, values, width=35):
+            """Escribe la lista en la columna actual.
+            SIEMPRE incrementa next_col aunque values esté vacío,
+            para que las columnas siguientes no se desplacen.
+            """
+            nonlocal next_col
+            col_letter = get_column_letter(next_col)
+            hdr = ws.cell(2, next_col)
+            hdr.value = key
+            hdr.font  = HDR_FONT if values else GREY_FONT
+            hdr.fill  = HDR_FILL if values else GREY_FILL
+            hdr.alignment = self._center()
+            if values:
+                first_r = 3
+                for i, val in enumerate(values, first_r):
+                    c = ws.cell(i, next_col, value=val)
+                    c.font = DATA_FONT
+                    c.fill = DATA_FILL
+                last_r = first_r + len(values) - 1
+                ws.column_dimensions[col_letter].width = width
+                dyn[key] = (col_letter, first_r, last_r)
+            else:
+                ws.cell(3, next_col, value='(sin registros — créelos en Odoo primero)')
+                ws.cell(3, next_col).font = GREY_FONT
+                ws.column_dimensions[col_letter].width = 28
+            next_col += 1  # siempre avanzar
+
+        # Usamos sudo() para bypassear las reglas multi-empresa del ORM.
+        # Sin sudo(), el ORM filtra automáticamente por las empresas del usuario
+        # y puede excluir registros creados en otra sesión o empresa.
+        # Filtramos explícitamente por empresa o sin empresa (registros globales).
+        def _search(model, domain=None, order='name'):
+            dom = domain or []
+            return self.env[model].sudo().with_context(active_test=False).search(
+                dom, order=order)
+
+        # ── Calendarizaciones de planilla ─────────────────────────────────
+        # Sin filtro de empresa: sudo() ya bypasea ir.rules. En un sistema
+        # de una sola empresa todos los registros son del cliente.
+        cals = _search('planilla.calendar')
+        _write_list('calendar', [c.name for c in cals], width=28)
+
+        # ── Tipos de empleado ─────────────────────────────────────────────
+        etypes = _search('planilla.employee.type')
+        _write_list('employee_type', [e.name for e in etypes], width=28)
+
+        # ── Estados de empleado ───────────────────────────────────────────
+        estatuses = _search('planilla.employee.status')
+        _write_list('employee_status', [e.name for e in estatuses], width=24)
+
+        # ── Sucursales ────────────────────────────────────────────────────
+        branches = _search('planilla.branch')
+        _write_list('branch', [b.name for b in branches], width=28)
+
+        # ── Departamentos ─────────────────────────────────────────────────
+        depts = _search('hr.department', [('parent_id', '=', False)])
+        _write_list('department', [d.name for d in depts], width=30)
+
+        # ── Sub-departamentos ─────────────────────────────────────────────
+        subdepts = _search('hr.department', [('parent_id', '!=', False)])
+        _write_list('subdepartment', [d.name for d in subdepts], width=30)
+
+        # ── Puestos / Cargos ──────────────────────────────────────────────
+        jobs = _search('hr.job')
+        _write_list('job', [j.name for j in jobs], width=28)
+
+        # ── Países ────────────────────────────────────────────────────────
+        countries = self.env['res.country'].search([], order='name')
+        _write_list('country', [c.name for c in countries], width=28)
+
+        # Re-proteger
+        ws.protection.sheet    = True
+        ws.protection.password = 'planilla_cr_sys'
+        ws.protection.enable()
+
+        return dyn  # dict {key: (col_letter, first_row, last_row)}
+
+
+    def _dv_dynamic(self, ws, col_idx, dyn_key, first_data_row,
+                    dyn_lists, last_data_row=500, title='Opciones'):
+        """Aplica dropdown usando una lista dinámica (de BD) en ⚙ LISTAS.
+        dyn_lists: dict retornado por _build_dynamic_lists().
+        """
+        dyn = dyn_lists or {}
+        if dyn_key not in dyn:
+            return  # catálogo vacío en BD — no agrega dropdown
+        col_letter_src, first_r, last_r = dyn[dyn_key]
+        formula    = f"'⚙ LISTAS'!${col_letter_src}${first_r}:${col_letter_src}${last_r}"
+        col_letter = get_column_letter(col_idx)
+        sqref      = f'{col_letter}{first_data_row}:{col_letter}{last_data_row}'
+        dv = DataValidation(
+            type='list',
+            formula1=formula,
+            allow_blank=True,
+            showDropDown=False,
+            showErrorMessage=True,
+            errorStyle='warning',
+            errorTitle='Valor no reconocido',
+            error='Seleccione un valor de la lista o créelo en Odoo primero.',
+            showInputMessage=True,
+            promptTitle=title,
+            prompt='Seleccione de la lista (opciones cargadas desde Odoo)',
+        )
+        ws.add_data_validation(dv)
+        dv.sqref = sqref
 
     def _dv(self, ws, col_idx, list_key, first_data_row, last_data_row=500,
             title='Opciones'):
-        """Helper rápido que busca la lista en _DV_LISTS y aplica el dropdown."""
+        """Helper rápido que busca la lista en _DV_LISTS y aplica el dropdown.
+        La hoja ⚙ LISTAS tiene: fila 1 = advertencia, fila 2 = headers,
+        fila 3 en adelante = valores. Por eso el rango empieza en $3.
+        """
         vals = self._DV_LISTS.get(list_key, [])
         if not vals:
             return
         keys = list(self._DV_LISTS.keys())
         listas_col = get_column_letter(keys.index(list_key) + 1)
-        last_r     = len(vals)
-        formula    = f"'_LISTAS'!${listas_col}$1:${listas_col}${last_r}"
+        first_r    = 3                      # fila 3: primera fila de datos
+        last_r     = 3 + len(vals) - 1      # última fila de datos
+        formula    = f"'⚙ LISTAS'!${listas_col}${first_r}:${listas_col}${last_r}"
         col_letter = get_column_letter(col_idx)
         sqref      = f'{col_letter}{first_data_row}:{col_letter}{last_data_row}'
 
@@ -284,10 +726,10 @@ class ImportTemplateWizard(models.TransientModel):
             showErrorMessage=True,
             errorStyle='warning',
             errorTitle='Valor no reconocido',
-            error='El valor ingresado no está en el catálogo. Revise la hoja CATALOGOS.',
+            error='El valor ingresado no está en el catálogo. Revise la hoja ⚙ LISTAS.',
             showInputMessage=True,
             promptTitle=title,
-            prompt=f'Seleccione: {", ".join(vals[:6])}{"…" if len(vals)>6 else ""}',
+            prompt=f'Seleccione: {", ".join(str(v) for v in vals[:4])}{"…" if len(vals) > 4 else ""}',
         )
         ws.add_data_validation(dv)
         dv.sqref = sqref
@@ -384,125 +826,205 @@ class ImportTemplateWizard(models.TransientModel):
     # ══════════════════════════════════════════════════════════════════════════
     # HOJA EMPLEADOS
     # ══════════════════════════════════════════════════════════════════════════
-    def _build_employees(self, wb, sample=False):
+    def _build_employees(self, wb, sample=False, dyn_lists=None):
         ws = wb.create_sheet('👤 EMPLEADOS')
-        self._sheet_title(ws, 'DATOS DE EMPLEADOS — Un empleado por fila', 38)
+        self._sheet_title(ws, 'DATOS DE EMPLEADOS — Un empleado por fila', 43)
 
-        # Secciones (fila 2)
+        # Secciones (fila 2) — 43 columnas totales
         secciones = [
             (1,  6,  'IDENTIFICACIÓN'),
-            (7,  13, 'DATOS LABORALES'),
-            (14, 20, 'DATOS INS'),
-            (21, 26, 'CCSS Y BANCO'),
-            (27, 32, 'CONFIGURACIÓN NÓMINA'),
-            (33, 38, 'DATOS PERSONALES'),
+            (7,  14, 'DATOS LABORALES'),
+            (15, 23, 'DATOS INS'),
+            (24, 29, 'CCSS Y BANCO'),
+            (30, 34, 'CONFIGURACIÓN NÓMINA'),
+            (35, 43, 'DATOS PERSONALES Y MÉDICOS'),
         ]
         for cs, ce, titulo in secciones:
             ws.merge_cells(start_row=2, start_column=cs,
                            end_row=2,   end_column=ce)
             self._hdr(ws.cell(2, cs), titulo)
-            for ci in range(cs + 1, ce + 1):
-                ws.cell(2, ci).fill = self._fill(self._C['med'])
         ws.row_dimensions[2].height = 18
 
         cols = [
-            # Identificación (cols 1-6)
-            ('Nombre Completo',           True,  28, 'Juan Pérez Rodríguez',     'Nombre completo del empleado'),
-            ('Cédula / Identificación',   True,  18, '1-2345-6789',              'Cédula, DIMEX o pasaporte — llave entre hojas'),
-            ('Tipo de Identificación',    True,  18, 'Cédula Nacional',             'Ver CATALOGOS → id_type  (01 Cédula / 02 DIMEX / 03 Permiso / 04 Pasaporte)'),
-            ('Fecha de Ingreso',          True,  14, '01/03/2020',               'Formato DD/MM/AAAA'),
-            ('Fecha de Salida',           False, 14, '',                         'Solo si ya no trabaja en la empresa'),
-            ('Correo Corporativo',        False, 28, 'juan.perez@empresa.com',   'Email de trabajo en Odoo'),
-            # Datos laborales (cols 7-13)
-            ('Departamento',              False, 22, 'Administración',           'Nombre del departamento (debe existir en Odoo)'),
-            ('Sub Departamento',          False, 22, 'Contabilidad',             'Sub departamento dentro del departamento principal'),
-            ('Sucursal',                  False, 20, 'Casa Matriz',              'Nombre de la sucursal (debe existir en Odoo)'),
-            ('Puesto / Cargo',            False, 22, 'Asistente Administrativo', 'Título del puesto'),
-            ('Tipo de Empleado',          True,  18, 'planilla',                 'Ver CATALOGOS → employee_type (nombre exacto en Odoo)'),
-            ('Estado del Empleado',       True,  18, 'activo',                   'Ver CATALOGOS → employee_status (nombre exacto en Odoo)'),
-            ('Tipo de Horario',           True,  22, 'jornada_ordinaria',        'Ver CATALOGOS → schedule_type (nombre exacto en Odoo)'),
-            # Datos INS (cols 14-20)
-            ('Incluir en INS',            True,  12, 'si',                       'si / no'),
-            ('Número de Póliza INS',      False, 18, 'POL-12345',                'Número de póliza del INS'),
-            ('Nombre INS',                False, 18, 'Juan',                     'Nombre como aparece en el sistema INS'),
-            ('Primer Apellido INS',       False, 16, 'Pérez',                    ''),
-            ('Segundo Apellido INS',      False, 16, 'Rodríguez',                ''),
-            ('Clase de Riesgo INS',       True,  16, 'I - Oficinas',                'Ver CATALOGOS → ins_risk_class  (I / II / III / IV / V)'),
-            ('Jornada INS',               True,  18, 'Ordinaria',                   'Ver CATALOGOS → ins_workday_type  (01 Ordinaria / 02 Extraordinaria / 03 Mixta / 04 Tiempo Parcial / 05 Por Horas / 06 Ocasional)'),
-            # CCSS y banco (cols 21-26)
-            ('Número CCSS',               False, 16, '123456789',                'Número de asegurado CCSS'),
-            ('Asegurado CCSS',            True,  14, 'si',                       'si / no'),
-            ('Cuenta Bancaria / IBAN',    False, 30, 'CR21015108010018023571',   'IBAN de 22 caracteres'),
-            ('SINPE Móvil',               False, 14, '88887777',                 'Teléfono registrado en SINPE Móvil'),
-            ('Banco',                     False, 20, 'BNCR',                        'Ver CATALOGOS → bank'),
-            ('Tipo de Cuenta Banco',      False, 16, 'Cuenta Corriente',            'Ver CATALOGOS → account_type'),
-            # Configuración nómina (cols 27-32)
-            ('Salario Base (₡)',          True,  18, '750000',                   'Salario mensual en colones, sin comas ni símbolo'),
-            ('Fecha Vigencia Salarial',   False, 18, '01/01/2026',               'Desde cuándo aplica el salario'),
-            ('Frecuencia de Pago',        True,  18, 'Mensual',                     'Ver CATALOGOS → frequency'),
-            ('Método de Cálculo',         True,  18, 'Salario Fijo',                'Ver CATALOGOS → calc_method'),
-            ('Ocupación INS',             True,  20, '4110',                     'Código numérico INS — ver CATALOGOS → ins_occupation'),
-            ('Nacionalidad INS',          False, 14, 'Costarricense',               'Ver CATALOGOS → ins_nationality  (CR / NI / CO / US / OT…)'),
-            # Datos personales (cols 33-38)
-            ('Estado Civil INS',          False, 16, 'Soltero/a',                   'Ver CATALOGOS → ins_civil_status  (01 Soltero/a / 02 Casado/a / 03 Divorciado/a / 04 Viudo/a / 05 Unión Libre / 06 Separado/a)'),
-            ('Género',                    False, 12, 'Masculino',                   'Masculino / Femenino / Otro'),
-            ('Número de Dependientes',    False, 12, '0',                        'Hijos u otros dependientes'),
-            ('Dirección',                 False, 30, 'San José, Escazú',         'Dirección de habitación'),
-            ('Teléfono Personal',         False, 14, '88887777',                 ''),
-            # Salario variable — columna crítica para Art. 153 CT
+            # ── Identificación (cols 1-6) ─────────────────────────────────
+            ('Nombre Completo',           True,  28, 'Juan Pérez Rodríguez',
+             'Nombre completo del empleado'),
+            ('Cédula / Identificación',   True,  18, '1-2345-6789',
+             'Cédula, DIMEX o pasaporte — llave entre hojas'),
+            ('Tipo de Identificación',    True,  18, 'Cédula Nacional',
+             'Seleccione del desplegable'),
+            ('Fecha de Ingreso',          True,  14, '01/03/2020',
+             'Formato DD/MM/AAAA'),
+            ('Fecha de Salida',           False, 14, '',
+             'Solo si ya no trabaja en la empresa'),
+            ('Correo Corporativo',        False, 28, 'juan.perez@empresa.com',
+             'Email de trabajo'),
+            # ── Datos laborales (cols 7-14) ───────────────────────────────
+            ('Departamento',              False, 26, '',
+             'Seleccione del desplegable (cargado desde Odoo)'),
+            ('Sub Departamento',          False, 26, '',
+             'Seleccione del desplegable (cargado desde Odoo)'),
+            ('Sucursal',                  False, 22, '',
+             'Seleccione del desplegable (cargado desde Odoo)'),
+            ('Puesto / Cargo',            False, 24, '',
+             'Seleccione del desplegable o escriba el nombre exacto'),
+            ('Tipo de Empleado',          True,  22, 'Empleado Indefinido',
+             'Seleccione del desplegable (cargado desde Odoo)'),
+            ('Estado del Empleado',       True,  18, '',
+             'Seleccione del desplegable (cargado desde Odoo)'),
+            ('Tipo de Horario',           True,  32, 'Jornada Completa (8 horas - Lun a Vie)',
+             'Seleccione del desplegable'),
+            ('Calendarización de Planilla', True, 26, '',
+             'Seleccione del desplegable (cargado desde Odoo) — Ej: Mensual, Quincenal'),
+            # ── Datos INS (cols 15-23) ────────────────────────────────────
+            ('Incluir en INS',            True,  12, 'Si',
+             'Si / No'),
+            ('Número de Póliza INS',      False, 18, 'POL-12345',
+             'Número de póliza del INS'),
+            ('Nombre INS',                False, 18, 'Juan',
+             'Nombre como aparece en el sistema INS'),
+            ('Primer Apellido INS',       False, 16, 'Pérez',    ''),
+            ('Segundo Apellido INS',      False, 16, 'Rodríguez',''),
+            ('Clase de Riesgo INS',       True,  22, 'I - Oficinas',
+             'Seleccione del desplegable'),
+            ('Jornada INS',               True,  18, 'Ordinaria',
+             'Seleccione del desplegable'),
+            ('Ocupación INS',             True,  50, '[4110] Oficinistas generales',
+             'Seleccione del desplegable — COCR-2023 (INEC)'),
+            ('Tipo de Sangre',            False, 10, 'O+',
+             'Seleccione del desplegable: A+, A-, B+, B-, AB+, AB-, O+, O-'),
+            # ── CCSS y banco (cols 24-29) ─────────────────────────────────
+            ('Número CCSS',               False, 16, '123456789',
+             'Número de asegurado CCSS'),
+            ('Asegurado CCSS',            True,  14, 'Si',
+             'Si / No'),
+            ('Cuenta Bancaria / IBAN',    False, 30, 'CR21015108010018023571',
+             'IBAN de 22 caracteres'),
+            ('SINPE Móvil',               False, 14, '88887777',
+             'Teléfono de 8 dígitos registrado en SINPE Móvil'),
+            ('Banco',                     False, 20, 'BNCR',
+             'Seleccione del desplegable'),
+            ('Tipo de Cuenta Banco',      False, 16, 'Cuenta Corriente',
+             'Seleccione del desplegable'),
+            # ── Configuración nómina (cols 30-34) ─────────────────────────
+            ('Salario Base (₡)',          True,  18, '750000',
+             'Salario mensual en colones, sin comas ni símbolo'),
+            ('Fecha Vigencia Salarial',   False, 18, '01/01/2026',
+             'Desde cuándo aplica el salario (DD/MM/AAAA)'),
+            ('Método de Cálculo',         True,  18, 'Salario Fijo',
+             'Seleccione del desplegable'),
+            ('Nacionalidad INS',          False, 14, 'Costarricense',
+             'Seleccione del desplegable'),
             ('Salario Variable',          True,  16, 'No',
-             'Si / No — Active "Si" si el empleado recibe comisiones por ventas, '
-             'horas extras recurrentes u otros ingresos variables.\n'
-             'Con "Si" activado el sistema usa automáticamente el promedio de las\n'
-             'últimas 4 semanas al calcular vacaciones y liquidaciones (Art. 153 CT).'),
-            ('Observaciones',             False, 30, '',                         'Notas internas del empleado'),
+             'Si / No — Active "Si" si recibe comisiones o HE recurrentes (Art. 153 CT).'),
+            # ── Datos personales y médicos (cols 36-44) ───────────────────
+            ('Estado Civil INS',          False, 16, 'Soltero/a',
+             'Seleccione del desplegable'),
+            ('Género',                    False, 14, 'Masculino',
+             'Seleccione del desplegable'),
+            ('País',                      False, 22, 'Costa Rica',
+             'Seleccione del desplegable — país de residencia'),
+            ('Número de Dependientes',    False, 12, '0',
+             'Hijos u otros dependientes'),
+            ('Dirección',                 False, 30, 'San José, Escazú',
+             'Dirección de habitación'),
+            ('Teléfono Personal',         False, 14, '88887777',
+             'Número de teléfono personal'),
+            ('Correo Personal',           False, 26, 'juan@gmail.com',
+             'Correo electrónico personal (privado)'),
+            ('Diagnóstico / Notas Médicas', False, 40, '',
+             'Condiciones, alergias, medicamentos u otras notas para el INS o emergencias.'),
+            ('Observaciones',             False, 30, '',
+             'Notas internas del empleado'),
         ]
 
         sv = None
         if sample:
             sv = [
-                'EMPLEADO PRUEBA', self._SAMPLE_CEDULA, 'Cédula Nacional', '01/01/2024', '', 'prueba@empresa.com',
-                '', '', '', 'Puesto Prueba', 'planilla', 'activo', 'jornada_ordinaria',
-                'Si', '', 'Prueba', 'Prueba', 'Prueba', 'I - Oficinas', 'Ordinaria',
-                '', 'Si', '', '', 'BNCR', 'Cuenta Corriente',
-                '500000', '01/01/2024', 'Mensual', 'Salario Fijo', '4110', 'Costarricense',
-                'Soltero/a', 'Masculino', '0', 'San José', '88880000',
-                'No',  # Salario Variable
-                '⚠️ FILA DE PRUEBA — eliminar después de verificar importación',
+                # ── Identificación (cols 1-6)
+                'Juan Pérez Rodríguez',      # Nombre Completo
+                self._SAMPLE_CEDULA,          # Cédula (1-2345-6789)
+                'Cédula Nacional',            # Tipo de Identificación
+                '15/03/2021',                 # Fecha de Ingreso
+                '',                           # Fecha de Salida (activo)
+                'jperez@empresa.com',         # Correo Corporativo
+                # ── Datos laborales (cols 7-14)
+                'Administración',             # Departamento
+                'Contabilidad',               # Sub Departamento
+                'Principal',                  # Sucursal
+                'Asistente Administrativo',   # Puesto / Cargo
+                'Empleado Indefinido',        # Tipo de Empleado
+                'Activo',                     # Estado del Empleado
+                'Jornada Completa (8 horas - Lun a Vie)',  # Tipo de Horario
+                'Quincenal',                  # Calendarización de Planilla
+                # ── Datos INS (cols 15-23)
+                'Si',                         # Incluir en INS
+                'POL-2025-00123',             # Número de Póliza INS
+                'Juan',                       # Nombre INS
+                'Pérez',                      # Primer Apellido INS
+                'Rodríguez',                  # Segundo Apellido INS
+                'I - Oficinas',               # Clase de Riesgo INS
+                'Ordinaria',                  # Jornada INS
+                '[4313] Empleados encargados de las nóminas',  # Ocupación INS
+                'O+',                         # Tipo de Sangre
+                # ── CCSS y banco (cols 24-29)
+                '1234567890',                 # Número CCSS
+                'Si',                         # Asegurado CCSS
+                'CR21015108010018023571',      # Cuenta Bancaria / IBAN
+                '88887777',                   # SINPE Móvil
+                'BNCR',                       # Banco
+                'Cuenta Corriente',           # Tipo de Cuenta Banco
+                # ── Configuración nómina (cols 30-34)
+                '750000',                     # Salario Base (₡)
+                '15/03/2021',                 # Fecha Vigencia Salarial
+                'Salario Fijo',               # Método de Cálculo
+                'Costarricense',              # Nacionalidad INS
+                'No',                         # Salario Variable
+                # ── Datos personales y médicos (cols 35-43)
+                'Soltero/a',                  # Estado Civil INS
+                'Masculino',                  # Género
+                'Costa Rica',                 # País
+                '1',                          # Número de Dependientes
+                'San José, Escazú, Res. Los Laureles',  # Dirección
+                '88990011',                   # Teléfono Personal
+                '',                           # Correo Personal
+                '',                           # Diagnóstico / Notas Médicas
+                '⚠️ FILA DE PRUEBA — eliminar antes de importar',  # Observaciones
             ]
+
         self._build_rows(ws, cols, data_rows=100, header_row=3, example_row=4,
                          sample_values=sv)
-        # ── Dropdowns en filas de datos (5 en adelante) ──────────────────
-        # col  3: Tipo de Identificación
-        self._dv(ws,  3, 'id_type',      5, title='Tipo de Identificación')
-        # col 14: Incluir en INS
-        self._dv(ws, 14, 'si_no',        5, title='Incluir en INS (si/no)')
-        # col 19: Clase de Riesgo INS
-        self._dv(ws, 19, 'ins_risk',     5, title='Clase de Riesgo INS')
-        # col 20: Jornada INS
-        self._dv(ws, 20, 'ins_workday',  5, title='Tipo de Jornada INS')
-        # col 22: Asegurado CCSS
-        self._dv(ws, 22, 'si_no',        5, title='Asegurado CCSS (si/no)')
-        # col 25: Banco
-        self._dv(ws, 25, 'banco',        5, title='Banco')
-        # col 26: Tipo de Cuenta
-        self._dv(ws, 26, 'account_type', 5, title='Tipo de Cuenta Banco')
-        # col 29: Frecuencia de Pago
-        self._dv(ws, 29, 'frequency',    5, title='Frecuencia de Pago')
-        # col 30: Método de Cálculo
-        self._dv(ws, 30, 'calc_method',  5, title='Método de Cálculo')
-        # col 32: Nacionalidad INS
-        self._dv(ws, 32, 'ins_nat',      5, title='Nacionalidad INS')
-        # col 33: Estado Civil INS
-        self._dv(ws, 33, 'ins_civil',    5, title='Estado Civil INS')
-        # col 38: Salario Variable (si/no) — FIX-K22: col 38, no 37
-        self._dv(ws, 38, 'si_no',        5, title='Salario Variable (si/no)')
-        # col 34: Género
-        self._dv(ws, 34, 'gender',       5, title='Género')
 
-    # ══════════════════════════════════════════════════════════════════════════
+        # ── Dropdowns estáticos ───────────────────────────────────────────
+        self._dv(ws,  3, 'id_type',        5, title='Tipo de Identificación')
+        self._dv(ws, 13, 'schedule',       5, title='Tipo de Horario')
+        self._dv(ws, 15, 'si_no',          5, title='Incluir en INS (si/no)')
+        self._dv(ws, 20, 'ins_risk',       5, title='Clase de Riesgo INS')
+        self._dv(ws, 21, 'ins_workday',    5, title='Tipo de Jornada INS')
+        self._dv(ws, 22, 'ins_occupation', 5, title='Ocupación INS (COCR-2023)')
+        self._dv(ws, 23, 'blood_type',     5, title='Tipo de Sangre')
+        self._dv(ws, 25, 'si_no',          5, title='Asegurado CCSS (si/no)')
+        self._dv(ws, 28, 'banco',          5, title='Banco')
+        self._dv(ws, 29, 'account_type',   5, title='Tipo de Cuenta Banco')
+        # col 30: Salario Base — sin dropdown
+        # col 31: Fecha Vigencia — sin dropdown
+        self._dv(ws, 32, 'calc_method',    5, title='Método de Cálculo')
+        self._dv(ws, 33, 'ins_nat',        5, title='Nacionalidad INS')
+        self._dv(ws, 34, 'si_no',          5, title='Salario Variable (si/no)')
+        self._dv(ws, 35, 'ins_civil',      5, title='Estado Civil INS')
+        self._dv(ws, 36, 'gender',         5, title='Género')
+
+        # ── Dropdowns dinámicos (desde BD) ────────────────────────────────
+        dl = dyn_lists or {}
+        self._dv_dynamic(ws,  7, 'department',     5, dl, title='Departamento')
+        self._dv_dynamic(ws,  8, 'subdepartment',  5, dl, title='Sub Departamento')
+        self._dv_dynamic(ws,  9, 'branch',         5, dl, title='Sucursal')
+        self._dv_dynamic(ws, 10, 'job',            5, dl, title='Puesto / Cargo')
+        self._dv_dynamic(ws, 11, 'employee_type',  5, dl, title='Tipo de Empleado')
+        self._dv_dynamic(ws, 12, 'employee_status',5, dl, title='Estado del Empleado')
+        self._dv_dynamic(ws, 14, 'calendar',       5, dl, title='Calendarización de Planilla')
+        self._dv_dynamic(ws, 37, 'country',        5, dl, title='País')
     # HOJA PRÉSTAMOS
-    # ══════════════════════════════════════════════════════════════════════════
     def _build_loans(self, wb, sample=False):
         cols = [
             ('Cédula Empleado',          True,  18, '1-2345-6789',     'Debe coincidir con hoja EMPLEADOS'),
@@ -978,15 +1500,17 @@ class ImportTemplateWizard(models.TransientModel):
         wb = Workbook()
         s = self.include_sample_data
 
-        # Hoja oculta de listas — debe crearse ANTES de las demás hojas
-        # para que las referencias de DataValidation sean válidas
-        self._build_listas_sheet(wb)
+        # Hoja de listas — debe crearse ANTES de las demás hojas
+        _, static_cols = self._build_listas_sheet(wb)
+
+        # Listas dinámicas desde la BD (catálogos que varían por empresa)
+        dyn_lists = self._build_dynamic_lists(wb, self.company_id, static_cols)
 
         # Instrucciones siempre presentes
         self._build_instructions(wb)
 
         if self.include_employees:
-            self._build_employees(wb, sample=s)
+            self._build_employees(wb, sample=s, dyn_lists=dyn_lists)
         if self.include_loans:
             self._build_loans(wb, sample=s)
         if self.include_pension:

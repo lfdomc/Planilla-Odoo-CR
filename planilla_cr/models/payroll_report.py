@@ -16,9 +16,9 @@ class PayrollReportWizard(models.TransientModel):
     ], string='Tipo de Reporte', required=True, default='monthly_summary')
 
     date_from = fields.Date(string='Desde', required=True,
-                            default=lambda self: fields.Date.today().replace(day=1))
+                            default=lambda self: fields.Date.context_today(self).replace(day=1))
     date_to = fields.Date(string='Hasta', required=True,
-                          default=fields.Date.today)
+                          default=lambda self: fields.Date.context_today(self))
     branch_id = fields.Many2one('planilla.branch', string='Sucursal (Opcional)')
     company_id = fields.Many2one('res.company', default=lambda self: self.env.company)
     currency_id = fields.Many2one(
@@ -61,7 +61,7 @@ class PayrollReportWizard(models.TransientModel):
         return slip_currency._convert(
             amount, report_currency,
             self.company_id,
-            self.date_to or fields.Date.today()
+            self.date_to or fields.Date.context_today(self)
         )
 
     def action_export_excel(self):

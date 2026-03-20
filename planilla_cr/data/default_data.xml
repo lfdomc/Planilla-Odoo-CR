@@ -124,7 +124,14 @@
 
     <!-- ═══════════════════════════════════════════
          TIPOS DE HORARIO
+         Base legal: Arts. 135-141 Código de Trabajo CR
+         Jornada diurna máx: 8h/día, 48h/sem
+         Jornada nocturna máx: 6h/día, 36h/sem
+         Jornada mixta máx: 7h/día, 42h/sem
+         Jornada acumulada: Art. 136 bis CT (4x10h o 3x12h)
     ═══════════════════════════════════════════ -->
+
+    <!-- ── Jornadas estándar ─────────────────────────────────── -->
     <record id="schedule_type_completo" model="planilla.schedule.type">
         <field name="code">COMP</field>
         <field name="name">Jornada Completa (8 horas - Lun a Vie)</field>
@@ -132,16 +139,18 @@
         <field name="hours_per_week">40.0</field>
         <field name="days_per_week">5</field>
         <field name="overtime_factor">1.5</field>
+        <field name="description">Jornada diurna ordinaria. Art. 136 CT: máximo 8 horas diarias y 48 semanales. Factor HE: 1.5x.</field>
         <field name="active">True</field>
     </record>
 
-    <record id="schedule_type_medio_tiempo" model="planilla.schedule.type">
-        <field name="code">MEDI</field>
-        <field name="name">Medio Tiempo (4 horas)</field>
-        <field name="hours_per_day">4.0</field>
-        <field name="hours_per_week">20.0</field>
-        <field name="days_per_week">5</field>
+    <record id="schedule_type_diurna_6dias" model="planilla.schedule.type">
+        <field name="code">COMP6</field>
+        <field name="name">Jornada Completa (8 horas - Lun a Sáb)</field>
+        <field name="hours_per_day">8.0</field>
+        <field name="hours_per_week">48.0</field>
+        <field name="days_per_week">6</field>
         <field name="overtime_factor">1.5</field>
+        <field name="description">Jornada diurna ordinaria 6 días. Art. 136 CT: máximo 48 horas semanales. Factor HE: 1.5x.</field>
         <field name="active">True</field>
     </record>
 
@@ -149,9 +158,10 @@
         <field name="code">MIXT</field>
         <field name="name">Jornada Mixta (7 horas)</field>
         <field name="hours_per_day">7.0</field>
-        <field name="hours_per_week">35.0</field>
-        <field name="days_per_week">5</field>
+        <field name="hours_per_week">42.0</field>
+        <field name="days_per_week">6</field>
         <field name="overtime_factor">1.5</field>
+        <field name="description">Jornada mixta. Art. 138 CT: combina horario diurno y nocturno. Máximo 7 horas diarias y 42 semanales.</field>
         <field name="active">True</field>
     </record>
 
@@ -159,9 +169,101 @@
         <field name="code">NOCT</field>
         <field name="name">Jornada Nocturna (6 horas)</field>
         <field name="hours_per_day">6.0</field>
+        <field name="hours_per_week">36.0</field>
+        <field name="days_per_week">6</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="description">Jornada nocturna. Art. 137 CT: horario entre las 19:00 y las 05:00. Máximo 6 horas diarias y 36 semanales.</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- ── Jornadas acumuladas (Art. 136 bis CT) ─────────────── -->
+    <record id="schedule_type_acumulada_4x10" model="planilla.schedule.type">
+        <field name="code">ACU4</field>
+        <field name="name">Jornada Acumulada 4x10 (10 horas - 4 días)</field>
+        <field name="hours_per_day">10.0</field>
+        <field name="hours_per_week">40.0</field>
+        <field name="days_per_week">4</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="description">Jornada acumulada 4x10. Art. 136 bis CT: 4 días de 10 horas con 3 días libres. Requiere acuerdo escrito entre patrono y trabajador.</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="schedule_type_acumulada_3x12" model="planilla.schedule.type">
+        <field name="code">ACU3</field>
+        <field name="name">Jornada Acumulada 3x12 (12 horas - 3 días)</field>
+        <field name="hours_per_day">12.0</field>
+        <field name="hours_per_week">36.0</field>
+        <field name="days_per_week">3</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="description">Jornada acumulada 3x12. Art. 136 bis CT: 3 días de 12 horas con 4 días libres. Frecuente en salud, seguridad y servicios continuos.</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- ── Tiempo parcial ────────────────────────────────────── -->
+    <record id="schedule_type_medio_tiempo" model="planilla.schedule.type">
+        <field name="code">MEDI</field>
+        <field name="name">Medio Tiempo (4 horas)</field>
+        <field name="hours_per_day">4.0</field>
+        <field name="hours_per_week">20.0</field>
+        <field name="days_per_week">5</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="description">Jornada a tiempo parcial. Art. 136 CT: menos del 50% de la jornada ordinaria. Proporcional en salario, vacaciones y prestaciones.</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="schedule_type_tres_cuartos" model="planilla.schedule.type">
+        <field name="code">TRCR</field>
+        <field name="name">Tres Cuartos (6 horas)</field>
+        <field name="hours_per_day">6.0</field>
         <field name="hours_per_week">30.0</field>
         <field name="days_per_week">5</field>
         <field name="overtime_factor">1.5</field>
+        <field name="description">Jornada parcial de 6 horas diurnas. Proporcional en salario, vacaciones y prestaciones según CT.</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- ── Horarios especiales ───────────────────────────────── -->
+    <record id="schedule_type_confianza" model="planilla.schedule.type">
+        <field name="code">CONF</field>
+        <field name="name">Horario de Confianza</field>
+        <field name="hours_per_day">8.0</field>
+        <field name="hours_per_week">40.0</field>
+        <field name="days_per_week">5</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="description">Puestos de confianza o dirección. Art. 143 CT: exentos del límite de jornada ordinaria. Aplica a gerentes, directores y personal de alta dirección.</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="schedule_type_guardias_24" model="planilla.schedule.type">
+        <field name="code">GRD24</field>
+        <field name="name">Guardias / Turnos 24 horas</field>
+        <field name="hours_per_day">12.0</field>
+        <field name="hours_per_week">42.0</field>
+        <field name="days_per_week">3</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="description">Personal de vigilancia y guardias de seguridad. Turnos de 24 horas con descanso. Verificar convenio colectivo o contrato individual aplicable.</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="schedule_type_rotativo" model="planilla.schedule.type">
+        <field name="code">ROTA</field>
+        <field name="name">Turno Rotativo (Mañana / Tarde / Noche)</field>
+        <field name="hours_per_day">8.0</field>
+        <field name="hours_per_week">40.0</field>
+        <field name="days_per_week">5</field>
+        <field name="overtime_factor">1.5</field>
+        <field name="description">Turno rotativo en tres jornadas. El factor nocturno aplica según el horario real de cada turno (Art. 137 CT). Común en manufactura, salud y call centers.</field>
+        <field name="active">True</field>
+    </record>
+
+    <record id="schedule_type_fines_semana" model="planilla.schedule.type">
+        <field name="code">FDSM</field>
+        <field name="name">Fines de Semana (Sáb y Dom)</field>
+        <field name="hours_per_day">8.0</field>
+        <field name="hours_per_week">16.0</field>
+        <field name="days_per_week">2</field>
+        <field name="overtime_factor">2.0</field>
+        <field name="description">Trabajo exclusivo en fines de semana. Factor HE 2.0x por ser días de descanso obligatorio (Art. 152 CT). Proporcional en prestaciones.</field>
         <field name="active">True</field>
     </record>
 

@@ -34,6 +34,7 @@ class PayslipActionMixin(models.AbstractModel):
             rec._sync_bonos()
             rec._sync_embargos()
             rec._sync_loan_deductions()
+            rec._sync_employee_charges()
         else:
             # Creación masiva (planilla grupal): sync por lote
             # Guardia: verificar que todas las boletas tienen el mismo período.
@@ -48,6 +49,7 @@ class PayslipActionMixin(models.AbstractModel):
                 records._sync_bonos_batch()
                 records._sync_embargos_batch()
                 records._sync_loan_deductions_batch()
+                records._sync_employee_charges_batch()
             else:
                 # Períodos distintos → sync individual seguro
                 for rec in records:
@@ -57,6 +59,7 @@ class PayslipActionMixin(models.AbstractModel):
                     rec._sync_bonos()
                     rec._sync_embargos()
                     rec._sync_loan_deductions()
+                    rec._sync_employee_charges()
         return records
 
     def action_sync_novedades(self) -> bool:
@@ -73,6 +76,7 @@ class PayslipActionMixin(models.AbstractModel):
                 rec._sync_bonos()
                 rec._sync_embargos()
                 rec._sync_loan_deductions()  # FIX-N2: faltaba — préstamos no se sincronizaban
+                rec._sync_employee_charges() # Cobros al empleado (almuerzos, productos, etc.)
         return True
 
     def action_confirm(self) -> None:
@@ -178,6 +182,19 @@ class PayslipActionMixin(models.AbstractModel):
                 'state': 'approved',
                 'payslip_id': False,
             })
+            # Restaurar cobros al empleado al estado aprobado para que puedan
+            # sincronizarse a una nueva boleta si se regenera la planilla.
+            charge_lines = rec.deduction_line_ids.filtered(
+                lambda l: l.employee_charge_id
+            )
+            if charge_lines:
+                charge_ids_list = [l.employee_charge_id for l in charge_lines if l.employee_charge_id]
+                if charge_ids_list:
+                    charges = self.env['planilla.employee.charge'].browse(charge_ids_list).filtered(
+                        lambda c: c.state == 'applied' and c.payslip_id.id == rec.id
+                    )
+                    if charges:
+                        charges.write({'state': 'approved', 'payslip_id': False})
             rec.state = 'cancelled'
 
     def action_reset_to_draft(self) -> None:

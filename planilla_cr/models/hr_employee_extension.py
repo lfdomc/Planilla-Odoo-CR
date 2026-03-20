@@ -617,6 +617,26 @@ class HrEmployeeExtension(models.Model):
             'La clase aplicable a cada empresa es definida por el INS al contratar la poliza. '\
             'Fuente: INS Costa Rica - Manual de Clasificacion de Riesgos del Trabajo (ins-cr.com).')
 
+    # ── Datos Médicos (INS / Emergencias) ───────────────────────────
+    blood_type = fields.Selection([
+        ('A+',  'A+'),
+        ('A-',  'A-'),
+        ('B+',  'B+'),
+        ('B-',  'B-'),
+        ('AB+', 'AB+'),
+        ('AB-', 'AB-'),
+        ('O+',  'O+'),
+        ('O-',  'O-'),
+    ], string='Tipo de Sangre',
+       help='Tipo de sangre del empleado. Requerido por el INS para el expediente de Riesgos del Trabajo.')
+
+    medical_notes = fields.Text(
+        string='Diagnóstico / Notas Médicas',
+        help='Información médica relevante del empleado: diagnósticos previos, alergias, '
+             'condiciones crónicas, medicamentos, o cualquier nota relevante para '
+             'el INS o en caso de accidente laboral.'
+    )
+
     # ── Datos CCSS ──────────────────────────────────────────────────
     ccss_number = fields.Char(string='Número CCSS')
     ccss_insured = fields.Boolean(string='Asegurado CCSS', default=True)
@@ -745,6 +765,10 @@ class HrEmployeeExtension(models.Model):
         'planilla.bono', 'employee_id',
         string='Bonos e Incentivos'
     )
+    employee_charge_ids = fields.One2many(
+        'planilla.employee.charge', 'employee_id',
+        string='Cobros al Empleado'
+    )
     salary_history_ids = fields.One2many(
         'planilla.salary.history', 'employee_id', string='Historial de Salarios'
     )
@@ -784,7 +808,7 @@ class HrEmployeeExtension(models.Model):
                     'employee_id': employee.id,
                     'salary': employee.base_salary,
                     'gross_salary': employee.base_salary,  # FIX: también el bruto
-                    'effective_date': employee.salary_effective_date or fields.Date.today(),
+                    'effective_date': employee.salary_effective_date or fields.Date.context_today(self),
                     'reason': 'Salario Inicial',
                     # FIX-G1: state='authorized' para que las consultas de promedio
                     # (vacaciones Art.153, liquidaciones, simulador) encuentren este
@@ -817,7 +841,7 @@ class HrEmployeeExtension(models.Model):
                         'employee_id': employee.id,
                         'salary': employee.base_salary,
                         'gross_salary': employee.base_salary,  # FIX BUG-N10 v52
-                        'effective_date': vals.get('salary_effective_date') or fields.Date.today(),
+                        'effective_date': vals.get('salary_effective_date') or fields.Date.context_today(self),
                         'reason': salary_reason,
                         'note':   salary_note,
                         # FIX-G1: state='authorized' — mismo fix que action_pay (D1).

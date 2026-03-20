@@ -59,7 +59,7 @@
                         <!-- Alerta: empleado con salario variable y use_average desactivado -->
                         <div class="alert alert-warning col-12" role="alert"
                              invisible="use_average or not employee_id">
-                            <i class="fa fa-exclamation-triangle" title="Advertencia Art. 153 CT"/> <strong>Art. 153 CT:</strong>
+                            <i class="fa fa-exclamation-triangle" title="Advertencia"/> <strong>Art. 153 CT:</strong>
                             Si el empleado recibe comisiones, horas extras recurrentes u otros
                             ingresos variables, debe usar el <strong>Promedio de las últimas 4 semanas</strong>
                             para calcular el pago de vacaciones. Active la opción abajo.
@@ -77,7 +77,7 @@
                             </group>
                             <div class="alert alert-info" role="alert"
                                  invisible="avg_vs_base_diff_pct &lt; 5">
-                                <i class="fa fa-info-circle" title="Información sobre promedio salarial"/>
+                                <i class="fa fa-info-circle" title="Información"/>
                                 El promedio difiere en <strong><field name="avg_vs_base_diff_pct" nolabel="1" readonly="1"/>%</strong>
                                 del salario base diario. Esto es normal si el empleado tiene
                                 comisiones o horas extras variables. Verifique que el historial
@@ -85,7 +85,7 @@
                             </div>
                             <div class="alert alert-warning" role="alert"
                                  invisible="avg_last_4_weeks &gt; 0">
-                                <i class="fa fa-exclamation-triangle" title="Sin historial salarial"/>
+                                <i class="fa fa-exclamation-triangle" title="Advertencia"/>
                                 No hay historial salarial disponible. El sistema usará el salario
                                 base diario como aproximación. Para mayor precisión, asegúrese de
                                 que las boletas anteriores estén pagadas y en el historial.

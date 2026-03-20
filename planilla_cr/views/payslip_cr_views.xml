@@ -63,7 +63,7 @@
                     <!-- Alerta salario variable: empleado con comisiones sin bonos en boleta -->
                     <div class="alert alert-warning" role="alert"
                          invisible="not employee_id or not employee_id.has_variable_income or bono_salarial_amount > 0">
-                        <i class="fa fa-exclamation-triangle" title="Advertencia: empleado con salario variable"/>
+                        <i class="fa fa-exclamation-triangle" title="Advertencia"/>
                         <strong>Empleado con Salario Variable:</strong>
                         Este empleado tiene comisiones o ingresos variables configurados,
                         pero esta boleta no tiene bonos/comisiones registrados en el período.

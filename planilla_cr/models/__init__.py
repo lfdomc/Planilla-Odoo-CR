@@ -32,6 +32,7 @@ from . import bono
 from . import bono_antiguedad_config
 from . import recurring_benefit
 from . import employee_loan
+from . import employee_charge
 from . import employee_termination
 from . import leave_cr
 

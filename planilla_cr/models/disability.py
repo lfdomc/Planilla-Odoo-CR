@@ -147,7 +147,7 @@ class Disability(models.Model):
             if rec.disability_type == 'maternity':
                 history = rec.env['planilla.salary.history'].search([
                     ('employee_id', '=', rec.employee_id.id),
-                    ('effective_date', '<=', rec.date_start or fields.Date.today()),
+                    ('effective_date', '<=', rec.date_start or fields.Date.context_today(rec)),
                     # FIX-F6: filtrar solo registros autorizados para consistencia
                     # con _compute_avg_last_4_weeks y _onchange_employee.
                     # Sin este filtro podían entrar registros en 'draft' o 'rejected'
@@ -271,7 +271,7 @@ class Disability(models.Model):
             daily = round(rec.employee_id.base_salary / 30, 2)
             history = rec.env['planilla.salary.history'].search([
                 ('employee_id', '=', rec.employee_id.id),
-                ('effective_date', '<=', rec.date_start or fields.Date.today()),
+                ('effective_date', '<=', rec.date_start or fields.Date.context_today(rec)),
                 ('state', '=', 'authorized'),  # FIX-G3: solo registros autorizados
             ], order='effective_date desc', limit=3)
             if history:

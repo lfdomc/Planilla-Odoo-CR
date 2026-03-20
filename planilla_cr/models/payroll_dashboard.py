@@ -251,7 +251,7 @@ class PayrollDashboard(models.TransientModel):
         KPIs de RRHH: aniversarios, vacaciones negativas, prestamos activos,
         nomina anterior y variacion porcentual.
         """
-        today = fields.Date.today()
+        today = fields.Date.context_today(self)
         for rec in self:
             company = rec.company_id
 

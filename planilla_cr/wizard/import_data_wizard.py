@@ -25,9 +25,21 @@ except ImportError:
 # ══════════════════════════════════════════════════════════════════════════════
 
 INS_RISK = {
+    # Valor corto (solo el número romano)
     'i': 'I', 'ii': 'II', 'iii': 'III', 'iv': 'IV', 'v': 'V',
     'I': 'I', 'II': 'II', 'III': 'III', 'IV': 'IV', 'V': 'V',
     '1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V',
+    # Valor largo con descripción (formato del machote: "I - Oficinas")
+    'i - oficinas': 'I', 'i - riesgo minimo': 'I', 'i - minimo': 'I',
+    'ii - comercio': 'II', 'ii - riesgo bajo': 'II', 'ii - bajo': 'II',
+    'ii - comercio general': 'II', 'ii - servicios': 'II',
+    'iii - manufactura': 'III', 'iii - riesgo medio': 'III', 'iii - medio': 'III',
+    'iii - manufactura ligera': 'III', 'iii - transporte': 'III',
+    'iv - construccion': 'IV', 'iv - construcción': 'IV',
+    'iv - riesgo alto': 'IV', 'iv - alto': 'IV', 'iv - industria': 'IV',
+    'v - mineria': 'V', 'v - minería': 'V',
+    'v - riesgo maximo': 'V', 'v - riesgo máximo': 'V', 'v - maximo': 'V',
+    'v - explosivos': 'V', 'v - pesca': 'V',
 }
 
 INS_WORKDAY = {
@@ -78,12 +90,31 @@ INS_CIVIL = {
 }
 
 INS_ID_TYPE = {
+    # Mapeo texto del Excel → code de planilla.identification.type en BD
+    # Códigos según data inicial: CI, DIMEX, PAS, CJ, NITE
+    'cedula nacional': 'CI', 'cédula nacional': 'CI',
+    'cedula de identidad': 'CI', 'cédula de identidad': 'CI',
+    'cedula': 'CI', 'cédula': 'CI', '01': 'CI', 'ci': 'CI',
+    'residencia / dimex': 'DIMEX', 'residencia': 'DIMEX',
+    'dimex': 'DIMEX', '02': 'DIMEX',
+    'permiso de trabajo': 'NITE', 'permiso': 'NITE',
+    'nite': 'NITE', '03': 'NITE',
+    'pasaporte': 'PAS', 'pas': 'PAS', '04': 'PAS',
+    'cedula juridica': 'CJ', 'cédula jurídica': 'CJ',
+    'juridica': 'CJ', 'cj': 'CJ',
+    'indocumentado': 'NITE', '05': 'NITE',
+}
+
+# Mapeo separado texto → código INS (campo ins_id_type, numérico 2 dígitos)
+INS_ID_TYPE_CODE = {
     'cedula nacional': '01', 'cédula nacional': '01',
-    'cedula': '01', 'cédula': '01', '01': '01',
+    'cedula de identidad': '01', 'cédula de identidad': '01',
+    'cedula': '01', 'cédula': '01', '01': '01', 'ci': '01',
     'residencia / dimex': '02', 'residencia': '02', 'dimex': '02', '02': '02',
-    'permiso de trabajo': '03', 'permiso': '03', '03': '03',
-    'pasaporte': '04', '04': '04',
+    'permiso de trabajo': '03', 'permiso': '03', 'nite': '03', '03': '03',
+    'pasaporte': '04', 'pas': '04', '04': '04',
     'indocumentado': '05', '05': '05',
+    'cedula juridica': '06', 'cédula jurídica': '06', 'cj': '06',
 }
 
 DISABILITY_TYPE = {
@@ -367,6 +398,36 @@ class ImportDataWizard(models.TransientModel):
                     data_rows = [r for r in data_rows
                                  if any(c for c in r
                                         if c is not None and str(c).strip())]
+
+                    # FIX v5.15.6: Filtrar filas de instrucciones al pie de la hoja.
+                    # Algunos machotes tienen un bloque de instrucciones al final
+                    # (ej. fila 85+ en VACACIONES) que el wizard leía como datos.
+                    # Una fila es instrucción si su primera celda no-nula:
+                    #   - empieza con '📋' (marcador de instrucciones), o
+                    #   - tiene más de 80 chars (ninguna cédula/nombre es tan largo), o
+                    #   - empieza con un número seguido de punto y espacio ('1. ', '2. ')
+                    def _is_instruction_row(row):
+                        for c in row:
+                            if c is not None and str(c).strip():
+                                txt = str(c).strip()
+                                if txt.startswith('📋'):
+                                    return True
+                                if len(txt) > 80:
+                                    return True
+                                import re
+                                if re.match(r'^\d+\.\s+', txt):
+                                    return True
+                                break  # solo checar la primera celda no-nula
+                        return False
+
+                    # Truncar en el primer bloque de instrucciones encontrado
+                    clean_rows = []
+                    for r in data_rows:
+                        if _is_instruction_row(r):
+                            break  # todo lo que sigue es instrucciones
+                        clean_rows.append(r)
+                    data_rows = clean_rows
+
                     return hdrs, data_rows
         return {}, []
 
@@ -390,13 +451,16 @@ class ImportDataWizard(models.TransientModel):
              ('company_id', '=', self.company_id.id)], limit=1)
 
     def _find_m2o(self, model, name_val, field='name', extra_domain=None):
-        """Busca un registro por nombre (case-insensitive)."""
+        """Busca un registro por nombre (case-insensitive).
+        Usa sudo() para bypassear ir.rules de multi-empresa — los registros
+        pueden tener company_id=NULL o pertenecer a otra empresa en la misma BD.
+        """
         if not name_val:
             return None
         domain = [(field, 'ilike', str(name_val).strip())]
         if extra_domain:
             domain += extra_domain
-        return self.env[model].search(domain, limit=1) or None
+        return self.env[model].sudo().search(domain, limit=1) or None
 
     # ══════════════════════════════════════════════════════════════════════════
     # PROCESADORES POR HOJA
@@ -434,26 +498,31 @@ class ImportDataWizard(models.TransientModel):
                     branch_name  = v('Sucursal')
                     job_name     = v('Puesto', 'Cargo')
                     sched_name   = v('Tipo de Horario', 'Horario')
-                    cal_name     = v('Frecuencia', 'Calendario')
+                    cal_name     = v('Calendarización de Planilla', 'Frecuencia', 'Calendario', 'Frecuencia de Pago')
                     etype_name   = v('Tipo de Empleado')
                     estatus_name = v('Estado del Empleado', 'Estado')
 
                     dept    = self._find_m2o('hr.department', dept_name,
-                                extra_domain=[('company_id', '=', company.id)])
+                                extra_domain=['|', ('company_id', '=', company.id),
+                                                   ('company_id', '=', False)])
                     branch  = self._find_m2o('planilla.branch', branch_name,
-                                extra_domain=[('company_id', '=', company.id)])
+                                extra_domain=['|', ('company_id', '=', company.id),
+                                                   ('company_id', '=', False)])
                     job     = self._find_m2o('hr.job', job_name,
-                                extra_domain=[('company_id', '=', company.id)])
+                                extra_domain=['|', ('company_id', '=', company.id),
+                                                   ('company_id', '=', False)])
                     sched   = self._find_m2o('planilla.schedule.type', sched_name)
                     cal     = self._find_m2o('planilla.calendar', cal_name,
-                                extra_domain=[('company_id', '=', company.id)])
+                                extra_domain=['|', ('company_id', '=', company.id),
+                                                   ('company_id', '=', False)])
                     etype   = self._find_m2o('planilla.employee.type', etype_name)
                     estatus = self._find_m2o('planilla.employee.status', estatus_name)
 
                     # Sub departamento — buscar dentro del dpto padre si se encontró
                     subdept = None
                     if subdept_name:
-                        subdept_domain = [('company_id', '=', company.id)]
+                        subdept_domain = ['|', ('company_id', '=', company.id),
+                                               ('company_id', '=', False)]
                         if dept:
                             subdept_domain.append(('parent_id', '=', dept.id))
                         subdept = self._find_m2o('hr.department', subdept_name,
@@ -461,17 +530,20 @@ class ImportDataWizard(models.TransientModel):
 
                     # Si no se encontró calendario por nombre, buscar por frecuencia
                     if not cal:
-                        freq_raw = _normalize(v('Frecuencia', 'Calendario', 'Frecuencia de Pago') or '')
+                        freq_raw = _normalize(v('Calendarización de Planilla', 'Frecuencia', 'Calendario', 'Frecuencia de Pago') or '')
                         freq_val = FREQUENCY.get(freq_raw)
                         if freq_val:
-                            cal = self.env['planilla.calendar'].search([
-                                ('frequency', '=', freq_val),
+                            cal = self.env['planilla.calendar'].sudo().search([
+                                '|',
                                 ('company_id', '=', company.id),
+                                ('company_id', '=', False),
+                                ('frequency', '=', freq_val),
                             ], limit=1) or None
 
                     # Identificación type
                     id_type_raw  = _normalize(v('Tipo de Identificación', 'Tipo Identificacion') or '')
-                    id_type_code = INS_ID_TYPE.get(id_type_raw, '01')
+                    id_type_code = INS_ID_TYPE.get(id_type_raw, 'CI')      # code en planilla.identification.type
+                    ins_id_code  = INS_ID_TYPE_CODE.get(id_type_raw, '01') # código numérico para INS
                     id_type_rec  = self.env['planilla.identification.type'].search(
                         [('code', '=', id_type_code)], limit=1)
 
@@ -502,7 +574,7 @@ class ImportDataWizard(models.TransientModel):
                         'ins_risk_class':            _map(INS_RISK, v('Clase de Riesgo', 'Riesgo INS')) or False,
                         'ins_workday_type':          _map(INS_WORKDAY, v('Jornada INS', 'Tipo de Jornada INS', 'Tipo de Jornada')) or '01',
                         'ins_civil_status':          _map(INS_CIVIL, v('Estado Civil INS', 'Estado Civil')) or '01',
-                        'ins_id_type':               id_type_code,
+                        'ins_id_type':               ins_id_code,
                         'ins_nationality':           _map(INS_NATIONALITY, v('Nacionalidad INS', 'Nacionalidad')) or 'CR',
                     }
 
@@ -517,21 +589,44 @@ class ImportDataWizard(models.TransientModel):
                     if estatus: vals['employee_status_id']  = estatus.id
                     if id_type_rec: vals['identification_type_id'] = id_type_rec.id
 
-                    # INS occupation (código numérico de 4 dígitos)
+                    # INS occupation — acepta código numérico (4 dígitos) o
+                    # texto completo del dropdown "[1120] Directores y gerentes generales"
                     ins_occ_raw = str(v('Ocupación INS', 'Ocupacion INS') or '').strip()
                     if ins_occ_raw:
-                        vals['ins_occupation'] = ins_occ_raw
+                        # Extraer solo el código si viene como "[1120] Descripción..."
+                        import re as _re
+                        _occ_match = _re.match(r'\[?(\d{4})\]?', ins_occ_raw)
+                        vals['ins_occupation'] = _occ_match.group(1) if _occ_match else ins_occ_raw
+
+                    # Tipo de sangre y notas médicas
+                    blood_raw = str(v('Tipo de Sangre', 'Sangre') or '').strip().upper()
+                    if blood_raw in ('A+','A-','B+','B-','AB+','AB-','O+','O-'):
+                        vals['blood_type'] = blood_raw
+                    medical = str(v('Diagnóstico', 'Diagnostico', 'Notas Médicas', 'Notas Medicas') or '').strip()
+                    if medical:
+                        vals['medical_notes'] = medical
 
                     # Campos personales estándar de hr.employee — pueden no existir
                     # según la versión de Odoo o si están en hr.employee.private.
                     # Los agregamos solo si el campo existe en el modelo.
                     emp_fields = self.env['hr.employee']._fields
+
+                    # País: buscar por nombre en res.country
+                    country_raw = str(v('País', 'Pais') or '').strip()
+                    country_id  = False
+                    if country_raw:
+                        country = self.env['res.country'].search(
+                            [('name', 'ilike', country_raw)], limit=1)
+                        country_id = country.id if country else False
+
                     _personal = {
-                        'gender':        _map(GENDER, v('Género', 'Genero')) or False,
-                        'children':      _parse_int(v('Número de Dependientes', 'Dependientes')) or 0,
-                        'private_street': str(v('Dirección', 'Direccion') or '').strip() or False,
-                        'private_phone': str(v('Teléfono Personal', 'Telefono Personal') or '').strip() or False,
-                        'notes':         str(v('Observaciones') or '').strip() or False,
+                        'gender':            _map(GENDER, v('Género', 'Genero')) or False,
+                        'children':          _parse_int(v('Número de Dependientes', 'Dependientes')) or 0,
+                        'private_street':    str(v('Dirección', 'Direccion') or '').strip() or False,
+                        'private_phone':     str(v('Teléfono Personal', 'Telefono Personal') or '').strip() or False,
+                        'private_email':     str(v('Correo Personal', 'Email Personal') or '').strip() or False,
+                        'private_country_id': country_id or False,
+                        'notes':             str(v('Observaciones') or '').strip() or False,
                     }
                     for fname, fval in _personal.items():
                         if fname in emp_fields and fval:
@@ -883,49 +978,11 @@ class ImportDataWizard(models.TransientModel):
         if not rows:
             return 0, 0
 
-        import re as _re
-
-        def _is_valid_id(s):
-            """
-            FIX-V1: Distingue un número de identificación real de texto de instrucciones.
-            La hoja VACACIONES incluye un bloque de instrucciones al final del machote
-            (añadido por _build_vacations). Esas filas tienen texto libre en la columna
-            'Cédula' en lugar de un ID real.
-            Acepta: cédulas CR (9 dígitos), DIMEX (12 dígitos), pasaportes alfanuméricos.
-            Rechaza: texto con dos puntos, listas numeradas ("1. ..."), emoji, o frases
-            que contienen palabras clave de las instrucciones.
-            """
-            s = s.strip()
-            if not s:
-                return False
-            # Colon → instrucción ("INSTRUCCIONES:", "Ejemplo:")
-            if ':' in s:
-                return False
-            # Lista numerada: "1. Texto", "5. Las columnas..."
-            if _re.search(r'\d+\.\s', s):
-                return False
-            # Emoji u otros caracteres Unicode especiales (> U+1F00)
-            if any(ord(c) > 0x1F00 for c in s):
-                return False
-            # Palabras que solo aparecen en instrucciones, nunca en un ID
-            _lower = s.lower()
-            if any(w in _lower for w in (
-                'complete', 'ejemplo', 'instrucciones', 'acumulados', 'columnas',
-                'afectan', 'saldo', 'tomados', 'empleado', 'arranca', 'sistema',
-                'verificación', 'verificacion',
-            )):
-                return False
-            # Tras pasar los filtros: el ID limpio debe ser alfanumérico
-            cleaned = _re.sub(r'[-\s]', '', s)
-            return bool(cleaned) and bool(_re.match(r'^[A-Za-z0-9]+$', cleaned))
-
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
             cedula = str(v('Cédula', 'Cedula') or '').strip()
             if not cedula:
                 continue
-            if not _is_valid_id(cedula):
-                continue  # fila de instrucciones al pie de la hoja VACACIONES
             if self._is_sample(cedula) and not self.import_sample_data:
                 continue
 

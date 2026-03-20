@@ -12,9 +12,9 @@ class ImportOvertimeWizard(models.TransientModel):
     company_id = fields.Many2one('res.company', required=True,
                                   default=lambda self: self.env.company)
     date_from = fields.Date(string='Desde', required=True,
-                             default=lambda self: fields.Date.today().replace(day=1))
+                             default=lambda self: fields.Date.context_today(self).replace(day=1))
     date_to   = fields.Date(string='Hasta', required=True,
-                             default=fields.Date.today)
+                             default=lambda self: fields.Date.context_today(self))
     branch_id = fields.Many2one('planilla.branch', string='Sucursal (Opcional)')
 
     overtime_type = fields.Selection([
