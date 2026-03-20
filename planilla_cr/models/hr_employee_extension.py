@@ -645,7 +645,7 @@ class HrEmployeeExtension(models.Model):
     bank_account_number = fields.Char(string='Número de Cuenta Bancaria')
     bank_iban = fields.Char(
         string='IBAN',
-        help='Formato IBAN costarricense: CR + 20 digitos. Ej: CR15200001121513215152'
+        help='Formato IBAN costarricense: CR + 20 digitos. Ej: CR65015200000000000000'
     )
     sinpe_phone = fields.Char(
         string='Teléfono SINPE Móvil',

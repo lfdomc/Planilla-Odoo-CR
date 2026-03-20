@@ -898,7 +898,7 @@ class ImportTemplateWizard(models.TransientModel):
              'Número de asegurado CCSS'),
             ('Asegurado CCSS',            True,  14, 'Si',
              'Si / No'),
-            ('Cuenta Bancaria / IBAN',    False, 30, 'CR21015108010018023571',
+            ('Cuenta Bancaria / IBAN',    False, 30, 'CR65015200000000000000',
              'IBAN de 22 caracteres'),
             ('SINPE Móvil',               False, 14, '88887777',
              'Teléfono de 8 dígitos registrado en SINPE Móvil'),
@@ -970,7 +970,7 @@ class ImportTemplateWizard(models.TransientModel):
                 # ── CCSS y banco (cols 24-29)
                 '1234567890',                 # Número CCSS
                 'Si',                         # Asegurado CCSS
-                'CR21015108010018023571',      # Cuenta Bancaria / IBAN
+                'CR65015200000000000000',      # Cuenta Bancaria / IBAN
                 '88887777',                   # SINPE Móvil
                 'BNCR',                       # Banco
                 'Cuenta Corriente',           # Tipo de Cuenta Banco

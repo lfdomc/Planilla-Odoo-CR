@@ -1,6 +1,6 @@
 {
-    'name': 'Sistema Planilla v5.18.1-PROD',
-    'version': '19.0.5.18.1',
+    'name': 'Sistema Planilla v5.18.2-PROD',
+    'version': '19.0.5.18.2',
     # ── Changelog v5.17.0 (Fix dropdowns dinámicos — columnas desplazadas) ─
     # FIX-WIZ-04: _build_dynamic_lists._write_list() — el early return cuando
     #   values=[] causaba que next_col NO se incrementara, desplazando todas

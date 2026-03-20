@@ -640,7 +640,30 @@ class ImportDataWizard(models.TransientModel):
                     })
                     vals['work_contact_id'] = contact.id
 
-                    self.env['hr.employee'].create(vals)
+                    # Crear empleado. Si el IBAN falla la validación del
+                    # dígito verificador, reintentar sin el IBAN para no
+                    # bloquear toda la importación — el IBAN se puede
+                    # corregir manualmente después.
+                    try:
+                        self.env['hr.employee'].create(vals)
+                    except Exception as e_create:
+                        if 'iban' in str(e_create).lower() or 'digito verificador' in str(e_create).lower():
+                            iban_original = vals.pop('bank_iban', None)
+                            vals.pop('bank_account_number', None)
+                            self.env['hr.employee'].create(vals)
+                            created += 1
+                            errors.append({
+                                'hoja': 'EMPLEADOS', 'fila': row_num,
+                                'cedula': cedula, 'nombre': nombre,
+                                'error': f'ADVERTENCIA: Empleado creado SIN IBAN — dígito verificador inválido: {iban_original}. Corrija el IBAN manualmente en el empleado.',
+                                'traceback': '',
+                                'vals': {},
+                            })
+                            _logger.warning('ImportDataWizard EMPLEADOS fila %s cedula %s: IBAN inválido %s — empleado creado sin IBAN',
+                                            row_num, cedula, iban_original)
+                            continue
+                        else:
+                            raise
                     created += 1
 
             except Exception as e:
