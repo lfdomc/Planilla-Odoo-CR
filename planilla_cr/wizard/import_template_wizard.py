@@ -68,20 +68,6 @@ class ImportTemplateWizard(models.TransientModel):
         'gender':       ['Masculino', 'Femenino', 'Otro'],
         'si_no':        ['Si', 'No'],
         # Horarios — sincronizado con default_data.xml
-        'schedule':     [
-            'Jornada Completa (8 horas - Lun a Vie)',
-            'Jornada Completa (8 horas - Lun a Sáb)',
-            'Jornada Mixta (7 horas)',
-            'Jornada Nocturna (6 horas)',
-            'Jornada Acumulada 4x10 (10 horas - 4 días)',
-            'Jornada Acumulada 3x12 (12 horas - 3 días)',
-            'Medio Tiempo (4 horas)',
-            'Tres Cuartos (6 horas)',
-            'Horario de Confianza',
-            'Guardias / Turnos 24 horas',
-            'Turno Rotativo (Mañana / Tarde / Noche)',
-            'Fines de Semana (Sáb y Dom)',
-        ],
         # Préstamos
         'loan_type':    ['Préstamo de Empresa', 'Adelanto de Salario'],
         'loan_state':   ['Aprobado', 'En Curso', 'Borrador', 'Pagado', 'Anulado'],
@@ -631,6 +617,10 @@ class ImportTemplateWizard(models.TransientModel):
             return self.env[model].sudo().with_context(active_test=False).search(
                 dom, order=order)
 
+        # ── Tipos de horario ─────────────────────────────────────────────
+        schedules = _search('planilla.schedule.type')
+        _write_list('schedule', [s.name for s in schedules], width=40)
+
         # ── Calendarizaciones de planilla ─────────────────────────────────
         # Sin filtro de empresa: sudo() ya bypasea ir.rules. En un sistema
         # de una sola empresa todos los registros son del cliente.
@@ -872,8 +862,8 @@ class ImportTemplateWizard(models.TransientModel):
              'Seleccione del desplegable (cargado desde Odoo)'),
             ('Estado del Empleado',       True,  18, '',
              'Seleccione del desplegable (cargado desde Odoo)'),
-            ('Tipo de Horario',           True,  32, 'Jornada Completa (8 horas - Lun a Vie)',
-             'Seleccione del desplegable'),
+            ('Tipo de Horario',           True,  32, '',
+             'Seleccione del desplegable (cargado desde Odoo — tipos de su empresa)'),
             ('Calendarización de Planilla', True, 26, '',
              'Seleccione del desplegable (cargado desde Odoo) — Ej: Mensual, Quincenal'),
             # ── Datos INS (cols 15-23) ────────────────────────────────────
@@ -955,7 +945,7 @@ class ImportTemplateWizard(models.TransientModel):
                 'Asistente Administrativo',   # Puesto / Cargo
                 'Empleado Indefinido',        # Tipo de Empleado
                 'Activo',                     # Estado del Empleado
-                'Jornada Completa (8 horas - Lun a Vie)',  # Tipo de Horario
+                'Jornada Completa (8 horas - Lun a Vie)',  # Tipo de Horario — seleccione del desplegable
                 'Quincenal',                  # Calendarización de Planilla
                 # ── Datos INS (cols 15-23)
                 'Si',                         # Incluir en INS
@@ -997,7 +987,8 @@ class ImportTemplateWizard(models.TransientModel):
 
         # ── Dropdowns estáticos ───────────────────────────────────────────
         self._dv(ws,  3, 'id_type',        5, title='Tipo de Identificación')
-        self._dv(ws, 13, 'schedule',       5, title='Tipo de Horario')
+        # col 13: Tipo de Horario — DINÁMICO (lee planilla.schedule.type de BD)
+        # (se aplica abajo junto con los demás dinámicos)
         self._dv(ws, 15, 'si_no',          5, title='Incluir en INS (si/no)')
         self._dv(ws, 20, 'ins_risk',       5, title='Clase de Riesgo INS')
         self._dv(ws, 21, 'ins_workday',    5, title='Tipo de Jornada INS')
@@ -1022,6 +1013,7 @@ class ImportTemplateWizard(models.TransientModel):
         self._dv_dynamic(ws, 10, 'job',            5, dl, title='Puesto / Cargo')
         self._dv_dynamic(ws, 11, 'employee_type',  5, dl, title='Tipo de Empleado')
         self._dv_dynamic(ws, 12, 'employee_status',5, dl, title='Estado del Empleado')
+        self._dv_dynamic(ws, 13, 'schedule',       5, dl, title='Tipo de Horario')
         self._dv_dynamic(ws, 14, 'calendar',       5, dl, title='Calendarización de Planilla')
         self._dv_dynamic(ws, 37, 'country',        5, dl, title='País')
     # HOJA PRÉSTAMOS

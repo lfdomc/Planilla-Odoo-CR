@@ -7,7 +7,7 @@ Al finalizar: resumen en pantalla + Excel de errores descargable.
 from odoo import models, fields, api
 from ..models import planilla_const as K
 from odoo.exceptions import UserError
-import base64, io, logging, traceback
+import base64, io, logging, re, traceback
 from datetime import date, datetime
 
 _logger = logging.getLogger(__name__)
@@ -452,15 +452,19 @@ class ImportDataWizard(models.TransientModel):
 
     def _find_m2o(self, model, name_val, field='name', extra_domain=None):
         """Busca un registro por nombre (case-insensitive).
-        Usa sudo() para bypassear ir.rules de multi-empresa — los registros
-        pueden tener company_id=NULL o pertenecer a otra empresa en la misma BD.
+        Usa sudo() + active_test=False para bypassear ir.rules y filtros
+        de registros archivados. Los registros pueden tener company_id=NULL
+        o pertenecer a otra empresa en la misma BD.
         """
         if not name_val:
             return None
-        domain = [(field, 'ilike', str(name_val).strip())]
+        name_str = str(name_val).strip()
+        domain = [(field, 'ilike', name_str)]
         if extra_domain:
             domain += extra_domain
-        return self.env[model].sudo().search(domain, limit=1) or None
+        result = self.env[model].sudo().with_context(active_test=False).search(
+            domain, limit=1)
+        return result or None
 
     # ══════════════════════════════════════════════════════════════════════════
     # PROCESADORES POR HOJA
@@ -512,6 +516,13 @@ class ImportDataWizard(models.TransientModel):
                                 extra_domain=['|', ('company_id', '=', company.id),
                                                    ('company_id', '=', False)])
                     sched   = self._find_m2o('planilla.schedule.type', sched_name)
+                    # Si no encontró por nombre completo, intentar con las
+                    # primeras palabras (ej: "Jornada Completa" de
+                    # "Jornada Completa (8 horas - Lun a Vie)")
+                    if not sched and sched_name:
+                        short_name = sched_name.split('(')[0].strip()
+                        if short_name != sched_name:
+                            sched = self._find_m2o('planilla.schedule.type', short_name)
                     cal     = self._find_m2o('planilla.calendar', cal_name,
                                 extra_domain=['|', ('company_id', '=', company.id),
                                                    ('company_id', '=', False)])
@@ -562,7 +573,7 @@ class ImportDataWizard(models.TransientModel):
                         'has_variable_income':        _parse_bool(v('Salario Variable', 'Comisiones', 'Ingreso Variable')),
                         'bank_account_number':        str(v('Cuenta Bancaria', 'Cuenta') or '').strip() or False,
                         'bank_iban':                  str(v('IBAN') or '').strip() or False,
-                        'sinpe_phone':                str(v('SINPE', 'Sinpe Móvil', 'Sinpe Movil') or '').strip() or False,
+                        'sinpe_phone': re.sub(r'\D', '', str(v('SINPE', 'Sinpe Móvil', 'Sinpe Movil') or ''))[:8] or False,
                         'bank_name':                  _map(BANK, v('Banco')) or False,
                         'bank_account_type':          _map(ACCOUNT_TYPE, v('Tipo de Cuenta Banco', 'Tipo de Cuenta')) or False,
                         # INS
