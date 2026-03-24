@@ -59,6 +59,52 @@ class Overtime(models.Model):
         ('attendance', 'Importado de Asistencias'),
     ], string='Origen', default='manual', readonly=True)
 
+    legal_warning = fields.Char(
+        string='Advertencia Legal',
+        compute='_compute_legal_warning',
+        store=False,
+        help='Alerta cuando se superan los límites del Art. 139 CT.'
+    )
+
+    @api.depends('employee_id', 'date', 'hours', 'state')
+    def _compute_legal_warning(self):
+        """
+        Calcula advertencias legales sin bloquear.
+        Art. 139 CT: máx 4h extras/día, máx 12h extras/semana.
+        Se muestra como banner en el formulario pero NO impide guardar ni aprobar.
+        """
+        from datetime import timedelta
+        MAX_HE_DIARIA  = 4.0
+        MAX_HE_SEMANAL = 12.0
+        for rec in self:
+            warnings = []
+            if rec.hours and rec.hours > MAX_HE_DIARIA:
+                warnings.append(
+                    f'⚠ Horas del día ({rec.hours:.1f}h) superan el máximo de '
+                    f'{MAX_HE_DIARIA:.0f}h diarias (Art. 139 Código de Trabajo).'
+                )
+            if rec.employee_id and rec.date:
+                day_of_week = rec.date.weekday()
+                week_start  = rec.date - timedelta(days=day_of_week)
+                week_end    = week_start + timedelta(days=6)
+                other_he = rec.env['planilla.overtime'].search([
+                    ('employee_id', '=', rec.employee_id.id),
+                    ('date', '>=', week_start),
+                    ('date', '<=', week_end),
+                    ('state', 'in', ('draft', 'approved')),
+                    ('id', '!=', rec.id if rec.id else 0),
+                ])
+                total_semanal = sum(other_he.mapped('hours')) + (rec.hours or 0.0)
+                if total_semanal > MAX_HE_SEMANAL:
+                    ya_registradas = total_semanal - (rec.hours or 0.0)
+                    warnings.append(
+                        f'⚠ Total semanal ({total_semanal:.1f}h, semana {week_start} – {week_end}) '
+                        f'supera el máximo de {MAX_HE_SEMANAL:.0f}h semanales '
+                        f'(Art. 139 CT). Ya registradas esta semana: {ya_registradas:.1f}h. '
+                        f'Se recomienda gestionar autorización especial con el empleado.'
+                    )
+            rec.legal_warning = '  |  '.join(warnings) if warnings else False
+
     @api.depends('employee_id', 'date')
     def _compute_name(self):
         for rec in self:
@@ -108,16 +154,25 @@ class Overtime(models.Model):
     def action_approve(self):
         self.ensure_one()
         from datetime import timedelta
-        # Validación diaria: máx 4h extras/día (Art. 139 CT)
-        if self.hours > 4.0:
-            raise ValidationError(
-                f'Las horas extras ({self.hours:.1f}h) superan el máximo legal de 4 horas '
-                f'diarias establecido en el Art. 139 del Código de Trabajo. '
-                f'Verifique si necesita dividir en varios días o solicitar autorización especial.'
+        import logging
+        _logger = logging.getLogger(__name__)
+        MAX_HE_DIARIA  = 4.0
+        MAX_HE_SEMANAL = 12.0
+
+        # Art. 139 CT — advertencia diaria (ya NO bloquea, registra en chatter)
+        if self.hours > MAX_HE_DIARIA:
+            msg = (
+                f'⚠ ADVERTENCIA LEGAL — Art. 139 Código de Trabajo: '
+                f'Las horas extras aprobadas hoy ({self.hours:.1f}h) superan el máximo '
+                f'de {MAX_HE_DIARIA:.0f}h diarias. Se aprueba con advertencia. '
+                f'Se recomienda gestionar autorización especial con el empleado.'
             )
-        # FIX A-02 v59: Validación semanal — máx 12h extras/semana (Art. 139 CT)
+            self.message_post(body=msg)
+            _logger.warning('planilla.overtime %s: %s', self.name, msg)
+
+        # Art. 139 CT — advertencia semanal (ya NO bloquea, registra en chatter)
         if self.date:
-            day_of_week = self.date.weekday()  # 0 = lunes
+            day_of_week = self.date.weekday()
             week_start  = self.date - timedelta(days=day_of_week)
             week_end    = week_start + timedelta(days=6)
             other_he = self.env['planilla.overtime'].search([
@@ -128,14 +183,18 @@ class Overtime(models.Model):
                 ('id', '!=', self.id),
             ])
             total_semanal = sum(other_he.mapped('hours')) + self.hours
-            MAX_HE_SEMANAL = 12.0  # Art. 139 CT
             if total_semanal > MAX_HE_SEMANAL:
-                raise ValidationError(
-                    f'Las horas extras de la semana {week_start} — {week_end} '
-                    f'({total_semanal:.1f}h) superarían el límite legal de '
-                    f'{MAX_HE_SEMANAL}h semanales (Art. 139 CT). '
-                    f'Ya aprobadas esta semana: {total_semanal - self.hours:.1f}h.'
+                ya_aprobadas = total_semanal - self.hours
+                msg = (
+                    f'⚠ ADVERTENCIA LEGAL — Art. 139 Código de Trabajo: '
+                    f'El total de horas extras de la semana {week_start} – {week_end} '
+                    f'({total_semanal:.1f}h) supera el límite de {MAX_HE_SEMANAL:.0f}h semanales. '
+                    f'Ya aprobadas esta semana: {ya_aprobadas:.1f}h. '
+                    f'Se aprueba con advertencia. Gestione autorización especial si aplica.'
                 )
+                self.message_post(body=msg)
+                _logger.warning('planilla.overtime %s: %s', self.name, msg)
+
         # FIX C-01 v53: Validar que overtime_type=holiday corresponda a un feriado real.
         if self.overtime_type == 'holiday' and self.date:
             is_holiday = self.env['planilla.public.holiday'].is_paid_holiday(

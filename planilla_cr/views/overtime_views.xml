@@ -31,6 +31,15 @@
                            statusbar_visible="draft,approved,paid"/>
                 </header>
                 <sheet>
+                    <!-- Banner de advertencia legal — visible cuando se superan límites Art. 139 CT -->
+                    <div class="alert alert-warning o_no_print"
+                         role="alert"
+                         invisible="not legal_warning">
+                        <strong>⚠ Advertencia Legal — Art. 139 Código de Trabajo CR</strong><br/>
+                        <field name="legal_warning" readonly="1"/>
+                        <br/><small>Esta advertencia no bloquea el registro. Se recomienda
+                        gestionar autorización especial con el empleado si corresponde.</small>
+                    </div>
                     <group>
                         <group>
                             <field name="employee_id"/>
