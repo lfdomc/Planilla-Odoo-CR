@@ -164,12 +164,5 @@
         </field>
     </record>
 
-    <!-- ══ MENÚ ══════════════════════════════════════════════════════════ -->
-    <menuitem id="menu_embargo"
-              name="Embargos Judiciales"
-              action="action_embargo"
-              parent="menu_planilla_cr_novedades"
-              sequence="58"
-              groups="planilla_cr.group_planilla_operador"/>
 
 </odoo>

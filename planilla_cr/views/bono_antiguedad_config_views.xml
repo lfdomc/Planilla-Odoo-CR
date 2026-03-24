@@ -62,11 +62,5 @@
         </field>
     </record>
 
-    <menuitem id="menu_bono_antiguedad_config"
-              name="Bono de Antigüedad (Tabla)"
-              action="action_bono_antiguedad_config"
-              parent="menu_planilla_cr_config"
-              sequence="65"
-              groups="planilla_cr.group_planilla_admin"/>
 
 </odoo>

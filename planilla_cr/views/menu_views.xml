@@ -290,4 +290,32 @@
               sequence="86"
               groups="planilla_cr.group_planilla_admin"/>
 
+    <!-- ── Menús movidos desde views individuales (fix instalación fresca) ── -->
+    <menuitem id="menu_pension_alimentaria"
+              name="Pensiones Alimentarias"
+              action="action_pension_alimentaria"
+              parent="menu_planilla_cr_novedades"
+              sequence="56"/>
+
+    <menuitem id="menu_embargo"
+              name="Embargos Judiciales"
+              action="action_embargo"
+              parent="menu_planilla_cr_novedades"
+              sequence="58"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <menuitem id="menu_bono"
+              name="Bonos y Beneficios"
+              action="action_bono"
+              parent="menu_planilla_cr_novedades"
+              sequence="59"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <menuitem id="menu_bono_antiguedad_config"
+              name="Bono de Antigüedad (Tabla)"
+              action="action_bono_antiguedad_config"
+              parent="menu_planilla_cr_config"
+              sequence="65"
+              groups="planilla_cr.group_planilla_admin"/>
+
 </odoo>

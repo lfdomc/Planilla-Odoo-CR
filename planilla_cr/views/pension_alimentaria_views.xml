@@ -106,10 +106,4 @@
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_active': 1}</field>
     </record>
-    <!-- ── MENÚ ─────────────────────────────────────────────────── -->
-    <menuitem id="menu_pension_alimentaria"
-              name="Pensiones Alimentarias"
-              action="action_pension_alimentaria"
-              parent="menu_planilla_cr_novedades"
-              sequence="56"/>
 </odoo>
