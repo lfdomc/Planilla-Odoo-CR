@@ -15,9 +15,11 @@
                 <field name="employee_id"/>
                 <field name="branch_id" optional="show"/>
                 <field name="leave_type"/>
+                <field name="leave_unit" optional="show"/>
                 <field name="date_start"/>
-                <field name="date_end"/>
-                <field name="days"/>
+                <field name="date_end" optional="show"/>
+                <field name="days" optional="show"/>
+                <field name="hours" optional="show"/>
                 <field name="working_days" optional="show"/>
                 <field name="has_salary" widget="boolean_toggle"/>
                 <field name="leave_amount"/>
@@ -83,6 +85,8 @@
                         <group string="Tipo de Licencia">
                             <field name="leave_type"
                                    readonly="state != 'draft'"/>
+                            <field name="leave_unit"
+                                   readonly="state != 'draft'"/>
                             <field name="has_salary" readonly="1"/>
                             <field name="has_salary_override"
                                    invisible="has_salary"
@@ -92,7 +96,9 @@
                     </group>
 
                     <group>
-                        <group string="Período">
+                        <!-- Período por DÍAS -->
+                        <group string="Período"
+                               invisible="leave_unit == 'hour'">
                             <field name="date_start"
                                    readonly="state != 'draft'"/>
                             <field name="date_end"
@@ -102,8 +108,20 @@
                                    readonly="state != 'draft'"
                                    help="Si la ley habla de días HÁBILES (duelo, paternidad, matrimonio), ingrese aquí los días hábiles. El sistema calculará el monto sobre este valor. Si queda en 0 se usan los días calendario."/>
                         </group>
+                        <!-- Período por HORAS -->
+                        <group string="Período"
+                               invisible="leave_unit == 'day'">
+                            <field name="date_start"
+                                   string="Fecha del Permiso"
+                                   readonly="state != 'draft'"/>
+                            <field name="hours"
+                                   readonly="state != 'draft'"
+                                   required="leave_unit == 'hour'"/>
+                            <field name="hourly_salary" readonly="1"/>
+                        </group>
                         <group string="Montos">
-                            <field name="daily_salary" readonly="1"/>
+                            <field name="daily_salary" readonly="1"
+                                   invisible="leave_unit == 'hour'"/>
                             <field name="leave_amount" readonly="1"/>
                         </group>
                     </group>

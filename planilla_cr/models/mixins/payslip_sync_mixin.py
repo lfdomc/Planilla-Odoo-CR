@@ -271,14 +271,19 @@ class PayslipSyncMixin(models.AbstractModel):
                 continue
 
             tipo_label = dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)
-            dias_efectivos = lic.working_days if lic.working_days > 0 else lic.days
+            # Descripción según unidad: días u horas
+            if lic.leave_unit == 'hour':
+                periodo_desc = f'{lic.hours}h el {lic.date_start}'
+            else:
+                dias_efectivos = lic.working_days if lic.working_days > 0 else lic.days
+                periodo_desc = f'{lic.date_start} al {lic.date_end}, {dias_efectivos} día(s)'
 
             if pays:
                 # Licencia CON goce → ingreso adicional (gasto patronal)
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':          self.id,
                     'deduction_code_id':   code_con_goce.id,
-                    'description':         f'Licencia: {tipo_label} ({lic.date_start} al {lic.date_end}, {dias_efectivos} día(s))',
+                    'description':         f'Licencia: {tipo_label} ({periodo_desc})',
                     'line_type':           'income',
                     'deduction_category':  'licencia_con_goce',
                     'amount':              monto,
@@ -289,7 +294,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':          self.id,
                     'deduction_code_id':   code_sin_goce.id,
-                    'description':         f'Licencia sin goce: {tipo_label} ({lic.date_start} al {lic.date_end}, {dias_efectivos} día(s))',
+                    'description':         f'Licencia sin goce: {tipo_label} ({periodo_desc})',
                     'line_type':           'deduction',
                     'deduction_category':  'licencia_sin_goce',
                     'amount':              monto,

@@ -103,6 +103,14 @@ class LeaveCR(models.Model):
         ('otro_sin_goce',       'Otra Sin Goce — Acuerdo entre partes'),
     ], string='Tipo de Licencia', required=True, tracking=True)
 
+    # ── Unidad de medida ─────────────────────────────────────────────────────
+    leave_unit = fields.Selection([
+        ('day',  'Días'),
+        ('hour', 'Horas'),
+    ], string='Unidad', required=True, default='day', tracking=True,
+        help='Seleccione "Horas" para permisos parciales (lactancia, cita médica, votar, etc.)'
+    )
+
     date_start = fields.Date(
         string='Fecha Inicio', required=True, tracking=True,
         default=fields.Date.today
@@ -119,6 +127,18 @@ class LeaveCR(models.Model):
         help='Complete manualmente si necesita distinguir días hábiles de calendario. '
              'Para duelo/paternidad/matrimonio la ley habla de días HÁBILES. '
              'Si queda en 0, el sistema usa los días calendario para el cálculo.'
+    )
+
+    # ── Campos para licencia por horas ────────────────────────────────────────
+    hours = fields.Float(
+        string='Horas de Permiso',
+        digits=(5, 2),
+        help='Cantidad de horas del permiso. Solo aplica cuando Unidad = Horas.'
+    )
+    hourly_salary = fields.Monetary(
+        string='Salario por Hora', currency_field='currency_id',
+        compute='_compute_amounts', store=True,
+        help='Salario base mensual / 30 / horas de jornada del empleado.'
     )
 
     # ── Pariente (para duelo) ─────────────────────────────────────────────────
@@ -228,22 +248,36 @@ class LeaveCR(models.Model):
             rec.legal_basis = info[2]
 
     @api.depends('employee_id', 'date_start', 'days', 'working_days',
-                 'has_salary', 'has_salary_override', 'leave_type')
+                 'has_salary', 'has_salary_override', 'leave_type',
+                 'leave_unit', 'hours',
+                 'employee_id.schedule_type_id',
+                 'employee_id.schedule_type_id.hours_per_day')
     def _compute_amounts(self):
         for rec in self:
             if not rec.employee_id or not rec.employee_id.base_salary:
-                rec.daily_salary = 0.0
-                rec.leave_amount = 0.0
+                rec.daily_salary  = 0.0
+                rec.hourly_salary = 0.0
+                rec.leave_amount  = 0.0
                 continue
 
             daily = round(rec.employee_id.base_salary / K.DIAS_MES, 2)
             rec.daily_salary = daily
 
-            # Días efectivos: preferir working_days si está ingresado, sino días calendario
-            effective_days = rec.working_days if rec.working_days > 0 else (rec.days or 0)
-
-            pays = rec.has_salary or rec.has_salary_override
-            rec.leave_amount = round(daily * effective_days, 2) if effective_days > 0 else 0.0
+            if rec.leave_unit == 'hour':
+                # ── Cálculo por horas ─────────────────────────────────────────
+                # Salario hora = salario diario / horas de jornada del empleado
+                hours_per_day = (
+                    rec.employee_id.schedule_type_id.hours_per_day
+                    if rec.employee_id.schedule_type_id
+                    else K.HORAS_JORNADA_DEFAULT
+                )
+                rec.hourly_salary = round(daily / hours_per_day, 4) if hours_per_day else 0.0
+                rec.leave_amount  = round(rec.hourly_salary * (rec.hours or 0.0), 2)
+            else:
+                # ── Cálculo por días (comportamiento original) ────────────────
+                rec.hourly_salary  = 0.0
+                effective_days     = rec.working_days if rec.working_days > 0 else (rec.days or 0)
+                rec.leave_amount   = round(daily * effective_days, 2) if effective_days > 0 else 0.0
 
     # ═════════════════════════════════════════════════════════════════════════
     # VALIDACIONES
@@ -257,6 +291,23 @@ class LeaveCR(models.Model):
                     f'La Fecha Fin ({rec.date_end}) no puede ser anterior '
                     f'a la Fecha Inicio ({rec.date_start}).'
                 )
+
+    @api.constrains('leave_unit', 'hours')
+    def _check_hours(self):
+        for rec in self:
+            if rec.leave_unit == 'hour':
+                if not rec.hours or rec.hours <= 0:
+                    raise ValidationError(
+                        'Debe indicar la cantidad de horas del permiso (campo "Horas de Permiso") '
+                        'cuando la unidad es "Horas".'
+                    )
+                if rec.employee_id and rec.employee_id.schedule_type_id:
+                    max_h = rec.employee_id.schedule_type_id.hours_per_day or K.HORAS_JORNADA_DEFAULT
+                    if rec.hours > max_h:
+                        raise ValidationError(
+                            f'Las horas del permiso ({rec.hours}h) no pueden superar '
+                            f'la jornada diaria del empleado ({max_h}h).'
+                        )
 
     @api.constrains('leave_type', 'days', 'working_days')
     def _check_legal_limits(self):
