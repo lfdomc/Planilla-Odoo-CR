@@ -1063,7 +1063,7 @@ class PayslipSyncMixin(models.AbstractModel):
         rh = self.env['planilla.rate.helper'].with_company(self[0].company_id)
         rop_emp_dc = rh._get_deduction_code('ROP_EMP')
         rop_pat_dc = rh._get_deduction_code('ROP_PAT')
-        from . import planilla_const as _K
+        from .. import planilla_const as _K
         rop_emp_rate = (rop_emp_dc.employee_percentage / 100) if rop_emp_dc else _K.ROP_EMP
         rop_pat_rate = (rop_pat_dc.employer_percentage / 100) if rop_pat_dc else _K.ROP_PAT
         rop_code = self.env['planilla.deduction.code'].search([('code', '=', 'ROP')], limit=1)
@@ -1202,7 +1202,7 @@ class PayslipSyncMixin(models.AbstractModel):
             licencias_sg = sum(l.amount for l in slip.deduction_line_ids
                                if l.deduction_category == 'licencia_sin_goce')
             neto_disp = max(0.0, gross - ccss_emp - renta - pensiones - ausencias - licencias_sg)
-            from . import planilla_const as _K
+            from .. import planilla_const as _K
             limite_total = round(neto_disp * _K.MAX_PCT_EMBARGO / 100, 2)
             ya_embargado = 0.0
             for embargo in emb_list:
