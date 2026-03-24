@@ -201,16 +201,34 @@
                                 </group>
                             </group>
 
-                            <!-- Préstamos, adelantos y deducciones adicionales -->
-                            <separator string="Préstamos / Adelantos / Deducciones Adicionales"/>
-                            <field name="deduction_line_ids">
-                                <list editable="bottom">
+                            <!-- ── Ingresos Adicionales (bonos, beneficios, licencias con goce) ── -->
+                            <separator string="➕ Ingresos Adicionales (suman al neto)"/>
+                            <field name="deduction_line_ids"
+                                   domain="[('line_type','=','income')]"
+                                   context="{'default_line_type': 'income'}">
+                                <list editable="bottom" decoration-success="True">
                                     <field name="deduction_code_id"/>
                                     <field name="description"/>
-                                    <field name="line_type"/>
+                                    <field name="deduction_category"/>
                                     <field name="amount_type"/>
-                                    <field name="amount"/>
-                                    <field name="deduction_type" readonly="1"/>
+                                    <field name="amount" string="Monto (₡) ➕"/>
+                                </list>
+                            </field>
+
+                            <!-- ── Deducciones Adicionales (embargo, préstamo, sindicato, etc.) ── -->
+                            <separator string="➖ Deducciones Adicionales (restan del neto)"/>
+                            <field name="deduction_line_ids"
+                                   domain="[('line_type','=','deduction')]"
+                                   context="{'default_line_type': 'deduction'}">
+                                <list editable="bottom" decoration-danger="True">
+                                    <field name="deduction_code_id"/>
+                                    <field name="description"/>
+                                    <field name="deduction_category"/>
+                                    <field name="amount_type"/>
+                                    <field name="amount" string="Monto (₡) ➖"/>
+                                    <field name="numero_resolucion"
+                                           optional="show"
+                                           string="N° Resolución"/>
                                 </list>
                             </field>
                         </page>
