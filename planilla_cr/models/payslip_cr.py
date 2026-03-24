@@ -251,6 +251,16 @@ class PayslipCR(models.Model):
     deduction_line_ids = fields.One2many(
         'planilla.payslip.deduction.line', 'payslip_id', string='Deducciones Adicionales'
     )
+    income_line_ids = fields.One2many(
+        'planilla.payslip.deduction.line', 'payslip_id',
+        string='Ingresos Adicionales',
+        domain=[('line_type', '=', 'income')],
+    )
+    deduction_only_line_ids = fields.One2many(
+        'planilla.payslip.deduction.line', 'payslip_id',
+        string='Deducciones Adicionales',
+        domain=[('line_type', '=', 'deduction')],
+    )
 
     # ── Estado y Contabilidad ─────────────────────────────────────────
     state = fields.Selection([

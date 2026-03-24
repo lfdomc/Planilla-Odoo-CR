@@ -203,8 +203,7 @@
 
                             <!-- ── Ingresos Adicionales (bonos, beneficios, licencias con goce) ── -->
                             <separator string="➕ Ingresos Adicionales (suman al neto)"/>
-                            <field name="deduction_line_ids"
-                                   domain="[('line_type','=','income')]"
+                            <field name="income_line_ids"
                                    context="{'default_line_type': 'income'}">
                                 <list editable="bottom" decoration-success="True">
                                     <field name="deduction_code_id"/>
@@ -217,8 +216,7 @@
 
                             <!-- ── Deducciones Adicionales (embargo, préstamo, sindicato, etc.) ── -->
                             <separator string="➖ Deducciones Adicionales (restan del neto)"/>
-                            <field name="deduction_line_ids"
-                                   domain="[('line_type','=','deduction')]"
+                            <field name="deduction_only_line_ids"
                                    context="{'default_line_type': 'deduction'}">
                                 <list editable="bottom" decoration-danger="True">
                                     <field name="deduction_code_id"/>
