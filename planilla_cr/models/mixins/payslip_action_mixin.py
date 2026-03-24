@@ -79,6 +79,32 @@ class PayslipActionMixin(models.AbstractModel):
                 rec._sync_employee_charges() # Cobros al empleado (almuerzos, productos, etc.)
         return True
 
+    def action_recalculate(self) -> bool:
+        """Fuerza el recálculo completo de la boleta (salario base, deducciones,
+        impuesto de renta, cargas patronales y totales) sin modificar novedades.
+
+        Útil cuando se cambian tramos de renta, tasas de CCSS u otras
+        configuraciones en la BD sin que haya cambiado el salario del empleado,
+        ya que Odoo no detecta automáticamente ese cambio externo en campos
+        store=True.
+        """
+        for rec in self:
+            if rec.state != 'draft':
+                continue
+            # Invalidar el cache de tramos de renta para que _calc_income_tax
+            # los consulte de nuevo desde la BD en este request.
+            rec.env.context = dict(rec.env.context)
+            rec.env.context.pop('_income_tax_brackets_cache', None)
+            # Forzar recompute de toda la cadena de campos computados almacenados.
+            rec._compute_proportional_days()
+            rec._compute_base_salary()
+            rec._compute_extras()
+            rec._compute_bono_salarial()
+            rec._compute_gross()
+            rec._compute_deductions()
+            rec._compute_totals()
+        return True
+
     def action_confirm(self) -> None:
         """FIX B-06 v58: write() batch — atomicidad total."""
         if not self.env.su and not self.env.user.has_group('planilla_cr.group_planilla_aprobador'):

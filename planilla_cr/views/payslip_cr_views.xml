@@ -45,6 +45,11 @@
                             string="Sincronizar Novedades"
                             invisible="state != 'draft'"
                             class="btn-secondary"/>
+                    <button name="action_recalculate" type="object"
+                            string="Recalcular"
+                            invisible="state != 'draft'"
+                            class="btn-secondary"
+                            help="Fuerza el recálculo completo de salario, deducciones e impuesto de renta. Útil cuando se modifican tramos de renta u otras tasas en la configuración."/>
                     <button name="action_reset_to_draft" type="object" string="Volver a Borrador"
                             invisible="state not in ('cancelled', 'confirmed')"
                             class="btn-warning"/>
