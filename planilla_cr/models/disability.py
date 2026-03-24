@@ -68,8 +68,8 @@ class Disability(models.Model):
         string='Costo Patrono', currency_field='currency_id',
         compute='_compute_costs', store=True,
         help='Costo a cargo del patrono durante la incapacidad.\n'
-             '- CCSS (enfermedad): dias 1-3 a cargo del patrono (66.67% del salario), '
-             'a partir del dia 4 cubre la CCSS.\n'
+             '- CCSS (enfermedad): dias 1-3 → 50%% patrono + 50%% CCSS (Art. 79 CT). '
+             'A partir del dia 4 la CCSS paga el 60%%, patrono puede complementar voluntariamente.\n'
              '- INS (riesgo laboral / accidente): el INS cubre desde el DIA 1 (Art. 218 '
              'Codigo de Trabajo y Reglamento del Seguro de Riesgos del Trabajo). '
              'Por eso employer_cost=0 es correcto para este tipo.\n'
@@ -177,19 +177,18 @@ class Disability(models.Model):
                 rec.employer_cost = 0.0
                 rec.ccss_subsidy = round(rec.days * rec.daily_salary, 2)
             else:
-                # BUG #13 FIX v50: Días 1-3 SIEMPRE son 100% patrono (Art. 79 Reglamento CCSS)
-                # No usar employer_percentage para días 1-3 — es un mandato legal fijo.
-                # employer_percentage aplica para días 4+ SOLO si la empresa tiene
-                # política voluntaria de complemento (default=0 desde v512 AUD).
-                # Art. 79 Regl. CCSS: patrono paga días 1-3 al 100%, días 4+ a cargo CCSS.
+                # Art. 79 CT: días 1-3 → 50% patrono + 50% CCSS (mandato legal fijo).
+                # días 4+ → 60% CCSS (subsidy_percentage), patrono puede complementar
+                # voluntariamente (employer_percentage, default 0%).
                 first_days = min(rec.days, 3)
                 remaining_days = max(rec.days - 3, 0)
                 rec.employer_cost = round(
-                    (first_days * rec.daily_salary * 1.0) +          # 100% patrono días 1-3 (hardcoded)
+                    (first_days * rec.daily_salary * 0.50) +          # 50% patrono días 1-3 (Art. 79 CT)
                     (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2  # complemento voluntario
                 )
                 rec.ccss_subsidy = round(
-                    remaining_days * rec.daily_salary * rec.subsidy_percentage / 100, 2
+                    (first_days * rec.daily_salary * 0.50) +           # 50% CCSS días 1-3 (Art. 79 CT)
+                    (remaining_days * rec.daily_salary * rec.subsidy_percentage / 100), 2
                 )
 
     @api.onchange('disability_type')
@@ -289,15 +288,16 @@ class Disability(models.Model):
                 employer_cost = 0.0
                 ccss_subsidy = round(days * daily, 2)
             else:
-                # Días 1-3: 100% patrono. Días 4+: según porcentajes configurados.
+                # Días 1-3: 50% patrono + 50% CCSS (Art. 79 CT). Días 4+: según porcentajes configurados.
                 first_days = min(days, 3)
                 remaining_days = max(days - 3, 0)
                 employer_cost = round(
-                    (first_days * daily * 1.0) +
-                    (remaining_days * daily * (rec.employer_percentage or 0.0) / 100), 2  # FIX AUD-01: default 0%
+                    (first_days * daily * 0.50) +
+                    (remaining_days * daily * (rec.employer_percentage or 0.0) / 100), 2
                 )
                 ccss_subsidy = round(
-                    remaining_days * daily * (rec.subsidy_percentage or 60.0) / 100, 2
+                    (first_days * daily * 0.50) +
+                    (remaining_days * daily * (rec.subsidy_percentage or 60.0) / 100), 2
                 )
 
             # Usar write() ORM — actualiza BD e invalida cache correctamente en Odoo 19

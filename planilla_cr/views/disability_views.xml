@@ -101,8 +101,8 @@
 
                     <!-- Sección CCSS / INS (no maternidad) -->
                     <group invisible="disability_type == 'maternity'">
-                        <group string="Subsidio CCSS">
-                            <field name="subsidy_percentage" groups="planilla_cr.group_planilla_admin"/>
+                        <group string="Subsidio CCSS (aplica días 4+)">
+                            <field name="subsidy_percentage" string="% Subsidio CCSS (días 4+)" groups="planilla_cr.group_planilla_admin"/>
                             <field name="employer_percentage" groups="planilla_cr.group_planilla_admin"/>
                             <field name="daily_salary" readonly="1"/>
                         </group>

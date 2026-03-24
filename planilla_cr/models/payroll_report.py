@@ -1,6 +1,7 @@
 import io
 import base64
 from odoo import models, fields, api
+from odoo.exceptions import UserError
 import xlsxwriter
 
 
