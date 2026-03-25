@@ -8,23 +8,62 @@
                   decoration-success="state=='done'"
                   decoration-warning="state=='confirmed'"
                   decoration-muted="state=='cancelled'">
+
+                <!-- ── Identificación ── -->
                 <field name="name"/>
                 <field name="employee_id"/>
                 <field name="branch_id"/>
+                <field name="payroll_run_id" string="Planilla" optional="hide"/>
                 <field name="payroll_calendar_id" string="Calendarización" optional="hide"/>
                 <field name="date_from" string="Desde"/>
                 <field name="date_to" string="Hasta"/>
+                <field name="pensioner_type" optional="hide" string="Pensionado"/>
+
+                <!-- ── INGRESOS ── -->
+                <field name="base_salary" string="Salario Base" optional="hide"/>
+                <field name="overtime_amount" string="Horas Extras" optional="hide"/>
+                <field name="vacation_amount" string="Vacaciones Pagadas" optional="hide"/>
+                <field name="bono_salarial_amount" string="Bonos (afecto CCSS)" optional="hide"/>
+                <field name="amount_bonos_exentos" string="Ingresos Adicionales" optional="hide"/>
                 <field name="gross_salary" string="Salario Bruto"/>
+
+                <!-- ── INCAPACIDADES ── -->
+                <field name="disability_days_in_period" string="Días Incap." optional="hide"/>
+                <field name="salario_cotizable" string="Sal. Cotizable" optional="hide"
+                       help="Base real para CCSS y Renta. Menor al bruto cuando hay incapacidad desde día 4."/>
+                <field name="ccss_subsidy_total" string="Subsidio CCSS" optional="hide"/>
+
+                <!-- ── DEDUCCIONES OBRERO (orden de prioridad legal) ── -->
                 <field name="ccss_employee" string="CCSS Obrero" optional="hide"/>
                 <field name="income_tax" string="Imp. Renta" optional="hide"/>
+                <field name="income_tax_credits" string="Créditos Fiscales" optional="hide"/>
+                <field name="amount_pension_alimentaria" string="Pensión Alimentaria" optional="hide"/>
+                <field name="amount_embargo" string="Embargos Judiciales" optional="hide"/>
+                <field name="amount_loans" string="Préstamos / Adelantos" optional="hide"/>
+                <field name="amount_cobros_empleado" string="Cobros al Empleado" optional="hide"/>
+                <field name="amount_sindical" string="Cuota Sindical" optional="hide"/>
+                <field name="amount_cooperativa" string="Cuota Cooperativa" optional="hide"/>
+                <field name="amount_licencias_sin_goce" string="Lic. Sin Goce / Ausencias" optional="hide"/>
+                <field name="other_deductions" string="Otras Deducciones" optional="hide"/>
                 <field name="total_employee_deductions" string="Total Deducciones"/>
+
+                <!-- ── RESULTADO OBRERO ── -->
                 <field name="net_salary" string="Salario Neto"/>
-                <field name="salary_payable" string="Salario a Pagar" optional="show"
+                <field name="salary_payable" string="A Pagar" optional="show"
                        help="Neto menos préstamos y deducciones adicionales — lo que se deposita"/>
+
+                <!-- ── CARGAS PATRONALES ── -->
+                <field name="ccss_employer" string="CCSS Patronal" optional="hide"/>
+                <field name="ins_employer" string="INS Patronal" optional="hide"/>
+                <field name="rop_employer" string="ROP Patronal" optional="hide"/>
+                <field name="aguinaldo_provision" string="Prov. Aguinaldo" optional="hide"/>
+                <field name="cesantia_provision" string="Prov. Cesantía" optional="hide"/>
+                <field name="vacation_provision" string="Prov. Vacaciones" optional="hide"/>
                 <field name="total_employer_cost" string="Costo Total Patronal" optional="hide"/>
                 <field name="cost_per_net_colon" string="₡ Costo/₡ Neto"
                        widget="float" digits="[6,2]" optional="show"
                        help="Por cada ₡1 neto que recibe el empleado, la empresa gasta este monto total"/>
+
                 <field name="state" widget="badge"
                        decoration-success="state == 'done'"
                        decoration-warning="state == 'confirmed'"
@@ -77,6 +116,27 @@
                         y luego sincronice la boleta con el botón ↺.
                     </div>
 
+                    <!-- FIX F5: Alerta calendarización faltante en empleado -->
+                    <div class="alert alert-danger" role="alert"
+                         invisible="not employee_id or payroll_calendar_id != False">
+                        <i class="fa fa-exclamation-circle" title="Error"/>
+                        <strong>Sin calendarización de planilla en el empleado.</strong>
+                        El sistema está usando la frecuencia de la planilla como referencia,
+                        pero el salario puede calcularse incorrectamente.
+                        Configure la calendarización en:
+                        <strong>Empleados → pestaña Planilla CR → Horario y Pago → Calendarización de Planilla.</strong>
+                    </div>
+
+                    <!-- FIX F5: Alerta tipo de horario faltante en empleado -->
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not employee_id or employee_id.schedule_type_id != False">
+                        <i class="fa fa-exclamation-triangle" title="Advertencia"/>
+                        <strong>Sin tipo de horario configurado.</strong>
+                        El cálculo de horas extras y jornadas puede ser impreciso.
+                        Configure el tipo de horario en:
+                        <strong>Empleados → pestaña Planilla CR → Horario y Pago → Tipo de Horario.</strong>
+                    </div>
+
                     <!-- Encabezado -->
                     <group>
                         <group string="Empleado">
@@ -89,12 +149,257 @@
                             <field name="date_from"/>
                             <field name="date_to"/>
                             <field name="calculation_method" readonly="1"/>
+                            <field name="pensioner_type" readonly="1"
+                                   string="Tipo pensionado"
+                                   invisible="pensioner_type == 'none'"/>
                         </group>
                     </group>
 
                     <notebook>
 
                         <!-- ══ RESUMEN GENERAL ══════════════════════════════════ -->
+                        <!-- ══ RESUMEN COMPLETO ══════════════════════════════════ -->
+                        <page string="Resumen Completo" name="resumen_completo">
+                            <div style="max-width:720px; margin:0 auto;">
+
+                                <!-- ─── ENCABEZADO FRECUENCIA ─────────────────── -->
+                                <div style="margin-bottom:12px;padding:8px 14px;border-left:3px solid var(--color-border-info);background:var(--color-background-info);border-radius:0 var(--border-radius-md) var(--border-radius-md) 0;">
+                                    <span style="font-size:13px;color:var(--color-text-info);font-weight:500;">
+                                        Período: <field name="date_from" readonly="1" nolabel="1"/> — <field name="date_to" readonly="1" nolabel="1"/>
+                                        · Frecuencia: <field name="effective_frequency" readonly="1" nolabel="1"/>
+                                        · Factor: <field name="proportional_factor" readonly="1" nolabel="1" invisible="not is_proportional" widget="float" digits="[4,4]"/>
+                                    </span>
+                                </div>
+
+                                <!-- ─── INGRESOS ─────────────────────────────── -->
+                                <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
+                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Ingresos del Período</div>
+                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                                        <!-- Salario base — etiqueta según frecuencia -->
+                                        <tr invisible="effective_frequency != 'monthly'">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Base Mensual</td>
+                                            <td style="text-align:right;"><field name="base_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="effective_frequency != 'biweekly'">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Base Quincenal <span style="font-size:12px;opacity:.7;">(50% del mensual)</span></td>
+                                            <td style="text-align:right;"><field name="base_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="effective_frequency != 'weekly'">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Base Semanal <span style="font-size:12px;opacity:.7;">(25% del mensual)</span></td>
+                                            <td style="text-align:right;"><field name="base_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="effective_frequency != 'bimonthly'">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Base Bimensual <span style="font-size:12px;opacity:.7;">(200% del mensual)</span></td>
+                                            <td style="text-align:right;"><field name="base_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <!-- Proporcionalidad (si aplica) -->
+                                        <tr invisible="not is_proportional">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);font-size:12px;">
+                                                Ajuste proporcional (<field name="days_worked" readonly="1" nolabel="1"/> días trabajados de <field name="days_in_period" readonly="1" nolabel="1"/>)
+                                            </td>
+                                            <td style="text-align:right;font-size:12px;color:var(--color-text-secondary);">
+                                                factor <field name="proportional_factor" readonly="1" nolabel="1" widget="float" digits="[4,4]"/>
+                                            </td>
+                                        </tr>
+                                        <tr invisible="overtime_amount == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Horas Extras del Período</td>
+                                            <td style="text-align:right;"><field name="overtime_amount" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="vacation_amount == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Vacaciones Pagadas</td>
+                                            <td style="text-align:right;"><field name="vacation_amount" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="bono_salarial_amount == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Bonos Salariales (afecto CCSS)</td>
+                                            <td style="text-align:right;"><field name="bono_salarial_amount" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="amount_bonos_exentos == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Ingresos Adicionales / Licencias con Goce</td>
+                                            <td style="text-align:right;"><field name="amount_bonos_exentos" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="other_income == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Otros Ingresos</td>
+                                            <td style="text-align:right;"><field name="other_income" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr style="border-top:1.5px solid var(--color-border-secondary);font-weight:500;">
+                                            <!-- Salario bruto — etiqueta según frecuencia -->
+                                            <td style="padding:6px 0;" invisible="effective_frequency != 'monthly'">Salario Bruto Mensual</td>
+                                            <td style="padding:6px 0;" invisible="effective_frequency != 'biweekly'">Salario Bruto Quincenal</td>
+                                            <td style="padding:6px 0;" invisible="effective_frequency != 'weekly'">Salario Bruto Semanal</td>
+                                            <td style="padding:6px 0;" invisible="effective_frequency != 'bimonthly'">Salario Bruto Bimensual</td>
+                                            <td style="text-align:right;"><field name="gross_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                    </table>
+                                </div>
+
+                                <!-- ─── INCAPACIDADES (solo si hay) ───────────── -->
+                                <div invisible="disability_days_in_period == 0"
+                                     style="background:var(--color-background-warning);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
+                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-warning);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Incapacidades del Período</div>
+                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Días de incapacidad en este período</td>
+                                            <td style="text-align:right;"><field name="disability_days_in_period" readonly="1" nolabel="1"/> días</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Subsidio CCSS (días 4+ — no es salario, no genera cargas)</td>
+                                            <td style="text-align:right;"><field name="ccss_subsidy_total" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr style="border-top:1px solid var(--color-border-warning);font-weight:500;">
+                                            <td style="padding:6px 0;">Base cotizable real (CCSS, Renta, provisiones)</td>
+                                            <td style="text-align:right;"><field name="salario_cotizable" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                    </table>
+                                </div>
+
+                                <!-- ─── DEDUCCIONES LEGALES ────────────────────── -->
+                                <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
+                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Deducciones Legales</div>
+                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency == 'monthly'">
+                                                CCSS Obrero 10.83% sobre salario cotizable
+                                                <span invisible="effective_frequency != 'biweekly'" style="font-size:12px;opacity:.7;">(quincenal)</span>
+                                                <span invisible="effective_frequency != 'weekly'" style="font-size:12px;opacity:.7;">(semanal)</span>
+                                            </td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">CCSS Obrero 10.83% sobre salario mensual cotizable</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="ccss_employee" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="income_tax == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Impuesto de Renta (tabla progresiva DGT)</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="income_tax" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="income_tax_credits == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-success);">Créditos Fiscales por cargas familiares (Art. 34 LIR)</td>
+                                            <td style="text-align:right;color:var(--color-text-success);">+ <field name="income_tax_credits" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="paternity_amount == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-success);">Licencia Paternidad — cargo patrono (Ley 8107)</td>
+                                            <td style="text-align:right;color:var(--color-text-success);">+ <field name="paternity_amount" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                    </table>
+                                </div>
+
+                                <!-- ─── DEDUCCIONES ADICIONALES (orden legal) ──── -->
+                                <div invisible="total_employee_deductions == ccss_employee + income_tax"
+                                     style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
+                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Deducciones Adicionales (orden de prioridad legal)</div>
+                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                                        <tr invisible="amount_pension_alimentaria == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">① Pensión Alimentaria (prioridad absoluta — Ley 8590)</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_pension_alimentaria" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="amount_embargo == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">② Embargos Judiciales (máx. 25% neto — Art. 172 CT)</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_embargo" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="amount_loans == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">③ Préstamos / Adelantos de Salario</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_loans" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="amount_cobros_empleado == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">④ Cobros al Empleado (almuerzo, uniforme, etc.)</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_cobros_empleado" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="amount_sindical == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">⑤ Cuota Sindical</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_sindical" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="amount_cooperativa == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">⑤ Cuota Cooperativa</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_cooperativa" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="amount_licencias_sin_goce == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">⑥ Licencias Sin Goce / Ausencias injustificadas</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_licencias_sin_goce" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="other_deductions == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Otras Deducciones</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="other_deductions" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                    </table>
+                                </div>
+
+                                <!-- ─── RESULTADO OBRERO ──────────────────────── -->
+                                <div style="background:var(--color-background-primary);border:1.5px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
+                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Total Deducciones Obrero</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);"><field name="total_employee_deductions" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr style="font-size:16px;font-weight:500;">
+                                            <td style="padding:8px 0;" invisible="effective_frequency != 'monthly'">Salario Neto Mensual a Recibir</td>
+                                            <td style="padding:8px 0;" invisible="effective_frequency != 'biweekly'">Salario Neto Quincenal a Recibir</td>
+                                            <td style="padding:8px 0;" invisible="effective_frequency != 'weekly'">Salario Neto Semanal a Recibir</td>
+                                            <td style="padding:8px 0;" invisible="effective_frequency != 'bimonthly'">Salario Neto Bimensual a Recibir</td>
+                                            <td style="text-align:right;color:var(--color-text-success);"><field name="net_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="salary_payable == net_salary" style="font-size:15px;font-weight:500;">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Monto a Depositar (neto − otras deducciones)</td>
+                                            <td style="text-align:right;color:var(--color-text-info);"><field name="salary_payable" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                    </table>
+                                </div>
+
+                                <!-- ─── CARGAS PATRONALES ─────────────────────── -->
+                                <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
+                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Cargas Patronales</div>
+                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">Salario Bruto Mensual cotizable (base de cargas)</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'biweekly'">Salario Bruto Quincenal cotizable (base de cargas)</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'weekly'">Salario Bruto Semanal cotizable (base de cargas)</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'bimonthly'">Salario Bruto Bimensual cotizable (base de cargas)</td>
+                                            <td style="text-align:right;"><field name="gross_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">CCSS Patronal 26.83%</td>
+                                            <td style="text-align:right;"><field name="ccss_employer" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">INS — Seguro de Riesgos del Trabajo</td>
+                                            <td style="text-align:right;"><field name="ins_employer" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="rop_employer == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">ROP Patronal 3.25% (Ley 7983)</td>
+                                            <td style="text-align:right;"><field name="rop_employer" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">Provisión Aguinaldo 8.33% del mes</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'biweekly'">Provisión Aguinaldo — quincena (8.33% × 50%)</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'weekly'">Provisión Aguinaldo — semana (8.33% × 25%)</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'bimonthly'">Provisión Aguinaldo — bimensual (8.33% × 200%)</td>
+                                            <td style="text-align:right;"><field name="aguinaldo_provision" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">Provisión Cesantía 5.33% del mes</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'biweekly'">Provisión Cesantía — quincena</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'weekly'">Provisión Cesantía — semana</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'bimonthly'">Provisión Cesantía — bimensual</td>
+                                            <td style="text-align:right;"><field name="cesantia_provision" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">Provisión Vacaciones 4.16% del mes</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'biweekly'">Provisión Vacaciones — quincena</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'weekly'">Provisión Vacaciones — semana</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'bimonthly'">Provisión Vacaciones — bimensual</td>
+                                            <td style="text-align:right;"><field name="vacation_provision" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr style="border-top:1.5px solid var(--color-border-secondary);font-weight:500;">
+                                            <td style="padding:6px 0;">Costo Total Patronal del Período</td>
+                                            <td style="text-align:right;"><field name="total_employer_cost" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);font-size:12px;">₡ de costo patronal por cada ₡1 neto entregado al empleado</td>
+                                            <td style="text-align:right;font-size:12px;"><field name="cost_per_net_colon" readonly="1" nolabel="1" widget="float" digits="[6,2]"/></td>
+                                        </tr>
+                                    </table>
+                                </div>
+
+                            </div>
+                        </page>
+
+                        <!-- ══ INGRESOS ══════════════════════════════════════════ -->
                         <page string="Ingresos" name="income">
                             <group>
                                 <!-- Salario base y proporcionalidad -->
@@ -123,8 +428,17 @@
                             <group invisible="disability_days == 0">
                                 <group string="Resumen Incapacidades">
                                     <field name="disability_days" readonly="1"/>
+                                    <field name="disability_days_in_period" readonly="1"/>
                                     <field name="ccss_subsidy_total" readonly="1"/>
                                     <field name="employer_disability_cost" readonly="1"/>
+                                </group>
+                                <group string="Base Cotizable" invisible="disability_days_in_period == 0">
+                                    <field name="gross_salary" readonly="1" string="Salario Bruto (contable)"/>
+                                    <field name="salario_cotizable" readonly="1" class="fw-bold text-warning"/>
+                                    <div class="text-muted" colspan="2" style="font-size:12px">
+                                        Salario cotizable = días trabajados + 50% días 1-3 incapacidad.
+                                        Los días subsidiados (día 4+) no generan CCSS ni Renta (Art. 79 CT / MTSS DAJ-AE-201-12).
+                                    </div>
                                 </group>
                             </group>
                             <field name="disability_ids" readonly="1"
@@ -189,12 +503,17 @@
                             </group>
                         </page>
 
-                        <!-- ══ DEDUCCIONES OBRERO ════════════════════════════════ -->
-                        <page string="Deducciones Obrero" name="employee_deductions">
+                        <!-- ══ ABONOS Y DEDUCCIONES ═══════════════════════════════ -->
+                        <page string="Abonos y Deducciones" name="employee_deductions">
                             <group>
                                 <group string="Deducciones Legales">
+                                    <field name="salario_cotizable" readonly="1"
+                                           invisible="disability_days_in_period == 0"
+                                           string="Base cotizable (incapacidad)"/>
                                     <field name="ccss_employee" readonly="1"/>
                                     <field name="income_tax" readonly="1"/>
+                                    <field name="income_tax_credits" readonly="1"
+                                           invisible="income_tax_credits == 0"/>
                                     <field name="other_deductions"
                                            readonly="state != 'draft'"/>
                                 </group>

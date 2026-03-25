@@ -148,6 +148,85 @@ class PayrollRunCR(models.Model):
         compute='_compute_totals', store=True,
         help='Por cada ₡1 que recibe el empleado en mano, cuánto gasta la empresa en total (salario + cargas patronales)'
     )
+    # FIX F5: contador de boletas con empleados sin calendarización o sin horario
+    count_missing_calendar = fields.Integer(
+        string='Empleados sin calendarización',
+        compute='_compute_totals', store=True,
+        help='Cantidad de boletas donde el empleado no tiene calendarización configurada. '
+             'Esto puede causar que el salario se calcule con frecuencia mensual aunque '
+             'la planilla sea quincenal o semanal.'
+    )
+    count_missing_schedule = fields.Integer(
+        string='Empleados sin tipo de horario',
+        compute='_compute_totals', store=True,
+        help='Cantidad de boletas donde el empleado no tiene tipo de horario configurado.'
+    )
+    # ── Totales desglosados para vista de lista ───────────────────────────────
+    total_salario_cotizable = fields.Monetary(
+        string='Total Salario Cotizable', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+        help='Suma del salario cotizable de todas las boletas. Menor al bruto si hay incapacidades.'
+    )
+    total_bonos_salariales = fields.Monetary(
+        string='Total Bonos (afecto CCSS)', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_overtime = fields.Monetary(
+        string='Total Horas Extras', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_vacaciones_pagadas = fields.Monetary(
+        string='Total Vacaciones Pagadas', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_disability_days = fields.Integer(
+        string='Total Días Incapacidad', compute='_compute_totals', store=True,
+    )
+    total_ccss_subsidy = fields.Monetary(
+        string='Total Subsidio CCSS', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+        help='Suma de subsidios CCSS por incapacidades en el período.'
+    )
+    total_income_tax_credits = fields.Monetary(
+        string='Total Créditos Fiscales', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_pension_alimentaria = fields.Monetary(
+        string='Total Pensión Alimentaria', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_embargo = fields.Monetary(
+        string='Total Embargos', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_loans = fields.Monetary(
+        string='Total Préstamos', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_cobros_empleado = fields.Monetary(
+        string='Total Cobros Empleado', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_licencias_sin_goce = fields.Monetary(
+        string='Total Licencias sin Goce', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_ins_employer = fields.Monetary(
+        string='Total INS Patronal', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_aguinaldo_provision = fields.Monetary(
+        string='Total Prov. Aguinaldo', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_cesantia_provision = fields.Monetary(
+        string='Total Prov. Cesantía', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
+    total_vacation_provision = fields.Monetary(
+        string='Total Prov. Vacaciones', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+    )
 
     state = fields.Selection([
         ('draft', 'Borrador'),
@@ -173,46 +252,65 @@ class PayrollRunCR(models.Model):
                  'payslip_ids.salary_payable', 'payslip_ids.total_employer_cost',
                  'payslip_ids.ccss_employer', 'payslip_ids.ccss_employee',
                  'payslip_ids.income_tax', 'payslip_ids.rop_employer',
-                 'payslip_ids.state')  # FIX v512 BUG-05: rop_employer agregado al depends
+                 'payslip_ids.bono_salarial_amount', 'payslip_ids.overtime_amount',
+                 'payslip_ids.vacation_amount', 'payslip_ids.disability_days',
+                 'payslip_ids.ccss_subsidy_total', 'payslip_ids.income_tax_credits',
+                 'payslip_ids.salario_cotizable',
+                 'payslip_ids.amount_pension_alimentaria', 'payslip_ids.amount_embargo',
+                 'payslip_ids.amount_loans', 'payslip_ids.amount_cobros_empleado',
+                 'payslip_ids.amount_licencias_sin_goce',
+                 'payslip_ids.ins_employer', 'payslip_ids.aguinaldo_provision',
+                 'payslip_ids.cesantia_provision', 'payslip_ids.vacation_provision',
+                 'payslip_ids.state')
     def _compute_totals(self):
         for rec in self:
             # FIX NEW-06 v54: excluir boletas canceladas de los totales.
-            # Antes se sumaban TODAS las boletas incluidas las canceladas, inflando
-            # los totales cuando se cancelaba una boleta dentro de una planilla.
             active_slips = rec.payslip_ids.filtered(lambda p: p.state != 'cancelled')
-            # FIX-K9: round() en sumas de muchas boletas para evitar acumulación
-            # de error de punto flotante (ej: 200 * 16666.67 = 3333333.9999999995)
             rec.total_gross         = round(sum(active_slips.mapped('gross_salary')), 2)
             rec.total_ccss_employee = round(sum(active_slips.mapped('ccss_employee')), 2)
             rec.total_income_tax    = round(sum(active_slips.mapped('income_tax')), 2)
             rec.total_ccss_employer = round(sum(active_slips.mapped('ccss_employer')), 2)
             rec.total_employer_cost = round(sum(active_slips.mapped('total_employer_cost')), 2)
 
-            # Total Deducciones = CCSS Obrero + Renta
             rec.total_deductions = round(
                 rec.total_ccss_employee + rec.total_income_tax, 2
             )
-            # Total Neto = suma del net_salary de cada boleta activa (bruto - CCSS obrero - renta)
-            rec.total_net = round(
-                sum(active_slips.mapped('net_salary')), 2
-            )
+            rec.total_net = round(sum(active_slips.mapped('net_salary')), 2)
+            rec.total_salary_payable = round(sum(active_slips.mapped('salary_payable')), 2)
+            rec.total_rop_employer   = round(sum(active_slips.mapped('rop_employer')), 2)
 
-            # Salario a Pagar = lo que realmente se deposita (neto - pensiones, prestamos y deducciones adicionales)
-            rec.total_salary_payable = round(
-                sum(active_slips.mapped('salary_payable')), 2
-            )
-
-            # FIX v511: Agregar ROP al costo patronal total de la planilla
-            # (rop_employer = 3.25% del gross por empleado, si rop_applies=True)
-            rec.total_rop_employer = round(
-                sum(active_slips.mapped('rop_employer')), 2
-            )
-
-            # Costo real por cada colon que el empleado recibe en mano
             if rec.total_salary_payable and rec.total_salary_payable > 0:
                 rec.cost_per_net_colon = round(rec.total_employer_cost / rec.total_salary_payable, 4)
             else:
                 rec.cost_per_net_colon = 0.0
+
+            # ── Nuevos totales desglosados ─────────────────────────────────────
+            rec.total_salario_cotizable    = round(sum(active_slips.mapped('salario_cotizable')), 2)
+            rec.total_bonos_salariales     = round(sum(active_slips.mapped('bono_salarial_amount')), 2)
+            rec.total_overtime             = round(sum(active_slips.mapped('overtime_amount')), 2)
+            rec.total_vacaciones_pagadas   = round(sum(active_slips.mapped('vacation_amount')), 2)
+            rec.total_disability_days      = sum(active_slips.mapped('disability_days'))
+            rec.total_ccss_subsidy         = round(sum(active_slips.mapped('ccss_subsidy_total')), 2)
+            rec.total_income_tax_credits   = round(sum(active_slips.mapped('income_tax_credits')), 2)
+            rec.total_pension_alimentaria  = round(sum(active_slips.mapped('amount_pension_alimentaria')), 2)
+            rec.total_embargo              = round(sum(active_slips.mapped('amount_embargo')), 2)
+            rec.total_loans                = round(sum(active_slips.mapped('amount_loans')), 2)
+            rec.total_cobros_empleado      = round(sum(active_slips.mapped('amount_cobros_empleado')), 2)
+            rec.total_licencias_sin_goce   = round(sum(active_slips.mapped('amount_licencias_sin_goce')), 2)
+            rec.total_ins_employer         = round(sum(active_slips.mapped('ins_employer')), 2)
+            rec.total_aguinaldo_provision  = round(sum(active_slips.mapped('aguinaldo_provision')), 2)
+            rec.total_cesantia_provision   = round(sum(active_slips.mapped('cesantia_provision')), 2)
+            rec.total_vacation_provision   = round(sum(active_slips.mapped('vacation_provision')), 2)
+
+            # FIX F5: contar boletas con empleados sin calendarización o sin horario
+            rec.count_missing_calendar = sum(
+                1 for s in active_slips
+                if not s.employee_id.payroll_calendar_id
+            )
+            rec.count_missing_schedule = sum(
+                1 for s in active_slips
+                if not s.employee_id.schedule_type_id
+            )
 
     def action_generate_payslips(self):
         """
@@ -700,6 +798,46 @@ class PayrollRunCR(models.Model):
         self.ensure_one()
         if self.state != 'draft':
             raise UserError('Solo se pueden confirmar planillas en borrador.')
+
+        # ── Validación F5: empleados sin calendarización o sin tipo de horario ──
+        # Bloquea la confirmación para evitar planillas con salarios mal calculados.
+        active_slips = self.payslip_ids.filtered(lambda p: p.state != 'cancelled')
+
+        sin_calendario = active_slips.filtered(
+            lambda s: not s.employee_id.payroll_calendar_id
+        ).mapped('employee_id.name')
+
+        sin_horario = active_slips.filtered(
+            lambda s: not s.employee_id.schedule_type_id
+        ).mapped('employee_id.name')
+
+        errores = []
+        if sin_calendario:
+            nombres = '\n'.join(f'  • {n}' for n in sorted(set(sin_calendario)))
+            errores.append(
+                f'Los siguientes empleados NO tienen calendarización de planilla configurada.\n'
+                f'Sin calendarización el sistema no puede determinar la frecuencia de pago\n'
+                f'(mensual, quincenal, semanal) y el salario base quedará calculado incorrectamente.\n\n'
+                f'{nombres}\n\n'
+                f'Corrija en: Empleados → pestaña Planilla CR → Horario y Pago → Calendarización de Planilla.'
+            )
+
+        if sin_horario:
+            nombres = '\n'.join(f'  • {n}' for n in sorted(set(sin_horario)))
+            errores.append(
+                f'Los siguientes empleados NO tienen tipo de horario configurado.\n'
+                f'Sin tipo de horario el cálculo de horas extras y jornadas puede ser incorrecto.\n\n'
+                f'{nombres}\n\n'
+                f'Corrija en: Empleados → pestaña Planilla CR → Horario y Pago → Tipo de Horario.'
+            )
+
+        if errores:
+            raise UserError(
+                f'No se puede confirmar la planilla "{self.name}".\n\n'
+                + '\n\n─────────────────────────────────\n\n'.join(errores)
+            )
+        # ─────────────────────────────────────────────────────────────────────
+
         # Verificar doble pago antes de confirmar
         self._check_no_duplicate_payment()
         payslips_draft = self.payslip_ids.filtered(lambda p: p.state == 'draft')

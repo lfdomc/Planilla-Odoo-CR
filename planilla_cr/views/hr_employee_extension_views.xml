@@ -49,6 +49,30 @@
                             <field name="ccss_number"/>
                             <field name="ccss_insured"/>
                         </group>
+                        <group string="Créditos Fiscales (Art. 34 LIR)">
+                            <field name="income_tax_children"
+                                   string="Hijos con crédito fiscal"
+                                   help="Cantidad de hijos menores o dependientes. Crédito 2026: ₡1,710/hijo/mes (Art. 34 LIR)."/>
+                            <field name="income_tax_spouse_credit"
+                                   widget="boolean_toggle"
+                                   string="Crédito por cónyuge (₡2,590/mes)"
+                                   help="Solo uno de los dos cónyuges puede aplicarlo. Requiere constancia de matrimonio vigente."/>
+                        </group>
+                        <group string="Clasificación de pensionado">
+                            <field name="pensioner_type" widget="radio"/>
+                            <field name="pension_resolution_number"
+                                   invisible="pensioner_type != 'estado'"
+                                   required="pensioner_type == 'estado'"
+                                   placeholder="Ej: CCSS-2024-00123 / JP-2023-00456"/>
+                            <div class="alert alert-warning col-12" role="alert"
+                                 invisible="pensioner_type != 'estado'">
+                                <i class="fa fa-exclamation-triangle"/> Pensionado sector público: CCSS obrero 6.50% (exonerado IVM). ROP desactivado. N° resolución obligatorio para auditoría CCSS.
+                            </div>
+                            <div class="alert alert-info col-12" role="alert"
+                                 invisible="pensioner_type != 'ivm'">
+                                <i class="fa fa-info-circle"/> Pensionado IVM activo: cotiza CCSS completa 10.83% (Art. 7 Regl. IVM). ROP desactivado automáticamente.
+                            </div>
+                        </group>
                         <group string="Datos Bancarios">
                             <field name="bank_name"/>
                             <field name="bank_iban" placeholder="CR15200001121513215152"/>

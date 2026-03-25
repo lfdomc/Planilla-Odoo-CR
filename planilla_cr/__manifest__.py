@@ -1,6 +1,229 @@
 {
-    'name': 'Sistema Planilla v5.18.5-PROD',
-    'version': '19.0.5.18.5',
+    'name': 'Sistema Planilla v5.28.0-PROD',
+    'version': '19.0.5.28.0',
+    # ── Changelog v5.28.0 (Auditoría — 3 correcciones pre-producción) ────────
+    #
+    # AUDIT-01: hooks.py._setup_accounting_config() — ahora CREA las cuentas
+    #   contables si no existen en el plan contable de la empresa, en lugar de
+    #   simplemente buscarlas y dejar los campos vacíos.
+    #   Función get_or_create_account() reemplaza get_account() para garantizar
+    #   que la instalación del módulo genere una configuración contable 100%
+    #   completa desde el primer momento, sin intervención manual.
+    #   Cuentas creadas automáticamente: 24 cuentas (gastos + pasivos + activos)
+    #   incluyendo las nuevas 630600-630800, 230950-230970, 120500, 115000.
+    #   También crea el diario "Planilla de Salarios" si no existe ningún diario
+    #   general configurado.
+    #
+    # AUDIT-02: income_tax_bracket.py — campo year (Integer, required) nuevo.
+    #   Identifica a qué resolución DGT pertenece cada tramo de renta.
+    #   Nuevo @api.constrains(_check_single_active_year): impide que existan
+    #   tramos activos de dos años fiscales distintos al mismo tiempo.
+    #   Lanza ValidationError con instrucciones claras si se intenta activar
+    #   un tramo de año diferente al ya activo.
+    #   income_tax_data.xml: todos los registros actualizados con el campo year
+    #   (2025 para tramos desactivados, 2026 para los vigentes).
+    #   income_tax_bracket_views.xml: columna year en lista, campo year en form,
+    #   context active_test=false para ver todos los tramos incluyendo inactivos,
+    #   alerta visible en form cuando el tramo está inactivo.
+    #
+    # AUDIT-03: payslip_validation_mixin._validate_before_confirm() — nueva
+    #   validación de embargo máximo legal (Art. 172 CT CR: máx. 25% del neto).
+    #   Si los embargos judiciales de una boleta superan el 25% del salario neto,
+    #   se lanza error bloqueante con el monto máximo legal calculado.
+    #   Tolerancia de ₡0.50 para evitar falsos positivos por redondeo.
+    #   Usa K.MAX_PCT_EMBARGO (25.0) de planilla_const.py.
+    #   NOTA: pensión alimentaria NO está limitada (Ley 8590) — solo los embargos.
+    #
+    # ── Changelog v5.27.0 (Resumen Completo — etiquetas dinámicas) ───────────
+    # NEW-01: payslip_cr — campo effective_frequency (Selection, computed+stored).
+    #   Expone el resultado de _get_effective_freq() como campo almacenado para
+    #   poder usarlo en condiciones invisible de la vista sin dot notation.
+    #   Depende de payroll_calendar_id y payroll_run_id.payroll_calendar_id.
+    # NEW-02: payslip_compute_mixin._compute_effective_frequency() — método que
+    #   calcula y almacena effective_frequency en cada boleta.
+    # MOD-01: payslip_cr_views — Resumen Completo completamente reescrito con
+    #   etiquetas dinámicas que cambian según effective_frequency:
+    #   - Encabezado: período, frecuencia y factor proporcional visibles.
+    #   - Salario Base → "Mensual" / "Quincenal (50%)" / "Semanal (25%)" / "Bimensual (200%)"
+    #   - Fila de proporcionalidad: días trabajados / días período + factor (visible
+    #     solo si is_proportional=True).
+    #   - Salario Bruto → etiqueta según frecuencia.
+    #   - CCSS Obrero → label contextual por frecuencia.
+    #   - Salario Neto → "Mensual/Quincenal/Semanal/Bimensual a Recibir".
+    #   - Cargas patronales: base de cargas y provisiones con período explícito.
+    #   - Deducciones adicionales numeradas ①②③④⑤⑥ con base legal citada.
+    #   - Filas con valor 0 ocultas automáticamente (invisible="campo == 0").
+    # ── Changelog v5.26.0 (Bloqueo confirmación) ─────────────────────────────
+    # MOD-01: payroll_run_cr.action_confirm() — validación nueva ANTES de
+    #   confirmar la planilla. Si alguna boleta activa tiene empleados sin
+    #   calendarización o sin tipo de horario, lanza UserError con la lista
+    #   exacta de empleados afectados y las instrucciones para corregirlo.
+    #   Dos bloques independientes: uno para sin calendarización (error grave —
+    #   salario calculado con frecuencia incorrecta) y otro para sin horario
+    #   (advertencia de cálculo impreciso de HE). Ambos bloquean la confirmación.
+    #   El mensaje incluye nombre de planilla, lista de empleados con bullet •
+    #   y la ruta exacta dentro de Odoo para corregir cada caso.
+    # ── Changelog v5.25.0 (Pestaña Resumen Completo) ─────────────────────────
+    # NEW-01: payslip_cr_views — nueva pestaña "Resumen Completo" como PRIMERA
+    #   pestaña del notebook. Muestra el flujo completo de cálculo en orden:
+    #     1. Ingresos (base, HE, vacaciones, bonos, otros) → Salario Bruto
+    #     2. Incapacidades (solo visible si hay en el período) → Base Cotizable
+    #     3. Deducciones Legales (CCSS, Renta, créditos fiscales, paternidad)
+    #     4. Deducciones Adicionales (pensión, embargos, préstamos, cobros,
+    #        sindical, cooperativa, licencias sin goce, otras) — filas ocultas
+    #        automáticamente cuando el valor es 0.
+    #     5. Resultado Obrero → Salario Neto → Salario a Depositar
+    #     6. Cargas Patronales (CCSS, INS, ROP, provisiones) → Costo Total
+    #   Diseño: secciones con fondo secundario, valores en rojo (−) o verde (+),
+    #   sin campos con valor 0 innecesarios. Todo readonly.
+    # MOD-01: payslip_cr_views — pestaña "Deducciones Obrero" renombrada a
+    #   "Abonos y Deducciones" para reflejar que contiene tanto ingresos
+    #   adicionales como deducciones editables del período.
+    # ── Changelog v5.24.0 (FIX F5 — Calendarización faltante) ───────────────
+    # BUGFIX: cuando un empleado no tiene calendarización configurada, el sistema
+    #   usaba 'monthly' como fallback → en una planilla quincenal el salario base
+    #   se calculaba al 100% (mensual) en lugar del 50% (quincenal).
+    # NEW-01: payslip_compute_mixin._get_effective_freq() — helper que determina
+    #   la frecuencia con orden de prioridad:
+    #     1. Calendarización del EMPLEADO (correcto y preferido)
+    #     2. Calendarización de la PLANILLA (fallback inteligente)
+    #     3. 'monthly' (último recurso)
+    # MOD-01: payslip_compute_mixin — reemplazados los 4 usos del fallback manual
+    #   `payroll_calendar_id.frequency if ... else 'monthly'` por
+    #   `self._get_effective_freq()` en: _compute_base_salary (×2),
+    #   _compute_deductions, _calc_income_tax.
+    # NEW-02: payroll_run_cr — campos count_missing_calendar y
+    #   count_missing_schedule (Integer, computed) que cuentan boletas con
+    #   empleados sin esos datos. Calculados en _compute_totals.
+    # NEW-03: payslip_cr_views — dos nuevas alertas al inicio del form:
+    #   - ROJA: empleado sin calendarización (usa frecuencia de planilla)
+    #   - AMARILLA: empleado sin tipo de horario
+    #   Ambas invisibles cuando el dato está configurado.
+    # NEW-04: payroll_run_cr_views — dos alertas al inicio del form de planilla
+    #   mostrando cuántos empleados tienen datos faltantes, con instrucciones
+    #   para ir a corregirlos en la ficha del empleado.
+    #   Columnas count_missing_calendar (optional=show) y count_missing_schedule
+    #   (optional=hide) agregadas a la vista de lista de planillas.
+    # ── Changelog v5.23.0 (Vistas de lista ampliadas) ────────────────────────
+    # NEW-01: payslip_cr — 8 campos computed+stored de resumen por categoría:
+    #   amount_pension_alimentaria, amount_embargo, amount_loans,
+    #   amount_cobros_empleado, amount_sindical, amount_cooperativa,
+    #   amount_licencias_sin_goce, amount_bonos_exentos.
+    #   Calculados desde deduction_line_ids agrupando por deduction_category.
+    # NEW-02: payslip_validation_mixin — _compute_deduction_summaries():
+    #   método que calcula los 8 campos anteriores. Se ejecuta cuando
+    #   cambian las líneas de deducción de la boleta.
+    # NEW-03: payroll_run_cr — 16 campos total_* nuevos que agregan los
+    #   campos de boleta al nivel de planilla: total_salario_cotizable,
+    #   total_bonos_salariales, total_overtime, total_vacaciones_pagadas,
+    #   total_disability_days, total_ccss_subsidy, total_income_tax_credits,
+    #   total_pension_alimentaria, total_embargo, total_loans,
+    #   total_cobros_empleado, total_licencias_sin_goce, total_ins_employer,
+    #   total_aguinaldo_provision, total_cesantia_provision,
+    #   total_vacation_provision.
+    # MOD-01: payroll_run_cr._compute_totals() — expandido con @api.depends
+    #   sobre todos los campos nuevos de boleta y cálculo de los 16 totales.
+    # MOD-02: payslip_cr_views — vista de lista de boletas completamente
+    #   reescrita con 30+ columnas organizadas en secciones:
+    #   Identificación → Ingresos → Incapacidades → Deducciones obrero
+    #   (en orden de prioridad legal: CCSS, Renta, pensión alimentaria,
+    #   embargos, préstamos, cobros, sindical, cooperativa, lic. sin goce)
+    #   → Resultado obrero → Cargas patronales.
+    #   Todos los campos nuevos con optional="hide" — visibles bajo demanda.
+    # MOD-03: payroll_run_cr_views — vista de lista de planillas con las
+    #   mismas secciones y todos los totales, igualmente optional="hide".
+    # ── Changelog v5.22.0 (BugFix F4 — Salario Cotizable en Incapacidades) ──
+    # BUGFIX B-01: CCSS obrero se calculaba sobre gross_salary completo aunque
+    #   el empleado estuviera incapacitado. Los días subsidiados (día 4+) NO son
+    #   salario → no deben generar CCSS ni Renta.
+    #   Base legal: Art. 79 CT / MTSS DAJ-AE-201-12 / Art. 8 Ley ISR /
+    #               Sala Segunda Voto 622-2010 / Arts. 3 y 22 Ley Const. CCSS.
+    # BUGFIX B-02: CCSS patronal, provisiones (aguinaldo, cesantía, vacaciones)
+    #   y ROP se calculaban sobre el salario completo cuando el patrono no tiene
+    #   obligación salarial sobre los días subsidiados.
+    # NEW-01: payslip_cr — campo disability_days_in_period (Integer, computed):
+    #   días de incapacidad que caen DENTRO del período de esta boleta.
+    #   Maneja incapacidades que cruzan períodos (overlap start/end).
+    # NEW-02: payslip_cr — campo salario_cotizable (Monetary, computed+stored):
+    #   base real sobre la que aplican CCSS, Renta, ROP y provisiones.
+    #   Fórmula: (días_trabajados × sal_diario) + (días_1-3 × sal_diario × 50%).
+    #   Si no hay incapacidades en el período: salario_cotizable == gross_salary.
+    # MOD-01: payslip_compute_mixin._compute_extras() — calcula
+    #   disability_days_in_period con intersección de fechas boleta/incapacidad,
+    #   y salario_cotizable aplicando la fórmula legal correcta.
+    #   Nuevos @api.depends: date_from, date_to, disability_ids.date_start/end,
+    #   employee_id.base_salary.
+    # MOD-02: payslip_compute_mixin._compute_deductions() — usa salario_cotizable
+    #   como base g para todos los cálculos. Agrega salario_cotizable al
+    #   @api.depends.
+    # MOD-03: payslip_cr_views — campo disability_days_in_period en resumen
+    #   incapacidades; nuevo grupo "Base Cotizable" con gross vs cotizable y nota
+    #   legal; campo salario_cotizable en Deducciones Legales (invisible si = 0).
+    # ── Changelog v5.21.0 (Clasificación de Pensionado) ─────────────────────
+    # NEW-01: deduction_code_data.xml — nuevo código CCSS_OBR_PENSIONADO (6.50%)
+    #   para pensionado sector público (Art. 4 Ley Const. CCSS). Exonerado IVM
+    #   4.33%. Configurable desde Planilla CR → Configuración → Códigos de Deducción.
+    # NEW-02: planilla_const — constante CCSS_EMP_PENSIONADO_ESTADO = 0.065
+    #   como fallback si el código no existe en BD.
+    # NEW-03: rate_helper — método get_ccss_pensionado_rate() que lee el código
+    #   CCSS_OBR_PENSIONADO con fallback a la constante.
+    # NEW-04: hr_employee_extension — campo pensioner_type (Selection 3 opciones):
+    #   'none' (default), 'estado' (sector público), 'ivm' (CCSS).
+    # NEW-05: hr_employee_extension — campo pension_resolution_number (Char):
+    #   N° de resolución o carné. Requerido para tipo 'estado'.
+    # NEW-06: hr_employee_extension — @api.onchange: al seleccionar tipo
+    #   'estado' o 'ivm', fuerza rop_applies = False automáticamente.
+    # NEW-07: hr_employee_extension — @api.constrains: bloquea guardado si
+    #   pensioner_type == 'estado' y pension_resolution_number está vacío.
+    # MOD-01: payslip_compute_mixin._compute_deductions() — lee pensioner_type
+    #   del empleado y aplica tasa CCSS obrero correspondiente:
+    #   'estado' → rh.get_ccss_pensionado_rate() (6.50%)
+    #   'none' / 'ivm' → rh.get_ccss_employee_rate() (10.83%)
+    #   Agrega employee_id.pensioner_type al @api.depends.
+    # MOD-02: hr_employee_extension_views — nueva sección "Clasificación de
+    #   pensionado" con radio button, campo resolución condicional (required +
+    #   invisible según tipo) y avisos contextuales por tipo.
+    # MOD-03: payslip_cr_views — campo employee_id.pensioner_type readonly en
+    #   la boleta, visible solo cuando es distinto de 'none'.
+    # ── Changelog v5.20.0 (Créditos fiscales por cargas familiares) ─────────
+    # NEW-01: planilla_const — constantes CREDITO_FISCAL_HIJO (₡1,710/mes) y
+    #   CREDITO_FISCAL_CONYUGE (₡2,590/mes). Vigentes 2026 según Decreto 45333-H
+    #   (Art. 34 Ley 7092). Actualizar cada enero con el decreto del MH.
+    # NEW-02: hr_employee_extension — campo income_tax_children (Integer):
+    #   cantidad de hijos menores con derecho a crédito fiscal.
+    # NEW-03: hr_employee_extension — campo income_tax_spouse_credit (Boolean):
+    #   activa el crédito por cónyuge. Solo uno de los dos puede aplicarlo.
+    # NEW-04: payslip_cr — campo income_tax_credits (Monetary, computed+stored):
+    #   monto total de créditos aplicados. Informativo en la boleta y PDF.
+    # MOD-01: payslip_compute_mixin._calc_income_tax() — ahora retorna tupla
+    #   (tax_neto, creditos_aplicados). Los créditos se restan DESPUÉS del
+    #   cálculo progresivo. Resultado nunca negativo (max(..., 0.0)).
+    #   Ajusta créditos por frecuencia de pago usando K.FREQ_FACTORS.
+    # MOD-02: payslip_compute_mixin._compute_deductions() — desempaqueta la
+    #   tupla y asigna income_tax y income_tax_credits por separado.
+    #   Agrega employee_id.income_tax_children y .income_tax_spouse_credit
+    #   al @api.depends para recomputar cuando cambien los créditos del empleado.
+    # MOD-03: hr_employee_extension_views — nueva sección "Créditos Fiscales
+    #   (Art. 34 LIR)" en pestaña Planilla CR junto al grupo CCSS.
+    # MOD-04: payslip_cr_views — campo income_tax_credits visible en pestaña
+    #   Deducciones Obrero, oculto automáticamente cuando vale ₡0.
+    # ── Changelog v5.19.0 (Toggle base de cálculo de Renta) ─────────────────
+    # NEW-01: accounting_config — nuevo campo income_tax_base (Selection):
+    #   'gross'    → base imponible = salario bruto (Art. 33 LIR — default)
+    #   'net_ccss' → base imponible = bruto − CCSS obrero
+    #   El default 'gross' preserva el comportamiento anterior exactamente.
+    #   Empresas existentes no sienten cambio hasta que un admin lo modifique.
+    # NEW-02: planilla_const — constante RENTA_BASE_DEFAULT = 'gross' como
+    #   fallback si la empresa no tiene configuración contable creada.
+    # MOD-01: payslip_compute_mixin._calc_income_tax(gross, ccss_emp=0.0) —
+    #   nueva firma con parámetro ccss_emp opcional (retrocompatible).
+    #   Lee income_tax_base de la config de empresa y ajusta la base antes
+    #   de entrar al cálculo progresivo por tramos.
+    # MOD-02: payslip_compute_mixin._compute_deductions() — pasa ccss_employee
+    #   calculado como segundo argumento a _calc_income_tax().
+    # MOD-03: accounting_config_views — nuevo grupo visual "Cálculo de Impuesto
+    #   de Renta" con radio button y aviso de responsabilidad fiscal cuando
+    #   se selecciona la opción net_ccss.
     # ── Changelog v5.17.0 (Fix dropdowns dinámicos — columnas desplazadas) ─
     # FIX-WIZ-04: _build_dynamic_lists._write_list() — el early return cuando
     #   values=[] causaba que next_col NO se incrementara, desplazando todas

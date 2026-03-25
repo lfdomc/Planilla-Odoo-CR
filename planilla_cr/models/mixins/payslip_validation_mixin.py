@@ -21,6 +21,60 @@ class PayslipValidationMixin(models.AbstractModel):
     _description = 'Mixin Validacion Boleta'
 
     @api.depends(
+        'deduction_line_ids.amount',
+        'deduction_line_ids.line_type',
+        'deduction_line_ids.deduction_category',
+        'deduction_line_ids.employee_charge_id',
+    )
+    def _compute_deduction_summaries(self) -> None:
+        """
+        Calcula resúmenes por categoría de deducción/ingreso para la vista de lista.
+        Permite al usuario ver de un vistazo cuánto pesa cada rubro en la boleta
+        sin necesidad de abrir el formulario.
+        Orden de aplicación según prioridad legal (BLP Legal / Art. 172 CT):
+          1. Pensión alimentaria (prioridad absoluta — Ley 8590)
+          2. Embargos judiciales (máx. 25% neto — Art. 172 CT)
+          3. Préstamos y adelantos
+          4. Cobros al empleado (charges)
+          5. Cuotas sindicales / cooperativas
+          6. Licencias sin goce / ausencias
+        """
+        for rec in self:
+            lines = rec.deduction_line_ids
+            rec.amount_pension_alimentaria = round(sum(
+                l.amount for l in lines
+                if l.deduction_category == 'pension_alimentaria' and l.line_type == 'deduction'
+            ), 2)
+            rec.amount_embargo = round(sum(
+                l.amount for l in lines
+                if l.deduction_category == 'embargo' and l.line_type == 'deduction'
+            ), 2)
+            rec.amount_loans = round(sum(
+                l.amount for l in lines
+                if l.deduction_category == 'loan' and l.line_type == 'deduction'
+            ), 2)
+            rec.amount_cobros_empleado = round(sum(
+                l.amount for l in lines
+                if l.employee_charge_id and l.line_type == 'deduction'
+            ), 2)
+            rec.amount_sindical = round(sum(
+                l.amount for l in lines
+                if l.deduction_category == 'sindical' and l.line_type == 'deduction'
+            ), 2)
+            rec.amount_cooperativa = round(sum(
+                l.amount for l in lines
+                if l.deduction_category == 'cooperativa' and l.line_type == 'deduction'
+            ), 2)
+            rec.amount_licencias_sin_goce = round(sum(
+                l.amount for l in lines
+                if l.deduction_category in ('licencia_sin_goce', 'ausencia') and l.line_type == 'deduction'
+            ), 2)
+            rec.amount_bonos_exentos = round(sum(
+                l.amount for l in lines
+                if l.line_type == 'income'
+            ), 2)
+
+    @api.depends(
         'gross_salary', 'ccss_employee', 'income_tax', 'other_deductions',
         'paternity_amount',
         'ccss_employer', 'ins_employer', 'rop_employer', 'aguinaldo_provision',
@@ -30,9 +84,6 @@ class PayslipValidationMixin(models.AbstractModel):
     )
     def _compute_totals(self) -> None:
         for rec in self:
-            # FIX C-01 v54: Los bonos salariales (afecto_ccss=True) ya están incluidos
-            # en gross_salary vía bono_salarial_amount. Solo sumamos los bonos exentos
-            # (afecto_ccss=False: transporte, representación, etc.) como extra_income.
             # FIX v54b N+1: cargamos el set de nombres salariales UNA vez para el loop.
             nombres_salariales = rec._get_bono_salarial_names()
 
@@ -194,7 +245,26 @@ class PayslipValidationMixin(models.AbstractModel):
                     f'Las deducciones superan el salario bruto.'
                 )
 
-            # FIX-AUD-05: el neto puede superar el bruto cuando hay licencias con goce
+            # AUDIT-03: Validar que embargos judiciales no superen el 25% del neto
+            # Base legal: Art. 172 Código de Trabajo CR.
+            # El límite aplica sobre el salario NETO (después de CCSS y Renta).
+            # Excepción: pensión alimentaria NO tiene límite de porcentaje (Ley 8590).
+            total_embargos = sum(
+                l.amount for l in rec.deduction_line_ids
+                if l.deduction_category == 'embargo' and l.line_type == 'deduction'
+            )
+            if total_embargos > 0 and rec.net_salary > 0:
+                max_embargo_legal = round(rec.net_salary * K.MAX_PCT_EMBARGO / 100, 2)
+                if total_embargos > max_embargo_legal + 0.5:  # tolerancia ₡0.50 por redondeo
+                    errors.append(
+                        f'{prefix} Los embargos judiciales (₡{total_embargos:,.2f}) superan '
+                        f'el límite legal del {K.MAX_PCT_EMBARGO:.0f}% del salario neto '
+                        f'(₡{max_embargo_legal:,.2f}). '
+                        f'Base legal: Art. 172 Código de Trabajo CR. '
+                        f'Reduzca el monto del embargo a un máximo de ₡{max_embargo_legal:,.2f}.'
+                    )
+
+
             # (duelo, paternidad, matrimonio), subsidio CCSS por incapacidad, o paternidad —
             # todos son ingresos adicionales legítimos que el patrono agrega al neto.
             # La validación correcta es: neto no debe superar bruto + todos los ingresos adicionales legítimos.

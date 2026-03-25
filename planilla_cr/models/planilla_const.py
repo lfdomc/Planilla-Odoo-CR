@@ -25,6 +25,12 @@ Fuentes:
 #: Cuota obrera CCSS (decimal). Incluye: SEM, IVM, BPOP, LPT, ASFA, FODESAF, INA
 CCSS_EMP: float = 0.1083
 
+#: Cuota obrera CCSS para pensionado sector público (decimal).
+#: Exonerado del IVM (4.33%) según Art. 4 Ley Constitutiva CCSS.
+#: Composición: SEM 5.50% + BPOP + LPT + ASFA + FODESAF + INA 1.00% = 6.50%.
+#: Fallback — tasa configurable desde planilla.deduction.code (CCSS_OBR_PENSIONADO).
+CCSS_EMP_PENSIONADO_ESTADO: float = 0.065
+
 #: Cuota patronal CCSS (decimal). Incluye: SEM, IVM, BPOP, LPT, ASFA, FODESAF, INA
 CCSS_PAT: float = 0.2683
 
@@ -170,6 +176,32 @@ CR_UTC_OFFSET_HOURS: int = 6  # CR = UTC-6
 
 #: Cédula de la fila de ejemplo en el machote Excel (siempre se salta)
 SAMPLE_CEDULA: str = '1-2345-6789'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BASE DE CÁLCULO DEL IMPUESTO DE RENTA — Toggle por empresa
+# ─────────────────────────────────────────────────────────────────────────────
+
+#: Valor por defecto de la base de cálculo de renta (Art. 33 LIR).
+#: 'gross'    → base = salario bruto (correcto según DGT / Art. 33 LIR)
+#: 'net_ccss' → base = bruto - CCSS obrero (práctica de algunas empresas,
+#:              no reconocida oficialmente por la DGT)
+RENTA_BASE_DEFAULT: str = 'gross'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CRÉDITOS FISCALES — Art. 34 Ley 7092 / Decreto Ejecutivo 45333-H
+# Vigentes a partir del 1 de enero de 2026
+# Fuente: https://www.hacienda.go.cr/docs/TramosRenta2026.pdf
+# ─────────────────────────────────────────────────────────────────────────────
+
+#: Crédito fiscal mensual por cada hijo menor o dependiente (Art. 34 LIR).
+#: Se resta directamente del impuesto calculado. No genera reembolso.
+#: Regla: si ambos cónyuges trabajan, solo uno puede aplicarlo por hijo.
+CREDITO_FISCAL_HIJO: int = 1_710
+
+#: Crédito fiscal mensual por cónyuge (Art. 34 LIR).
+#: Se resta directamente del impuesto calculado. No genera reembolso.
+#: Regla: solo uno de los dos cónyuges puede aplicarlo.
+CREDITO_FISCAL_CONYUGE: int = 2_590
 
 #: Cédula alternativa para tests unitarios
 TEST_CEDULA: str = '1-0000-0001'

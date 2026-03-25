@@ -25,6 +25,21 @@ class PayrollAccountingConfig(models.Model):
              'o un único asiento consolidado por planilla.'
     )
 
+    # ── Base de cálculo del Impuesto de Renta ──────────────────────
+    income_tax_base = fields.Selection([
+        ('gross',    'Salario Bruto (Art. 33 LIR — recomendado)'),
+        ('net_ccss', 'Bruto menos CCSS Obrero (práctica alternativa)'),
+    ], string='Base de cálculo de Renta',
+        default='gross', required=True,
+        help='Define sobre qué monto se calcula el impuesto de renta mensual.\n\n'
+             'SALARIO BRUTO (Art. 33 LIR): la base imponible es el salario bruto. '
+             'Es la interpretación oficial de la Dirección General de Tributación.\n\n'
+             'BRUTO MENOS CCSS: algunas empresas deducen la cuota obrera CCSS '
+             'antes de calcular la renta. Esta práctica no está reconocida '
+             'expresamente por la DGT — el patrono asume la responsabilidad fiscal.\n\n'
+             'El sistema aplica la opción seleccionada sin validar cuál es la correcta.'
+    )
+
     # ── Diario ──────────────────────────────────────────────────────
     journal_id = fields.Many2one(
         'account.journal', string='Diario de Planilla',

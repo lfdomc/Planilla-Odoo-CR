@@ -28,6 +28,12 @@
                             <field name="journal_id" domain="[('company_id', '=', company_id), ('type', 'in', ['general', 'purchase'])]"/>
                             <field name="accounting_entry_mode" widget="radio"/>
                         </group>
+                        <group string="Cálculo de Impuesto de Renta">
+                            <field name="income_tax_base" widget="radio"/>
+                            <div class="text-muted" colspan="2" invisible="income_tax_base == 'gross'">
+                                <i class="fa fa-exclamation-triangle text-warning"/> La base <b>Bruto menos CCSS</b> no está reconocida expresamente por la DGT. El patrono asume la responsabilidad fiscal de su aplicación.
+                            </div>
+                        </group>
                     </group>
 
                     <notebook>

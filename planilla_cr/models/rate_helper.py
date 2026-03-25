@@ -45,6 +45,13 @@ class RateHelper(models.AbstractModel):
         dc = self._get_deduction_code('CCSS_OBR')
         return (dc.employee_percentage / 100) if dc else K.CCSS_EMP
 
+    def get_ccss_pensionado_rate(self):
+        """Tasa CCSS obrero para pensionado sector público (decimal).
+        Default 6.50% — exonerado IVM (Art. 4 Ley Const. CCSS).
+        Configurable desde planilla.deduction.code código CCSS_OBR_PENSIONADO."""
+        dc = self._get_deduction_code('CCSS_OBR_PENSIONADO')
+        return (dc.employee_percentage / 100) if dc else K.CCSS_EMP_PENSIONADO_ESTADO
+
     def get_ccss_employer_rate(self):
         """Tasa CCSS patronal (decimal). Default 26.83% si no configurado."""
         dc = self._get_deduction_code('CCSS_PAT')

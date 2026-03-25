@@ -55,6 +55,72 @@ class HrEmployeeExtension(models.Model):
              'Al activar: el sistema deducirá 1%% obrero y registrará 3.25%% patronal '
              'automáticamente al sincronizar cada boleta (Ley 7983 Art. 6).'
     )
+
+    # ── Créditos Fiscales — Art. 34 Ley 7092 / Decreto 45333-H ────────────
+    income_tax_children = fields.Integer(
+        string='Hijos con crédito fiscal',
+        default=0,
+        help='Cantidad de hijos menores o dependientes con derecho a crédito fiscal '
+             '(Art. 34 LIR). Crédito 2026: ₡1,710 por hijo/mes.\n'
+             'Regla: si ambos cónyuges trabajan, cada hijo solo puede ser aplicado '
+             'por uno de ellos. El empleado debe presentar constancia de nacimiento.'
+    )
+    income_tax_spouse_credit = fields.Boolean(
+        string='Crédito fiscal por cónyuge',
+        default=False,
+        help='Activa el crédito fiscal de ₡2,590/mes por cónyuge (Art. 34 LIR).\n'
+             'Regla: solo uno de los dos cónyuges puede aplicarlo. '
+             'El empleado debe presentar constancia de matrimonio vigente.\n'
+             'Si ambos cónyuges trabajan para la misma empresa, '
+             'asegúrese de que solo uno tenga este campo activado.'
+    )
+
+    # ── Clasificación de Pensionado ────────────────────────────────────────
+    pensioner_type = fields.Selection([
+        ('none',   'No pensionado'),
+        ('estado', 'Pensionado sector público (Estado / Magisterio / Poder Judicial)'),
+        ('ivm',    'Pensionado IVM / CCSS'),
+    ], string='Tipo de pensionado',
+        default='none', required=True,
+        help='SECTOR PÚBLICO (Tipo 1): exonerado del IVM obrero (Art. 4 Ley Const. CCSS). '
+             'CCSS obrero: 6.50% (SEM + otros, sin IVM 4.33%). '
+             'Se requiere N° de resolución o carné para respaldo ante auditoría CCSS. '
+             'ROP desactivado automáticamente (pensión ya existe).\n\n'
+             'IVM/CCSS (Tipo 2): pensionado del régimen IVM que volvió al sector privado. '
+             'Cotiza CCSS completa 10.83% (SEM + IVM) según Art. 7 Regl. IVM. '
+             'ROP desactivado automáticamente (pensión ya existe).'
+    )
+    pension_resolution_number = fields.Char(
+        string='N° resolución / carné de pensionado',
+        help='Número de resolución de pensión o carné del pensionado emitido por la CCSS, '
+             'JUPEMA, Poder Judicial u otra entidad. '
+             'REQUERIDO para pensionado sector público — el patrono debe justificar ante '
+             'una auditoría CCSS por qué no retuvo el IVM (Art. 4 Ley Const. CCSS).'
+    )
+
+    @api.onchange('pensioner_type')
+    def _onchange_pensioner_type(self):
+        """Al clasificar como pensionado (cualquier tipo), desactiva ROP automáticamente.
+        El fin del ROP es crear la pensión — si ya existe, no aplica (Ley 7983)."""
+        for rec in self:
+            if rec.pensioner_type in ('estado', 'ivm'):
+                rec.rop_applies = False
+
+    @api.constrains('pensioner_type', 'pension_resolution_number')
+    def _check_pension_resolution(self):
+        """Pensionado sector público REQUIERE número de resolución o carné.
+        Ante auditoría CCSS, el patrono debe justificar la exoneración del IVM."""
+        for rec in self:
+            if rec.pensioner_type == 'estado' and not rec.pension_resolution_number:
+                raise ValidationError(
+                    f'El empleado {rec.name} está clasificado como Pensionado Sector Público '
+                    f'pero no tiene N° de resolución o carné registrado.\n\n'
+                    f'Este dato es obligatorio: ante una auditoría de la CCSS, el patrono '
+                    f'debe justificar por qué no retuvo el IVM obrero (4.33%). '
+                    f'Ingrese el número de resolución de pensión o carné emitido por la CCSS, '
+                    f'JUPEMA, Poder Judicial u otra entidad pagadora de la pensión.'
+                )
+
     has_variable_income = fields.Boolean(
         string='Salario Variable (comisiones / HE recurrentes)',
         default=False,

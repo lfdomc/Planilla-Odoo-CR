@@ -50,90 +50,100 @@ def _setup_accounting_config(env):
     - Si no existe: la crea con todas las cuentas estándar CR.
     - Si existe pero tiene campos vacíos: rellena solo los vacíos.
     Se ejecuta tanto en instalación (post_init_hook) como en actualización.
+
+    FIX AUDIT-01: ahora CREA las cuentas si no existen en el plan contable,
+    en lugar de simplemente buscarlas y dejarlas vacías. Esto garantiza que
+    la configuración quede 100% completa desde la instalación.
     """
-    def get_account(code):
-        return env['account.account'].search([
+    # Mapa campo → (código, nombre, tipo_odoo19)
+    ACCOUNT_MAP = {
+        'account_salary_expense':              ('630000', 'Sueldos y Salarios',                          'expense'),
+        'account_social_charges_expense':      ('630100', 'Cargas Sociales Patronales (CCSS+INS)',       'expense'),
+        'account_vacation_expense':            ('630200', 'Provisión para Vacaciones',                   'expense'),
+        'account_aguinaldo_expense':           ('630300', 'Provisión para Aguinaldo',                    'expense'),
+        'account_cesantia_expense':            ('630400', 'Provisión para Cesantía / Auxilio',           'expense'),
+        'account_preaviso_expense':            ('630500', 'Gasto por Preaviso',                          'expense'),
+        'account_bono_expense':                ('630600', 'Bonos e Incentivos al Personal',              'expense'),
+        'account_subsidio_expense':            ('630700', 'Subsidios al Personal (Transporte/Alim.)',    'expense'),
+        'account_licencia_expense':            ('630800', 'Licencias y Permisos con Goce',               'expense'),
+        'account_salary_payable':              ('230000', 'Salarios por Pagar',                          'liability_current'),
+        'account_income_tax_payable':          ('230100', 'Retención de Renta por Pagar',               'liability_current'),
+        'account_ccss_payable':                ('230300', 'CCSS por Pagar (Obrero + Patronal)',          'liability_current'),
+        'account_ins_payable':                 ('230400', 'INS por Pagar (Riesgos del Trabajo)',         'liability_current'),
+        'account_aguinaldo_provision':         ('230500', 'Provisión Aguinaldo por Pagar',               'liability_current'),
+        'account_cesantia_provision':          ('230600', 'Provisión Cesantía por Pagar',                'liability_current'),
+        'account_vacation_provision':          ('230700', 'Provisión Vacaciones por Pagar',              'liability_current'),
+        'account_termination_payable':         ('230800', 'Liquidaciones por Pagar',                     'liability_current'),
+        'account_loans_payable':               ('230900', 'Cuotas Préstamos Retenidos por Pagar',        'liability_current'),
+        'account_rop_payable':                 ('230350', 'ROP por Pagar (Obrero+Patronal)',             'liability_current'),
+        'account_pension_alimentaria_payable': ('230950', 'Pensiones Alimentarias por Pagar',            'liability_current'),
+        'account_embargo_payable':             ('230960', 'Embargos Judiciales por Pagar',               'liability_current'),
+        'account_cobro_empleado_payable':      ('230970', 'Cobros al Empleado por Liquidar',             'liability_current'),
+        'account_loans_receivable':            ('115000', 'Préstamos a Empleados por Cobrar',            'asset_current'),
+        'account_ccss_subsidy_receivable':     ('120500', 'Subsidio CCSS por Cobrar',                    'asset_current'),
+    }
+
+    def get_or_create_account(code, name, acc_type):
+        """Busca la cuenta por código. Si no existe, la crea."""
+        account = env['account.account'].search([
             ('code', '=', code),
             ('company_ids', 'in', env.company.id),
         ], limit=1)
+        if not account:
+            account = env['account.account'].create({
+                'code': code,
+                'name': name,
+                'account_type': acc_type,
+                'company_ids': [(4, env.company.id)],
+            })
+        return account
 
-    # Mapa campo → código de cuenta estándar CR (16 cuentas — v49)
-    ACCOUNT_MAP = {
-        'account_salary_expense':         '630000',
-        'account_social_charges_expense': '630100',
-        'account_vacation_expense':       '630200',
-        'account_aguinaldo_expense':      '630300',
-        'account_cesantia_expense':       '630400',
-        'account_preaviso_expense':       '630500',
-        'account_salary_payable':         '230000',
-        'account_income_tax_payable':     '230100',
-        'account_ccss_payable':           '230300',
-        'account_ins_payable':            '230400',
-        'account_aguinaldo_provision':    '230500',
-        'account_cesantia_provision':     '230600',
-        'account_vacation_provision':     '230700',
-        'account_termination_payable':         '230800',
-        'account_loans_payable':               '230900',
-        # FIX v49 Bug 5 — Cuenta para subsidio CCSS por cobrar (activo corriente 120500)
-        'account_ccss_subsidy_receivable':     '120500',
-        # FIX BUG #10 v50 — Pensiones alimentarias separadas de salarios
-        'account_rop_payable':                 '230350',
-        'account_pension_alimentaria_payable': '230950',
-        # FIX C-03 v54 — Cuentas nuevas para embargos y bonos (faltaban en hooks)
-        'account_embargo_payable':             '230960',
-        'account_bono_expense':                '630600',
-        'account_subsidio_expense':            '630700',
-        'account_licencia_expense':            '630800',  # FIX-A1: licencias con goce
-        # FIX-L10: cuentas de préstamos faltaban en ACCOUNT_MAP — sin estas la
-        # primera aprobación de préstamo buscaba / creaba la cuenta manualmente.
-        'account_loans_receivable':            '115000',  # Préstamos a Empleados por Cobrar
-    }
-
-    # Buscar diario de planilla
+    # Buscar o crear diario de planilla
     journal = env['account.journal'].search([
         ('type', 'in', ['general', 'purchase']),
+        '|', '|',
         ('name', 'ilike', 'salario'),
+        ('name', 'ilike', 'nomina'),
+        ('name', 'ilike', 'planilla'),
         ('company_id', '=', env.company.id),
     ], limit=1)
-    if not journal:
-        journal = env['account.journal'].search([
-            ('type', 'in', ['general', 'purchase']),
-            ('name', 'ilike', 'nomina'),
-            ('company_id', '=', env.company.id),
-        ], limit=1)
     if not journal:
         journal = env['account.journal'].search([
             ('type', '=', 'general'),
             ('company_id', '=', env.company.id),
         ], limit=1)
+    if not journal:
+        journal = env['account.journal'].create({
+            'name': 'Planilla de Salarios',
+            'code': 'PLAN',
+            'type': 'general',
+            'company_id': env.company.id,
+        })
 
     existing = env['planilla.accounting.config'].search([
         ('company_id', '=', env.company.id)
     ], limit=1)
 
     if not existing:
-        # ── Crear config nueva ─────────────────────────────────────
+        # ── Crear config nueva con TODAS las cuentas ──────────────
         vals = {
             'company_id': env.company.id,
             'accounting_entry_mode': 'per_employee',
+            'journal_id': journal.id,
         }
-        if journal:
-            vals['journal_id'] = journal.id
-        for field_name, code in ACCOUNT_MAP.items():
-            account = get_account(code)
-            if account:
-                vals[field_name] = account.id
+        for field_name, (code, name, acc_type) in ACCOUNT_MAP.items():
+            account = get_or_create_account(code, name, acc_type)
+            vals[field_name] = account.id
         env['planilla.accounting.config'].create(vals)
     else:
         # ── Actualizar config existente: solo rellenar campos vacíos ──
         vals = {}
-        if not existing.journal_id and journal:
+        if not existing.journal_id:
             vals['journal_id'] = journal.id
-        for field_name, code in ACCOUNT_MAP.items():
+        for field_name, (code, name, acc_type) in ACCOUNT_MAP.items():
             if not getattr(existing, field_name):
-                account = get_account(code)
-                if account:
-                    vals[field_name] = account.id
+                account = get_or_create_account(code, name, acc_type)
+                vals[field_name] = account.id
         if vals:
             existing.write(vals)
 

@@ -75,6 +75,20 @@ class PayslipCR(models.Model):
         related='employee_id.payroll_calendar_id',
         string='Calendarización', store=True
     )
+    # Frecuencia efectiva del período — usada en el Resumen Completo para
+    # mostrar etiquetas dinámicas ("Salario Base Quincenal", etc.)
+    # Usa _get_effective_freq(): calendarización del empleado → de la planilla → 'monthly'
+    effective_frequency = fields.Selection([
+        ('weekly',    'Semanal'),
+        ('biweekly',  'Quincenal'),
+        ('monthly',   'Mensual'),
+        ('bimonthly', 'Bimensual'),
+    ], string='Frecuencia Efectiva',
+        compute='_compute_effective_frequency', store=True,
+        help='Frecuencia de pago efectiva para esta boleta. '
+             'Si el empleado tiene calendarización, usa esa. '
+             'Si no, usa la frecuencia de la planilla.'
+    )
     date_from = fields.Date(string='Desde', required=True)
     date_to   = fields.Date(string='Hasta',  required=True)
     currency_id = fields.Many2one(
@@ -140,6 +154,19 @@ class PayslipCR(models.Model):
     income_tax = fields.Monetary(
         string='Impuesto Renta', currency_field='currency_id',
         compute='_compute_deductions', store=True
+    )
+    income_tax_credits = fields.Monetary(
+        string='Créditos Fiscales (Art. 34 LIR)', currency_field='currency_id',
+        compute='_compute_deductions', store=True,
+        help='Total de créditos fiscales por hijos y cónyuge aplicados (Art. 34 LIR). '
+             'Este monto ya está descontado del Impuesto de Renta mostrado arriba. '
+             'Créditos 2026: ₡1,710/hijo/mes · ₡2,590/cónyuge/mes.'
+    )
+    pensioner_type = fields.Selection(
+        related='employee_id.pensioner_type',
+        string='Tipo de pensionado', store=True,
+        help='Clasificación del pensionado según el empleado. '
+             'Afecta la tasa de CCSS obrero aplicada en esta boleta.'
     )
     other_deductions = fields.Monetary(
         string='Otras Deducciones', currency_field='currency_id'
@@ -235,6 +262,13 @@ class PayslipCR(models.Model):
         string='Días Incapacidad',
         compute='_compute_extras', store=True
     )
+    disability_days_in_period = fields.Integer(
+        string='Días incapacidad en este período',
+        compute='_compute_extras', store=True,
+        help='Días de incapacidad que caen dentro del período de esta boleta. '
+             'Puede ser menor al total de días de la incapacidad si ésta cruza períodos. '
+             'Este valor es la base para calcular el salario cotizable.'
+    )
     ccss_subsidy_total = fields.Monetary(
         string='Subsidio CCSS (Incapacidades)', currency_field='currency_id',
         compute='_compute_extras', store=True,
@@ -244,6 +278,16 @@ class PayslipCR(models.Model):
         string='Costo Patrono por Incapacidades', currency_field='currency_id',
         compute='_compute_extras', store=True,
         help='Días 1-3 a cargo del patrono + % días restantes.'
+    )
+    salario_cotizable = fields.Monetary(
+        string='Salario Cotizable', currency_field='currency_id',
+        compute='_compute_extras', store=True,
+        help='Base real sobre la que se calculan CCSS, Renta, ROP y provisiones.\n\n'
+             'Fórmula (Art. 79 CT / MTSS DAJ-AE-201-12):\n'
+             '  días trabajados × salario_diario\n'
+             '+ días patrono (1-3) × salario_diario × 50%\n\n'
+             'Los días subsidiados (día 4+) NO son salario — son subsidio CCSS. '
+             'No generan CCSS, Renta, ROP, aguinaldo, cesantía ni vacaciones.'
     )
     overtime_ids   = fields.One2many('planilla.overtime', 'payslip_id', string='Horas Extras')
     vacation_ids   = fields.One2many('planilla.vacation.payment', 'payslip_id', string='Vacaciones')
@@ -271,6 +315,50 @@ class PayslipCR(models.Model):
     ], string='Estado', default='draft', tracking=True)
 
     move_id = fields.Many2one('account.move', string='Asiento Contable')
+
+    # ── Resúmenes por categoría (para vista de lista y seguimiento) ───────────
+    # Permiten ver en la lista de boletas cuánto pesa cada rubro sin abrir el form.
+    # Se calculan desde deduction_line_ids agrupando por deduction_category.
+    amount_pension_alimentaria = fields.Monetary(
+        string='Pensión Alimentaria', currency_field='currency_id',
+        compute='_compute_deduction_summaries', store=True,
+        help='Total pensiones alimentarias (Ley 8590 — prioridad absoluta).'
+    )
+    amount_embargo = fields.Monetary(
+        string='Embargos Judiciales', currency_field='currency_id',
+        compute='_compute_deduction_summaries', store=True,
+        help='Total embargos judiciales (máx. 25% neto, Art. 172 CT).'
+    )
+    amount_loans = fields.Monetary(
+        string='Préstamos / Adelantos', currency_field='currency_id',
+        compute='_compute_deduction_summaries', store=True,
+        help='Total cuotas de préstamos y adelantos de salario en este período.'
+    )
+    amount_cobros_empleado = fields.Monetary(
+        string='Cobros al Empleado', currency_field='currency_id',
+        compute='_compute_deduction_summaries', store=True,
+        help='Total cobros al empleado (almuerzo, uniforme, productos, etc.).'
+    )
+    amount_sindical = fields.Monetary(
+        string='Cuota Sindical', currency_field='currency_id',
+        compute='_compute_deduction_summaries', store=True,
+        help='Total cuotas sindicales del período.'
+    )
+    amount_cooperativa = fields.Monetary(
+        string='Cuota Cooperativa', currency_field='currency_id',
+        compute='_compute_deduction_summaries', store=True,
+        help='Total cuotas cooperativas del período.'
+    )
+    amount_licencias_sin_goce = fields.Monetary(
+        string='Licencias / Ausencias sin goce', currency_field='currency_id',
+        compute='_compute_deduction_summaries', store=True,
+        help='Total deducciones por licencias sin goce y ausencias injustificadas.'
+    )
+    amount_bonos_exentos = fields.Monetary(
+        string='Bonos / Ingresos adicionales', currency_field='currency_id',
+        compute='_compute_deduction_summaries', store=True,
+        help='Total ingresos adicionales (bonos no afecto CCSS, licencias con goce, etc.).'
+    )
 
     # ══════════════════════════════════════════════════════════════════
     # CONSTRAINTS ORM
