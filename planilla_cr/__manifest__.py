@@ -1,6 +1,29 @@
 {
-    'name': 'Sistema Planilla v5.28.6-PROD',
-    'version': '19.0.5.28.6',
+    'name': 'Sistema Planilla v5.28.7-PROD',
+    'version': '19.0.5.28.7',
+    # ── Changelog v5.28.7 (Fix maternidad — subsidio y base cotizable) ───────
+    # BUG 1: ccss_subsidy_total mostraba el subsidio TOTAL de toda la maternidad
+    #   (113 días × ₡12,500 = ₡1,412,500) en una sola boleta quincenal, en lugar
+    #   de solo los días que intersectan con el período de la boleta.
+    # BUG 2: salario_cotizable calculaba ₡18,750 (3 días × sal_diario × 50%)
+    #   aplicando la lógica de incapacidad normal (Arts. 79 CT días 1-3 patrono),
+    #   pero para maternidad el patrono paga ₡0 desde el día 1 (Art. 94 CT).
+    # IMPACTO: El empleado recibía ₡1,597,969 neto en lugar de ₡187,500,
+    #   y el patrono pagaba cargas sobre ₡18,750 que no correspondían.
+    # FIX: payslip_compute_mixin._compute_extras() reescrito:
+    #   - ccss_subsidy_total: se calcula proporcional al overlap de fechas
+    #     del período de la boleta. Para maternidad: dias_overlap × sal_diario_prom.
+    #     Para incapacidad normal: días subsidiados (4+) × sal_diario.
+    #   - salario_cotizable: detecta si TODAS las incapacidades del período son
+    #     maternidad. Si sí y no hay días trabajados → ₡0 (patrono no paga nada).
+    #     Si hay días mixtos → solo los días trabajados generan base cotizable.
+    #     Si es incapacidad normal → mantiene lógica días 1-3 al 50% (Art. 79 CT).
+    #   - @api.depends ampliado con disability_type, maternity_avg_salary y
+    #     daily_salary para recalcular al cambiar el tipo de incapacidad.
+    # RESULTADO CORRECTO para Karla (quincenal 1-15 mar, 15 días maternidad):
+    #   Subsidio CCSS período: 15 × ₡12,500 = ₡187,500 (no ₡1,412,500)
+    #   Base cotizable: ₡0.00 (no ₡18,750)
+    #   CCSS obrero: ₡0.00, Salario Neto: ₡187,500 (solo el subsidio)
     # ── Changelog v5.28.6 (Fix base cotizable — licencias sin goce) ──────────
     # BUG: Las licencias sin goce y ausencias injustificadas no se descontaban
     #   de la base antes de calcular CCSS, Renta y provisiones. Un empleado con
