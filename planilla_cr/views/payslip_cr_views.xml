@@ -209,30 +209,23 @@
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Vacaciones Pagadas</td>
                                             <td style="text-align:right;"><field name="vacation_amount" readonly="1" nolabel="1"/></td>
                                         </tr>
+                                        <!-- Ingresos adicionales desglosados como filas de texto -->
                                         <tr invisible="bono_salarial_amount == 0">
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Bonos Salariales (afecto CCSS)</td>
                                             <td style="text-align:right;"><field name="bono_salarial_amount" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                        <tr invisible="other_income == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Otros Ingresos</td>
-                                            <td style="text-align:right;"><field name="other_income" readonly="1" nolabel="1"/></td>
+                                        <tr invisible="amount_bonos_exentos == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Bonos / Incentivos (exentos CCSS)</td>
+                                            <td style="text-align:right;"><field name="amount_bonos_exentos" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                    </table>
-
-                                    <!-- Ingresos adicionales desglosados línea por línea -->
-                                    <field name="income_line_ids" readonly="1"
-                                           invisible="not income_line_ids">
-                                        <list string="" 
-                                              decoration-success="True">
-                                            <field name="deduction_code_id" string="Tipo" optional="show"/>
-                                            <field name="description" string="Concepto"/>
-                                            <field name="deduction_category" string="Categoría" optional="hide"/>
-                                            <field name="amount" string="Monto (₡)" sum="Total ingresos adicionales"/>
-                                        </list>
-                                    </field>
-
-                                    <!-- Salario Bruto — total con separador -->
-                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                                        <tr invisible="amount_licencias_con_goce == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Licencias con Goce (duelo, matrimonio, adopción...)</td>
+                                            <td style="text-align:right;"><field name="amount_licencias_con_goce" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="amount_otros_ingresos_adic == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Otros Ingresos Adicionales</td>
+                                            <td style="text-align:right;"><field name="amount_otros_ingresos_adic" readonly="1" nolabel="1"/></td>
+                                        </tr>
                                         <tr style="border-top:1.5px solid var(--color-border-secondary);font-weight:500;">
                                             <!-- Salario bruto — etiqueta según frecuencia -->
                                             <td style="padding:6px 0;" invisible="effective_frequency != 'monthly'">Salario Bruto Mensual</td>
@@ -353,22 +346,6 @@
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="other_deductions" readonly="1" nolabel="1"/></td>
                                         </tr>
                                     </table>
-
-                                    <!-- Detalle línea por línea de cada deducción adicional -->
-                                    <div style="font-size:11px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px;border-top:1px solid var(--color-border-secondary);padding-top:8px;">
-                                        Detalle completo por línea
-                                    </div>
-                                    <field name="deduction_only_line_ids" readonly="1"
-                                           invisible="not deduction_only_line_ids">
-                                        <list string="" 
-                                              decoration-danger="True">
-                                            <field name="deduction_code_id" string="Tipo" optional="show"/>
-                                            <field name="description" string="Concepto"/>
-                                            <field name="deduction_category" string="Categoría" optional="show"/>
-                                            <field name="numero_resolucion" string="N° Resolución" optional="show"/>
-                                            <field name="amount" string="Monto (₡)" sum="Total deducciones adicionales"/>
-                                        </list>
-                                    </field>
                                 </div>
 
                                 <!-- ─── RESULTADO OBRERO ──────────────────────── -->

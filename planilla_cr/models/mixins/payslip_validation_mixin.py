@@ -74,17 +74,30 @@ class PayslipValidationMixin(models.AbstractModel):
                 l.amount for l in lines
                 if l.deduction_category in ('licencia_sin_goce', 'ausencia') and l.line_type == 'deduction'
             ), 2)
-            # FIX: excluir bonos salariales (afecto_ccss=True) que ya están en
-            # bono_salarial_amount. Solo contar ingresos NO salariales:
-            # licencias con goce, subsidios exentos, recurring benefits, etc.
+            # ── Ingresos adicionales desglosados por sub-categoría ────────────
+            # Excluimos bonos salariales (afecto_ccss=True) que ya están en
+            # bono_salarial_amount para evitar doble conteo en el Resumen.
             nombres_salariales = rec._get_bono_salarial_names()
+            # 1. Bonos exentos de CCSS/Renta (afecto_ccss=False):
+            #    transporte, representación, incentivos no salariales
             rec.amount_bonos_exentos = round(sum(
                 l.amount for l in lines
                 if l.line_type == 'income'
-                and not (
-                    l.deduction_category == 'bonus'
-                    and (l.description or '').replace('Bono: ', '').strip() in nombres_salariales
-                )
+                and l.deduction_category == 'bonus'
+                and (l.description or '').replace('Bono: ', '').strip() not in nombres_salariales
+            ), 2)
+            # 2. Licencias especiales con goce de sueldo:
+            #    duelo, paternidad, matrimonio, adopción, donación de sangre
+            rec.amount_licencias_con_goce = round(sum(
+                l.amount for l in lines
+                if l.line_type == 'income'
+                and l.deduction_category == 'licencia_con_goce'
+            ), 2)
+            # 3. Otros ingresos adicionales (recurring benefits, manuales, etc.)
+            rec.amount_otros_ingresos_adic = round(sum(
+                l.amount for l in lines
+                if l.line_type == 'income'
+                and l.deduction_category not in ('bonus', 'licencia_con_goce')
             ), 2)
 
     @api.depends(

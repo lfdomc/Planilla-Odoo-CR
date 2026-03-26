@@ -1,7 +1,24 @@
 {
-    'name': 'Sistema Planilla v5.28.4-PROD',
-    'version': '19.0.5.28.4',
-    # ── Changelog v5.28.4 (Fix ParseError — editable=false inválido) ─────────
+    'name': 'Sistema Planilla v5.28.5-PROD',
+    'version': '19.0.5.28.5',
+    # ── Changelog v5.28.5 (Resumen Completo — ingresos desglosados como texto) ─
+    # MEJORA: Resumen Completo vuelve al estilo de filas de texto (sin tablas
+    #   widget de Odoo) pero ahora con ingresos adicionales desglosados por tipo:
+    #   - Bonos Salariales (afecto CCSS) → bono_salarial_amount (ya existía)
+    #   - Bonos / Incentivos (exentos CCSS) → amount_bonos_exentos
+    #   - Licencias con Goce Pagadas → amount_licencias_con_goce (NUEVO)
+    #   - Otros Ingresos Adicionales → amount_otros_ingresos_adic (NUEVO)
+    #   Cada fila es invisible cuando el monto es 0, igual que el resto.
+    # NEW-01: payslip_cr — dos campos nuevos computed+stored:
+    #   amount_licencias_con_goce: sum de líneas licencia_con_goce tipo income.
+    #   amount_otros_ingresos_adic: sum de líneas income que no son bonus ni
+    #   licencia_con_goce (recurring benefits, ingresos manuales, etc.).
+    # MOD-01: payslip_validation_mixin._compute_deduction_summaries() — ahora
+    #   calcula los 3 campos de ingreso por sub-categoría separados.
+    # MOD-02: payslip_cr_views — eliminados los widgets de lista (income_line_ids
+    #   y deduction_only_line_ids) del Resumen Completo. Reemplazados por filas
+    #   <tr> de texto limpio, consistentes con el resto del resumen.
+    # ── Changelog v5.28.4 (Fix ParseError editable=false) ────────────────────
     # BUG: Las listas inline del Resumen Completo (income_line_ids y
     #   deduction_only_line_ids) tenían editable="false", que no es un valor
     #   válido en Odoo 19 (solo acepta "top" o "bottom"). Esto causaba un
