@@ -213,14 +213,26 @@
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Bonos Salariales (afecto CCSS)</td>
                                             <td style="text-align:right;"><field name="bono_salarial_amount" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                        <tr invisible="amount_bonos_exentos == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Licencias con Goce / Subsidios / Otros ingresos</td>
-                                            <td style="text-align:right;"><field name="amount_bonos_exentos" readonly="1" nolabel="1"/></td>
-                                        </tr>
                                         <tr invisible="other_income == 0">
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Otros Ingresos</td>
                                             <td style="text-align:right;"><field name="other_income" readonly="1" nolabel="1"/></td>
                                         </tr>
+                                    </table>
+
+                                    <!-- Ingresos adicionales desglosados línea por línea -->
+                                    <field name="income_line_ids" readonly="1"
+                                           invisible="not income_line_ids">
+                                        <list string="" 
+                                              decoration-success="True">
+                                            <field name="deduction_code_id" string="Tipo" optional="show"/>
+                                            <field name="description" string="Concepto"/>
+                                            <field name="deduction_category" string="Categoría" optional="hide"/>
+                                            <field name="amount" string="Monto (₡)" sum="Total ingresos adicionales"/>
+                                        </list>
+                                    </field>
+
+                                    <!-- Salario Bruto — total con separador -->
+                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr style="border-top:1.5px solid var(--color-border-secondary);font-weight:500;">
                                             <!-- Salario bruto — etiqueta según frecuencia -->
                                             <td style="padding:6px 0;" invisible="effective_frequency != 'monthly'">Salario Bruto Mensual</td>
@@ -305,40 +317,58 @@
                                 <div invisible="total_employee_deductions == ccss_employee + income_tax"
                                      style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
                                     <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Deducciones Adicionales (orden de prioridad legal)</div>
-                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+
+                                    <!-- Sub-totales por categoría legal (referencia rápida) -->
+                                    <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:8px;">
                                         <tr invisible="amount_pension_alimentaria == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">① Pensión Alimentaria (prioridad absoluta — Ley 8590)</td>
+                                            <td style="padding:3px 0;color:var(--color-text-secondary);">① Pensión Alimentaria (Ley 8590)</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_pension_alimentaria" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="amount_embargo == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">② Embargos Judiciales (máx. 25% neto — Art. 172 CT)</td>
+                                            <td style="padding:3px 0;color:var(--color-text-secondary);">② Embargos Judiciales (máx. 25% neto — Art. 172 CT)</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_embargo" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="amount_loans == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">③ Préstamos / Adelantos de Salario</td>
+                                            <td style="padding:3px 0;color:var(--color-text-secondary);">③ Préstamos / Adelantos</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_loans" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="amount_cobros_empleado == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">④ Cobros al Empleado (almuerzo, uniforme, etc.)</td>
+                                            <td style="padding:3px 0;color:var(--color-text-secondary);">④ Cobros al Empleado</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_cobros_empleado" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="amount_sindical == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">⑤ Cuota Sindical</td>
+                                            <td style="padding:3px 0;color:var(--color-text-secondary);">⑤ Cuota Sindical</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_sindical" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="amount_cooperativa == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">⑤ Cuota Cooperativa</td>
+                                            <td style="padding:3px 0;color:var(--color-text-secondary);">⑤ Cuota Cooperativa</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_cooperativa" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="amount_licencias_sin_goce == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">⑥ Licencias Sin Goce / Ausencias injustificadas</td>
+                                            <td style="padding:3px 0;color:var(--color-text-secondary);">⑥ Licencias Sin Goce / Ausencias</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_licencias_sin_goce" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="other_deductions == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Otras Deducciones</td>
+                                            <td style="padding:3px 0;color:var(--color-text-secondary);">Otras Deducciones</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="other_deductions" readonly="1" nolabel="1"/></td>
                                         </tr>
                                     </table>
+
+                                    <!-- Detalle línea por línea de cada deducción adicional -->
+                                    <div style="font-size:11px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin:8px 0 4px;border-top:1px solid var(--color-border-secondary);padding-top:8px;">
+                                        Detalle completo por línea
+                                    </div>
+                                    <field name="deduction_only_line_ids" readonly="1"
+                                           invisible="not deduction_only_line_ids">
+                                        <list string="" 
+                                              decoration-danger="True">
+                                            <field name="deduction_code_id" string="Tipo" optional="show"/>
+                                            <field name="description" string="Concepto"/>
+                                            <field name="deduction_category" string="Categoría" optional="show"/>
+                                            <field name="numero_resolucion" string="N° Resolución" optional="show"/>
+                                            <field name="amount" string="Monto (₡)" sum="Total deducciones adicionales"/>
+                                        </list>
+                                    </field>
                                 </div>
 
                                 <!-- ─── RESULTADO OBRERO ──────────────────────── -->

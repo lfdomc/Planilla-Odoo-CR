@@ -1,7 +1,31 @@
 {
-    'name': 'Sistema Planilla v5.28.2-PROD',
-    'version': '19.0.5.28.2',
-    # ── Changelog v5.28.2 (BugFix — bono duplicado en Resumen Completo) ──────
+    'name': 'Sistema Planilla v5.28.4-PROD',
+    'version': '19.0.5.28.4',
+    # ── Changelog v5.28.4 (Fix ParseError — editable=false inválido) ─────────
+    # BUG: Las listas inline del Resumen Completo (income_line_ids y
+    #   deduction_only_line_ids) tenían editable="false", que no es un valor
+    #   válido en Odoo 19 (solo acepta "top" o "bottom"). Esto causaba un
+    #   ParseError al cargar payslip_cr_views.xml.
+    # FIX: Se eliminó el atributo editable de ambas listas. Sin ese atributo
+    #   las listas heredan el comportamiento readonly del form padre (boleta
+    #   en modo borrador permite edición en las pestañas correspondientes,
+    #   y el Resumen Completo siempre es solo lectura por tener readonly="1").
+    # ── Changelog v5.28.3 (Resumen desglosado) ───────────────────────────────
+    # MEJORA: El Resumen Completo ya no agrupa ingresos y deducciones adicionales
+    #   en un solo total — ahora muestra cada línea individualmente para poder
+    #   identificar exactamente a qué corresponde cada monto.
+    # MOD-01: Sección INGRESOS — después de las filas estáticas (base, HE,
+    #   vacaciones, bonos salariales) se agrega <field name="income_line_ids">
+    #   con lista de solo lectura que muestra Tipo, Concepto y Monto (₡) con
+    #   suma al final. Cada ingreso adicional (bono exento, licencia con goce,
+    #   subsidio, etc.) aparece en su propia fila con su descripción completa.
+    # MOD-02: Sección DEDUCCIONES ADICIONALES — mantiene los sub-totales por
+    #   categoría legal (①②③...) como referencia rápida, y agrega debajo un
+    #   <field name="deduction_only_line_ids"> con lista de solo lectura
+    #   mostrando Tipo, Concepto, Categoría, N° Resolución y Monto con suma.
+    #   Esto permite ver cada embargo, cuota de préstamo, cobro o pensión
+    #   por separado con su descripción y resolución judicial si aplica.
+    # ── Changelog v5.28.2 (BugFix bono duplicado) ────────────────────────────
     # BUG: En el Resumen Completo, un bono salarial (afecto_ccss=True) aparecía
     #   dos veces: una en "Bonos Salariales (afecto CCSS)" y otra en
     #   "Ingresos Adicionales / Licencias con Goce". El cálculo del neto era
