@@ -257,6 +257,29 @@
                                     </table>
                                 </div>
 
+                                <!-- ─── LICENCIAS SIN GOCE / AUSENCIAS (solo si hay) ─ -->
+                                <div invisible="amount_licencias_sin_goce == 0"
+                                     style="background:var(--color-background-warning);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
+                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-warning);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Licencias Sin Goce / Ausencias</div>
+                                    <table style="width:100%;font-size:14px;border-collapse:collapse;">
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Bruto del período</td>
+                                            <td style="text-align:right;"><field name="gross_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Días sin goce / ausencias (tiempo no laborado)</td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_licencias_sin_goce" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr style="border-top:1px solid var(--color-border-warning);font-weight:500;">
+                                            <td style="padding:6px 0;">Base cotizable real (CCSS, Renta, provisiones)</td>
+                                            <td style="text-align:right;"><field name="base_cotizable_final" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                    </table>
+                                    <div style="font-size:11px;color:var(--color-text-secondary);margin-top:6px;font-style:italic;">
+                                        Días no laborados no generan salario → no aplican cargas sociales (Arts. 31 y 79 CT / Circular CCSS DSA-1183).
+                                    </div>
+                                </div>
+
                                 <!-- ─── DEDUCCIONES LEGALES ────────────────────── -->
                                 <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
                                     <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Deducciones Legales</div>
@@ -374,11 +397,11 @@
                                     <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Cargas Patronales</div>
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">Salario Bruto Mensual cotizable (base de cargas)</td>
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'biweekly'">Salario Bruto Quincenal cotizable (base de cargas)</td>
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'weekly'">Salario Bruto Semanal cotizable (base de cargas)</td>
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'bimonthly'">Salario Bruto Bimensual cotizable (base de cargas)</td>
-                                            <td style="text-align:right;"><field name="gross_salary" readonly="1" nolabel="1"/></td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">Base cotizable Mensual (cargas CCSS, provisiones)</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'biweekly'">Base cotizable Quincenal (cargas CCSS, provisiones)</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'weekly'">Base cotizable Semanal (cargas CCSS, provisiones)</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'bimonthly'">Base cotizable Bimensual (cargas CCSS, provisiones)</td>
+                                            <td style="text-align:right;"><field name="base_cotizable_final" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr>
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">CCSS Patronal 26.83%</td>

@@ -271,6 +271,9 @@ class PayslipComputeMixin(models.AbstractModel):
 
     @api.depends('gross_salary', 'salario_cotizable', 'company_id', 'paternity_days',
                  'payroll_calendar_id',
+                 'deduction_line_ids.amount',
+                 'deduction_line_ids.line_type',
+                 'deduction_line_ids.deduction_category',
                  'employee_id.ins_risk_class',
                  'employee_id.income_tax_children',
                  'employee_id.income_tax_spouse_credit',
@@ -290,12 +293,27 @@ class PayslipComputeMixin(models.AbstractModel):
             vac_rate = rh.get_vacation_rate()
 
             # BUG FIX F4: usar salario_cotizable como base de CCSS, Renta, ROP y
-            # provisiones. Si hay incapacidades, salario_cotizable < gross_salary
-            # porque los días subsidiados (día 4+) NO son salario.
+            # provisiones. Si hay incapacidades, salario_cotizable < gross_salary.
             # Base legal: Art. 79 CT / MTSS DAJ-AE-201-12 / Art. 8 Ley ISR /
             #             Sala Segunda Voto 622-2010.
-            # Si no hay incapacidades en el período, salario_cotizable == gross_salary.
             g = rec.salario_cotizable if (rec.salario_cotizable or 0.0) > 0 else (rec.gross_salary or 0.0)
+
+            # FIX LICENCIAS: restar licencias sin goce y ausencias de la base cotizable.
+            # Un día no laborado no genera salario → no debe generar CCSS obrero,
+            # patronal, Renta, ROP ni provisiones (aguinaldo, cesantía, vacaciones).
+            # Base legal: Arts. 31 y 79 CT / Circular CCSS DSA-1183 /
+            #             Sala Segunda Voto 2018-000622.
+            # Esto es idéntico al tratamiento de los días subsidiados en incapacidades.
+            licencias_sg = round(sum(
+                l.amount for l in rec.deduction_line_ids
+                if l.deduction_category in ('licencia_sin_goce', 'ausencia')
+                and l.line_type == 'deduction'
+            ), 2)
+            if licencias_sg > 0:
+                g = max(round(g - licencias_sg, 2), 0.0)
+
+            # Almacenar la base cotizable final (para Resumen Completo y auditoría)
+            rec.base_cotizable_final = g
 
             rec.ccss_employee = round(g * ccss_emp, 2)
             if rec.paternity_days > 0:

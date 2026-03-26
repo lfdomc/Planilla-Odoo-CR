@@ -280,14 +280,16 @@ class PayslipCR(models.Model):
         help='Días 1-3 a cargo del patrono + % días restantes.'
     )
     salario_cotizable = fields.Monetary(
-        string='Salario Cotizable', currency_field='currency_id',
+        string='Salario Cotizable (incapacidad)', currency_field='currency_id',
         compute='_compute_extras', store=True,
-        help='Base real sobre la que se calculan CCSS, Renta, ROP y provisiones.\n\n'
-             'Fórmula (Art. 79 CT / MTSS DAJ-AE-201-12):\n'
-             '  días trabajados × salario_diario\n'
-             '+ días patrono (1-3) × salario_diario × 50%\n\n'
-             'Los días subsidiados (día 4+) NO son salario — son subsidio CCSS. '
-             'No generan CCSS, Renta, ROP, aguinaldo, cesantía ni vacaciones.'
+        help='Base ajustada por incapacidades (Art. 79 CT). '
+             'Ver base_cotizable_final para la base final incluyendo licencias sin goce.'
+    )
+    base_cotizable_final = fields.Monetary(
+        string='Base Cotizable Final', currency_field='currency_id',
+        compute='_compute_deductions', store=True,
+        help='Base real final: salario cotizable menos licencias sin goce y ausencias.\n'
+             'Base legal: Arts. 31 y 79 CT / Circular CCSS DSA-1183.'
     )
     overtime_ids   = fields.One2many('planilla.overtime', 'payslip_id', string='Horas Extras')
     vacation_ids   = fields.One2many('planilla.vacation.payment', 'payslip_id', string='Vacaciones')

@@ -1,7 +1,29 @@
 {
-    'name': 'Sistema Planilla v5.28.5-PROD',
-    'version': '19.0.5.28.5',
-    # ── Changelog v5.28.5 (Resumen Completo — ingresos desglosados como texto) ─
+    'name': 'Sistema Planilla v5.28.6-PROD',
+    'version': '19.0.5.28.6',
+    # ── Changelog v5.28.6 (Fix base cotizable — licencias sin goce) ──────────
+    # BUG: Las licencias sin goce y ausencias injustificadas no se descontaban
+    #   de la base antes de calcular CCSS, Renta y provisiones. Un empleado con
+    #   ₡3,281.25 de ausencias pagaba CCSS sobre ₡225,000 en lugar de ₡221,718.75.
+    # CAUSA LEGAL: Arts. 31 y 79 CT + Circular CCSS DSA-1183. Los días no laborados
+    #   no generan salario → no deben generar cargas sociales. Es el mismo principio
+    #   que aplica a los días subsidiados por incapacidad (día 4+).
+    # FIX-01: payslip_compute_mixin._compute_deductions() — después de obtener g
+    #   (salario_cotizable por incapacidades), suma las líneas licencia_sin_goce/
+    #   ausencia y las resta de g antes de calcular CCSS, Renta, ROP y provisiones.
+    #   El resultado nunca es negativo (max con 0). @api.depends ampliado con
+    #   deduction_line_ids.amount/line_type/deduction_category.
+    # NEW-01: payslip_cr — campo base_cotizable_final (Monetary, computed en
+    #   _compute_deductions, stored). Almacena la base final después de descontar
+    #   tanto incapacidades como licencias sin goce. Usado en Resumen Completo
+    #   y en la fila de base de cargas patronales.
+    # NEW-02: payslip_cr_views — nueva sección naranja "Licencias Sin Goce /
+    #   Ausencias" en Resumen Completo (invisible si amount_licencias_sin_goce==0)
+    #   mostrando: Salario Bruto → − licencias → Base cotizable real. Incluye
+    #   nota legal con cita de Arts. 31 y 79 CT / Circular CCSS DSA-1183.
+    # MOD-01: payslip_cr_views — sección Cargas Patronales del Resumen ahora
+    #   muestra base_cotizable_final en lugar de gross_salary como base de cargas.
+    # ── Changelog v5.28.5 (Ingresos desglosados como texto) ──────────────────
     # MEJORA: Resumen Completo vuelve al estilo de filas de texto (sin tablas
     #   widget de Odoo) pero ahora con ingresos adicionales desglosados por tipo:
     #   - Bonos Salariales (afecto CCSS) → bono_salarial_amount (ya existía)
