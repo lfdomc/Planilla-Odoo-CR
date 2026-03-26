@@ -299,10 +299,13 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.bono_salarial_amount = round(total, 2)
 
     @api.depends('base_salary', 'overtime_amount', 'vacation_amount', 'other_income',
-                 'bono_salarial_amount')
+                 'bono_salarial_amount',
+                 'disability_ids.state', 'disability_ids.date_start',
+                 'disability_ids.date_end', 'disability_ids.disability_type',
+                 'date_from', 'date_to')
     def _compute_gross(self) -> None:
         for rec in self:
-            rec.gross_salary = round(
+            bruto = round(
                 (rec.base_salary or 0.0) +
                 (rec.overtime_amount or 0.0) +
                 (rec.vacation_amount or 0.0) +
@@ -310,12 +313,40 @@ class PayslipComputeMixin(models.AbstractModel):
                 (rec.bono_salarial_amount or 0.0),
                 2
             )
+            # Art. 94 CT: maternidad completa → patrono NO paga salario.
+            # Si TODAS las incapacidades del período son maternidad y no hay
+            # días trabajados, el patrono no tiene ningún costo salarial que
+            # registrar — el salario bruto debe ser ₡0.
+            if rec.date_from and rec.date_to:
+                active_dis = rec.disability_ids.filtered(
+                    lambda d: d.state in ('confirmed', 'paid')
+                    and d.date_start and d.date_end
+                )
+                dis_in_period = [
+                    d for d in active_dis
+                    if max(rec.date_from, d.date_start) <= min(rec.date_to, d.date_end)
+                ]
+                if dis_in_period:
+                    dias_periodo = (rec.date_to - rec.date_from).days + 1
+                    dias_incap = sum(
+                        (min(rec.date_to, d.date_end) - max(rec.date_from, d.date_start)).days + 1
+                        for d in dis_in_period
+                    )
+                    es_maternidad_total = all(d.disability_type == 'maternity' for d in dis_in_period)
+                    if es_maternidad_total and dias_incap >= dias_periodo:
+                        # Período completo de maternidad — el patrono no paga salario
+                        bruto = 0.0
+            rec.gross_salary = bruto
 
     @api.depends('gross_salary', 'salario_cotizable', 'company_id', 'paternity_days',
                  'payroll_calendar_id',
                  'deduction_line_ids.amount',
                  'deduction_line_ids.line_type',
                  'deduction_line_ids.deduction_category',
+                 'disability_ids.state',
+                 'disability_ids.date_start',
+                 'disability_ids.date_end',
+                 'disability_ids.disability_type',
                  'employee_id.ins_risk_class',
                  'employee_id.income_tax_children',
                  'employee_id.income_tax_spouse_credit',
@@ -334,11 +365,37 @@ class PayslipComputeMixin(models.AbstractModel):
             ces_rate = rh.get_cesantia_rate()
             vac_rate = rh.get_vacation_rate()
 
-            # BUG FIX F4: usar salario_cotizable como base de CCSS, Renta, ROP y
-            # provisiones. Si hay incapacidades, salario_cotizable < gross_salary.
-            # Base legal: Art. 79 CT / MTSS DAJ-AE-201-12 / Art. 8 Ley ISR /
-            #             Sala Segunda Voto 622-2010.
-            g = rec.salario_cotizable if (rec.salario_cotizable or 0.0) > 0 else (rec.gross_salary or 0.0)
+            # ── Base cotizable para CCSS, Renta, ROP y provisiones ───────────
+            # REGLA: si hay incapacidades activas en el período, usar
+            # salario_cotizable directamente (puede ser 0 para maternidad —
+            # es un cero LEGÍTIMO, no un fallback).
+            # Si NO hay incapacidades, usar gross_salary como base.
+            # El fallback anterior (0 > 0 → gross_salary) rompía maternidad
+            # porque convertía el cero correcto en el salario bruto completo.
+            #
+            # Base legal: Art. 94 CT (maternidad, base=0),
+            #             Art. 79 CT (incapacidad normal, base=días_patrono×50%),
+            #             Art. 8 Ley ISR / Sala Segunda Voto 622-2010.
+
+            # Detectar si hay alguna incapacidad activa que solape este período
+            active_dis_period = rec.disability_ids.filtered(
+                lambda d: d.state in ('confirmed', 'paid')
+                and d.date_start and d.date_end
+            )
+            has_disability_in_period = False
+            if rec.date_from and rec.date_to:
+                for dis in active_dis_period:
+                    if max(rec.date_from, dis.date_start) <= min(rec.date_to, dis.date_end):
+                        has_disability_in_period = True
+                        break
+
+            if has_disability_in_period:
+                # Hay incapacidad: respetar salario_cotizable aunque sea 0
+                # (0 es el valor correcto para maternidad completa)
+                g = rec.salario_cotizable or 0.0
+            else:
+                # Sin incapacidad: base = salario bruto del período
+                g = rec.gross_salary or 0.0
 
             # FIX LICENCIAS: restar licencias sin goce y ausencias de la base cotizable.
             # Un día no laborado no genera salario → no debe generar CCSS obrero,

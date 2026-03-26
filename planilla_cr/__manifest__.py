@@ -1,7 +1,30 @@
 {
-    'name': 'Sistema Planilla v5.28.7-PROD',
-    'version': '19.0.5.28.7',
-    # ── Changelog v5.28.7 (Fix maternidad — subsidio y base cotizable) ───────
+    'name': 'Sistema Planilla v5.28.8-PROD',
+    'version': '19.0.5.28.8',
+    # ── Changelog v5.28.8 (Fix maternidad — lógica circular g=fallback) ──────
+    # BUG: v5.28.7 resolvía salario_cotizable=0 correctamente pero _compute_
+    #   deductions tenía el fallback:
+    #     g = salario_cotizable if salario_cotizable > 0 else gross_salary
+    #   Con salario_cotizable=0 (maternidad legítima), saltaba a gross_salary
+    #   (₡187,500), calculando CCSS=₡20,306 y CCSS patronal=₡50,306 incorrectos.
+    # BUG 2: _compute_gross siempre sumaba base_salary completo. Para maternidad
+    #   total el patrono no paga salario, pero gross_salary mostraba ₡187,500.
+    # FIX-01: _compute_deductions — nuevo detector has_disability_in_period:
+    #   si hay incapacidad activa en el período → usar salario_cotizable directo
+    #   (respeta el 0 legítimo de maternidad).
+    #   Si NO hay incapacidad → usar gross_salary (comportamiento normal).
+    #   @api.depends ampliado con disability_ids.state/date_start/date_end/type.
+    # FIX-02: _compute_gross — si el período es maternidad completa (todas las
+    #   incapacidades son tipo maternity y cubren el período entero), gross_salary
+    #   se fija en ₡0. El patrono no tiene costo salarial que registrar.
+    # RESULTADO CORRECTO para Karla (quincenal 1-15 mar, 15 días maternidad):
+    #   Salario Bruto Patrono : ₡0.00
+    #   Subsidio CCSS (15 días): ₡187,500.00
+    #   Base cotizable: ₡0.00
+    #   CCSS Obrero: ₡0.00
+    #   CCSS Patronal: ₡0.00
+    #   Neto a recibir: ₡187,500.00 (solo el subsidio)
+    # ── Changelog v5.28.7 (Fix maternidad subsidio y base cotizable) ─────────
     # BUG 1: ccss_subsidy_total mostraba el subsidio TOTAL de toda la maternidad
     #   (113 días × ₡12,500 = ₡1,412,500) en una sola boleta quincenal, en lugar
     #   de solo los días que intersectan con el período de la boleta.
