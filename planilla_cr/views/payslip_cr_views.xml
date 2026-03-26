@@ -214,7 +214,7 @@
                                             <td style="text-align:right;"><field name="bono_salarial_amount" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="amount_bonos_exentos == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Ingresos Adicionales / Licencias con Goce</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Licencias con Goce / Subsidios / Otros ingresos</td>
                                             <td style="text-align:right;"><field name="amount_bonos_exentos" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="other_income == 0">
@@ -257,12 +257,33 @@
                                     <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Deducciones Legales</div>
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency == 'monthly'">
+                                            <!-- CCSS Obrero — etiqueta dinámica por tipo pensionado + frecuencia -->
+                                            <!-- Trabajador normal (no pensionado) — frecuencia no mensual -->
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);"
+                                                invisible="pensioner_type == 'estado' or effective_frequency == 'monthly'">
                                                 CCSS Obrero 10.83% sobre salario cotizable
                                                 <span invisible="effective_frequency != 'biweekly'" style="font-size:12px;opacity:.7;">(quincenal)</span>
                                                 <span invisible="effective_frequency != 'weekly'" style="font-size:12px;opacity:.7;">(semanal)</span>
+                                                <span invisible="effective_frequency != 'bimonthly'" style="font-size:12px;opacity:.7;">(bimensual)</span>
                                             </td>
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">CCSS Obrero 10.83% sobre salario mensual cotizable</td>
+                                            <!-- Trabajador normal (no pensionado) — mensual -->
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);"
+                                                invisible="pensioner_type == 'estado' or effective_frequency != 'monthly'">
+                                                CCSS Obrero 10.83% sobre salario mensual cotizable
+                                            </td>
+                                            <!-- Pensionado sector público — frecuencia no mensual -->
+                                            <td style="padding:4px 0;color:var(--color-text-warning);font-weight:500;"
+                                                invisible="pensioner_type != 'estado' or effective_frequency == 'monthly'">
+                                                CCSS Obrero 6.50% (pensionado — exonerado IVM) sobre salario cotizable
+                                                <span invisible="effective_frequency != 'biweekly'" style="font-size:12px;opacity:.7;">(quincenal)</span>
+                                                <span invisible="effective_frequency != 'weekly'" style="font-size:12px;opacity:.7;">(semanal)</span>
+                                                <span invisible="effective_frequency != 'bimonthly'" style="font-size:12px;opacity:.7;">(bimensual)</span>
+                                            </td>
+                                            <!-- Pensionado sector público — mensual -->
+                                            <td style="padding:4px 0;color:var(--color-text-warning);font-weight:500;"
+                                                invisible="pensioner_type != 'estado' or effective_frequency != 'monthly'">
+                                                CCSS Obrero 6.50% (pensionado sector público — exonerado IVM) sobre salario mensual cotizable
+                                            </td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="ccss_employee" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="income_tax == 0">
@@ -510,7 +531,13 @@
                                     <field name="salario_cotizable" readonly="1"
                                            invisible="disability_days_in_period == 0"
                                            string="Base cotizable (incapacidad)"/>
-                                    <field name="ccss_employee" readonly="1"/>
+                                    <!-- Etiqueta CCSS dinámica según tipo de pensionado -->
+                                    <field name="ccss_employee" readonly="1"
+                                           invisible="pensioner_type == 'estado'"
+                                           string="CCSS Obrero (10.83%)"/>
+                                    <field name="ccss_employee" readonly="1"
+                                           invisible="pensioner_type != 'estado'"
+                                           string="CCSS Obrero (6.50% — pensionado, exonerado IVM)"/>
                                     <field name="income_tax" readonly="1"/>
                                     <field name="income_tax_credits" readonly="1"
                                            invisible="income_tax_credits == 0"/>

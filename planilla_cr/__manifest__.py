@@ -1,6 +1,41 @@
 {
-    'name': 'Sistema Planilla v5.28.0-PROD',
-    'version': '19.0.5.28.0',
+    'name': 'Sistema Planilla v5.28.2-PROD',
+    'version': '19.0.5.28.2',
+    # ── Changelog v5.28.2 (BugFix — bono duplicado en Resumen Completo) ──────
+    # BUG: En el Resumen Completo, un bono salarial (afecto_ccss=True) aparecía
+    #   dos veces: una en "Bonos Salariales (afecto CCSS)" y otra en
+    #   "Ingresos Adicionales / Licencias con Goce". El cálculo del neto era
+    #   correcto (no había doble conteo en el total), pero la presentación
+    #   visual era confusa y engañosa.
+    # CAUSA: _compute_deduction_summaries calculaba amount_bonos_exentos
+    #   sumando TODAS las líneas income sin excluir los bonos salariales que
+    #   ya estaban contados en bono_salarial_amount.
+    # FIX-01: payslip_validation_mixin._compute_deduction_summaries():
+    #   amount_bonos_exentos ahora excluye bonos con afecto_ccss=True,
+    #   usando el mismo patrón de _get_bono_salarial_names() que ya usa
+    #   _compute_totals. Solo incluye ingresos NO salariales: licencias con
+    #   goce, subsidios exentos, recurring benefits, etc.
+    # FIX-02: payslip_cr.py — string del campo actualizado a
+    #   "Licencias con Goce / Otros ingresos" para reflejar con precisión
+    #   qué contiene (ya no incluye bonos salariales).
+    # FIX-03: payslip_cr_views.xml — etiqueta en Resumen Completo actualizada
+    #   a "Licencias con Goce / Subsidios / Otros ingresos".
+    # ── Changelog v5.28.1 (BugFix etiqueta CCSS pensionado) ──────────────────
+    # BUG: La pestaña Resumen Completo mostraba "CCSS Obrero 10.83%" para todos
+    #   los empleados, incluyendo pensionados sector público cuya tasa correcta
+    #   es 6.50%. El CÁLCULO era correcto (₡113,750 para ₡1,750,000 = 6.5%),
+    #   pero la ETIQUETA estaba hardcodeada en la vista y causaba confusión.
+    # FIX-01: payslip_cr_views — bloque CCSS en Resumen Completo reescrito con
+    #   4 variantes de etiqueta controladas por invisible:
+    #     - pensioner_type != 'estado' + freq != 'monthly' → "10.83% (frecuencia)"
+    #     - pensioner_type != 'estado' + freq == 'monthly' → "10.83% mensual"
+    #     - pensioner_type == 'estado' + freq != 'monthly' → "6.50% pensionado (frecuencia)"
+    #     - pensioner_type == 'estado' + freq == 'monthly' → "6.50% pensionado mensual"
+    #   La etiqueta del pensionado se muestra en color warning (naranja) para
+    #   mayor visibilidad de que aplica una tasa especial.
+    # FIX-02: payslip_cr_views — pestaña Abonos y Deducciones también muestra
+    #   etiqueta dinámica: "CCSS Obrero (10.83%)" o "CCSS Obrero (6.50% —
+    #   pensionado, exonerado IVM)" según pensioner_type del empleado.
     # ── Changelog v5.28.0 (Auditoría — 3 correcciones pre-producción) ────────
     #
     # AUDIT-01: hooks.py._setup_accounting_config() — ahora CREA las cuentas

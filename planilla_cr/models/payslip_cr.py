@@ -355,9 +355,12 @@ class PayslipCR(models.Model):
         help='Total deducciones por licencias sin goce y ausencias injustificadas.'
     )
     amount_bonos_exentos = fields.Monetary(
-        string='Bonos / Ingresos adicionales', currency_field='currency_id',
+        string='Licencias con Goce / Otros ingresos', currency_field='currency_id',
         compute='_compute_deduction_summaries', store=True,
-        help='Total ingresos adicionales (bonos no afecto CCSS, licencias con goce, etc.).'
+        help='Total de ingresos adicionales NO salariales: licencias con goce, '
+             'subsidios exentos (transporte, representación), recurring benefits, etc.\n\n'
+             'NO incluye bonos salariales (afecto CCSS=True) — esos ya están en '
+             '"Bonos Salariales" y en el Salario Bruto.'
     )
 
     # ══════════════════════════════════════════════════════════════════

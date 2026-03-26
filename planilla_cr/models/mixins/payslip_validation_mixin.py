@@ -38,6 +38,11 @@ class PayslipValidationMixin(models.AbstractModel):
           4. Cobros al empleado (charges)
           5. Cuotas sindicales / cooperativas
           6. Licencias sin goce / ausencias
+
+        FIX BUG-DOBLE-BONO: amount_bonos_exentos excluye los bonos salariales
+        (afecto_ccss=True) que ya están contados en bono_salarial_amount.
+        De lo contrario el Resumen Completo mostraría el mismo bono dos veces:
+        una en "Bonos Salariales (afecto CCSS)" y otra en "Ingresos Adicionales".
         """
         for rec in self:
             lines = rec.deduction_line_ids
@@ -69,9 +74,17 @@ class PayslipValidationMixin(models.AbstractModel):
                 l.amount for l in lines
                 if l.deduction_category in ('licencia_sin_goce', 'ausencia') and l.line_type == 'deduction'
             ), 2)
+            # FIX: excluir bonos salariales (afecto_ccss=True) que ya están en
+            # bono_salarial_amount. Solo contar ingresos NO salariales:
+            # licencias con goce, subsidios exentos, recurring benefits, etc.
+            nombres_salariales = rec._get_bono_salarial_names()
             rec.amount_bonos_exentos = round(sum(
                 l.amount for l in lines
                 if l.line_type == 'income'
+                and not (
+                    l.deduction_category == 'bonus'
+                    and (l.description or '').replace('Bono: ', '').strip() in nombres_salariales
+                )
             ), 2)
 
     @api.depends(
