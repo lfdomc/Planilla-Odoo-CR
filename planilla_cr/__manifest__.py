@@ -1,6 +1,11 @@
 {
-    'name': 'Sistema Planilla v5.28.35-PROD',
-    'version': '19.0.5.28.35',
+    'name': 'Sistema Planilla v5.28.36-PROD',
+    'version': '19.0.5.28.36',
+    # ── Changelog v5.28.36 (Espaciado Resumen Completo) ───────────────────────
+    # Más espacio entre secciones y filas para mejorar legibilidad:
+    # - Headers: margin-top 16→24px, padding-bottom 6→8px
+    # - Filas de tabla: padding 4px→6px vertical
+    # - Filas de totales bruto/neto: padding 6→10px vertical
     # ── Changelog v5.28.35 (Fix divisores — color hardcoded) ─────────────────
     # Las líneas divisoras de los títulos de sección no se veían porque
     # border-bottom:1px solid var(--color-border-secondary) no renderizaba
