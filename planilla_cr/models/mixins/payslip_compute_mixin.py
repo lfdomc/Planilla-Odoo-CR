@@ -179,12 +179,37 @@ class PayslipComputeMixin(models.AbstractModel):
             costo_patrono_periodo = 0.0  # días 1-3 a cargo del patrono en este período
 
             if rec.date_from and rec.date_to:
-                for dis in active_dis:
-                    if not dis.date_start or not dis.date_end:
-                        continue
-                    overlap_start = max(rec.date_from, dis.date_start)
-                    overlap_end   = min(rec.date_to,   dis.date_end)
-                    if overlap_end >= overlap_start:
+                # ── Agrupación de incapacidades consecutivas (prorrogas) ────────
+                # Regla legal CR (CCSS): si una incapacidad inicia el día siguiente
+                # a que termina otra del mismo empleado, es una PRÓRROGA del mismo
+                # evento. Los 3 días del tramo patronal (Art. 79 CT) NO se reinician
+                # en cada incapacidad individual — se comparten en todo el grupo.
+                #
+                # Ejemplo: Incap1=26-feb→9-mar, Incap2=10-mar→13-mar
+                #   → Grupo continuo. Días 1-3 patronal se agotaron en febrero.
+                #   → En marzo: 13 días todos subsidiados CCSS al 60%.
+                from datetime import timedelta as _td
+
+                dis_validas = sorted(
+                    [d for d in active_dis if d.date_start and d.date_end],
+                    key=lambda d: d.date_start
+                )
+                # Construir grupos: agregar a grupo si inicia el día siguiente del último
+                groups = []
+                for dis in dis_validas:
+                    if groups and dis.date_start <= groups[-1][-1].date_end + _td(days=1):
+                        groups[-1].append(dis)   # prórroga del mismo evento
+                    else:
+                        groups.append([dis])     # nuevo evento independiente
+
+                for group in groups:
+                    group_start = group[0].date_start  # inicio real del evento completo
+
+                    for dis in group:
+                        overlap_start = max(rec.date_from, dis.date_start)
+                        overlap_end   = min(rec.date_to,   dis.date_end)
+                        if overlap_end < overlap_start:
+                            continue
                         dias_overlap = (overlap_end - overlap_start).days + 1
                         dias_incap_periodo += dias_overlap
 
@@ -193,22 +218,21 @@ class PayslipComputeMixin(models.AbstractModel):
                         else:
                             daily = dis.daily_salary or 0.0
 
-                        # Subsidio CCSS: días 4+ en incapacidad normal, día 1+ en maternidad
                         if dis.disability_type == 'maternity':
+                            dias_patrono_overlap     = 0
                             dias_subsidiados_overlap = dias_overlap
-                            # Maternidad: patrono no paga nada (Art. 94 CT)
-                            costo_patrono_periodo += 0.0
+                            subsidy_rate = 1.0
                         else:
-                            dias_subsidiados_overlap = max(dias_overlap - min(3, dis.days), 0)
-                            # Días 1-3 que caen en este overlap → patrono paga 50%
-                            # "días patrono en overlap" = min(overlap, 3) pero respetando
-                            # que no pasen los 3 primeros días del registro completo
-                            dias_patrono_overlap = min(dias_overlap, max(3 - (
-                                (overlap_start - dis.date_start).days
-                            ), 0))
+                            # Días del tramo patronal contados desde inicio del GRUPO
+                            # (no desde inicio del registro individual — maneja prórrogas)
+                            days_since_group_start = (overlap_start - group_start).days
+                            employer_remaining = max(3 - days_since_group_start, 0)
+                            dias_patrono_overlap     = min(dias_overlap, employer_remaining)
+                            dias_subsidiados_overlap = dias_overlap - dias_patrono_overlap
+                            subsidy_rate = (dis.subsidy_percentage or 60.0) / 100.0
                             costo_patrono_periodo += round(dias_patrono_overlap * daily * 0.50, 2)
 
-                        ccss_subsidy_periodo += round(dias_subsidiados_overlap * daily, 2)
+                        ccss_subsidy_periodo += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
 
             rec.disability_days_in_period = dias_incap_periodo
             rec.ccss_subsidy_total  = round(ccss_subsidy_periodo, 2)

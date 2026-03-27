@@ -1,7 +1,62 @@
 {
-    'name': 'Sistema Planilla v5.28.11-PROD',
-    'version': '19.0.5.28.11',
-    # ── Changelog v5.28.11 (Fix gross_salary incapacidad — neto correcto) ────
+    'name': 'Sistema Planilla v5.28.13-PROD',
+    'version': '19.0.5.28.13',
+    # ── Changelog v5.28.13 (Fix prorrogas — días patronal no se reinician) ───
+    # REGLA LEGAL CR (CCSS): Si una incapacidad inicia el día siguiente a que
+    #   termina otra del mismo empleado, es una PRÓRROGA del mismo evento.
+    #   Los 3 días del tramo patronal (Art. 79 CT) NO se reinician — se comparten
+    #   entre todos los registros del grupo consecutivo.
+    # BUG: La versión anterior calculaba los días patronal desde el inicio de
+    #   cada registro individual. Cuando Incap2 iniciaba el día siguiente de
+    #   Incap1, reiniciaba el contador de 3 días y asignaba ₡19,500 de costo
+    #   patronal incorrecto a Incap2 (que es prórroga del mismo evento).
+    # FIX: _compute_extras() — antes del loop principal, construye grupos de
+    #   incapacidades consecutivas (gap ≤ 1 día entre registros).
+    #   Para cada grupo, los días patronal se cuentan desde el inicio del GRUPO
+    #   (group_start = primer registro), no desde inicio de cada registro.
+    #   Fórmula: days_since_group_start = (overlap_start - group_start).days
+    #            employer_remaining = max(3 - days_since_group_start, 0)
+    # RESULTADO para Raichel (1-15 mar):
+    #   Grupo: 26-feb→13-mar (Incap1 + Incap2 son prórroga)
+    #   days_since_group_start para overlap de Incap2 = 12 días
+    #   employer_remaining = max(3-12, 0) = 0 → ₡0 patrono
+    #   Subsidio patrono: ₡0.00 (antes ₡19,500 — incorrecto)
+    #   Subsidio CCSS: 13 días × ₡13,000 × 60% = ₡101,400 (antes ₡78,000)
+    #   Neto: ₡124,584.20 (antes ₡118,572.35)
+    # ── Changelog v5.28.12 (Fix subsidio overlap — days_already_passed) ──────
+    # CASO: Raichel — dos incapacidades con traslape entre períodos:
+    #   Incap1: 26 feb - 9 mar (días 1-3 patrono cayeron en FEBRERO)
+    #   Incap2: 10 mar - 13 mar (días 1-3 patrono dentro del período)
+    #   Período boleta: 1-15 mar
+    #
+    # BUG A — dias_subsidiados_overlap incorrecto:
+    #   Fórmula anterior: max(dias_overlap - min(3, dis.days), 0)
+    #   Para Incap1: max(9 - min(3,12), 0) = 6 → INCORRECTO
+    #   Los días 1-3 del registro cayeron en febrero (days_already_passed=3),
+    #   por lo que los 9 días del overlap en marzo son TODOS subsidiados.
+    #   Fórmula corregida: usa days_already_passed = (overlap_start - dis.date_start).days
+    #   employer_days_remaining = max(3 - days_already_passed, 0)
+    #   dias_patrono_overlap = min(dias_overlap, employer_days_remaining)
+    #   dias_subsidiados_overlap = dias_overlap - dias_patrono_overlap
+    #   Incap1: days_already=3, remaining=0, patrono=0, subsidiados=9 ✓
+    #   Incap2: days_already=0, remaining=3, patrono=3, subsidiados=1 ✓
+    #
+    # BUG B — no se aplicaba subsidy_percentage (60%):
+    #   Fórmula anterior: dias_subsidiados × daily (sin tasa)
+    #   Para Incap1: 6×13000 = 78,000 (con días incorrectos además)
+    #   Pantalla mostraba: 91,000 (6+1 días × 13,000 sin tasa = 91,000)
+    #   Fórmula corregida: dias_subsidiados × daily × subsidy_pct/100
+    #   Incap1: 9×13,000×0.60 = 70,200 ✓
+    #   Incap2: 1×13,000×0.60 = 7,800 ✓
+    #   Total correcto: 78,000 (antes mostraba 91,000 = exceso ₡13,000)
+    #
+    # RESULTADO CORRECTO para Raichel (1-15 mar):
+    #   Costo patrono período: ₡19,500 (incap2 días 1-3) ✓ sin cambio
+    #   Subsidio CCSS período: ₡78,000 (antes ₡91,000) ← corregido
+    #   Salario cotizable: ₡45,500 ✓ sin cambio
+    #   CCSS obrero: ₡4,927.65 ✓ sin cambio
+    #   Neto: ₡118,572.35 (antes ₡131,572.35 — exceso ₡13,000 eliminado)
+    # ── Changelog v5.28.11 (Fix gross_salary incapacidad) ────────────────────
     # BUG: gross_salary siempre era base_salary completo (₡275,000) incluso
     #   con días de incapacidad. El neto resultaba: 275,000 - CCSS_sobre_256,667
     #   = ₡247,203 (₡18,333 extra que no debía recibir el empleado).
