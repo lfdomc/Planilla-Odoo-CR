@@ -1,7 +1,27 @@
 {
-    'name': 'Sistema Planilla v5.28.20-PROD',
-    'version': '19.0.5.28.20',
-    # ── Changelog v5.28.20 (Fix warning fa-info-circle sin title) ────────────
+    'name': 'Sistema Planilla v5.28.22-PROD',
+    'version': '19.0.5.28.22',
+    # ── Changelog v5.28.22 (Días laborados + divisores en Resumen) ───────────
+    # MEJORA-01: Días laborados visibles en la sección INGRESOS.
+    #   Nueva fila al inicio de la tabla de ingresos:
+    #   "Días laborados en el período: 2 de 15 días (13 de incapacidad)"
+    #   Sin incapacidad: muestra solo "2" sin la parte del paréntesis.
+    #   Campo nuevo: dias_laborados_periodo = days_in_period - disability_days
+    # MEJORA-02: Líneas divisorias entre secciones del Resumen Completo:
+    #   • Siempre: después de INGRESOS (antes de INCAPACIDADES o DEDUCCIONES)
+    #   • Condicional: después de INCAPACIDADES (solo si hay días de incapac.)
+    #   • Siempre: antes del bloque RESULTADO OBRERO (neto)
+    #   • Siempre: antes de CARGAS PATRONALES
+    #   Las líneas usan border-top:2px solid var(--color-border-secondary)
+    #   para integrarse con el tema visual de Odoo 19.
+    # ── Changelog v5.28.21 (Fix visual subsidios sin signo negativo) ──────────
+    # Problema: Las filas "Subsidio patrono días 1-3" y "Subsidio CCSS (60%)"
+    #   mostraban "− 187,500.00" en rojo, como si fueran deducciones.
+    #   Es confuso porque son montos que el empleado RECIBE, no deducciones.
+    # Fix: Eliminado el "−" y el color rojo (color-text-danger).
+    #   Ahora muestran el monto en color neutro (color-text-secondary).
+    #   La base cotizable real sigue siendo ₡0 o el monto correcto.
+    # ── Changelog v5.28.20 (Fix warning fa-info-circle) ──────────────────────
     # WARNING Odoo 19: "A <i> with fa class (fa fa-info-circle) must have title"
     # disability_views.xml línea 89 — agregado title="Información sobre prórroga"
     # Sin impacto funcional. El módulo cargaba bien pero generaba warning en log.

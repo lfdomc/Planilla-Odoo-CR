@@ -284,6 +284,11 @@ class PayslipCR(models.Model):
              'Puede ser menor al total de días de la incapacidad si ésta cruza períodos. '
              'Este valor es la base para calcular el salario cotizable.'
     )
+    dias_laborados_periodo = fields.Integer(
+        string='Días laborados en el período',
+        compute='_compute_extras', store=True,
+        help='Días efectivamente trabajados = días del período − días de incapacidad.'
+    )
     ccss_subsidy_total = fields.Monetary(
         string='Subsidio CCSS (Incapacidades)', currency_field='currency_id',
         compute='_compute_extras', store=True,

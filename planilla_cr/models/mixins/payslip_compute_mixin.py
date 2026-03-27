@@ -245,6 +245,8 @@ class PayslipComputeMixin(models.AbstractModel):
                             ccss_subsidy_periodo   += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
 
             rec.disability_days_in_period = dias_incap_periodo
+            dias_periodo_total = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else 15
+            rec.dias_laborados_periodo = max(dias_periodo_total - dias_incap_periodo, 0)
             rec.ccss_subsidy_total  = round(ccss_subsidy_periodo, 2)
             rec.ins_subsidy_total   = round(ins_subsidy_periodo, 2)
             rec.costo_patrono_periodo = round(costo_patrono_periodo, 2)
