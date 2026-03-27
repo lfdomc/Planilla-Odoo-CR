@@ -1,7 +1,16 @@
 {
-    'name': 'Sistema Planilla v5.28.22-PROD',
-    'version': '19.0.5.28.22',
-    # ── Changelog v5.28.22 (Días laborados + divisores en Resumen) ───────────
+    'name': 'Sistema Planilla v5.28.23-PROD',
+    'version': '19.0.5.28.23',
+    # ── Changelog v5.28.23 (Fix días laborados + divisores visibles) ──────────
+    # FIX-01: "2 de 0 días" — days_in_period puede ser 0 si la boleta no tiene
+    #   proporcionalidad activa. Cambiado el formato de la fila a:
+    #   "Días laborados: 2 días · Días de incapacidad: 13 días"
+    #   Sin usar days_in_period, solo campos que siempre están computados.
+    # FIX-02: Divisores no visibles — los <div style="border-top:.../> self-
+    #   closing no renderizan en el browser como líneas visibles. Convertidos
+    #   a <hr style="border:none;border-top:1px solid var(...)"/> que sí
+    #   renderizan correctamente en Odoo 19.
+    # ── Changelog v5.28.22 (Días laborados + divisores) ──────────────────────
     # MEJORA-01: Días laborados visibles en la sección INGRESOS.
     #   Nueva fila al inicio de la tabla de ingresos:
     #   "Días laborados en el período: 2 de 15 días (13 de incapacidad)"

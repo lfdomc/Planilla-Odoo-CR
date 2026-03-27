@@ -177,12 +177,11 @@
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <!-- Días laborados — siempre visible -->
                                         <tr>
-                                            <td style="padding:3px 0;font-size:12px;color:var(--color-text-secondary);">
-                                                Días laborados en el período:
-                                                <strong><field name="dias_laborados_periodo" readonly="1" nolabel="1"/></strong>
+                                            <td style="padding:3px 0 6px;font-size:12px;color:var(--color-text-secondary);">
+                                                Días laborados:
+                                                <strong><field name="dias_laborados_periodo" readonly="1" nolabel="1"/> días</strong>
                                                 <span invisible="disability_days_in_period == 0" style="opacity:.75;">
-                                                    de <field name="days_in_period" readonly="1" nolabel="1"/> días
-                                                    (<field name="disability_days_in_period" readonly="1" nolabel="1"/> de incapacidad)
+                                                    · Días de incapacidad: <field name="disability_days_in_period" readonly="1" nolabel="1"/> días
                                                 </span>
                                             </td>
                                             <td/>
@@ -265,7 +264,7 @@
                                 </div>
 
                                 <!-- ─── DIVISOR ─────────────────────────────── -->
-                                <div style="border-top:2px solid var(--color-border-secondary);margin:4px 0 12px 0;"/>
+                                <hr style="border:none;border-top:1px solid var(--color-border-secondary);margin:0 0 12px 0;"/>
 
                                 <!-- ─── INCAPACIDADES (solo si hay) ───────────── -->
                                 <div invisible="disability_days_in_period == 0"
@@ -315,8 +314,7 @@
                                 </div>
 
                                 <!-- ─── DIVISOR (solo si hay incapacidades) ─────────── -->
-                                <div invisible="disability_days_in_period == 0"
-                                     style="border-top:2px solid var(--color-border-secondary);margin:4px 0 12px 0;"/>
+                                <hr invisible="disability_days_in_period == 0" style="border:none;border-top:1px solid var(--color-border-secondary);margin:0 0 12px 0;"/>
 
                                 <!-- ─── LICENCIAS SIN GOCE / AUSENCIAS (solo si hay) ─ -->
                                 <div invisible="amount_licencias_sin_goce == 0"
@@ -433,7 +431,7 @@
                                 </div>
 
                                 <!-- ─── DIVISOR ANTES DE RESULTADO ─────────────── -->
-                                <div style="border-top:2px solid var(--color-border-secondary);margin:4px 0 12px 0;"/>
+                                <hr style="border:none;border-top:1px solid var(--color-border-secondary);margin:0 0 12px 0;"/>
 
                                 <!-- ─── RESULTADO OBRERO ──────────────────────── -->
                                 <div style="background:var(--color-background-primary);border:1.5px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
@@ -503,7 +501,7 @@
                                 </div>
 
                                 <!-- ─── DIVISOR ANTES DE CARGAS ─────────────────── -->
-                                <div style="border-top:2px solid var(--color-border-secondary);margin:4px 0 12px 0;"/>
+                                <hr style="border:none;border-top:1px solid var(--color-border-secondary);margin:0 0 12px 0;"/>
 
                                 <!-- ─── CARGAS PATRONALES ─────────────────────── -->
                                 <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
