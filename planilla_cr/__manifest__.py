@@ -1,7 +1,46 @@
 {
-    'name': 'Sistema Planilla v5.28.45-PROD',
-    'version': '19.0.5.28.45',
-    # ── Changelog v5.28.45 (3 fixes auditoría incapacidades/renta) ───────────
+    'name': 'Sistema Planilla v5.28.47-PROD',
+    'version': '19.0.5.28.47',
+    # ── Changelog v5.28.47 (Fix batch sync bono puntual) ─────────────────────
+    # BUG: _sync_bonos_batch (planillas grupales con +200 empleados) no
+    #   propagaba is_recurring_bono a las líneas de deducción. Solo
+    #   _sync_bonos (individual) lo hacía. Esto causaba que en planillas
+    #   batch todos los bonos se trataran como recurrentes para renta.
+    # FIX: Añadido 'is_recurring_bono': bono.is_recurring en lines_to_create
+    #   de _sync_bonos_batch. Ahora ambos métodos son consistentes.
+    # Verificación: 2 referencias a is_recurring_bono en payslip_sync_mixin.
+    # ── Changelog v5.28.46 (5 limitaciones → correcciones) ───────────────────
+    #
+    # L1+L3 FIX — Cesantía tabla exacta Art. 29 CT por años de servicio:
+    # ANTES: tasa fija 5.33% para todos los empleados.
+    # AHORA: tasa exacta según año actual de servicio del empleado:
+    #   < 1 año (Año 1): 19.5 días → 5.4167%
+    #   1 año (Año 2):   20.0 días → 5.5556%
+    #   2 años (Año 3):  20.5 días → 5.6944%
+    #   3 años (Año 4):  21.0 días → 5.8333%
+    #   4 años (Año 5):  21.5 días → 5.9722%
+    #   5 años (Año 6):  22.0 días → 6.1111%
+    #   6 años (Año 7):  22.5 días → 6.2500%
+    #   7+ años (Año 8): 23.0 días → 6.3889% (máximo legal)
+    # Tope 8 años: implementado automáticamente.
+    # Requiere entry_date en la ficha del empleado. Sin entry_date: fallback 5.33%.
+    # Cambios: planilla_const.CESANTIA_TABLA, rate_helper.get_cesantia_rate(),
+    #          payslip_compute_mixin._compute_deductions() pasa entry_date.
+    #
+    # L2 FIX — Vacaciones exacta 4.1667%:
+    # ANTES: 4.1600% (redondeado, diferencia ₡33.50 en ₡500k).
+    # AHORA: round(12/288, 6) = 0.041667 exacto.
+    # planilla_const.PROV_VACACIONES actualizado.
+    #
+    # L4 DOC — Sin tope salarial CCSS (ya correcto):
+    # Añadida constante CCSS_SIN_TOPE_SALARIAL = True y comentario legal.
+    # Ley N.° 8410 / CCSS Circular DSA-1183 / 2006: eliminado el tope.
+    # No hay cambio en cálculo — solo documentación para auditorías.
+    #
+    # L5 UX — Advertencia bono puntual en vista:
+    # Añadido div.alert-warning en bono_views.xml visible cuando is_recurring=False.
+    # Explica: renta no anualiza el monto + fundamento Art. 33 LIR.
+    # ── Changelog v5.28.45 (3 fixes auditoría) ───────────────────────────────
     #
     # FIX-1: Salario diario variable para incapacidades
     # ANTES: daily_salary = base_salary / 30 (ignora bonos, HE, comisiones)

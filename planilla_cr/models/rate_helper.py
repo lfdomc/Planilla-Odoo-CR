@@ -69,15 +69,53 @@ class RateHelper(models.AbstractModel):
         dc = self._get_deduction_code('AGUINALDO')
         return (dc.employer_percentage / 100) if dc else K.PROV_AGUINALDO
 
-    def get_cesantia_rate(self):
-        """Tasa provisión cesantía (decimal). Default 5.33%."""
+    def get_cesantia_rate(self, entry_date=None, period_date=None):
+        """
+        Tasa provisión cesantía según tabla Art. 29 CT.
+
+        La tasa varía según los años de servicio del empleado:
+          Año 1: 19.5 días → 5.4167%
+          Año 2: 20.0 días → 5.5556%
+          ...
+          Año 8+: 23.0 días → 6.3889% (máximo legal)
+
+        Si hay un código CESANTIA configurado en BD, se usa ese valor
+        (permite override manual por empresa).
+        Si no hay entry_date, usa la tasa fallback 5.33%.
+
+        Args:
+            entry_date: Fecha de ingreso del empleado (date object).
+            period_date: Fecha del período (date object). Default: hoy.
+        """
         dc = self._get_deduction_code('CESANTIA')
-        return (dc.employer_percentage / 100) if dc else K.PROV_CESANTIA
+        if dc:
+            return dc.employer_percentage / 100
+
+        if not entry_date:
+            return K.PROV_CESANTIA  # fallback
+
+        from datetime import date as _date
+        ref = period_date or _date.today()
+        # Calcular años completos de servicio
+        anos = (ref - entry_date).days // 365
+        # Limitar al máximo legal de 8 años
+        anos_capped = max(1, min(anos + 1, K.CESANTIA_MAX_ANOS))
+        # días del año actual de servicio según tabla Art. 29 CT
+        dias = K.CESANTIA_TABLA.get(anos_capped, K.CESANTIA_TABLA[K.CESANTIA_MAX_ANOS])
+        # Tasa = días / 360 (30 días × 12 meses)
+        return round(dias / 360, 6)
 
     def get_vacation_rate(self):
-        """Tasa provisión vacaciones (decimal). Default 4.16%."""
+        """
+        Tasa provisión vacaciones exacta (decimal).
+        Art. 153 CT: 12 días por cada 50 semanas laboradas.
+        Cálculo: 12 días / 288 días laborables/año = 4.1667%.
+        (288 = 24 quincenas × 12 días útiles por quincena)
+        """
         dc = self._get_deduction_code('VACACIONES')
-        return (dc.employer_percentage / 100) if dc else K.PROV_VACACIONES
+        if dc:
+            return dc.employer_percentage / 100
+        return K.PROV_VACACIONES  # 0.041667 exacto
 
     def get_all_ins_rates(self):
         """Dict con todas las tasas INS por clase {clase: decimal}."""

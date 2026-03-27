@@ -55,11 +55,32 @@ INS_TASA_DEFAULT: float = INS_TASAS['II']  # Clase II como fallback
 #: Provisión aguinaldo (Art. 228 CT): 1/12 del salario anual = 8.33%
 PROV_AGUINALDO: float = 0.0833
 
-#: Provisión cesantía (Art. 29 CT): promedio días tabla / meses = 5.33%
-PROV_CESANTIA: float = 0.0533
+#: Provisión cesantía fallback promedio (Art. 29 CT)
+#: NOTA: Usar _get_cesantia_rate_by_years() del rate_helper para el valor
+#: exacto según años de servicio del empleado.
+PROV_CESANTIA: float = 0.0533  # fallback año 1 aprox.
 
-#: Provisión vacaciones (Art. 153 CT): 12 días / 287.5 días laborales = 4.16%
-PROV_VACACIONES: float = 0.0416
+#: Tabla Art. 29 CT — días de cesantía por año de servicio
+#: (año_completo: días). Máximo 8 años (Art. 29 CT).
+#: Fórmula provisión: dias / 360 → se aplica sobre el salario bruto del período.
+CESANTIA_TABLA: dict = {
+    1: 19.5,
+    2: 20.0,
+    3: 20.5,
+    4: 21.0,
+    5: 21.5,
+    6: 22.0,
+    7: 22.5,
+    8: 23.0,   # máximo legal — más de 8 años usa esta tasa
+}
+#: Año máximo de cesantía (Art. 29 CT)
+CESANTIA_MAX_ANOS: int = 8
+
+#: Provisión vacaciones (Art. 153 CT): 12 días / 360 días = 3.3333% + factor
+#: Cálculo exacto: 12 días ÷ (30 días/mes × 12 meses) = 3.3333%
+#: Expresado sobre salario: (12/360) = 3.3333%. Sobre días laborables (288 días/año):
+#: 12/288 = 4.1667%. El sistema usa 4.1667% (exacto a 4 decimales).
+PROV_VACACIONES: float = round(12 / 288, 6)  # = 0.041667 exacto
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ROP — Régimen Obligatorio de Pensiones (Ley 7983)
@@ -103,6 +124,17 @@ TOPE_TRANSPORTE: int = 74_000
 
 #: Tope exento viáticos/representación (exento CCSS si cumple requisitos)
 TOPE_VIATICOS: int = 0  # No hay tope fijo — depende de decreto patronal
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TOPE SALARIAL CCSS — Nota legal importante
+# ─────────────────────────────────────────────────────────────────────────────
+#: Costa Rica eliminó el tope salarial de cotización CCSS en 2006
+#: (Ley N.° 8410 — Art. 19 Reglamento del Seguro de Salud).
+#: NO existe un salario máximo cotizable — el 10.83% obrero y 26.83% patronal
+#: se aplican sobre la TOTALIDAD del salario bruto sin límite superior.
+#: Por eso este archivo NO define ninguna constante TOPE_CCSS.
+#: Referencia: CCSS, Circular DSA-1183, 2006.
+CCSS_SIN_TOPE_SALARIAL: bool = True  # Documentación — no usar en código
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LABORALES — Tiempo y cálculos (Código de Trabajo)

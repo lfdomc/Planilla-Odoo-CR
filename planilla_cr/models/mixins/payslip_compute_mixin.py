@@ -457,7 +457,14 @@ class PayslipComputeMixin(models.AbstractModel):
                 ccss_emp = rh.get_ccss_employee_rate()    # 10.83% — normal e IVM
             ccss_pat = rh.get_ccss_employer_rate()
             agu_rate = rh.get_aguinaldo_rate()
-            ces_rate = rh.get_cesantia_rate()
+            # L1+L3 FIX: Cesantía con tabla Art. 29 CT según años de servicio.
+            # Pasa entry_date del empleado para calcular la tasa exacta por año.
+            # Máximo legal: año 8 → 23 días → 6.3889%.
+            emp_entry = rec.employee_id.entry_date if rec.employee_id else None
+            ces_rate = rh.get_cesantia_rate(
+                entry_date=emp_entry,
+                period_date=rec.date_from
+            )
             vac_rate = rh.get_vacation_rate()
 
             # ── Base cotizable para CCSS, Renta, ROP y provisiones ───────────
