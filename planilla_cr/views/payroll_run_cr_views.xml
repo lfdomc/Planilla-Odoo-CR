@@ -83,6 +83,16 @@
                     <button name="action_generate_payslips" type="object"
                             string="Generar Planilla" class="btn-primary"
                             invisible="state != 'draft'"/>
+                    <button name="action_sync_all_draft" type="object"
+                            string="Sincronizar Novedades" class="btn-secondary"
+                            icon="fa-refresh"
+                            invisible="state != 'draft'"
+                            confirm="Esto sincronizara novedades en todas las boletas en Borrador. Las boletas confirmadas o pagadas no seran tocadas. Continuar?"/>
+                    <button name="action_recalculate_all_draft" type="object"
+                            string="Recalcular" class="btn-secondary"
+                            icon="fa-calculator"
+                            invisible="state != 'draft'"
+                            confirm="Esto recalculara todas las boletas en Borrador. Las boletas confirmadas o pagadas no seran tocadas. Continuar?"/>
                     <button name="action_confirm" type="object"
                             string="Confirmar Planilla" class="btn-secondary"
                             invisible="state != 'draft'"/>

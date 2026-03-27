@@ -448,69 +448,31 @@ class PayslipCR(models.Model):
 
     def unlink(self):
         """
-        FIX BUG-COBRO-01 + FIX BUG-UNLINK-01:
-        Al borrar una boleta sin pasar por action_cancel, restaurar el estado
-        de TODOS los objetos vinculados para evitar huerfanos bloqueados.
+        FIX BUG-UNLINK-02: La implementacion anterior leia deduction_line_ids
+        dentro del loop, pero PostgreSQL ya las habia borrado en cascada antes
+        de que el ORM Python pudiera leerlas.
 
-        Entidades restauradas:
-          - planilla.employee.charge (recurrentes: limpiar applied_periods)
+        SOLUCION: llamar action_cancel() ANTES de super().unlink().
+        action_cancel() ya maneja correctamente las 6 entidades vinculadas:
+          - planilla.employee.charge  (applied_periods + state)
           - planilla.loan.installment (deducted -> pending)
-          - planilla.overtime (paid -> approved)
+          - planilla.overtime         (paid -> approved)
           - planilla.vacation.payment (paid -> approved)
-          - planilla.leave.cr (paid -> approved)
-          - planilla.disability.cr (paid -> confirmed)
+          - planilla.leave.cr         (paid -> approved)
+          - planilla.disability.cr    (paid -> confirmed)
+
+        Al llamar action_cancel() primero, las lineas todavia existen en BD
+        y el cleanup puede leerlas y restaurar los estados correctamente.
+        Luego super().unlink() borra la boleta y PostgreSQL hace el cascade.
         """
-        for rec in self:
-            # -- 1. Cobros al empleado ---------------------------------
-            charge_lines = rec.deduction_line_ids.filtered(
-                lambda l: l.employee_charge_id
-            )
-            if charge_lines:
-                charge_ids = [l.employee_charge_id for l in charge_lines if l.employee_charge_id]
-                if charge_ids:
-                    all_charges = self.env['planilla.employee.charge'].browse(charge_ids).exists()
-                    unique = all_charges.filtered(
-                        lambda c: not c.is_recurring and c.state == 'applied'
-                    )
-                    if unique:
-                        unique.write({'state': 'approved', 'payslip_id': False})
-                    for charge in all_charges.filtered(lambda c: c.is_recurring):
-                        if rec.date_from:
-                            charge._remove_period_applied(rec.date_from)
-                        if not charge.applied_periods:
-                            charge.payslip_id = False
-
-            # -- 2. Cuotas de prestamo ---------------------------------
-            loan_lines = rec.deduction_line_ids.filtered(lambda l: l.loan_installment_id)
-            for line in loan_lines:
-                inst = line.loan_installment_id
-                if inst and inst.state == 'deducted' and inst.payslip_id.id == rec.id:
-                    inst.write({'state': 'pending', 'payslip_id': False})
-                    # Si el prestamo quedo marcado como pagado, revertirlo a activo
-                    if inst.loan_id and inst.loan_id.state == 'paid':
-                        inst.loan_id.write({'state': 'active'})
-
-            # -- 3. Horas extra ----------------------------------------
-            overtime_paid = rec.overtime_ids.filtered(lambda o: o.state == 'paid')
-            if overtime_paid:
-                overtime_paid.write({'state': 'approved'})
-
-            # -- 4. Vacaciones pagadas ---------------------------------
-            vac_paid = rec.vacation_ids.filtered(lambda v: v.state == 'paid')
-            if vac_paid:
-                vac_paid.write({'state': 'approved'})
-
-            # -- 5. Licencias especiales CR ----------------------------
-            leave_paid = rec.leave_cr_ids.filtered(lambda l: l.state == 'paid')
-            if leave_paid:
-                leave_paid.write({'state': 'approved', 'payslip_id': False})
-
-            # -- 6. Incapacidades --------------------------------------
-            disab_paid = rec.disability_ids.filtered(lambda d: d.state == 'paid')
-            if disab_paid:
-                disab_paid.write({'state': 'confirmed'})
+        # Cancelar solo las boletas que no estan ya canceladas
+        # (las canceladas ya tuvieron su cleanup en action_cancel anterior)
+        to_cancel = self.filtered(lambda r: r.state != 'cancelled')
+        if to_cancel:
+            to_cancel.action_cancel()
 
         return super().unlink()
+
 
     @api.constrains('date_from', 'date_to')
     def _check_dates(self):

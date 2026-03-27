@@ -889,6 +889,52 @@ class PayrollRunCR(models.Model):
             'domain': [('payroll_run_id', '=', self.id)],
         }
 
+    def action_sync_all_draft(self):
+        """
+        Sincroniza novedades de TODAS las boletas en estado Borrador de esta planilla.
+        Equivale a presionar "Sincronizar Novedades" en cada boleta individual.
+        Las boletas Confirmadas o Pagadas NO son tocadas.
+        """
+        self.ensure_one()
+        draft_slips = self.payslip_ids.filtered(lambda p: p.state == 'draft')
+        if not draft_slips:
+            raise UserError('No hay boletas en estado Borrador para sincronizar.')
+        draft_slips.action_sync_novedades()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Sincronizacion completada',
+                'message': f'{len(draft_slips)} boleta(s) en borrador sincronizadas. '
+                           'Las boletas confirmadas o pagadas no fueron modificadas.',
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    def action_recalculate_all_draft(self):
+        """
+        Recalcula TODAS las boletas en estado Borrador de esta planilla.
+        Equivale a presionar "Recalcular" en cada boleta individual.
+        Las boletas Confirmadas o Pagadas NO son tocadas.
+        """
+        self.ensure_one()
+        draft_slips = self.payslip_ids.filtered(lambda p: p.state == 'draft')
+        if not draft_slips:
+            raise UserError('No hay boletas en estado Borrador para recalcular.')
+        draft_slips.action_recalculate()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Recalculo completado',
+                'message': f'{len(draft_slips)} boleta(s) en borrador recalculadas. '
+                           'Las boletas confirmadas o pagadas no fueron modificadas.',
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
     def action_cancel(self):
         # FIX v512 BP-02: ensure_one() consistente con otros metodos del modelo
         self.ensure_one()
@@ -899,20 +945,18 @@ class PayrollRunCR(models.Model):
         for rec in self:
             if rec.move_id and rec.move_id.state == 'posted':
                 raise UserError(
-                    f'No se puede eliminar la planilla "{rec.name}" porque tiene un asiento contable '
-                    f'publicado (#{rec.move_id.name}). '
-                    'Primero revierta o cancele el asiento desde Contabilidad.'
+                    'No se puede eliminar la planilla "%s" porque tiene un asiento contable '
+                    'publicado. Primero revierta o cancele el asiento desde Contabilidad.' % rec.name
                 )
-            # FIX BUG-UNLINK-01: llamar action_cancel en las boletas antes de borrarlas
-            # para que el unlink() de PayslipCR restaure todos los objetos vinculados
-            # (prestamos, HE, vacaciones, incapacidades, cobros, licencias).
-            # Sin esto, el cascade delete de la BD borraba las boletas sin pasar por
-            # el ORM de Odoo, dejando huerfanos en todos los modelos relacionados.
-            slips_to_clean = rec.payslip_ids.filtered(
-                lambda p: p.state not in ('cancelled',)
-            )
-            if slips_to_clean:
-                slips_to_clean.action_cancel()
+        # Cancelar TODAS las boletas activas de TODAS las planillas a borrar
+        # en un solo batch ANTES de que super().unlink() dispare el cascade de BD.
+        # Esto garantiza que action_cancel() corra en Python (con toda su logica
+        # de cleanup) antes de que PostgreSQL borre las lineas en cascada.
+        all_slips = self.mapped('payslip_ids').filtered(
+            lambda p: p.state != 'cancelled'
+        )
+        if all_slips:
+            all_slips.action_cancel()
         return super().unlink()
 
     def action_reset_to_draft(self):
