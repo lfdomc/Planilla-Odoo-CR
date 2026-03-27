@@ -256,25 +256,39 @@
                                 <div invisible="disability_days_in_period == 0"
                                      style="background:var(--color-background-warning);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
                                     <div style="font-size:13px;font-weight:500;color:var(--color-text-warning);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Incapacidades del Período</div>
+
+                                    <!-- Nota cuando la incapacidad viene de un período anterior -->
+                                    <div invisible="not incap_viene_de_anterior"
+                                         style="font-size:12px;color:var(--color-text-warning);background:rgba(255,193,7,0.12);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--color-text-warning);">
+                                        ℹ️ <field name="nota_incap_anterior" readonly="1" nolabel="1" style="display:inline;"/>
+                                    </div>
+
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Días de incapacidad en este período</td>
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">
+                                                Días de incapacidad en este período
+                                                <span invisible="not incap_viene_de_anterior" style="font-size:11px;opacity:.75;"> (continuación de período anterior)</span>
+                                            </td>
                                             <td style="text-align:right;"><field name="disability_days_in_period" readonly="1" nolabel="1"/> días</td>
                                         </tr>
-                                        <!-- Días 1-3: costo patrono (50%) — visible solo cuando hay costo patrono -->
+                                        <!-- Días 1-3 patrono — solo si aplica en este período -->
                                         <tr invisible="costo_patrono_periodo == 0">
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">
                                                 Subsidio patrono días 1–3 (50% — Art. 79 CT)
-                                                <span style="font-size:11px;opacity:.75;display:block;">
-                                                    No es salario → no genera cargas CCSS ni Renta
-                                                </span>
+                                                <span style="font-size:11px;opacity:.75;display:block;">No es salario → no genera cargas CCSS ni Renta</span>
                                             </td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="costo_patrono_periodo" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                        <!-- Días 4+: subsidio CCSS — visible solo cuando hay subsidio CCSS -->
+                                        <!-- Nota cuando costo patrono = 0 por ser prórroga -->
+                                        <tr invisible="costo_patrono_periodo != 0 or not incap_viene_de_anterior">
+                                            <td colspan="2" style="padding:3px 0;font-size:11px;color:var(--color-text-secondary);font-style:italic;">
+                                                Tramo patronal (días 1–3): ₡0 — ya aplicado en el período anterior (Art. 79 CT)
+                                            </td>
+                                        </tr>
+                                        <!-- Subsidio CCSS -->
                                         <tr invisible="ccss_subsidy_total == 0">
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">
-                                                Subsidio CCSS días 4+ (no es salario, no genera cargas)
+                                                Subsidio CCSS (60% — no es salario, no genera cargas)
                                             </td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="ccss_subsidy_total" readonly="1" nolabel="1"/></td>
                                         </tr>
@@ -406,13 +420,59 @@
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Total Deducciones Obrero</td>
                                             <td style="text-align:right;color:var(--color-text-danger);"><field name="total_employee_deductions" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                        <tr style="font-size:16px;font-weight:500;">
+
+                                        <!-- Sin incapacidad: fila única de neto -->
+                                        <tr invisible="disability_days_in_period != 0" style="font-size:16px;font-weight:500;">
                                             <td style="padding:8px 0;" invisible="effective_frequency != 'monthly'">Salario Neto Mensual a Recibir</td>
                                             <td style="padding:8px 0;" invisible="effective_frequency != 'biweekly'">Salario Neto Quincenal a Recibir</td>
                                             <td style="padding:8px 0;" invisible="effective_frequency != 'weekly'">Salario Neto Semanal a Recibir</td>
                                             <td style="padding:8px 0;" invisible="effective_frequency != 'bimonthly'">Salario Neto Bimensual a Recibir</td>
                                             <td style="text-align:right;color:var(--color-text-success);"><field name="net_salary" readonly="1" nolabel="1"/></td>
                                         </tr>
+
+                                        <!-- Con incapacidad (cualquier tipo): desglosar patrono vs CCSS -->
+                                        <tr invisible="disability_days_in_period == 0" style="font-size:15px;font-weight:500;border-top:1.5px solid var(--color-border-secondary);">
+                                            <td colspan="2" style="padding:6px 0 2px;font-size:12px;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;">
+                                                Desglose de pago (Patrono + CCSS)
+                                            </td>
+                                        </tr>
+                                        <!-- ① Neto por el Patrono -->
+                                        <tr invisible="disability_days_in_period == 0" style="font-size:15px;font-weight:500;">
+                                            <td style="padding:4px 0;" invisible="effective_frequency != 'monthly'">① Neto Mensual — pago del Patrono</td>
+                                            <td style="padding:4px 0;" invisible="effective_frequency != 'biweekly'">① Neto Quincenal — pago del Patrono</td>
+                                            <td style="padding:4px 0;" invisible="effective_frequency != 'weekly'">① Neto Semanal — pago del Patrono</td>
+                                            <td style="padding:4px 0;" invisible="effective_frequency != 'bimonthly'">① Neto Bimensual — pago del Patrono</td>
+                                            <td style="text-align:right;color:var(--color-text-success);"><field name="neto_por_patrono" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <!-- ② Subsidio CCSS — con nota si es ₡0 (días 1-3 únicamente) -->
+                                        <tr invisible="disability_days_in_period == 0" style="font-size:15px;font-weight:500;">
+                                            <td style="padding:4px 0;" invisible="effective_frequency != 'monthly'">
+                                                ② Subsidio Mensual — pago de la CCSS
+                                                <span invisible="neto_por_ccss != 0" style="font-size:11px;font-weight:400;opacity:.75;"> (₡0 — días 1–3 a cargo del patrono, Art. 79 CT)</span>
+                                            </td>
+                                            <td style="padding:4px 0;" invisible="effective_frequency != 'biweekly'">
+                                                ② Subsidio Quincenal — pago de la CCSS
+                                                <span invisible="neto_por_ccss != 0" style="font-size:11px;font-weight:400;opacity:.75;"> (₡0 — días 1–3 a cargo del patrono, Art. 79 CT)</span>
+                                            </td>
+                                            <td style="padding:4px 0;" invisible="effective_frequency != 'weekly'">
+                                                ② Subsidio Semanal — pago de la CCSS
+                                                <span invisible="neto_por_ccss != 0" style="font-size:11px;font-weight:400;opacity:.75;"> (₡0 — días 1–3 a cargo del patrono, Art. 79 CT)</span>
+                                            </td>
+                                            <td style="padding:4px 0;" invisible="effective_frequency != 'bimonthly'">
+                                                ② Subsidio Bimensual — pago de la CCSS
+                                                <span invisible="neto_por_ccss != 0" style="font-size:11px;font-weight:400;opacity:.75;"> (₡0 — días 1–3 a cargo del patrono, Art. 79 CT)</span>
+                                            </td>
+                                            <td style="text-align:right;color:var(--color-text-info);"><field name="neto_por_ccss" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <!-- Total -->
+                                        <tr invisible="disability_days_in_period == 0" style="font-size:16px;font-weight:500;border-top:1.5px solid var(--color-border-secondary);">
+                                            <td style="padding:6px 0;" invisible="effective_frequency != 'monthly'">Total Neto Mensual a Recibir</td>
+                                            <td style="padding:6px 0;" invisible="effective_frequency != 'biweekly'">Total Neto Quincenal a Recibir</td>
+                                            <td style="padding:6px 0;" invisible="effective_frequency != 'weekly'">Total Neto Semanal a Recibir</td>
+                                            <td style="padding:6px 0;" invisible="effective_frequency != 'bimonthly'">Total Neto Bimensual a Recibir</td>
+                                            <td style="text-align:right;color:var(--color-text-success);"><field name="net_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+
                                         <tr invisible="salary_payable == net_salary" style="font-size:15px;font-weight:500;">
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Monto a Depositar (neto − otras deducciones)</td>
                                             <td style="text-align:right;color:var(--color-text-info);"><field name="salary_payable" readonly="1" nolabel="1"/></td>

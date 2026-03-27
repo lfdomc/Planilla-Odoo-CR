@@ -233,6 +233,21 @@ class PayslipCR(models.Model):
         help='Monto neto a depositar al empleado '
              '(neto menos préstamos, embargos y deducciones adicionales).'
     )
+    neto_por_patrono = fields.Monetary(
+        string='Neto por Patrono', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+        help='Monto que el PATRONO deposita directamente al empleado.\n'
+             'Fórmula: Salario Bruto − Deducciones Obrero + ingresos adicionales\n'
+             '(excluye subsidio CCSS — ese lo deposita la CCSS directamente).\n'
+             'Solo visible cuando hay incapacidades con subsidio CCSS.'
+    )
+    neto_por_ccss = fields.Monetary(
+        string='Neto por CCSS', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+        help='Monto que la CCSS deposita al empleado por subsidio de incapacidad.\n'
+             'Art. 79 CT (incapacidad normal días 4+) o Art. 94 CT (maternidad).\n'
+             'Solo visible cuando hay incapacidades con subsidio CCSS.'
+    )
     cost_per_net_colon = fields.Float(
         string='₡ Costo/₡ Neto', digits=(6, 2),
         compute='_compute_totals', store=True,
@@ -272,7 +287,18 @@ class PayslipCR(models.Model):
     ccss_subsidy_total = fields.Monetary(
         string='Subsidio CCSS (Incapacidades)', currency_field='currency_id',
         compute='_compute_extras', store=True,
-        help='Monto que cubre la CCSS por incapacidades > 3 días.'
+        help='Monto que cubre la CCSS por incapacidades (días 4+, maternidad).\n'
+             'Solo aplica a tipos CCSS — NO incluye INS.\n'
+             'Este monto sí pasa por planilla (el patrono puede adelantarlo).'
+    )
+    ins_subsidy_total = fields.Monetary(
+        string='Subsidio INS (Riesgo Laboral)', currency_field='currency_id',
+        compute='_compute_extras', store=True,
+        help='Monto que cubre el INS por incapacidad de riesgo laboral.\n'
+             'El INS paga DIRECTAMENTE al empleado — NO pasa por planilla.\n'
+             'Se registra aquí como referencia informativa.\n'
+             'Base legal: Art. 218 CT / Regl. Seguro Riesgos del Trabajo.\n'
+             'Tasa: 60% del salario asegurado desde el día 1 (sin carencia).'
     )
     employer_disability_cost = fields.Monetary(
         string='Costo Patrono por Incapacidades', currency_field='currency_id',
@@ -285,6 +311,18 @@ class PayslipCR(models.Model):
         help='Monto a cargo del patrono por los días de incapacidad que caen\n'
              'DENTRO de este período de boleta (días 1-3 al 50%).\n'
              'Este monto reduce la base cotizable: no es salario → no genera cargas.'
+    )
+    incap_viene_de_anterior = fields.Boolean(
+        string='Incapacidad de período anterior',
+        compute='_compute_extras', store=True,
+        help='True si alguna incapacidad activa en este período inició antes de '
+             'la fecha de inicio de la boleta. Indica que es continuación de un '
+             'evento de un período/mes anterior.'
+    )
+    nota_incap_anterior = fields.Char(
+        string='Nota de período anterior',
+        compute='_compute_extras', store=True,
+        help='Nota informativa cuando la incapacidad viene de un período anterior.'
     )
     salario_cotizable = fields.Monetary(
         string='Salario Cotizable (incapacidad)', currency_field='currency_id',

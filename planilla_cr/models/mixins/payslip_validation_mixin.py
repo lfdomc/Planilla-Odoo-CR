@@ -159,8 +159,8 @@ class PayslipValidationMixin(models.AbstractModel):
                 licencias_con_goce, 2  # FIX-AUD-03: duelo, matrimonio, paternidad, etc.
             )
             # Salario Neto = Bruto − TODAS las deducciones del obrero
-            # + subsidio CCSS + paternidad + ingresos adicionales (incl. licencias con goce)
-            # − licencias sin goce (ya están en extra_deductions → total_employee_deductions)
+            # + subsidio CCSS (pasa por planilla) + paternidad + ingresos adicionales
+            # NOTA: ins_subsidy_total NO suma al neto — el INS paga directamente al empleado
             rec.net_salary = round(
                 (rec.gross_salary or 0.0) - rec.total_employee_deductions +
                 (rec.ccss_subsidy_total or 0.0) +
@@ -168,6 +168,22 @@ class PayslipValidationMixin(models.AbstractModel):
                 extra_income, 2
             )
             rec.salary_payable = rec.net_salary
+
+            # ── Desglose patrono vs CCSS/INS (todos los tipos de incapacidad) ──
+            ccss_sub = rec.ccss_subsidy_total or 0.0
+            ins_sub  = rec.ins_subsidy_total  or 0.0
+            if rec.disability_days_in_period:
+                rec.neto_por_patrono = round(
+                    (rec.gross_salary or 0.0) - rec.total_employee_deductions +
+                    (rec.paternity_amount or 0.0) +
+                    extra_income, 2
+                )
+                # Para INS: el subsidio es informativo (paga fuera de planilla)
+                # Para CCSS/Maternidad: subsidio pasa por planilla
+                rec.neto_por_ccss = ccss_sub + ins_sub  # total subsidiado (CCSS + INS)
+            else:
+                rec.neto_por_patrono = 0.0
+                rec.neto_por_ccss    = 0.0
 
             if rec.salary_payable and rec.salary_payable > 0:
                 rec.cost_per_net_colon = round(rec.total_employer_cost / rec.salary_payable, 2)

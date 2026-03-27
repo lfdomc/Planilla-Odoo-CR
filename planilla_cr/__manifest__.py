@@ -1,7 +1,144 @@
 {
-    'name': 'Sistema Planilla v5.28.14-PROD',
-    'version': '19.0.5.28.14',
-    # ── Changelog v5.28.14 (Prórroga en disability — fix desde el origen) ────
+    'name': 'Sistema Planilla v5.28.20-PROD',
+    'version': '19.0.5.28.20',
+    # ── Changelog v5.28.20 (Fix warning fa-info-circle sin title) ────────────
+    # WARNING Odoo 19: "A <i> with fa class (fa fa-info-circle) must have title"
+    # disability_views.xml línea 89 — agregado title="Información sobre prórroga"
+    # Sin impacto funcional. El módulo cargaba bien pero generaba warning en log.
+    # ── Changelog v5.28.19 (Fix INS — separar de CCSS, lógica correcta) ─────
+    # DIFERENCIAS LEGALES INS vs CCSS:
+    #   CCSS Enfermedad (Art. 79 CT):
+    #     - Días 1-3: patrono paga 50%, CCSS 50%
+    #     - Días 4+:  CCSS paga 60%
+    #     - Pasa por planilla (patrono puede adelantar)
+    #
+    #   INS Riesgo Laboral (Art. 218 CT / Regl. Seguro RT):
+    #     - Día 1+: INS paga desde el PRIMER DÍA (sin carencia patronal)
+    #     - Tasa:   60% del salario asegurado (igual que CCSS días 4+)
+    #     - Paga FUERA de planilla — INS deposita directamente al empleado
+    #     - Patrono: ₡0 de costo de subsidio (pagó la prima del seguro)
+    #     - Base CCSS: ₡0 (no hay salario que reportar)
+    #
+    # FIX-01: disability._compute_costs() — INS: aplica subsidy_percentage/100
+    #   (60%) en lugar de días×daily sin tasa. employer_cost=₡0 sin cambio.
+    # FIX-02: disability._onchange_disability_type() — INS: subsidy_percentage
+    #   cambia de 100.0 a 60.0 (tasa legal correcta del seguro RT).
+    # NEW-01: payslip_cr — campo ins_subsidy_total (Monetary, computed, stored).
+    #   Acumula el subsidio INS del período. Separado de ccss_subsidy_total.
+    # MOD-01: payslip_compute_mixin._compute_extras() — INS va a
+    #   ins_subsidy_periodo (no a ccss_subsidy_periodo). El INS no afecta
+    #   la base cotizable CCSS. Para INS total: salario_cotizable = ₡0.
+    # MOD-02: payslip_validation_mixin._compute_totals() — net_salary solo
+    #   suma ccss_subsidy_total (NO ins_subsidy_total, porque el INS paga
+    #   fuera de planilla). neto_por_ccss = ccss_sub + ins_sub (ambos
+    #   informativos para el desglose ①/②).
+    # RESULTADO para empleado con INS 10 días:
+    #   Salario Bruto:          ₡0.00 (INS cubre 100% del período)
+    #   Salario cotizable CCSS: ₡0.00
+    #   CCSS Obrero:            ₡0.00
+    #   ① Neto Patrono:         ₡0.00
+    #   ② Subsidio INS (fuera planilla): ₡156,000.00 (referencia)
+    #   Neto planilla:          ₡0.00
+    # ── Changelog v5.28.18 (Desglose todos los tipos incapacidad) ────────────
+    # MEJORA: El desglose ① Patrono / ② CCSS ahora se muestra para todos los
+    #   tipos de incapacidad, no solo cuando ccss_subsidy > 0.
+    # MOD-01: _compute_totals — neto_por_patrono y neto_por_ccss se calculan
+    #   cuando disability_days_in_period > 0 (cualquier tipo de incapacidad).
+    #   Para incapacidad días 1-3: ① = neto completo, ② = ₡0 (CCSS no paga)
+    #   Para incapacidad días 4+:  ① = neto patrono, ② = subsidio CCSS
+    #   Para maternidad total:     ① = ₡0,            ② = subsidio CCSS
+    # MOD-02: payslip_cr_views — condición cambiada de neto_por_ccss!=0 a
+    #   disability_days_in_period!=0. La fila ② muestra nota aclaratoria
+    #   "(₡0 — días 1–3 a cargo del patrono, Art. 79 CT)" cuando es ₡0.
+    # ESCENARIOS:
+    #   Gonzalo (2 días, no prórroga):
+    #     ① Neto Quincenal — pago del Patrono: ₡228,869.67
+    #     ② Subsidio Quincenal — pago de la CCSS: ₡0.00 (días 1–3, Art. 79 CT)
+    #     Total: ₡228,869.67
+    #   Gonzalo (9 días, 3 patrono + 6 CCSS):
+    #     ① Neto Quincenal — pago del Patrono: ₡X
+    #     ② Subsidio Quincenal — pago de la CCSS: ₡Y
+    #     Total: ₡X+Y
+    #   Raichel (13 días prórroga, todo CCSS):
+    #     ① Neto Quincenal — pago del Patrono: ₡23,184.20
+    #     ② Subsidio Quincenal — pago de la CCSS: ₡101,400.00
+    #     Total: ₡124,584.20
+    #   Karla (maternidad total):
+    #     ① Neto Quincenal — pago del Patrono: ₡0.00
+    #     ② Subsidio Quincenal — pago de la CCSS: ₡187,500.00
+    #     Total: ₡187,500.00
+    # ── Changelog v5.28.17 (Desglose neto patrono vs CCSS) ───────────────────
+    # MEJORA: Cuando hay subsidio CCSS (incapacidad días 4+ o maternidad), el
+    #   Resumen Completo ahora muestra el neto desglosado en dos fuentes:
+    #   ① Neto por Patrono — lo que la empresa deposita directamente al empleado
+    #   ② Subsidio por CCSS — lo que la CCSS deposita al empleado
+    #   Total Neto = ① + ② (igual al net_salary actual)
+    # NEW-01: payslip_cr — campo neto_por_patrono (Monetary, compute_totals):
+    #   gross_salary − total_employee_deductions + paternity + extra_income
+    #   (excluye ccss_subsidy_total — ese es el pago directo de la CCSS)
+    # NEW-02: payslip_cr — campo neto_por_ccss (Monetary, compute_totals):
+    #   = ccss_subsidy_total (subsidio que la CCSS paga al empleado)
+    #   Ambos son ₡0 cuando no hay subsidio (boleta sin incapacidad).
+    # MOD-01: _compute_totals — calcula neto_por_patrono y neto_por_ccss
+    #   solo cuando ccss_subsidy_total > 0.
+    # MOD-02: payslip_cr_views — bloque "RESULTADO OBRERO" del Resumen:
+    #   Sin subsidio CCSS → fila única "Salario Neto ... a Recibir" (igual que antes)
+    #   Con subsidio CCSS → tres filas:
+    #     ① Neto ... — pago del Patrono  (verde)
+    #     ② Subsidio ... — pago de la CCSS (azul)
+    #     Total Neto ... a Recibir (verde, suma de ambos)
+    # RESULTADO para Raichel (1-15 mar):
+    #   ① Neto Quincenal — pago del Patrono:  ₡23,184.20
+    #   ② Subsidio Quincenal — pago de la CCSS: ₡101,400.00
+    #   Total Neto Quincenal a Recibir: ₡124,584.20
+    # ── Changelog v5.28.16 (Nota período anterior en incapacidades) ──────────
+    # MEJORA: El Resumen Completo ahora muestra una nota informativa cuando
+    #   una incapacidad inició en un período anterior y continúa en el actual.
+    # NEW-01: payslip_cr — campo incap_viene_de_anterior (Boolean, computed,
+    #   stored). True si alguna incapacidad activa en el período inició antes
+    #   de date_from de la boleta.
+    # NEW-02: payslip_cr — campo nota_incap_anterior (Char, computed, stored).
+    #   Texto explicativo. Si es prórroga y costo_patrono=₡0:
+    #     "Prórroga de incapacidad iniciada el DD/MM/YYYY. Los 3 días del tramo
+    #      patronal (Art. 79 CT) ya se aplicaron en el período anterior — no
+    #      generan costo patronal en esta quincena."
+    #   Si viene de anterior pero no es prórroga:
+    #     "Incapacidad iniciada el DD/MM/YYYY, continúa en este período."
+    # MOD-01: _compute_extras — calcula incap_viene_de_anterior y nota_incap_anterior
+    #   detectando qué registros tienen date_start < date_from de la boleta.
+    # MOD-02: payslip_cr_views — bloque Incapacidades del Resumen:
+    #   • Caja naranja con nota cuando incap_viene_de_anterior=True.
+    #   • Días en período: añade "(continuación de período anterior)" si aplica.
+    #   • Nueva fila "Tramo patronal: ₡0 — ya aplicado en período anterior"
+    #     cuando costo_patrono=₡0 y hay incapacidad de período anterior.
+    #   • Etiqueta CCSS simplificada: "Subsidio CCSS (60%)".
+    # RESULTADO para Raichel (1-15 mar):
+    #   Nota naranja: "Prórroga de incapacidad iniciada el 26/02/2026. Los 3
+    #   días del tramo patronal ya se aplicaron en el período anterior..."
+    #   Días: 13 días (continuación de período anterior)
+    #   Tramo patronal: ₡0 — ya aplicado en período anterior
+    #   Subsidio CCSS (60%): − ₡101,400.00
+    # ── Changelog v5.28.15 (Fix salario_cotizable usa costo_patrono_periodo) ─
+    # BUG: _compute_extras calculaba salario_cotizable con la fórmula vieja:
+    #   dias_patrono = min(dias_incap_periodo, 3)
+    #   salario_cotizable = dias_trabajados × diario + dias_patrono × diario × 50%
+    #   Para Raichel (prórroga, costo_patrono=₡0):
+    #   dias_patrono = min(13, 3) = 3 → añadía ₡19,500 falsos al cotizable
+    #   Resultado: sal_cotizable=₡45,500 en lugar de ₡26,000
+    #   gross_salary=₡45,500, neto=₡141,972 en lugar de ₡124,584
+    # FIX: reemplazar la fórmula vieja por:
+    #   salario_cotizable = días_trabajados × diario + costo_patrono_periodo
+    #   costo_patrono_periodo ya fue calculado correctamente en el mismo loop
+    #   con la lógica de grupos (días_since_group_start → respeta prórrogas).
+    #   Para prórroga: costo_patrono_periodo=₡0 → sal_cot = solo días trabajados.
+    #   Para incapacidad nueva: costo_patrono_periodo=días_1-3×diario×50%.
+    # RESULTADO para Raichel (1-15 mar, prórroga):
+    #   sal_cotizable: ₡26,000 (2 días × ₡13,000)  ← antes ₡45,500
+    #   CCSS Obrero:   ₡2,815.80                   ← antes ₡4,927.65
+    #   Neto:          ₡124,584.20                  ← antes ₡141,972.35
+    # Sin impacto en Gonzalo (incapacidad nueva, no prórroga):
+    #   costo_patrono_periodo=₡18,333.33 → sal_cot=₡256,666.67 (sin cambio) ✓
+    # ── Changelog v5.28.14 (Fix prórroga desde el origen — disability.py) ────
     # PROBLEMA: La v5.28.13 corregía el cálculo en la boleta, pero el registro
     #   de incapacidad seguía mostrando employer_cost=₡19,500 para la prórroga.
     #   El error era visible en la pantalla y confundía al usuario.

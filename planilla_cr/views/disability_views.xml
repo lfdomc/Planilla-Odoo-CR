@@ -132,7 +132,7 @@
                     </group>
                     <div class="alert alert-warning" role="alert"
                          invisible="not is_prorroga">
-                        <i class="fa fa-info-circle"/> <strong>Prórroga del mismo evento:</strong>
+                        <i class="fa fa-info-circle" title="Información sobre prórroga"/> <strong>Prórroga del mismo evento:</strong>
                         Los 3 días del tramo patronal (Art. 79 CT) ya se agotaron en el certificado original.
                         El patrono NO paga subsidio en esta incapacidad — todo el costo es a cargo de la CCSS (60%).
                     </div>

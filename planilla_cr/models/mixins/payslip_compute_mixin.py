@@ -174,8 +174,9 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.employer_disability_cost = round(sum(d.employer_cost for d in active_dis), 2)
 
             # ── BUG FIX MATERNIDAD: calcular subsidio y cotizable por período ──
-            dias_incap_periodo   = 0
-            ccss_subsidy_periodo = 0.0
+            dias_incap_periodo    = 0
+            ccss_subsidy_periodo  = 0.0
+            ins_subsidy_periodo   = 0.0  # INS paga fuera de planilla
             costo_patrono_periodo = 0.0  # días 1-3 a cargo del patrono en este período
 
             if rec.date_from and rec.date_to:
@@ -218,25 +219,65 @@ class PayslipComputeMixin(models.AbstractModel):
                         else:
                             daily = dis.daily_salary or 0.0
 
-                        if dis.disability_type == 'maternity':
+                        if dis.disability_type == 'ins':
+                            # INS - Riesgo Laboral (Art. 218 CT):
+                            # • Cubre desde el DÍA 1 sin carencia patronal.
+                            # • 60% del salario asegurado (subsidy_percentage=60).
+                            # • Paga FUERA de planilla → va a ins_subsidy_periodo.
+                            # • No afecta salario_cotizable CCSS (base=₡0 en planilla).
+                            # • Patrono: ₡0, no hay días carencia.
+                            ins_rate = (dis.subsidy_percentage or 60.0) / 100.0
+                            ins_subsidy_periodo += round(dias_overlap * daily * ins_rate, 2)
+                            # dias_patrono y subsidiados = 0 para CCSS (no aplica)
+                        elif dis.disability_type == 'maternity':
                             dias_patrono_overlap     = 0
                             dias_subsidiados_overlap = dias_overlap
                             subsidy_rate = 1.0
+                            ccss_subsidy_periodo += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
                         else:
-                            # Días del tramo patronal contados desde inicio del GRUPO
-                            # (no desde inicio del registro individual — maneja prórrogas)
+                            # CCSS Enfermedad/Accidente (Art. 79 CT)
                             days_since_group_start = (overlap_start - group_start).days
                             employer_remaining = max(3 - days_since_group_start, 0)
                             dias_patrono_overlap     = min(dias_overlap, employer_remaining)
                             dias_subsidiados_overlap = dias_overlap - dias_patrono_overlap
                             subsidy_rate = (dis.subsidy_percentage or 60.0) / 100.0
                             costo_patrono_periodo += round(dias_patrono_overlap * daily * 0.50, 2)
-
-                        ccss_subsidy_periodo += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
+                            ccss_subsidy_periodo   += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
 
             rec.disability_days_in_period = dias_incap_periodo
             rec.ccss_subsidy_total  = round(ccss_subsidy_periodo, 2)
+            rec.ins_subsidy_total   = round(ins_subsidy_periodo, 2)
             rec.costo_patrono_periodo = round(costo_patrono_periodo, 2)
+
+            # Detectar si alguna incapacidad viene de un período anterior
+            viene_de_anterior = False
+            fechas_anteriores = []
+            if rec.date_from:
+                for dis in active_dis:
+                    if not dis.date_start or not dis.date_end:
+                        continue
+                    ov_s = max(rec.date_from, dis.date_start)
+                    ov_e = min(rec.date_to or dis.date_end, dis.date_end)
+                    if ov_e >= ov_s and dis.date_start < rec.date_from:
+                        viene_de_anterior = True
+                        fechas_anteriores.append(
+                            f"{dis.date_start.strftime('%d/%m/%Y')} → {dis.date_end.strftime('%d/%m/%Y')}"
+                        )
+            rec.incap_viene_de_anterior = viene_de_anterior
+            if viene_de_anterior and costo_patrono_periodo == 0.0:
+                rec.nota_incap_anterior = (
+                    f"Prórroga de incapacidad iniciada el {fechas_anteriores[0].split(' → ')[0]}. "
+                    f"Los 3 días del tramo patronal (Art. 79 CT) ya se aplicaron en el período anterior — "
+                    f"no generan costo patronal en esta quincena."
+                )
+            elif viene_de_anterior:
+                rec.nota_incap_anterior = (
+                    f"Incapacidad iniciada el {fechas_anteriores[0].split(' → ')[0]}, "
+                    f"continúa en este período."
+                )
+            else:
+                rec.nota_incap_anterior = ""
+
 
             # ── Salario cotizable por período ────────────────────────────────
             emp = rec.employee_id
@@ -245,27 +286,36 @@ class PayslipComputeMixin(models.AbstractModel):
                 dias_periodo    = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else K.DIAS_MES
                 dias_trabajados = max(dias_periodo - dias_incap_periodo, 0)
 
-                # BUG FIX 2: para maternidad, patrono paga ₡0 — base cotizable = ₡0
-                # Para incapacidad normal, patrono paga días 1-3 al 50% (Art. 79 CT)
-                es_maternidad_total = all(
-                    d.disability_type == 'maternity'
-                    for d in active_dis
+                # Detectar tipo de incapacidad dominante en el período
+                dis_in_per = [
+                    d for d in active_dis
                     if d.date_start and d.date_end
                     and max(rec.date_from, d.date_start) <= min(rec.date_to, d.date_end)
+                ]
+                es_maternidad_total = (
+                    all(d.disability_type == 'maternity' for d in dis_in_per)
+                    and dias_trabajados == 0
                 )
-                if es_maternidad_total and dias_trabajados == 0:
-                    # Período completo de maternidad: patrono no paga nada
+                es_ins_total = (
+                    all(d.disability_type == 'ins' for d in dis_in_per)
+                    and dias_trabajados == 0
+                )
+
+                if es_maternidad_total:
+                    # Maternidad: patrono no paga salario
                     rec.salario_cotizable = 0.0
-                elif es_maternidad_total and dias_trabajados > 0:
-                    # Período mixto: algunos días trabajados + maternidad
-                    # Solo los días trabajados generan base cotizable
-                    rec.salario_cotizable = round(dias_trabajados * salario_diario, 2)
+                elif es_ins_total:
+                    # INS total: el INS paga fuera de planilla.
+                    # Base cotizable CCSS = ₡0 (no hay salario que reportar).
+                    rec.salario_cotizable = 0.0
                 else:
-                    # Incapacidad normal: días 1-3 al 50% (Art. 79 CT)
-                    dias_patrono = min(dias_incap_periodo, 3)
+                    # Incapacidad normal CCSS o mixta: usar costo_patrono_periodo
+                    # con lógica de grupos (prorrogas). Este valor ya considera
+                    # correctamente si los días 1-3 del patrono cayeron en un
+                    # período anterior (prórroga → costo_patrono_periodo = 0).
+                    # NO usar min(dias_incap, 3) que ignora las prórrogas.
                     rec.salario_cotizable = round(
-                        (dias_trabajados * salario_diario) +
-                        (dias_patrono    * salario_diario * 0.50),
+                        (dias_trabajados * salario_diario) + costo_patrono_periodo,
                         2
                     )
             else:

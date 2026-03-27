@@ -198,8 +198,17 @@ class Disability(models.Model):
                 rec.employer_cost = 0.0
                 rec.ccss_subsidy = round(rec.days * daily, 2)
             elif rec.disability_type == 'ins':
+                # INS - Riesgo Laboral (Art. 218 CT / Regl. Seguro Riesgos del Trabajo):
+                # • El INS cubre desde el DÍA 1 (sin período de carencia patronal).
+                # • El INS paga 60% del salario asegurado (igual que CCSS días 4+).
+                # • El patrono NO paga ningún subsidio — employer_cost = ₡0.
+                # • El INS paga DIRECTAMENTE al empleado, fuera de planilla.
+                # • En planilla solo se registra el subsidio como referencia informativa.
+                # • Tasa: 60% del salario diario (subsidy_percentage configurado en 100
+                #   por defecto — CORRECCIÓN: debe ser 60% para INS ordinario).
                 rec.employer_cost = 0.0
-                rec.ccss_subsidy = round(rec.days * rec.daily_salary, 2)
+                ins_rate = (rec.subsidy_percentage or 60.0) / 100.0
+                rec.ccss_subsidy = round(rec.days * rec.daily_salary * ins_rate, 2)
             elif rec.is_prorroga:
                 # Prórroga: los 3 días del tramo patronal ya se agotaron en el
                 # certificado original. Todo el subsidio es a cargo de la CCSS.
@@ -291,7 +300,7 @@ class Disability(models.Model):
             self.subsidy_percentage = 60.0
             self.employer_percentage = 0.0  # FIX v512 AUD: complemento patronal NO obligatorio
         elif self.disability_type == 'ins':
-            self.subsidy_percentage = 100.0
+            self.subsidy_percentage = 60.0   # INS paga 60% del salario (Art. 218 CT)
             self.employer_percentage = 0.0
 
     @api.constrains('date_start', 'date_end')
