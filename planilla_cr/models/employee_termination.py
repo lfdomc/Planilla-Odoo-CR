@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 
 class EmployeeTermination(models.Model):
     _name = 'planilla.termination'
-    _description = 'Liquidación / Finiquito de Empleado'
+    _description = 'Liquidacion / Finiquito de Empleado'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'termination_date desc'
 
@@ -40,7 +40,7 @@ class EmployeeTermination(models.Model):
         ('fallecimiento',  'Fallecimiento'),
     ], string='Motivo de Salida', required=True)
 
-    # ── Salario base ────────────────────────────────────────────
+    # -- Salario base --------------------------------------------
     last_salary = fields.Monetary(
         string='Salario Bruto Mensual', currency_field='currency_id',
         required=True
@@ -49,50 +49,50 @@ class EmployeeTermination(models.Model):
         'res.currency', default=lambda self: self.env.ref('base.CRC')
     )
 
-    # ── Años y días de servicio (computed) ──────────────────────
+    # -- Anos y dias de servicio (computed) ----------------------
     years_service = fields.Float(
-        string='Años de Servicio', compute='_compute_service_time', store=True
+        string='Anos de Servicio', compute='_compute_service_time', store=True
     )
     months_service = fields.Integer(
         string='Meses de Servicio', compute='_compute_service_time', store=True
     )
     days_service = fields.Integer(
-        string='Días de Servicio', compute='_compute_service_time', store=True
+        string='Dias de Servicio', compute='_compute_service_time', store=True
     )
 
-    # ── Componentes liquidación ──────────────────────────────────
+    # -- Componentes liquidacion ----------------------------------
     preaviso_days = fields.Integer(
-        string='Días de Preaviso', compute='_compute_preaviso', store=True
+        string='Dias de Preaviso', compute='_compute_preaviso', store=True
     )
     preaviso_amount = fields.Monetary(
-        string='Monto Preaviso (₡)', currency_field='currency_id',
+        string='Monto Preaviso (CRC)', currency_field='currency_id',
         compute='_compute_amounts', store=True
     )
     preaviso_applies = fields.Boolean(
         string='Aplica Preaviso', default=True,
-        help='Desmarcar si el empleado ya trabajó el período de preaviso.'
+        help='Desmarcar si el empleado ya trabajo el periodo de preaviso.'
     )
 
     cesantia_amount = fields.Monetary(
-        string='Cesantía (₡)', currency_field='currency_id',
+        string='Cesantia (CRC)', currency_field='currency_id',
         compute='_compute_amounts', store=True
     )
     cesantia_applies = fields.Boolean(
-        string='Aplica Cesantía', compute='_compute_cesantia_applies', store=True
+        string='Aplica Cesantia', compute='_compute_cesantia_applies', store=True
     )
 
     # Vacaciones
     vacation_days_accrued = fields.Float(
-        string='Días Vacaciones Acumulados', compute='_compute_amounts', store=True
+        string='Dias Vacaciones Acumulados', compute='_compute_amounts', store=True
     )
     vacation_amount = fields.Monetary(
-        string='Vacaciones Proporcionales (₡)', currency_field='currency_id',
+        string='Vacaciones Proporcionales (CRC)', currency_field='currency_id',
         compute='_compute_amounts', store=True
     )
 
     # Aguinaldo proporcional
     aguinaldo_amount = fields.Monetary(
-        string='Aguinaldo Proporcional (₡)', currency_field='currency_id',
+        string='Aguinaldo Proporcional (CRC)', currency_field='currency_id',
         compute='_compute_amounts', store=True
     )
     aguinaldo_months = fields.Integer(
@@ -101,40 +101,40 @@ class EmployeeTermination(models.Model):
 
     # Otros
     other_payments = fields.Monetary(
-        string='Otros Pagos (₡)', currency_field='currency_id',
+        string='Otros Pagos (CRC)', currency_field='currency_id',
         help='Bonos, comisiones pendientes u otros conceptos.'
     )
-    other_payments_note = fields.Char(string='Descripción otros pagos')
+    other_payments_note = fields.Char(string='Descripcion otros pagos')
 
     deductions = fields.Monetary(
-        string='Deducciones (₡)', currency_field='currency_id',
-        help='Adelantos, préstamos u otras deducciones pendientes.'
+        string='Deducciones (CRC)', currency_field='currency_id',
+        help='Adelantos, prestamos u otras deducciones pendientes.'
     )
-    deductions_note = fields.Char(string='Descripción deducciones')
+    deductions_note = fields.Char(string='Descripcion deducciones')
 
-    # ── Totales ──────────────────────────────────────────────────
+    # -- Totales --------------------------------------------------
     # FIX A-03 v53: CCSS obrero sobre base liquidable (preaviso + vacaciones proporcionales)
     ccss_employee_on_termination = fields.Monetary(
-        string='CCSS Obrero Retenido (₡)', currency_field='currency_id',
+        string='CCSS Obrero Retenido (CRC)', currency_field='currency_id',
         compute='_compute_total', store=True,
         help='10.83% sobre preaviso + vacaciones proporcionales (Art. 26 Reglamento CCSS). '
              'Se retiene del empleado y se deposita a la CCSS.'
     )
-    # FIX NEW-02 v54: Impuesto de Renta sobre la liquidación.
+    # FIX NEW-02 v54: Impuesto de Renta sobre la liquidacion.
     # Art. 35 Ley ISR: preaviso y vacaciones proporcionales son ingreso gravable.
     # Se calcula sobre el total_gross aplicando los tramos vigentes.
     income_tax_on_termination = fields.Monetary(
-        string='Impuesto Renta Retenido (₡)', currency_field='currency_id',
+        string='Impuesto Renta Retenido (CRC)', currency_field='currency_id',
         compute='_compute_total', store=True,
-        help='Retención de impuesto sobre la renta calculada sobre el total bruto de la liquidación '
+        help='Retencion de impuesto sobre la renta calculada sobre el total bruto de la liquidacion '
              '(Art. 35 Ley ISR). Se retiene del empleado y se deposita a Hacienda.'
     )
     total_gross = fields.Monetary(
-        string='Total Bruto Liquidación (₡)', currency_field='currency_id',
+        string='Total Bruto Liquidacion (CRC)', currency_field='currency_id',
         compute='_compute_total', store=True
     )
     total_net = fields.Monetary(
-        string='Total Neto a Pagar (₡)', currency_field='currency_id',
+        string='Total Neto a Pagar (CRC)', currency_field='currency_id',
         compute='_compute_total', store=True
     )
 
@@ -148,15 +148,15 @@ class EmployeeTermination(models.Model):
 
     note = fields.Text(string='Observaciones')
 
-    # ── Computes ─────────────────────────────────────────────────
+    # -- Computes -------------------------------------------------
 
     @api.depends('employee_id', 'termination_date')
     def _compute_name(self):
         for rec in self:
             if rec.employee_id and rec.termination_date:
-                rec.name = f'Liquidación - {rec.employee_id.name} - {rec.termination_date}'
+                rec.name = f'Liquidacion - {rec.employee_id.name} - {rec.termination_date}'
             else:
-                rec.name = 'Nueva Liquidación'
+                rec.name = 'Nueva Liquidacion'
 
     @api.depends('entry_date', 'termination_date')
     def _compute_service_time(self):
@@ -174,12 +174,12 @@ class EmployeeTermination(models.Model):
     @api.depends('months_service', 'termination_reason')
     def _compute_preaviso(self):
         """
-        Código de Trabajo CR Art. 28:
+        Codigo de Trabajo CR Art. 28:
         < 3 meses: 1 semana
         3-6 meses: 2 semanas
         6-12 meses: 1 mes
         > 12 meses: 1 mes
-        FIX C-10 v53: fallecimiento no genera preaviso (Art. 85 CT — extinción por muerte).
+        FIX C-10 v53: fallecimiento no genera preaviso (Art. 85 CT -- extincion por muerte).
         """
         for rec in self:
             # Fallecimiento: sin preaviso (Art. 85 CT)
@@ -196,14 +196,14 @@ class EmployeeTermination(models.Model):
 
     @api.onchange('termination_reason')
     def _onchange_termination_reason_preaviso(self):
-        """FIX C-10 v53: Al seleccionar fallecimiento, desmarcar preaviso automáticamente."""
+        """FIX C-10 v53: Al seleccionar fallecimiento, desmarcar preaviso automaticamente."""
         if self.termination_reason == 'fallecimiento':
             self.preaviso_applies = False
 
     @api.depends('termination_reason')
     def _compute_cesantia_applies(self):
         """
-        Cesantía aplica en despido injustificado o mutuo acuerdo.
+        Cesantia aplica en despido injustificado o mutuo acuerdo.
         No aplica en renuncia voluntaria ni despido con justa causa.
         """
         for rec in self:
@@ -228,13 +228,13 @@ class EmployeeTermination(models.Model):
             daily_salary = rec.last_salary / 30
             monthly_salary = rec.last_salary
 
-            # ── Preaviso ──────────────────────────────────────────
+            # -- Preaviso ------------------------------------------
             rec.preaviso_amount = daily_salary * rec.preaviso_days if rec.preaviso_applies else 0
 
-            # ── Cesantía (Art. 29 Código de Trabajo) ─────────────
-            # Tabla de días por año trabajado:
-            # Año 1: 19.5 días, Año 2: 20 días, Año 3: 20.5 días...
-            # Máximo 8 años = 22 días/año
+            # -- Cesantia (Art. 29 Codigo de Trabajo) -------------
+            # Tabla de dias por ano trabajado:
+            # Ano 1: 19.5 dias, Ano 2: 20 dias, Ano 3: 20.5 dias...
+            # Maximo 8 anos = 22 dias/ano
             if rec.cesantia_applies:
                 cesantia_days_table = {
                     1: 19.5, 2: 20.0, 3: 20.5, 4: 21.0,
@@ -245,7 +245,7 @@ class EmployeeTermination(models.Model):
                 cesantia_days = 0
                 for y in range(1, years + 1):
                     cesantia_days += cesantia_days_table.get(y, 22.0)
-                # Fracción del año en curso
+                # Fraccion del ano en curso
                 if years < 8:
                     days_this_year = cesantia_days_table.get(years + 1, 22.0)
                     cesantia_days += days_this_year * fraction
@@ -253,16 +253,16 @@ class EmployeeTermination(models.Model):
             else:
                 rec.cesantia_amount = 0
 
-            # ── Vacaciones proporcionales (Art. 153 CT) ───────────────
-            # FIX B-01 v51: Calcular días brutos acumulados por tiempo de servicio
-            # y descontar los días ya tomados (disfrutadas) y pagados (dinero/proporcionales)
-            # para obtener el saldo real pendiente de pagar en la liquidación.
-            # Sin este fix el empleado podía cobrar vacaciones que ya había disfrutado.
+            # -- Vacaciones proporcionales (Art. 153 CT) ---------------
+            # FIX B-01 v51: Calcular dias brutos acumulados por tiempo de servicio
+            # y descontar los dias ya tomados (disfrutadas) y pagados (dinero/proporcionales)
+            # para obtener el saldo real pendiente de pagar en la liquidacion.
+            # Sin este fix el empleado podia cobrar vacaciones que ya habia disfrutado.
             weeks_worked = rec.days_service / 7
             vacation_days_gross = weeks_worked * (12 / 50)
 
-            # Días ya consumidos: vacaciones disfrutadas, pagadas en dinero o proporcionales
-            # que se hayan aprobado o pagado durante la relación laboral
+            # Dias ya consumidos: vacaciones disfrutadas, pagadas en dinero o proporcionales
+            # que se hayan aprobado o pagado durante la relacion laboral
             vacation_days_taken = 0.0
             if rec.employee_id:
                 taken_payments = self.env['planilla.vacation.payment'].search([
@@ -275,14 +275,14 @@ class EmployeeTermination(models.Model):
             rec.vacation_days_accrued = round(vacation_days_net, 2)
             rec.vacation_amount = round(daily_salary * vacation_days_net, 2)
 
-            # ── Aguinaldo proporcional (Art. 228 - periodo jun-nov) ─
+            # -- Aguinaldo proporcional (Art. 228 - periodo jun-nov) -
             # El aguinaldo es el salario del mes de diciembre
             # = promedio de salarios jun-nov / 12 * meses trabajados en el periodo
             exit_month = rec.termination_date.month
             exit_year = rec.termination_date.year
-            # Determinar cuántos meses del periodo jun-nov están incluidos
+            # Determinar cuantos meses del periodo jun-nov estan incluidos
             if exit_month >= 12:
-                # Ya cobró aguinaldo de diciembre
+                # Ya cobro aguinaldo de diciembre
                 rec.aguinaldo_months = 0
                 rec.aguinaldo_amount = 0
             elif exit_month >= 6:
@@ -291,7 +291,7 @@ class EmployeeTermination(models.Model):
                 rec.aguinaldo_months = months_in_period
                 rec.aguinaldo_amount = round(monthly_salary / 12 * months_in_period, 2)
             else:
-                # Enero-Mayo: periodo diciembre-mayo del año anterior
+                # Enero-Mayo: periodo diciembre-mayo del ano anterior
                 months_in_period = exit_month  # ene=1... may=5
                 rec.aguinaldo_months = months_in_period
                 rec.aguinaldo_amount = round(monthly_salary / 12 * months_in_period, 2)
@@ -302,7 +302,7 @@ class EmployeeTermination(models.Model):
         La liquidacion se trata como pago unico mensual (freq = monthly).
         """
         brackets = self.env['planilla.income.tax.bracket'].search(
-            # FIX-R12: mismo fix que payslip_compute_mixin — filtrar por empresa
+            # FIX-R12: mismo fix que payslip_compute_mixin -- filtrar por empresa
             # para evitar mezcla de tramos en entornos multi-empresa.
             ['|',
              ('company_id', '=', self.company_id.id),
@@ -366,10 +366,10 @@ class EmployeeTermination(models.Model):
             rec.total_gross = round(gross, 2)
             rec.ccss_employee_on_termination = ccss_emp
             rec.income_tax_on_termination = income_tax
-            # total_net = bruto − CCSS obrero − renta − otras deducciones
+            # total_net = bruto  CCSS obrero  renta  otras deducciones
             rec.total_net = round(gross - ccss_emp - income_tax - rec.deductions, 2)
 
-    # ── Onchange para autocompletar desde empleado ────────────────
+    # -- Onchange para autocompletar desde empleado ----------------
 
     @api.onchange('employee_id')
     def _onchange_employee(self):
@@ -378,9 +378,9 @@ class EmployeeTermination(models.Model):
             self.entry_date = emp.entry_date or False
 
             # MEJORA: para empleados con salario variable (comisiones, HE recurrentes),
-            # calcular el salario bruto promedio de los últimos 4 meses del historial
+            # calcular el salario bruto promedio de los ultimos 4 meses del historial
             # en lugar de usar solo el salario base fijo.
-            # Art. 153 CT: la liquidación debe basarse en el salario real percibido.
+            # Art. 153 CT: la liquidacion debe basarse en el salario real percibido.
             if getattr(emp, 'has_variable_income', False):
                 history = self.env['planilla.salary.history'].search([
                     ('employee_id', '=', emp.id),
@@ -395,7 +395,7 @@ class EmployeeTermination(models.Model):
             else:
                 self.last_salary = emp.base_salary or 0
 
-    # ── Actions ──────────────────────────────────────────────────
+    # -- Actions --------------------------------------------------
 
     def action_confirm(self):
         self.ensure_one()
@@ -411,9 +411,9 @@ class EmployeeTermination(models.Model):
             raise UserError(
                 f'El empleado {self.employee_id.name} tiene boletas pendientes sin pagar:\n'
                 f'{names}\n\n'
-                f'Pague o cancele esas boletas antes de confirmar la liquidación.'
+                f'Pague o cancele esas boletas antes de confirmar la liquidacion.'
             )
-        # Verificar período cerrado
+        # Verificar periodo cerrado
         termination_date = self.termination_date or fields.Date.context_today(self)
         closed = PlanillaClosedPeriod.is_period_closed(
             self.env, self.company_id.id,
@@ -422,14 +422,14 @@ class EmployeeTermination(models.Model):
         )
         if closed:
             raise UserError(
-                f'No se puede confirmar la liquidación: el período que incluye la fecha '
-                f'{termination_date.strftime("%d/%m/%Y")} está cerrado '
+                f'No se puede confirmar la liquidacion: el periodo que incluye la fecha '
+                f'{termination_date.strftime("%d/%m/%Y")} esta cerrado '
                 f'("{closed.name}", cerrado el {closed.closed_date.strftime("%d/%m/%Y")} '
                 f'por {closed.closed_by.name}).'
             )
 
-        # BUG #3 FIX v50: Integración automática de préstamos activos
-        # Busca préstamos/adelantos activos o aprobados con saldo pendiente
+        # BUG #3 FIX v50: Integracion automatica de prestamos activos
+        # Busca prestamos/adelantos activos o aprobados con saldo pendiente
         active_loans = self.env['planilla.employee.loan'].search([
             ('employee_id', '=', self.employee_id.id),
             ('state', 'in', ('approved', 'active')),
@@ -438,17 +438,17 @@ class EmployeeTermination(models.Model):
         if active_loans:
             total_loan_balance = sum(active_loans.mapped('amount_pending'))
             loan_details = ', '.join(
-                f'{l.name} (₡{l.amount_pending:,.2f})' for l in active_loans
+                f'{l.name} (CRC{l.amount_pending:,.2f})' for l in active_loans
             )
-            # Pre-llenar campo deductions si está vacío
+            # Pre-llenar campo deductions si esta vacio
             if not self.deductions:
                 self.deductions = round(total_loan_balance, 2)
-                self.deductions_note = f'Saldo préstamos activos: {loan_details}'
+                self.deductions_note = f'Saldo prestamos activos: {loan_details}'
             else:
                 # Ya tiene deducciones manuales: mostrar advertencia
                 self.message_post(
-                    body=f'<b>⚠️ Aviso:</b> El empleado tiene préstamos activos con saldo '
-                         f'pendiente de ₡{total_loan_balance:,.2f} ({loan_details}). '
+                    body=f'<b>WARN Aviso:</b> El empleado tiene prestamos activos con saldo '
+                         f'pendiente de CRC{total_loan_balance:,.2f} ({loan_details}). '
                          f'Verifique que el campo <b>Deducciones</b> ya lo contempla.',
                     message_type='notification',
                 )
@@ -460,19 +460,19 @@ class EmployeeTermination(models.Model):
         if self.state != 'confirmed':
             raise UserError('Solo se pueden pagar liquidaciones confirmadas.')
 
-        # BUG #7 FIX v50: Savepoint para atomicidad — si el asiento falla,
-        # el empleado NO queda inactivo sin reversión contable
+        # BUG #7 FIX v50: Savepoint para atomicidad -- si el asiento falla,
+        # el empleado NO queda inactivo sin reversion contable
         with self.env.cr.savepoint():
             move = self._create_termination_accounting_entry()
-            # Inactivar empleado SOLO si el asiento se creó correctamente
+            # Inactivar empleado SOLO si el asiento se creo correctamente
             if move:
                 self.employee_id.write({'active': False})
             self.write({
                 'state': 'paid',
                 'move_id': move.id if move else False,
             })
-            # FIX-AUD-08: cancelar préstamos activos del empleado al pagar la liquidación.
-            # Si las deducciones ya contemplaban el saldo, los préstamos deben cerrarse
+            # FIX-AUD-08: cancelar prestamos activos del empleado al pagar la liquidacion.
+            # Si las deducciones ya contemplaban el saldo, los prestamos deben cerrarse
             # para que no sigan apareciendo como activos ni generen cuotas futuras.
             active_loans = self.env['planilla.employee.loan'].search([
                 ('employee_id', '=', self.employee_id.id),
@@ -481,14 +481,14 @@ class EmployeeTermination(models.Model):
             if active_loans:
                 active_loans.write({'state': 'cancelled'})
                 _logger.info(
-                    'planilla_cr.termination.action_pay: %d préstamo(s) cancelados '
-                    'automáticamente al pagar liquidación de %s.',
+                    'planilla_cr.termination.action_pay: %d prestamo(s) cancelados '
+                    'automaticamente al pagar liquidacion de %s.',
                     len(active_loans), self.employee_id.name
                 )
 
     def _create_termination_accounting_entry(self):
-        # FIX BUG-N01 v52: pasar company_id del registro de liquidación, no la compañía
-        # activa en sesión. En multi-empresa esto asegura usar la config correcta.
+        # FIX BUG-N01 v52: pasar company_id del registro de liquidacion, no la compania
+        # activa en sesion. En multi-empresa esto asegura usar la config correcta.
         config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
         if not config:
             return False
@@ -510,49 +510,49 @@ class EmployeeTermination(models.Model):
                 'credit': round(credit, 2),
             }))
 
-        # ── DÉBITOS (gastos) ─────────────────────────────────────────
+        # -- DEBITOS (gastos) -----------------------------------------
         if self.preaviso_applies and self.preaviso_amount:
             add_line(
                 config.account_preaviso_expense or config.account_salary_expense,
                 debit=self.preaviso_amount,
-                name=f'Preaviso — {emp}'
+                name=f'Preaviso -- {emp}'
             )
         if self.cesantia_applies and self.cesantia_amount:
             add_line(
                 config.account_cesantia_expense,
                 debit=self.cesantia_amount,
-                name=f'Cesantía — {emp}'
+                name=f'Cesantia -- {emp}'
             )
         if self.vacation_amount:
             add_line(
                 config.account_vacation_expense,
                 debit=self.vacation_amount,
-                name=f'Vacaciones proporcionales — {emp}'
+                name=f'Vacaciones proporcionales -- {emp}'
             )
         if self.aguinaldo_amount:
             add_line(
                 config.account_aguinaldo_expense,
                 debit=self.aguinaldo_amount,
-                name=f'Aguinaldo proporcional — {emp}'
+                name=f'Aguinaldo proporcional -- {emp}'
             )
         if self.other_payments:
             add_line(
                 config.account_salary_expense,
                 debit=self.other_payments,
-                name=f'Otros pagos — {emp}: {self.other_payments_note or ""}'
+                name=f'Otros pagos -- {emp}: {self.other_payments_note or ""}'
             )
 
         # BUG #4 FIX v50: CCSS patronal sobre preaviso + vacaciones proporcionales
         # Art. 26 Reglamento CCSS: cargas sociales aplican sobre estos componentes
-        # de la liquidación (preaviso y vacaciones proporcionales son salario ordinario
-        # para efectos de cotización CCSS según Reglamento del Seguro Social).
+        # de la liquidacion (preaviso y vacaciones proporcionales son salario ordinario
+        # para efectos de cotizacion CCSS segun Reglamento del Seguro Social).
         rh = self.env['planilla.rate.helper']
         ccss_employer_rate = rh.get_ccss_employer_rate()  # 26.83%
-        # FIX A-03 v53: CCSS obrero e Impuesto de Renta sobre la liquidación.
+        # FIX A-03 v53: CCSS obrero e Impuesto de Renta sobre la liquidacion.
         # Art. 26 RCCSS y Art. 29 CT: preaviso y vacaciones proporcionales
-        # son base de cotización. La cesantía y el aguinaldo proporcional
-        # NO son base imponible (CCSS Resolución Nro. 5 del 24/5/1994).
-        # La renta aplica sobre el total bruto según criterio del Ministerio de Hacienda.
+        # son base de cotizacion. La cesantia y el aguinaldo proporcional
+        # NO son base imponible (CCSS Resolucion Nro. 5 del 24/5/1994).
+        # La renta aplica sobre el total bruto segun criterio del Ministerio de Hacienda.
         ccss_employee_rate = rh.get_ccss_employee_rate()  # 10.83%
         liquidable_base = (
             (self.preaviso_amount if self.preaviso_applies else 0) +
@@ -564,19 +564,19 @@ class EmployeeTermination(models.Model):
             add_line(
                 config.account_social_charges_expense,
                 debit=ccss_on_termination,
-                name=f'CCSS Patronal sobre liquidación — {emp} ({ccss_employer_rate*100:.2f}%)'
+                name=f'CCSS Patronal sobre liquidacion -- {emp} ({ccss_employer_rate*100:.2f}%)'
             )
             add_line(
                 config.account_ccss_payable,
                 credit=ccss_on_termination,
-                name=f'CCSS Patronal liquidación por pagar — {emp}'
+                name=f'CCSS Patronal liquidacion por pagar -- {emp}'
             )
         # CCSS obrero: se retiene del empleado (reduce el neto a pagar)
         if ccss_emp_on_termination > 0:
             add_line(
                 config.account_ccss_payable,
                 credit=ccss_emp_on_termination,
-                name=f'CCSS Obrero retenido en liquidacion — {emp} ({ccss_employee_rate*100:.2f}%)'
+                name=f'CCSS Obrero retenido en liquidacion -- {emp} ({ccss_employee_rate*100:.2f}%)'
             )
 
         # FIX NEW-02 v54: Impuesto de Renta retenido sobre la liquidacion (Art. 35 Ley ISR)
@@ -585,18 +585,18 @@ class EmployeeTermination(models.Model):
             add_line(
                 config.account_income_tax_payable,
                 credit=income_tax_liq,
-                name=f'Retencion Renta en liquidacion — {emp}'
+                name=f'Retencion Renta en liquidacion -- {emp}'
             )
 
-        # ── CRÉDITO (pasivo por pagar) ───────────────────────────────
+        # -- CREDITO (pasivo por pagar) -------------------------------
         # FIX A-03 v53: neto = total_gross - CCSS obrero.
         # FIX NEW-02 v54: neto = total_gross - CCSS obrero - renta.
-        # FIX-H1: las deducciones (préstamos) reducen el neto a depositar al empleado
-        # pero NO son un gasto adicional para la empresa — la empresa ya prestó ese dinero
+        # FIX-H1: las deducciones (prestamos) reducen el neto a depositar al empleado
+        # pero NO son un gasto adicional para la empresa -- la empresa ya presto ese dinero
         # antes. El asiento correcto es: el pasivo por pagar al empleado se reduce en el
-        # monto de las deducciones. Se registra UN SOLO crédito con el neto real a depositar.
-        # La versión anterior creaba un DEBE adicional (payable_account, debit=deductions)
-        # sin contrapartida en HABER, lo que hacía el asiento no cuadrar por ese monto.
+        # monto de las deducciones. Se registra UN SOLO credito con el neto real a depositar.
+        # La version anterior creaba un DEBE adicional (payable_account, debit=deductions)
+        # sin contrapartida en HABER, lo que hacia el asiento no cuadrar por ese monto.
         payable_account = config.account_termination_payable or config.account_salary_payable
         net_to_pay = round(
             self.total_gross - ccss_emp_on_termination - income_tax_liq - (self.deductions or 0.0),
@@ -605,12 +605,12 @@ class EmployeeTermination(models.Model):
         add_line(
             payable_account,
             credit=max(net_to_pay, 0.0),
-            name=f'Liquidación por pagar (neto a depositar) — {emp}'
+            name=f'Liquidacion por pagar (neto a depositar) -- {emp}'
         )
 
-        # Si las deducciones superan el neto, registrar como DEBE en la cuenta de liquidación
+        # Si las deducciones superan el neto, registrar como DEBE en la cuenta de liquidacion
         # (el empleado queda a deber; contablemente reduce el pasivo a cero y registra
-        # el saldo como cuenta por cobrar, pero en la práctica esto es inusual).
+        # el saldo como cuenta por cobrar, pero en la practica esto es inusual).
         if self.deductions and net_to_pay < 0:
             loans_receivable = (
                 getattr(config, 'account_loans_receivable', None)
@@ -620,28 +620,28 @@ class EmployeeTermination(models.Model):
             add_line(
                 loans_receivable,
                 debit=abs(net_to_pay),
-                name=f'Deducción supera liquidación — {emp}: {self.deductions_note or ""}'
+                name=f'Deduccion supera liquidacion -- {emp}: {self.deductions_note or ""}'
             )
 
         if not lines:
             return False
 
-        # H1 FIX — Verificar cuadre antes de postear
+        # H1 FIX -- Verificar cuadre antes de postear
         total_debit  = round(sum(l[2]['debit']  for l in lines), 2)
         total_credit = round(sum(l[2]['credit'] for l in lines), 2)
-        if abs(total_debit - total_credit) > 0.02:  # FIX BUG-N02 v52: tolerancia reducida a ₡0.02
+        if abs(total_debit - total_credit) > 0.02:  # FIX BUG-N02 v52: tolerancia reducida a CRC0.02
             raise UserError(
-                f'El asiento de liquidación no cuadra para {emp}:\n'
-                f'  Débitos:  ₡{total_debit:,.2f}\n'
-                f'  Créditos: ₡{total_credit:,.2f}\n\n'
-                f'Verifique que todas las cuentas contables estén configuradas '
-                f'(Planilla → Configuración → Contabilidad → ⚡ Autocompletar).'
+                f'El asiento de liquidacion no cuadra para {emp}:\n'
+                f'  Debitos:  CRC{total_debit:,.2f}\n'
+                f'  Creditos: CRC{total_credit:,.2f}\n\n'
+                f'Verifique que todas las cuentas contables esten configuradas '
+                f'(Planilla -> Configuracion -> Contabilidad ->  Autocompletar).'
             )
 
         move = self.env['account.move'].create({
             'journal_id': journal.id,
             'date': self.termination_date or fields.Date.context_today(self),
-            'ref': f'Liquidación — {emp} — {self.termination_date}',
+            'ref': f'Liquidacion -- {emp} -- {self.termination_date}',
             'move_type': 'entry',
             'line_ids': lines,
         })
@@ -653,9 +653,9 @@ class EmployeeTermination(models.Model):
     def action_cancel(self):
         self.ensure_one()
         if self.state == 'paid':
-            raise UserError('No se puede cancelar una liquidación ya pagada.')
+            raise UserError('No se puede cancelar una liquidacion ya pagada.')
         self.state = 'cancelled'
-        # Reactivar empleado si fue inactivado por esta liquidación
+        # Reactivar empleado si fue inactivado por esta liquidacion
         if self.employee_id and not self.employee_id.active:
             self.employee_id.write({'active': True})
 

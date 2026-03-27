@@ -7,8 +7,8 @@
             <form string="Incremento Salarial Masivo">
                 <sheet>
                     <div class="alert alert-info" role="alert">
-                        <strong>Incremento Salarial Masivo</strong> — Configure el incremento y
-                        verifique la vista previa antes de aplicar. Esta acción actualiza el salario
+                        <strong>Incremento Salarial Masivo</strong> -- Configure el incremento y
+                        verifique la vista previa antes de aplicar. Esta accion actualiza el salario
                         base y registra el cambio en el historial de cada empleado.
                     </div>
                     <group>
@@ -17,9 +17,9 @@
                             <field name="percent" invisible="increase_type != 'percent'"
                                    string="Porcentaje (%)"/>
                             <field name="fixed_amount" invisible="increase_type != 'fixed'"
-                                   string="Monto Fijo (₡)"/>
+                                   string="Monto Fijo (CRC)"/>
                             <field name="effective_date"/>
-                            <field name="note" placeholder="Ej: Aumento salario mínimo 2026"/>
+                            <field name="note" placeholder="Ej: Aumento salario minimo 2026"/>
                         </group>
                         <group string="Aplicar a">
                             <field name="filter_type" widget="radio"/>

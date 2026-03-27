@@ -11,16 +11,16 @@ class PlanillaClosedPeriod(models.Model):
     company_id  = fields.Many2one('res.company', required=True,
                                    default=lambda self: self.env.company)
     branch_id   = fields.Many2one('planilla.branch', string='Sucursal',
-                                   help='Dejar vacío para aplicar a toda la empresa')
+                                   help='Dejar vacio para aplicar a toda la empresa')
     date_from   = fields.Date(string='Desde', required=True)
     date_to     = fields.Date(string='Hasta',  required=True)
-    name        = fields.Char(string='Descripción', required=True)
+    name        = fields.Char(string='Descripcion', required=True)
     state       = fields.Selection([
         ('closed',   'Cerrado'),
         ('reopened', 'Reabierto'),
     ], default='closed', string='Estado', readonly=True)
 
-    # Quién cerró
+    # Quien cerro
     closed_by   = fields.Many2one('res.users', string='Cerrado por',
                                    default=lambda self: self.env.user, readonly=True)
     closed_date = fields.Datetime(string='Fecha de Cierre',
@@ -29,8 +29,8 @@ class PlanillaClosedPeriod(models.Model):
 
     # Planillas incluidas al momento del cierre
     run_ids     = fields.Many2many(
-        'planilla.run.cr', string='Planillas en este Período',
-        help='Planillas que estaban pagadas cuando se cerró el período.',
+        'planilla.run.cr', string='Planillas en este Periodo',
+        help='Planillas que estaban pagadas cuando se cerro el periodo.',
         readonly=True
     )
     payslip_count = fields.Integer(
@@ -51,7 +51,7 @@ class PlanillaClosedPeriod(models.Model):
     def create(self, vals_list):
         records = super().create(vals_list)
         for rec in records:
-            # Auto-capturar planillas pagadas en el período al momento del cierre.
+            # Auto-capturar planillas pagadas en el periodo al momento del cierre.
             # FIX-AUD-14: planilla.run.cr usa date_start/date_end (no date_from/date_to)
             # y el estado pagado es 'done' (no 'paid').
             runs = self.env['planilla.run.cr'].search([
@@ -71,10 +71,10 @@ class PlanillaClosedPeriod(models.Model):
                 raise ValidationError('La fecha inicio no puede ser mayor a la fecha fin.')
 
     def action_reopen(self):
-        """Reabre el período con autorización de admin y registro de motivo."""
+        """Reabre el periodo con autorizacion de admin y registro de motivo."""
         self.ensure_one()
         if not self.env.user.has_group('planilla_cr.group_planilla_admin'):
-            raise UserError('Solo un administrador de planilla puede reabrir períodos cerrados.')
+            raise UserError('Solo un administrador de planilla puede reabrir periodos cerrados.')
         return {
             'type': 'ir.actions.act_window',
             'name': 'Motivo de Reapertura',
@@ -89,7 +89,7 @@ class PlanillaClosedPeriod(models.Model):
         payslip_ids = self.run_ids.mapped('payslip_ids').ids
         return {
             'type': 'ir.actions.act_window',
-            'name': f'Boletas — {self.name}',
+            'name': f'Boletas -- {self.name}',
             'res_model': 'planilla.payslip.cr',
             'view_mode': 'list,form',
             'domain': [('id', 'in', payslip_ids)],
@@ -97,7 +97,7 @@ class PlanillaClosedPeriod(models.Model):
 
     @classmethod
     def is_period_closed(cls, env, company_id, date_from, date_to, branch_id=False):
-        """Verifica si un período está cerrado. Retorna el registro si está cerrado."""
+        """Verifica si un periodo esta cerrado. Retorna el registro si esta cerrado."""
         domain = [
             ('company_id', '=', company_id),
             ('date_from', '<=', date_to),
@@ -113,12 +113,12 @@ class PlanillaClosedPeriod(models.Model):
 
 class ReopenPeriodWizard(models.TransientModel):
     _name = 'planilla.reopen.period.wizard'
-    _description = 'Wizard Reapertura de Período'
+    _description = 'Wizard Reapertura de Periodo'
     _inherit = ['mail.thread', 'mail.activity.mixin']
 
     period_id = fields.Many2one('planilla.closed.period', required=True)
     reason    = fields.Text(string='Motivo de Reapertura', required=True,
-                             help='Explique por qué es necesario reabrir este período.')
+                             help='Explique por que es necesario reabrir este periodo.')
 
     def action_confirm_reopen(self):
         self.ensure_one()

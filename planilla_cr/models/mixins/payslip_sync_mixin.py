@@ -9,7 +9,7 @@ _logger = logging.getLogger(__name__)
 
 class PayslipSyncMixin(models.AbstractModel):
     """
-    Mixin: sincronización de novedades con la boleta.
+    Mixin: sincronizacion de novedades con la boleta.
     _sync_recurring_benefits, _sync_loan_deductions, _sync_pension_alimentaria,
     _sync_novedades, _sync_ausencias, _sync_rop, _sync_embargos, _sync_bonos.
     """
@@ -18,7 +18,7 @@ class PayslipSyncMixin(models.AbstractModel):
 
     def _sync_recurring_benefits(self) -> None:
         """Auto-apply active recurring benefits/deductions for the period.
-        FIX C-08 v53: Si la línea ya existe y es de tipo porcentaje, recalcular
+        FIX C-08 v53: Si la linea ya existe y es de tipo porcentaje, recalcular
         el monto en base al gross_salary actual (puede haber cambiado por novedades).
         """
         for rec in self:
@@ -41,7 +41,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 amt = ben.get_amount_for_salary(rec.gross_salary or 0.0)
                 if existing:
                     # FIX C-08 v53: Actualizar monto si el beneficio es de porcentaje
-                    # y el salario bruto cambió desde la última sincronización.
+                    # y el salario bruto cambio desde la ultima sincronizacion.
                     if ben.amount_type == 'percentage':
                         for line in existing:
                             if line.amount != amt:
@@ -58,15 +58,15 @@ class PayslipSyncMixin(models.AbstractModel):
                 })]
 
     def _sync_loan_deductions(self) -> None:
-        """Sincroniza cuotas de préstamos activos del empleado con las líneas de deducción."""
+        """Sincroniza cuotas de prestamos activos del empleado con las lineas de deduccion."""
         self.ensure_one()
-        # Código de deducción para préstamos
+        # Codigo de deduccion para prestamos
         loan_code = self.env['planilla.deduction.code'].search(
             [('code', '=', 'PRESTAMO')], limit=1
         )
         if not loan_code:
             return
-        # Buscar préstamos activos o aprobados del empleado
+        # Buscar prestamos activos o aprobados del empleado
         loans = self.env['planilla.employee.loan'].search([
             ('employee_id', '=', self.employee_id.id),
             ('state', 'in', ['approved', 'active']),
@@ -75,7 +75,7 @@ class PayslipSyncMixin(models.AbstractModel):
             installment = loan.get_pending_installment(self.date_from, self.date_to)
             if not installment:
                 continue
-            # Verificar si ya está en las líneas
+            # Verificar si ya esta en las lineas
             existing = self.deduction_line_ids.filtered(
                 lambda l: l.loan_installment_id == installment
             )
@@ -85,7 +85,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     'deduction_code_id':   loan_code.id,
                     'description':         loan.name,
                     'line_type':           'deduction',        # FIX-E9: faltaba
-                    'deduction_category':  'loan',             # FIX-E9: faltaba → salary_payable correcto
+                    'deduction_category':  'loan',             # FIX-E9: faltaba -> salary_payable correcto
                     'amount':              installment.amount,
                     'loan_installment_id': installment.id,
                 })
@@ -97,17 +97,17 @@ class PayslipSyncMixin(models.AbstractModel):
         if self.state != 'draft':
             return
 
-        # Código de deducción para pensiones alimentarias
+        # Codigo de deduccion para pensiones alimentarias
         pension_code = self.env['planilla.deduction.code'].search(
             [('code', '=', 'PENSION_ALIM')], limit=1
         )
         if not pension_code:
-            # FIX v512 SEC-01: patrón anti race-condition.
-            # Con múltiples workers de Odoo en paralelo, dos workers podrían ejecutar
-            # el search anterior simultáneamente (ambos vacío) y crear registros duplicados.
+            # FIX v512 SEC-01: patron anti race-condition.
+            # Con multiples workers de Odoo en paralelo, dos workers podrian ejecutar
+            # el search anterior simultaneamente (ambos vacio) y crear registros duplicados.
             try:
                 pension_code = self.env['planilla.deduction.code'].sudo().create({
-                    'name': 'Pensión Alimentaria',
+                    'name': 'Pension Alimentaria',
                     'code': 'PENSION_ALIM',
                     'deduction_type': 'employee',
                 })
@@ -116,7 +116,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     [('code', '=', 'PENSION_ALIM')], limit=1
                 )
 
-        # Buscar pensiones activas del empleado vigentes en el período
+        # Buscar pensiones activas del empleado vigentes en el periodo
         pensiones = self.env['planilla.pension.alimentaria'].search([
             ('employee_id', '=', self.employee_id.id),
             ('state', '=', 'active'),
@@ -128,7 +128,7 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
 
         for pension in pensiones:
-            # Verificar si ya está aplicada (por numero_expediente)
+            # Verificar si ya esta aplicada (por numero_expediente)
             existing = self.deduction_line_ids.filtered(
                 lambda l: l.deduction_category == 'pension_alimentaria'
                 and l.numero_resolucion == pension.numero_expediente
@@ -141,7 +141,7 @@ class PayslipSyncMixin(models.AbstractModel):
             self.env['planilla.payslip.deduction.line'].create({
                 'payslip_id':         self.id,
                 'deduction_code_id':  pension_code.id,
-                'description':        f'Pensión Alimentaria — {pension.beneficiario_nombre} ({pension.numero_expediente})',
+                'description':        f'Pension Alimentaria -- {pension.beneficiario_nombre} ({pension.numero_expediente})',
                 'line_type':          'deduction',
                 'deduction_category': 'pension_alimentaria',
                 'amount_type':        pension.calculation_type,
@@ -152,13 +152,13 @@ class PayslipSyncMixin(models.AbstractModel):
 
     def _sync_novedades(self) -> None:
         """
-        Vincula automáticamente a la boleta las horas extras, incapacidades
-        y vacaciones del empleado que corresponden al período de la boleta
-        y que aún no tienen boleta asignada.
+        Vincula automaticamente a la boleta las horas extras, incapacidades
+        y vacaciones del empleado que corresponden al periodo de la boleta
+        y que aun no tienen boleta asignada.
         Reglas:
-          - Horas extras:    state == 'approved',  fecha dentro del período
-          - Incapacidades:   state in ('confirmed','paid'), solapa con el período
-          - Vacaciones:      state in ('approved','paid'), solapa con el período
+          - Horas extras:    state == 'approved',  fecha dentro del periodo
+          - Incapacidades:   state in ('confirmed','paid'), solapa con el periodo
+          - Vacaciones:      state in ('approved','paid'), solapa con el periodo
         """
         self.ensure_one()
         if not self.employee_id or not self.date_from or not self.date_to:
@@ -168,7 +168,7 @@ class PayslipSyncMixin(models.AbstractModel):
         date_from = self.date_from
         date_to   = self.date_to
 
-        # ── Horas Extras ────────────────────────────────────────────────────
+        # -- Horas Extras ----------------------------------------------------
         overtimes = self.env['planilla.overtime'].search([
             ('employee_id', '=', emp_id),
             ('state', '=', 'approved'),
@@ -178,7 +178,7 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
         overtimes.write({'payslip_id': self.id})
 
-        # ── Incapacidades ────────────────────────────────────────────────────
+        # -- Incapacidades ----------------------------------------------------
         # Solapan si date_start <= date_to AND date_end >= date_from
         disabilities = self.env['planilla.disability'].search([
             ('employee_id', '=', emp_id),
@@ -189,7 +189,7 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
         disabilities.write({'payslip_id': self.id})
 
-        # ── Vacaciones ────────────────────────────────────────────────────────
+        # -- Vacaciones --------------------------------------------------------
         vacations = self.env['planilla.vacation.payment'].search([
             ('employee_id', '=', emp_id),
             ('state', 'in', ('approved', 'paid')),
@@ -199,31 +199,31 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
         vacations.write({'payslip_id': self.id})
 
-        # ── Pensiones Alimentarias ─────────────────────────────────────────
+        # -- Pensiones Alimentarias -----------------------------------------
         self._sync_pension_alimentaria()
 
-        # ── Licencias Especiales CR (duelo, paternidad, matrimonio, etc.) ─
+        # -- Licencias Especiales CR (duelo, paternidad, matrimonio, etc.) -
         self._sync_licencias()
 
-        # ── Ausencias aprobadas (hr_holidays) ─────────────────────────────
+        # -- Ausencias aprobadas (hr_holidays) -----------------------------
         self._sync_ausencias()
 
     def _sync_licencias(self) -> None:
         """
         Sincroniza licencias especiales CR (planilla.leave.cr) con la boleta.
 
-        Licencias CON goce (duelo 1er grado, paternidad, matrimonio, adopción, etc.):
-          → Se registran como INGRESO adicional (line_type='income') en la boleta.
-          → No reducen el salario base; son gasto patronal adicional.
-          → La boleta refleja el monto pagado y el asiento contable lo debita en 630800.
+        Licencias CON goce (duelo 1er grado, paternidad, matrimonio, adopcion, etc.):
+          -> Se registran como INGRESO adicional (line_type='income') en la boleta.
+          -> No reducen el salario base; son gasto patronal adicional.
+          -> La boleta refleja el monto pagado y el asiento contable lo debita en 630800.
 
         Licencias SIN goce (permiso sin goce, duelo 2do grado sin override, etc.):
-          → Se registran como DEDUCCIÓN (deduction_category='licencia_sin_goce').
-          → Reducen el neto a pagar al empleado.
-          → Siguen la misma lógica que ausencias: salario_diario × días ausentes.
+          -> Se registran como DEDUCCION (deduction_category='licencia_sin_goce').
+          -> Reducen el neto a pagar al empleado.
+          -> Siguen la misma logica que ausencias: salario_diario x dias ausentes.
 
         Se vincula la licencia a la boleta (payslip_id) para trazabilidad.
-        Evita duplicados verificando si ya existe una línea con leave_cr_id.
+        Evita duplicados verificando si ya existe una linea con leave_cr_id.
         """
         self.ensure_one()
         if self.state != 'draft':
@@ -231,7 +231,7 @@ class PayslipSyncMixin(models.AbstractModel):
         if not self.employee_id or not self.date_from or not self.date_to:
             return
 
-        # ── Códigos de deducción ──────────────────────────────────────────────
+        # -- Codigos de deduccion ----------------------------------------------
         def _get_or_create_code(code, name, ded_type):
             dc = self.env['planilla.deduction.code'].search([('code', '=', code)], limit=1)
             if not dc:
@@ -246,7 +246,7 @@ class PayslipSyncMixin(models.AbstractModel):
         code_con_goce  = _get_or_create_code('LIC-GOCE',  'Licencia con Goce de Sueldo', 'employer')
         code_sin_goce  = _get_or_create_code('LIC-SGOCE', 'Licencia Sin Goce de Sueldo', 'employee')
 
-        # ── Buscar licencias aprobadas del período ────────────────────────────
+        # -- Buscar licencias aprobadas del periodo ----------------------------
         # FIX-AUD-10: filtrar por company_id para seguridad multi-empresa.
         licencias = self.env['planilla.leave.cr'].search([
             ('employee_id', '=', self.employee_id.id),
@@ -258,7 +258,7 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
 
         for lic in licencias:
-            # Verificar si ya existe línea para esta licencia
+            # Verificar si ya existe linea para esta licencia
             existing = self.deduction_line_ids.filtered(
                 lambda l, lid=lic.id: l.leave_cr_id.id == lid
             )
@@ -271,15 +271,15 @@ class PayslipSyncMixin(models.AbstractModel):
                 continue
 
             tipo_label = dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)
-            # Descripción según unidad: días u horas
+            # Descripcion segun unidad: dias u horas
             if lic.leave_unit == 'hour':
                 periodo_desc = f'{lic.hours}h el {lic.date_start}'
             else:
                 dias_efectivos = lic.working_days if lic.working_days > 0 else lic.days
-                periodo_desc = f'{lic.date_start} al {lic.date_end}, {dias_efectivos} día(s)'
+                periodo_desc = f'{lic.date_start} al {lic.date_end}, {dias_efectivos} dia(s)'
 
             if pays:
-                # Licencia CON goce → ingreso adicional (gasto patronal)
+                # Licencia CON goce -> ingreso adicional (gasto patronal)
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':          self.id,
                     'deduction_code_id':   code_con_goce.id,
@@ -290,7 +290,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     'leave_cr_id':         lic.id,
                 })
             else:
-                # Licencia SIN goce → deducción al empleado
+                # Licencia SIN goce -> deduccion al empleado
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':          self.id,
                     'deduction_code_id':   code_sin_goce.id,
@@ -302,7 +302,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 })
 
             # Vincular licencia a la boleta para trazabilidad
-            # FIX-AUD-07: NO marcar 'paid' aquí — la licencia pasa a 'paid' solo cuando
+            # FIX-AUD-07: NO marcar 'paid' aqui -- la licencia pasa a 'paid' solo cuando
             # la boleta se paga (action_pay), igual que vacation_ids/overtime_ids/disability_ids.
             # Marcar 'paid' en sync (boleta en draft) causaba que la licencia quedara
             # bloqueada si la boleta se cancelaba antes de pagarse.
@@ -310,18 +310,18 @@ class PayslipSyncMixin(models.AbstractModel):
 
     def _sync_ausencias(self) -> None:
         """
-        H2 FIX — Integración hr_holidays con planilla.
+        H2 FIX -- Integracion hr_holidays con planilla.
         Busca ausencias aprobadas (hr.leave en estado validate) del empleado
-        en el período de la boleta y crea deducciones automáticas por los
-        días sin goce de sueldo.
+        en el periodo de la boleta y crea deducciones automaticas por los
+        dias sin goce de sueldo.
 
-        Lógica:
+        Logica:
           - Solo aplica a ausencias SIN pago (unpaid leave) o cuyo tipo
             tenga work_time_rate = 0 (ausencia injustificada / sin goce).
           - Las ausencias CON pago (vacaciones anuales, maternidad, etc.)
-            NO se descuentan aquí: ya están gestionadas por sus propios modelos.
-          - El monto diario = salario bruto / días del período.
-          - Se crea UNA línea de deducción por leave_id para evitar duplicados.
+            NO se descuentan aqui: ya estan gestionadas por sus propios modelos.
+          - El monto diario = salario bruto / dias del periodo.
+          - Se crea UNA linea de deduccion por leave_id para evitar duplicados.
         """
         self.ensure_one()
         if self.state != 'draft':
@@ -329,12 +329,12 @@ class PayslipSyncMixin(models.AbstractModel):
         if not self.employee_id or not self.date_from or not self.date_to:
             return
 
-        # Código de deducción para ausencias
+        # Codigo de deduccion para ausencias
         absence_code = self.env['planilla.deduction.code'].search(
             [('code', '=', 'AUSENCIA')], limit=1
         )
         if not absence_code:
-            # FIX v512 SEC-01: patrón anti race-condition
+            # FIX v512 SEC-01: patron anti race-condition
             try:
                 absence_code = self.env['planilla.deduction.code'].sudo().create({
                     'name': 'Ausencia Sin Goce de Sueldo',
@@ -346,7 +346,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     [('code', '=', 'AUSENCIA')], limit=1
                 )
 
-        # Buscar ausencias aprobadas del empleado que solapan con el período
+        # Buscar ausencias aprobadas del empleado que solapan con el periodo
         leaves = self.env['hr.leave'].search([
             ('employee_id', '=', self.employee_id.id),
             ('state', '=', 'validate'),
@@ -355,14 +355,14 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
 
         for leave in leaves:
-            # FIX v512 BP-03: eliminado hasattr() anti-patrón.
-            # Este módulo es Odoo 19 exclusivo. En Odoo 19 hr.holiday.status
-            # expone 'unpaid' (boolean) de forma estable desde la versión 17+.
-            # Se usa directamente sin detección dinámica de versión.
+            # FIX v512 BP-03: eliminado hasattr() anti-patron.
+            # Este modulo es Odoo 19 exclusivo. En Odoo 19 hr.holiday.status
+            # expone 'unpaid' (boolean) de forma estable desde la version 17+.
+            # Se usa directamente sin deteccion dinamica de version.
             holiday_type = leave.holiday_status_id
             is_unpaid = bool(getattr(holiday_type, 'unpaid', False))
 
-            # Fallback semántico si unpaid no existe (instalación no estándar)
+            # Fallback semantico si unpaid no existe (instalacion no estandar)
             if not is_unpaid and hasattr(holiday_type, 'work_time_rate'):
                 is_unpaid = (holiday_type.work_time_rate == 0)
             elif not is_unpaid:
@@ -371,14 +371,14 @@ class PayslipSyncMixin(models.AbstractModel):
                     'sin goce', 'injustificad', 'unpaid', 'sin remuner', 'no remuner'
                 ))
 
-            # Si la ausencia ES pagada (maternidad, vacaciones anuales, etc.) → omitir.
-            # Esas ausencias ya están gestionadas por sus propios modelos (disability, vacation).
+            # Si la ausencia ES pagada (maternidad, vacaciones anuales, etc.) -> omitir.
+            # Esas ausencias ya estan gestionadas por sus propios modelos (disability, vacation).
             if not is_unpaid:
                 continue
 
             # FIX v56: Validacion cruzada hr_holidays vs planilla.vacation.payment
             # Si ya existe un registro de planilla.vacation.payment para el mismo
-            # empleado y período que solapa con esta ausencia, NO crear deducción
+            # empleado y periodo que solapa con esta ausencia, NO crear deduccion
             # para evitar doble descuento en el saldo de vacaciones.
             if is_unpaid:
                 vac_overlap = self.env['planilla.vacation.payment'].search_count([
@@ -389,23 +389,23 @@ class PayslipSyncMixin(models.AbstractModel):
                 ])
                 if vac_overlap:
                     _logger.info(
-                        'planilla_cr._sync_ausencias: ausencia %s omitida — ya existe '
+                        'planilla_cr._sync_ausencias: ausencia %s omitida -- ya existe '
                         'planilla.vacation.payment solapante para %s',
                         leave.id, self.employee_id.name
                     )
                     continue
 
-            # Evitar duplicados: verificar si ya existe línea para este leave
+            # Evitar duplicados: verificar si ya existe linea para este leave
             existing = self.deduction_line_ids.filtered(
                 lambda l: l.hr_leave_id == leave
             )
             if existing:
                 continue
 
-            # FIX C-05 v53: Usar number_of_days de hr.leave cuando está disponible,
+            # FIX C-05 v53: Usar number_of_days de hr.leave cuando esta disponible,
             # ya que Odoo lo calcula correctamente incluyendo medias jornadas (0.5).
-            # El cálculo manual por fechas siempre redondea hacia arriba y no maneja
-            # ausencias de medio día (request_date_from_period = 'am'/'pm').
+            # El calculo manual por fechas siempre redondea hacia arriba y no maneja
+            # ausencias de medio dia (request_date_from_period = 'am'/'pm').
             leave_start = leave.date_from.date() if leave.date_from else self.date_from
             leave_end   = leave.date_to.date()   if leave.date_to   else self.date_to
             effective_start = max(leave_start, self.date_from)
@@ -414,19 +414,19 @@ class PayslipSyncMixin(models.AbstractModel):
             if effective_end < effective_start:
                 continue
 
-            # Si la ausencia está completamente dentro del período, usar number_of_days
+            # Si la ausencia esta completamente dentro del periodo, usar number_of_days
             if leave_start >= self.date_from and leave_end <= self.date_to:
                 days_absent = getattr(leave, 'number_of_days', None)
                 if not days_absent or days_absent <= 0:
                     days_absent = (effective_end - effective_start).days + 1
             else:
-                # Ausencia parcialmente fuera del período → calcular intersección en días
+                # Ausencia parcialmente fuera del periodo -> calcular interseccion en dias
                 days_absent = (effective_end - effective_start).days + 1
 
             if days_absent <= 0:
                 continue
 
-            # Monto: salario_diario × días ausentes
+            # Monto: salario_diario x dias ausentes
             salary_daily = round(
                 (self.base_salary or 0.0) / max(self.days_in_period or 30, 1), 2
             )
@@ -438,8 +438,8 @@ class PayslipSyncMixin(models.AbstractModel):
                 'payslip_id':          self.id,
                 'deduction_code_id':   absence_code.id,
                 'description':         (
-                    f'Ausencia sin goce — {leave.holiday_status_id.name} '
-                    f'({effective_start} al {effective_end}, {days_absent} día(s))'
+                    f'Ausencia sin goce -- {leave.holiday_status_id.name} '
+                    f'({effective_start} al {effective_end}, {days_absent} dia(s))'
                 ),
                 'amount':              amount,
                 'deduction_category':  'ausencia',
@@ -449,20 +449,20 @@ class PayslipSyncMixin(models.AbstractModel):
 
     def _sync_rop(self) -> None:
         """
-        Sincroniza la deducción de ROP (Régimen Obligatorio de Pensiones, Ley 7983)
+        Sincroniza la deduccion de ROP (Regimen Obligatorio de Pensiones, Ley 7983)
         en la boleta del empleado.
 
-        - ROP Obrero:   K.ROP_EMP (1.0%) del salario bruto — deducción al empleado
-        - ROP Patronal: K.ROP_PAT (3.25%) del salario bruto — costo adicional del patrono
+        - ROP Obrero:   K.ROP_EMP (1.0%) del salario bruto -- deduccion al empleado
+        - ROP Patronal: K.ROP_PAT (3.25%) del salario bruto -- costo adicional del patrono
 
         OPT-IN: Solo aplica si el empleado tiene rop_applies=True.
-        El campo está DESACTIVADO por defecto porque muchos contadores en CR
+        El campo esta DESACTIVADO por defecto porque muchos contadores en CR
         manejan el ROP con su propio proceso externo (planilla complementaria,
-        plataforma del operador, etc.). Activarlo por empleado según confirme
+        plataforma del operador, etc.). Activarlo por empleado segun confirme
         el contador.
-        Si no hay código ROP configurado en BD, usa K.ROP_EMP/K.ROP_PAT.
+        Si no hay codigo ROP configurado en BD, usa K.ROP_EMP/K.ROP_PAT.
 
-        Evita duplicados: si ya existe una línea de deducción con deduction_category='rop',
+        Evita duplicados: si ya existe una linea de deduccion con deduction_category='rop',
         actualiza el monto en lugar de crear una nueva.
         """
         self.ensure_one()
@@ -487,16 +487,16 @@ class PayslipSyncMixin(models.AbstractModel):
         monto_emp = round(g * rop_emp_rate, 2)
         monto_pat = round(g * rop_pat_rate, 2)
 
-        # Código de deducción ROP
+        # Codigo de deduccion ROP
         rop_code = self.env['planilla.deduction.code'].search(
             [('code', '=', 'ROP')], limit=1
         )
         if not rop_code:
-            # FIX v512 SEC-01: patrón anti race-condition
+            # FIX v512 SEC-01: patron anti race-condition
             try:
                 rop_code = self.env['planilla.deduction.code'].sudo().create({
                     'code': 'ROP',
-                    'name': 'ROP — Régimen Obligatorio de Pensiones (Ley 7983)',
+                    'name': 'ROP -- Regimen Obligatorio de Pensiones (Ley 7983)',
                     'deduction_type': 'employee',
                     'calculation_type': 'percentage',
                     'description': 'ROP obrero 1% + patronal 3.25% (Ley 7983 Art. 6)',
@@ -506,7 +506,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     [('code', '=', 'ROP')], limit=1
                 )
 
-        # Deducción obrera: actualiza si existe, crea si no
+        # Deduccion obrera: actualiza si existe, crea si no
         existing_emp = self.deduction_line_ids.filtered(
             lambda l: l.deduction_category == 'rop' and l.line_type == 'deduction'
         )
@@ -517,7 +517,7 @@ class PayslipSyncMixin(models.AbstractModel):
             self.env['planilla.payslip.deduction.line'].create({
                 'payslip_id':         self.id,
                 'deduction_code_id':  rop_code.id,
-                'description':        f'ROP Obrero {rop_emp_rate*100:.1f}% — Ley 7983',
+                'description':        f'ROP Obrero {rop_emp_rate*100:.1f}% -- Ley 7983',
                 'line_type':          'deduction',
                 'deduction_category': 'rop',
                 'amount_type':        'percentage',
@@ -530,15 +530,15 @@ class PayslipSyncMixin(models.AbstractModel):
         self.rop_employer = monto_pat
 
         _logger.info(
-            'planilla_cr._sync_rop: ROP obrero ₡%.2f + patronal ₡%.2f para %s (boleta %s)',
+            'planilla_cr._sync_rop: ROP obrero CRC%.2f + patronal CRC%.2f para %s (boleta %s)',
             monto_emp, monto_pat, emp.name, self.name
         )
 
     def _sync_embargos(self) -> None:
         """
-        Sincroniza embargos judiciales activos del empleado con las líneas de deducción.
-        Art. 172 CT: máximo 25 % del neto disponible (después de CCSS, renta y pensiones).
-        Prioridad: pensión alimentaria → embargo → préstamos.
+        Sincroniza embargos judiciales activos del empleado con las lineas de deduccion.
+        Art. 172 CT: maximo 25 % del neto disponible (despues de CCSS, renta y pensiones).
+        Prioridad: pension alimentaria -> embargo -> prestamos.
         """
         self.ensure_one()
         if self.state != 'draft':
@@ -548,14 +548,14 @@ class PayslipSyncMixin(models.AbstractModel):
             [('code', '=', 'EMB')], limit=1
         )
         if not embargo_code:
-            # FIX v512 SEC-01: patrón anti race-condition
+            # FIX v512 SEC-01: patron anti race-condition
             try:
                 embargo_code = self.env['planilla.deduction.code'].sudo().create({
                     'code': 'EMB',
                     'name': 'Embargo Judicial',
                     'deduction_type': 'employee',
                     'calculation_type': 'fixed',
-                    'description': 'Embargo judicial — máximo 25% salario neto Art. 172 CT',
+                    'description': 'Embargo judicial -- maximo 25% salario neto Art. 172 CT',
                 })
             except Exception:
                 embargo_code = self.env['planilla.deduction.code'].search(
@@ -608,7 +608,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 continue
 
             monto = embargo.compute_amount(neto_disponible)
-            # Respetar el límite global del 25 %
+            # Respetar el limite global del 25 %
             espacio = max(0.0, limite_total - ya_embargado)
             monto   = min(monto, espacio)
             if monto <= 0:
@@ -617,7 +617,7 @@ class PayslipSyncMixin(models.AbstractModel):
             self.env['planilla.payslip.deduction.line'].create({
                 'payslip_id':         self.id,
                 'deduction_code_id':  embargo_code.id,
-                'description':        (f'Embargo Judicial — {embargo.beneficiario_nombre} '
+                'description':        (f'Embargo Judicial -- {embargo.beneficiario_nombre} '
                                        f'({embargo.numero_expediente})'),
                 'line_type':          'deduction',
                 'deduction_category': 'embargo',
@@ -628,13 +628,13 @@ class PayslipSyncMixin(models.AbstractModel):
             })
             ya_embargado += monto
             _logger.info(
-                'planilla_cr._sync_embargos: aplicado embargo %s (₡%.2f) a boleta %s',
+                'planilla_cr._sync_embargos: aplicado embargo %s (CRC%.2f) a boleta %s',
                 embargo.numero_expediente, monto, self.name
             )
 
     def _sync_bonos(self) -> None:
         """
-        Sincroniza bonos activos del empleado con las líneas de ingreso de la boleta.
+        Sincroniza bonos activos del empleado con las lineas de ingreso de la boleta.
         Respeta las reglas fiscales CR: flags afecto_ccss / afecto_renta por tipo.
         """
         self.ensure_one()
@@ -671,10 +671,10 @@ class PayslipSyncMixin(models.AbstractModel):
             if existing:
                 # FIX I-02 v54: Para bonos porcentuales usar employee.base_salary
                 # (salario mensual configurado en el empleado) en vez de self.gross_salary.
-                # Razón: gross_salary ahora incluye bono_salarial_amount, que a su vez
-                # depende de las deduction_line_ids — generaría una dependencia circular
-                # y los porcentajes se calcularían sobre una base que ya los incluye.
-                # En práctica CR, los bonos % siempre se calculan sobre el salario base,
+                # Razon: gross_salary ahora incluye bono_salarial_amount, que a su vez
+                # depende de las deduction_line_ids -- generaria una dependencia circular
+                # y los porcentajes se calcularian sobre una base que ya los incluye.
+                # En practica CR, los bonos % siempre se calculan sobre el salario base,
                 # no sobre el bruto total que incluye otros pluses.
                 if bono.amount_type == 'percentage':
                     base_ref = self.employee_id.base_salary or 0.0
@@ -684,7 +684,7 @@ class PayslipSyncMixin(models.AbstractModel):
                             line.amount = monto
                 continue
 
-            # Para el cálculo inicial también usamos base_salary del empleado
+            # Para el calculo inicial tambien usamos base_salary del empleado
             if bono.amount_type == 'fixed':
                 monto = bono.amount
             else:
@@ -694,7 +694,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 continue
 
             _logger.info(
-                'planilla_cr._sync_bonos: aplicando bono "%s" (₡%.2f) a boleta %s',
+                'planilla_cr._sync_bonos: aplicando bono "%s" (CRC%.2f) a boleta %s',
                 bono.name, monto, self.name
             )
             self.env['planilla.payslip.deduction.line'].create({
@@ -709,29 +709,29 @@ class PayslipSyncMixin(models.AbstractModel):
                 'is_recurring_bono':  bono.is_recurring,
             })
 
-    # ══════════════════════════════════════════════════════════════════════
-    # MÉTODOS DE SYNC POR LOTE (BATCH)
+    # ======================================================================
+    # METODOS DE SYNC POR LOTE (BATCH)
     # FIX PERF-05: Para planillas grupales, pre-cargar TODOS los datos de
-    # TODOS los empleados en UNA query y distribuir. Elimina el patrón N+1
-    # donde cada boleta hace sus propias búsquedas independientes.
+    # TODOS los empleados en UNA query y distribuir. Elimina el patron N+1
+    # donde cada boleta hace sus propias busquedas independientes.
     #
-    # Reducción para 200 empleados:
-    #   sync individual: ~200 × 8 = 1.600 queries
+    # Reduccion para 200 empleados:
+    #   sync individual: ~200 x 8 = 1.600 queries
     #   sync batch:      ~8 queries (una por tipo de novedad)
-    # ══════════════════════════════════════════════════════════════════════
+    # ======================================================================
 
     def _sync_novedades_batch(self) -> None:
-        """Versión batch de _sync_novedades — carga todas las novedades en queries mínimas."""
+        """Version batch de _sync_novedades -- carga todas las novedades en queries minimas."""
         if not self:
             return
         # Todos los recordsets en self comparten el mismo date_from/date_to (planilla grupal)
         date_from = self[0].date_from
         date_to   = self[0].date_to
         emp_ids   = self.mapped('employee_id.id')
-        # Índice: employee_id → boleta
+        # Indice: employee_id -> boleta
         slip_by_emp = {s.employee_id.id: s for s in self}
 
-        # ── Horas extras — UNA query para todos ──────────────────────────
+        # -- Horas extras -- UNA query para todos --------------------------
         overtimes = self.env['planilla.overtime'].search([
             ('employee_id', 'in', emp_ids),
             ('state', '=', 'approved'),
@@ -749,7 +749,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     {'payslip_id': slip.id}
                 )
 
-        # ── Incapacidades — UNA query para todos ─────────────────────────
+        # -- Incapacidades -- UNA query para todos -------------------------
         disabilities = self.env['planilla.disability'].search([
             ('employee_id', 'in', emp_ids),
             ('state', 'in', ('confirmed', 'paid')),
@@ -767,7 +767,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     {'payslip_id': slip.id}
                 )
 
-        # ── Vacaciones — UNA query para todos ────────────────────────────
+        # -- Vacaciones -- UNA query para todos ----------------------------
         vacations = self.env['planilla.vacation.payment'].search([
             ('employee_id', 'in', emp_ids),
             ('state', 'in', ('approved', 'paid')),
@@ -785,14 +785,14 @@ class PayslipSyncMixin(models.AbstractModel):
                     {'payslip_id': slip.id}
                 )
 
-        # ── Pensiones alimentarias — sync individual (complejo, bajo volumen) ──
+        # -- Pensiones alimentarias -- sync individual (complejo, bajo volumen) --
         pension_code = self.env['planilla.deduction.code'].search(
             [('code', '=', 'PENSION_ALIM')], limit=1
         )
         if not pension_code:
             try:
                 pension_code = self.env['planilla.deduction.code'].sudo().create({
-                    'name': 'Pensión Alimentaria', 'code': 'PENSION_ALIM',
+                    'name': 'Pension Alimentaria', 'code': 'PENSION_ALIM',
                     'deduction_type': 'employee',
                 })
             except Exception:
@@ -827,7 +827,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':         slip.id,
                     'deduction_code_id':  pension_code.id,
-                    'description':        f'Pensión Alimentaria — {pension.beneficiario_nombre} ({pension.numero_expediente})',
+                    'description':        f'Pension Alimentaria -- {pension.beneficiario_nombre} ({pension.numero_expediente})',
                     'line_type':          'deduction',
                     'deduction_category': 'pension_alimentaria',
                     'amount_type':        pension.calculation_type,
@@ -836,7 +836,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     'numero_resolucion':  pension.numero_expediente,
                 })
 
-        # ── Ausencias sin goce — UNA query para todos ─────────────────
+        # -- Ausencias sin goce -- UNA query para todos -----------------
         absence_code = self.env['planilla.deduction.code'].search(
             [('code', '=', 'AUSENCIA')], limit=1
         )
@@ -867,7 +867,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     for leave in lv_list:
                         slip._sync_ausencias_single(leave, absence_code)
 
-        # ── Licencias Especiales CR — UNA query para todos ──────────────────
+        # -- Licencias Especiales CR -- UNA query para todos ------------------
         self._sync_licencias_batch()
 
     def _sync_ausencias_single(self, leave, absence_code):
@@ -904,7 +904,7 @@ class PayslipSyncMixin(models.AbstractModel):
         self.env['planilla.payslip.deduction.line'].create({
             'payslip_id':         self.id,
             'deduction_code_id':  absence_code.id,
-            'description':        f'Ausencia sin goce — {leave.holiday_status_id.name} ({effective_start} al {effective_end}, {days_absent} día(s))',
+            'description':        f'Ausencia sin goce -- {leave.holiday_status_id.name} ({effective_start} al {effective_end}, {days_absent} dia(s))',
             'amount':             amount,
             'deduction_category': 'ausencia',
             'hr_leave_id':        leave.id,
@@ -912,14 +912,14 @@ class PayslipSyncMixin(models.AbstractModel):
 
     def _sync_licencias_batch(self) -> None:
         """
-        PERF: versión batch de _sync_licencias.
-        Carga TODAS las licencias del período en 1 query y las distribuye
+        PERF: version batch de _sync_licencias.
+        Carga TODAS las licencias del periodo en 1 query y las distribuye
         a cada boleta, en lugar de 1 query por empleado.
-        Para 200 empleados: 200 queries → 1 query.
+        Para 200 empleados: 200 queries -> 1 query.
         """
         if not self:
             return
-        # Guardia de seguridad: si los períodos difieren, volver al modo individual
+        # Guardia de seguridad: si los periodos difieren, volver al modo individual
         dates = {(s.date_from, s.date_to) for s in self}
         if len(dates) > 1:
             for slip in self:
@@ -931,7 +931,7 @@ class PayslipSyncMixin(models.AbstractModel):
         slip_by_emp = {s.employee_id.id: s for s in self}
         company_id = self[0].company_id.id  # FIX-AUD-10: filtro empresa batch
 
-        # ── Códigos de deducción (1 query cada uno) ──────────────────────────
+        # -- Codigos de deduccion (1 query cada uno) --------------------------
         def _get_or_create_code(code, name, ded_type):
             dc = self.env['planilla.deduction.code'].search([('code', '=', code)], limit=1)
             if not dc:
@@ -946,7 +946,7 @@ class PayslipSyncMixin(models.AbstractModel):
         code_con_goce = _get_or_create_code('LIC-GOCE',  'Licencia con Goce de Sueldo', 'employer')
         code_sin_goce = _get_or_create_code('LIC-SGOCE', 'Licencia Sin Goce de Sueldo', 'employee')
 
-        # ── 1 QUERY: todas las licencias aprobadas del período ───────────────
+        # -- 1 QUERY: todas las licencias aprobadas del periodo ---------------
         # FIX-AUD-10: filtro company_id para seguridad multi-empresa en modo batch
         licencias = self.env['planilla.leave.cr'].search([
             ('employee_id', 'in', emp_ids),
@@ -969,7 +969,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 slip._sync_licencias_single(lic, code_con_goce, code_sin_goce)
                 processed_ids.append(lic.id)
 
-        # FIX-AUD-07: NO marcar 'paid' en sincronización — solo vincular payslip_id.
+        # FIX-AUD-07: NO marcar 'paid' en sincronizacion -- solo vincular payslip_id.
         # El estado 'paid' se asigna en action_pay igual que vacation_ids/overtime_ids.
 
     def _sync_licencias_single(self, lic, code_con_goce, code_sin_goce) -> None:
@@ -987,7 +987,7 @@ class PayslipSyncMixin(models.AbstractModel):
         dias_efectivos = lic.working_days if lic.working_days > 0 else lic.days
         vals = {
             'payslip_id':        self.id,
-            'description':       f'{"Licencia" if pays else "Licencia sin goce"}: {tipo_label} ({lic.date_start} al {lic.date_end}, {dias_efectivos} día(s))',
+            'description':       f'{"Licencia" if pays else "Licencia sin goce"}: {tipo_label} ({lic.date_start} al {lic.date_end}, {dias_efectivos} dia(s))',
             'amount':            monto,
             'leave_cr_id':       lic.id,
         }
@@ -1028,9 +1028,9 @@ class PayslipSyncMixin(models.AbstractModel):
             slip = slip_by_emp.get(emp_id)
             if not slip:
                 continue
-            # FIX-E1: pre-indexar las líneas existentes del slip para evitar duplicados.
-            # El modo single verifica existentes; el batch no lo hacía → podía duplicar
-            # beneficios si el botón "Sincronizar" se presionaba más de una vez.
+            # FIX-E1: pre-indexar las lineas existentes del slip para evitar duplicados.
+            # El modo single verifica existentes; el batch no lo hacia -> podia duplicar
+            # beneficios si el boton "Sincronizar" se presionaba mas de una vez.
             existing_ben_ids = set(
                 slip.deduction_line_ids.filtered(
                     lambda l: l.recurring_benefit_id
@@ -1038,7 +1038,7 @@ class PayslipSyncMixin(models.AbstractModel):
             )
             for ben in bens:
                 if ben.id in existing_ben_ids:
-                    continue  # ya sincronizado → omitir
+                    continue  # ya sincronizado -> omitir
                 amt = ben.get_amount_for_salary(slip.gross_salary or 0.0)
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':           slip.id,
@@ -1071,7 +1071,7 @@ class PayslipSyncMixin(models.AbstractModel):
         if not rop_code:
             try:
                 rop_code = self.env['planilla.deduction.code'].sudo().create({
-                    'code': 'ROP', 'name': 'ROP — Régimen Obligatorio de Pensiones (Ley 7983)',
+                    'code': 'ROP', 'name': 'ROP -- Regimen Obligatorio de Pensiones (Ley 7983)',
                     'deduction_type': 'employee',
                 })
             except Exception:
@@ -1084,7 +1084,7 @@ class PayslipSyncMixin(models.AbstractModel):
             lines_to_create.append({
                 'payslip_id':         slip.id,
                 'deduction_code_id':  rop_code.id,
-                'description':        f'ROP Obrero {rop_emp_rate*100:.1f}% — Ley 7983',
+                'description':        f'ROP Obrero {rop_emp_rate*100:.1f}% -- Ley 7983',
                 'line_type':          'deduction',
                 'deduction_category': 'rop',
                 'amount_type':        'percentage',
@@ -1127,7 +1127,7 @@ class PayslipSyncMixin(models.AbstractModel):
             if not slip:
                 continue
             # FIX-E2: verificar bonos ya sincronizados antes de agregar al batch.
-            # El modo single verifica por description; aquí hacemos lo mismo.
+            # El modo single verifica por description; aqui hacemos lo mismo.
             existing_desc = set(
                 slip.deduction_line_ids.filtered(
                     lambda l: l.line_type == 'income' and l.deduction_category == 'bonus'
@@ -1136,7 +1136,7 @@ class PayslipSyncMixin(models.AbstractModel):
             for bono in bono_list:
                 desc = f'Bono: {bono.name}'
                 if desc in existing_desc:
-                    continue  # ya sincronizado → omitir
+                    continue  # ya sincronizado -> omitir
                 if bono.amount_type == 'fixed':
                     monto = bono.amount
                 else:
@@ -1199,7 +1199,7 @@ class PayslipSyncMixin(models.AbstractModel):
             ausencias = sum(l.amount for l in slip.deduction_line_ids
                            if l.deduction_category == 'ausencia')
             # FIX-M2: incluir licencias_sin_goce en la base para el tope Art. 172 CT.
-            # El modo individual sí las incluía; el batch las omitía → tope inflado
+            # El modo individual si las incluia; el batch las omitia -> tope inflado
             # en planillas grupales con empleados que tienen permisos sin goce.
             licencias_sg = sum(l.amount for l in slip.deduction_line_ids
                                if l.deduction_category == 'licencia_sin_goce')
@@ -1222,7 +1222,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 lines_to_create.append({
                     'payslip_id':         slip.id,
                     'deduction_code_id':  embargo_code.id,
-                    'description':        f'Embargo Judicial — {embargo.beneficiario_nombre} ({embargo.numero_expediente})',
+                    'description':        f'Embargo Judicial -- {embargo.beneficiario_nombre} ({embargo.numero_expediente})',
                     'line_type':          'deduction',
                     'deduction_category': 'embargo',
                     'amount_type':        embargo.calculation_type,
@@ -1235,7 +1235,7 @@ class PayslipSyncMixin(models.AbstractModel):
             self.env['planilla.payslip.deduction.line'].create(lines_to_create)
 
     def _sync_loan_deductions_batch(self) -> None:
-        """Batch: carga cuotas de préstamos de TODOS los empleados en una query."""
+        """Batch: carga cuotas de prestamos de TODOS los empleados en una query."""
         if not self:
             return
         date_from = self[0].date_from
@@ -1267,7 +1267,7 @@ class PayslipSyncMixin(models.AbstractModel):
             if not slip:
                 continue
             insts = inst_by_loan.get(loan.id, [])
-            # Buscar cuota del período
+            # Buscar cuota del periodo
             months_in_period = set()
             y, m = date_from.year, date_from.month
             ey, em = date_to.year, date_to.month
@@ -1291,27 +1291,27 @@ class PayslipSyncMixin(models.AbstractModel):
                     'deduction_code_id':   loan_code.id,
                     'description':         loan.name,
                     'line_type':           'deduction',       # FIX-E9: faltaba
-                    'deduction_category':  'loan',            # FIX-E9: faltaba → salary_payable correcto
+                    'deduction_category':  'loan',            # FIX-E9: faltaba -> salary_payable correcto
                     'amount':              installment.amount,
                     'loan_installment_id': installment.id,
                 })
         if lines_to_create:
             self.env['planilla.payslip.deduction.line'].create(lines_to_create)
 
-    # ── Cobros al Empleado ────────────────────────────────────────────
+    # -- Cobros al Empleado --------------------------------------------
 
     def _sync_employee_charges(self) -> None:
         """
         Sincroniza cobros aprobados al empleado (planilla.employee.charge)
-        como líneas de deducción en la boleta.
+        como lineas de deduccion en la boleta.
 
         Maneja dos modalidades:
-          - Cobro único (is_recurring=False): se consume al aplicarse → 'applied'
+          - Cobro unico (is_recurring=False): se consume al aplicarse -> 'applied'
           - Cobro recurrente (is_recurring=True): permanece en 'approved', se aplica
-            cada período nuevo. Deduplicación por applied_periods (YYYY-MM).
+            cada periodo nuevo. Deduplicacion por applied_periods (YYYY-MM).
 
-        Si employee_amount=0 (subsidio 100%), no crea línea pero sí registra
-        el período o marca el cobro como aplicado para trazabilidad.
+        Si employee_amount=0 (subsidio 100%), no crea linea pero si registra
+        el periodo o marca el cobro como aplicado para trazabilidad.
         """
         self.ensure_one()
         if self.state != 'draft':
@@ -1321,11 +1321,11 @@ class PayslipSyncMixin(models.AbstractModel):
             ('employee_id', '=', self.employee_id.id),
             ('state', '=', 'approved'),
             '|',
-            # Cobros únicos: período solapa con la boleta
+            # Cobros unicos: periodo solapa con la boleta
             '&', ('is_recurring', '=', False),
                  '&', ('date_from', '<=', self.date_to),
                       ('date_to', '>=', self.date_from),
-            # Cobros recurrentes: vigentes en el período de la boleta
+            # Cobros recurrentes: vigentes en el periodo de la boleta
             '&', ('is_recurring', '=', True),
                  '&', ('date_from', '<=', self.date_to),
                       '|', ('recurrence_end', '=', False),
@@ -1339,11 +1339,11 @@ class PayslipSyncMixin(models.AbstractModel):
         )
 
         lines_to_create   = []
-        charges_to_apply  = []   # únicos → marcar 'applied'
-        charges_recurring = []   # recurrentes → registrar período
+        charges_to_apply  = []   # unicos -> marcar 'applied'
+        charges_recurring = []   # recurrentes -> registrar periodo
 
         for charge in charges:
-            # ── Deduplicación ─────────────────────────────────────────
+            # -- Deduplicacion -----------------------------------------
             if charge.is_recurring:
                 if charge._is_period_already_applied(self.date_from):
                     continue
@@ -1357,8 +1357,8 @@ class PayslipSyncMixin(models.AbstractModel):
             ded_code = charge.charge_type_id.deduction_code_id or default_code
             if not ded_code:
                 _logger.warning(
-                    'planilla_cr._sync_employee_charges: sin código de deducción '
-                    'para cobro "%s" del empleado %s — omitido.',
+                    'planilla_cr._sync_employee_charges: sin codigo de deduccion '
+                    'para cobro "%s" del empleado %s -- omitido.',
                     charge.name, self.employee_id.name
                 )
                 continue
@@ -1389,13 +1389,13 @@ class PayslipSyncMixin(models.AbstractModel):
         if lines_to_create:
             self.env['planilla.payslip.deduction.line'].create(lines_to_create)
 
-        # Cobros únicos → consumed, pasan a 'applied'
+        # Cobros unicos -> consumed, pasan a 'applied'
         if charges_to_apply:
             self.env['planilla.employee.charge'].browse(
                 [c.id for c in charges_to_apply]
             ).write({'state': 'applied', 'payslip_id': self.id})
 
-        # Cobros recurrentes → registrar período, mantener 'approved'
+        # Cobros recurrentes -> registrar periodo, mantener 'approved'
         for charge in charges_recurring:
             charge._mark_period_applied(self.date_from)
             charge.payslip_id = self.id
@@ -1403,10 +1403,10 @@ class PayslipSyncMixin(models.AbstractModel):
     def _sync_employee_charges_batch(self) -> None:
         """
         Batch: carga cobros aprobados de TODOS los empleados en una query.
-        Para 200 empleados: 200 queries → 1 query. Reducción 99%.
-        Se activa automáticamente en la creación masiva de boletas.
+        Para 200 empleados: 200 queries -> 1 query. Reduccion 99%.
+        Se activa automaticamente en la creacion masiva de boletas.
 
-        Maneja cobros únicos y recurrentes con deduplicación correcta.
+        Maneja cobros unicos y recurrentes con deduplicacion correcta.
         """
         if not self:
             return
@@ -1441,7 +1441,7 @@ class PayslipSyncMixin(models.AbstractModel):
         )
 
         lines_to_create   = []
-        unique_to_apply   = []        # (charge_id, slip_id) únicos
+        unique_to_apply   = []        # (charge_id, slip_id) unicos
         recurring_to_mark = []        # (charge, date_from, slip_id) recurrentes
 
         for slip in self:
@@ -1449,17 +1449,17 @@ class PayslipSyncMixin(models.AbstractModel):
                 continue
             emp_charges = charges_by_emp.get(slip.employee_id.id, [])
             for charge in emp_charges:
-                # ── Deduplicación ──────────────────────────────────────
+                # -- Deduplicacion --------------------------------------
                 if charge.is_recurring:
                     if charge._is_period_already_applied(slip.date_from):
                         continue
-                # (cobros únicos: no hay líneas aún en la boleta recién creada)
+                # (cobros unicos: no hay lineas aun en la boleta recien creada)
 
                 ded_code = charge.charge_type_id.deduction_code_id or default_code
                 if not ded_code:
                     _logger.warning(
-                        'planilla_cr._sync_employee_charges_batch: sin código de '
-                        'deducción para cobro "%s" del empleado %s — omitido.',
+                        'planilla_cr._sync_employee_charges_batch: sin codigo de '
+                        'deduccion para cobro "%s" del empleado %s -- omitido.',
                         charge.name, slip.employee_id.name
                     )
                     continue
@@ -1490,7 +1490,7 @@ class PayslipSyncMixin(models.AbstractModel):
         if lines_to_create:
             self.env['planilla.payslip.deduction.line'].create(lines_to_create)
 
-        # Cobros únicos → 'applied'
+        # Cobros unicos -> 'applied'
         if unique_to_apply:
             # Agrupar por slip para batch write
             by_slip: dict = {}
@@ -1501,7 +1501,7 @@ class PayslipSyncMixin(models.AbstractModel):
                     'state': 'applied', 'payslip_id': slip_id
                 })
 
-        # Cobros recurrentes → registrar período
+        # Cobros recurrentes -> registrar periodo
         for charge, df, slip_id in recurring_to_mark:
             charge._mark_period_applied(df)
             charge.payslip_id = slip_id

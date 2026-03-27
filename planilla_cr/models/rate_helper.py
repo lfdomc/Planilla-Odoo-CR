@@ -1,11 +1,11 @@
 """
-Helper centralizado para leer tasas de planilla desde los códigos de deducción.
-Un solo lugar para obtener CCSS, INS, aguinaldo, cesantía y vacaciones.
+Helper centralizado para leer tasas de planilla desde los codigos de deduccion.
+Un solo lugar para obtener CCSS, INS, aguinaldo, cesantia y vacaciones.
 
-Decisión de diseño: NO se usa caché en este helper.
-Las tasas son datos contables críticos. Cada consulta va directamente a la BD
+Decision de diseno: NO se usa cache en este helper.
+Las tasas son datos contables criticos. Cada consulta va directamente a la BD
 para garantizar que siempre se usan los valores vigentes. La exactitud contable
-es más importante que el rendimiento en este caso.
+es mas importante que el rendimiento en este caso.
 
 Las optimizaciones de rendimiento se aplican en las capas de batch sync
 (PERF-04, PERF-05) que reducen queries de otro tipo sin tocar datos contables.
@@ -19,22 +19,22 @@ class RateHelper(models.AbstractModel):
     _description = 'Helper de Tasas de Planilla'
 
     def _get_deduction_code(self, code):
-        """Busca el código de deducción filtrando por empresa actual.
-        Primero intenta encontrar uno específico de la empresa, luego uno global."""
+        """Busca el codigo de deduccion filtrando por empresa actual.
+        Primero intenta encontrar uno especifico de la empresa, luego uno global."""
         company = self.env.company
-        # Buscar específico de la empresa
+        # Buscar especifico de la empresa
         dc = self.env['planilla.deduction.code'].search(
             [('code', '=', code), ('active', '=', True),
              ('company_id', '=', company.id)], limit=1
         )
         if not dc:
-            # Fallback: código sin empresa asignada (global)
+            # Fallback: codigo sin empresa asignada (global)
             dc = self.env['planilla.deduction.code'].search(
                 [('code', '=', code), ('active', '=', True),
                  ('company_id', '=', False)], limit=1
             )
         if not dc:
-            # Último fallback: cualquiera
+            # Ultimo fallback: cualquiera
             dc = self.env['planilla.deduction.code'].search(
                 [('code', '=', code), ('active', '=', True)], limit=1
             )
@@ -46,9 +46,9 @@ class RateHelper(models.AbstractModel):
         return (dc.employee_percentage / 100) if dc else K.CCSS_EMP
 
     def get_ccss_pensionado_rate(self):
-        """Tasa CCSS obrero para pensionado sector público (decimal).
-        Default 6.50% — exonerado IVM (Art. 4 Ley Const. CCSS).
-        Configurable desde planilla.deduction.code código CCSS_OBR_PENSIONADO."""
+        """Tasa CCSS obrero para pensionado sector publico (decimal).
+        Default 6.50% -- exonerado IVM (Art. 4 Ley Const. CCSS).
+        Configurable desde planilla.deduction.code codigo CCSS_OBR_PENSIONADO."""
         dc = self._get_deduction_code('CCSS_OBR_PENSIONADO')
         return (dc.employee_percentage / 100) if dc else K.CCSS_EMP_PENSIONADO_ESTADO
 
@@ -58,34 +58,34 @@ class RateHelper(models.AbstractModel):
         return (dc.employer_percentage / 100) if dc else K.CCSS_PAT
 
     def get_ins_rate(self, risk_class='II'):
-        """Tasa INS decimal según clase de riesgo. Default clase II si no configurado."""
+        """Tasa INS decimal segun clase de riesgo. Default clase II si no configurado."""
         dc = self._get_deduction_code('INS_PAT')
         if dc:
             return dc.get_ins_rate(risk_class)
         return K.INS_TASAS.get(risk_class, K.INS_TASA_DEFAULT)
 
     def get_aguinaldo_rate(self):
-        """Tasa provisión aguinaldo (decimal). Default 8.33%."""
+        """Tasa provision aguinaldo (decimal). Default 8.33%."""
         dc = self._get_deduction_code('AGUINALDO')
         return (dc.employer_percentage / 100) if dc else K.PROV_AGUINALDO
 
     def get_cesantia_rate(self, entry_date=None, period_date=None):
         """
-        Tasa provisión cesantía según tabla Art. 29 CT.
+        Tasa provision cesantia segun tabla Art. 29 CT.
 
-        La tasa varía según los años de servicio del empleado:
-          Año 1: 19.5 días → 5.4167%
-          Año 2: 20.0 días → 5.5556%
+        La tasa varia segun los anos de servicio del empleado:
+          Ano 1: 19.5 dias -> 5.4167%
+          Ano 2: 20.0 dias -> 5.5556%
           ...
-          Año 8+: 23.0 días → 6.3889% (máximo legal)
+          Ano 8+: 23.0 dias -> 6.3889% (maximo legal)
 
-        Si hay un código CESANTIA configurado en BD, se usa ese valor
+        Si hay un codigo CESANTIA configurado en BD, se usa ese valor
         (permite override manual por empresa).
         Si no hay entry_date, usa la tasa fallback 5.33%.
 
         Args:
             entry_date: Fecha de ingreso del empleado (date object).
-            period_date: Fecha del período (date object). Default: hoy.
+            period_date: Fecha del periodo (date object). Default: hoy.
         """
         dc = self._get_deduction_code('CESANTIA')
         if dc:
@@ -96,21 +96,21 @@ class RateHelper(models.AbstractModel):
 
         from datetime import date as _date
         ref = period_date or _date.today()
-        # Calcular años completos de servicio
+        # Calcular anos completos de servicio
         anos = (ref - entry_date).days // 365
-        # Limitar al máximo legal de 8 años
+        # Limitar al maximo legal de 8 anos
         anos_capped = max(1, min(anos + 1, K.CESANTIA_MAX_ANOS))
-        # días del año actual de servicio según tabla Art. 29 CT
+        # dias del ano actual de servicio segun tabla Art. 29 CT
         dias = K.CESANTIA_TABLA.get(anos_capped, K.CESANTIA_TABLA[K.CESANTIA_MAX_ANOS])
-        # Tasa = días / 360 (30 días × 12 meses)
+        # Tasa = dias / 360 (30 dias x 12 meses)
         return round(dias / 360, 6)
 
     def get_vacation_rate(self):
         """
-        Tasa provisión vacaciones exacta (decimal).
-        Art. 153 CT: 12 días por cada 50 semanas laboradas.
-        Cálculo: 12 días / 288 días laborables/año = 4.1667%.
-        (288 = 24 quincenas × 12 días útiles por quincena)
+        Tasa provision vacaciones exacta (decimal).
+        Art. 153 CT: 12 dias por cada 50 semanas laboradas.
+        Calculo: 12 dias / 288 dias laborables/ano = 4.1667%.
+        (288 = 24 quincenas x 12 dias utiles por quincena)
         """
         dc = self._get_deduction_code('VACACIONES')
         if dc:

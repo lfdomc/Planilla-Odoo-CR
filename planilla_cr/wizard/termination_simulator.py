@@ -6,9 +6,9 @@ import datetime
 
 
 class TerminationSimulatorLoan(models.TransientModel):
-    """Línea de préstamo/adelanto pendiente en el simulador."""
+    """Linea de prestamo/adelanto pendiente en el simulador."""
     _name = 'planilla.termination.simulator.loan'
-    _description = 'Línea de Préstamo en Simulador de Liquidación'
+    _description = 'Linea de Prestamo en Simulador de Liquidacion'
 
     simulator_id  = fields.Many2one('planilla.termination.simulator', ondelete='cascade')
     loan_id       = fields.Many2one('planilla.employee.loan', string='Referencia', readonly=True)
@@ -20,9 +20,9 @@ class TerminationSimulatorLoan(models.TransientModel):
 
 
 class TerminationSimulator(models.TransientModel):
-    """Simulador de liquidación — NO guarda datos, solo estima el costo."""
+    """Simulador de liquidacion -- NO guarda datos, solo estima el costo."""
     _name = 'planilla.termination.simulator'
-    _description = 'Simulador de Liquidación Laboral'
+    _description = 'Simulador de Liquidacion Laboral'
 
     employee_id        = fields.Many2one('hr.employee', string='Empleado', required=True)
     simulated_date     = fields.Date(string='Fecha Simulada de Salida', required=True,
@@ -35,39 +35,39 @@ class TerminationSimulator(models.TransientModel):
         ('contract_end', 'Vencimiento de Contrato'),
     ], string='Motivo', required=True, default='voluntary')
 
-    # ── Datos informativos del empleado (related — más estables en TransientModel) ──
+    # -- Datos informativos del empleado (related -- mas estables en TransientModel) --
     entry_date     = fields.Date(related='employee_id.entry_date',       string='Fecha de Ingreso', readonly=True)
     department     = fields.Char(related='employee_id.department_id.name', string='Departamento',   readonly=True)
     job_position   = fields.Char(related='employee_id.job_id.name',       string='Puesto',          readonly=True)
     branch_name    = fields.Char(related='employee_id.branch_id.name',    string='Sucursal',        readonly=True)
 
-    # ── Préstamos y adelantos pendientes ────────────────────────────────────
+    # -- Prestamos y adelantos pendientes ------------------------------------
     has_loans          = fields.Boolean(readonly=True)
     loan_line_ids      = fields.One2many(
         'planilla.termination.simulator.loan', 'simulator_id',
-        string='Préstamos / Adelantos Pendientes', readonly=True)
-    total_loans_pending = fields.Monetary(string='Total Deudas a Rebajar (₡)',
+        string='Prestamos / Adelantos Pendientes', readonly=True)
+    total_loans_pending = fields.Monetary(string='Total Deudas a Rebajar (CRC)',
                                            currency_field='currency_id', readonly=True)
 
-    # ── Resultados del cálculo ───────────────────────────────────────────────
+    # -- Resultados del calculo -----------------------------------------------
     currency_id        = fields.Many2one('res.currency', readonly=True)
-    years_service      = fields.Float(string='Años de Servicio', readonly=True)
-    last_salary        = fields.Monetary(string='Último Salario Bruto', currency_field='currency_id', readonly=True)
-    preaviso_days      = fields.Integer(string='Días de Preaviso', readonly=True)
-    preaviso_amount    = fields.Monetary(string='Preaviso (₡)', currency_field='currency_id', readonly=True)
+    years_service      = fields.Float(string='Anos de Servicio', readonly=True)
+    last_salary        = fields.Monetary(string='Ultimo Salario Bruto', currency_field='currency_id', readonly=True)
+    preaviso_days      = fields.Integer(string='Dias de Preaviso', readonly=True)
+    preaviso_amount    = fields.Monetary(string='Preaviso (CRC)', currency_field='currency_id', readonly=True)
     preaviso_applies   = fields.Boolean(string='Preaviso Aplica', readonly=True)
-    cesantia_amount    = fields.Monetary(string='Cesantía (₡)', currency_field='currency_id', readonly=True)
-    cesantia_applies   = fields.Boolean(string='Cesantía Aplica', readonly=True)
-    vacation_days      = fields.Float(string='Días Vacaciones Pendientes', readonly=True)
-    vacation_amount    = fields.Monetary(string='Vacaciones (₡)', currency_field='currency_id', readonly=True)
+    cesantia_amount    = fields.Monetary(string='Cesantia (CRC)', currency_field='currency_id', readonly=True)
+    cesantia_applies   = fields.Boolean(string='Cesantia Aplica', readonly=True)
+    vacation_days      = fields.Float(string='Dias Vacaciones Pendientes', readonly=True)
+    vacation_amount    = fields.Monetary(string='Vacaciones (CRC)', currency_field='currency_id', readonly=True)
     aguinaldo_months   = fields.Integer(string='Meses Aguinaldo', readonly=True)
-    aguinaldo_amount   = fields.Monetary(string='Aguinaldo Proporcional (₡)', currency_field='currency_id', readonly=True)
-    total_gross        = fields.Monetary(string='Subtotal Bruto (₡)', currency_field='currency_id', readonly=True)
-    ccss_on_total      = fields.Monetary(string='CCSS Obrero (₡)', currency_field='currency_id', readonly=True)
-    total_net          = fields.Monetary(string='Neto antes de deducciones (₡)', currency_field='currency_id', readonly=True)
-    total_final        = fields.Monetary(string='TOTAL A PAGAR AL EMPLEADO (₡)', currency_field='currency_id', readonly=True)
+    aguinaldo_amount   = fields.Monetary(string='Aguinaldo Proporcional (CRC)', currency_field='currency_id', readonly=True)
+    total_gross        = fields.Monetary(string='Subtotal Bruto (CRC)', currency_field='currency_id', readonly=True)
+    ccss_on_total      = fields.Monetary(string='CCSS Obrero (CRC)', currency_field='currency_id', readonly=True)
+    total_net          = fields.Monetary(string='Neto antes de deducciones (CRC)', currency_field='currency_id', readonly=True)
+    total_final        = fields.Monetary(string='TOTAL A PAGAR AL EMPLEADO (CRC)', currency_field='currency_id', readonly=True)
     computed           = fields.Boolean(default=False)
-    notes              = fields.Text(string='Notas del Cálculo', readonly=True)
+    notes              = fields.Text(string='Notas del Calculo', readonly=True)
 
     @api.onchange('employee_id')
     def _onchange_employee(self):
@@ -75,7 +75,7 @@ class TerminationSimulator(models.TransientModel):
             emp = self.employee_id
             self.currency_id = emp.currency_id
             # FIX-B2: para empleados con salario variable (comisiones, HE recurrentes),
-            # usar el promedio de los últimos 4 meses del historial salarial.
+            # usar el promedio de los ultimos 4 meses del historial salarial.
             # Consistente con employee_termination._onchange_employee (Art. 153 CT).
             if getattr(emp, 'has_variable_income', False):
                 history = self.env['planilla.salary.history'].search([
@@ -107,35 +107,35 @@ class TerminationSimulator(models.TransientModel):
         notes_lines = []
         if getattr(emp, 'has_variable_income', False) and self.last_salary != emp.base_salary:
             notes_lines.append(
-                f'⚠️  Empleado con salario variable: se usa promedio histórico '
-                f'₡{salary:,.2f} (salario base: ₡{emp.base_salary:,.2f}) — Art. 153 CT'
+                f'WARN  Empleado con salario variable: se usa promedio historico '
+                f'CRC{salary:,.2f} (salario base: CRC{emp.base_salary:,.2f}) -- Art. 153 CT'
             )
 
-        # ── Preaviso (Art. 28 CT) ────────────────────────────────────────────
+        # -- Preaviso (Art. 28 CT) --------------------------------------------
         preaviso_applies = self.termination_reason in ('dismissal', 'mutual')
         if years < 0.25:
             preaviso_days = 7
         elif years < 0.5:
             preaviso_days = 14
         else:
-            # FIX-O5: Art. 28 CT establece 1 mes (30 días) tanto para 6-12 meses
-            # como para más de 1 año. La versión anterior usaba 21 días para el
-            # tramo 0.5-1.0 año, que no corresponde a ningún tramo legal del Art. 28 CT.
-            # employee_termination.py ya tenía los 30 días correctamente.
+            # FIX-O5: Art. 28 CT establece 1 mes (30 dias) tanto para 6-12 meses
+            # como para mas de 1 ano. La version anterior usaba 21 dias para el
+            # tramo 0.5-1.0 ano, que no corresponde a ningun tramo legal del Art. 28 CT.
+            # employee_termination.py ya tenia los 30 dias correctamente.
             preaviso_days = 30
         preaviso_amount = (daily * preaviso_days) if preaviso_applies else 0.0
         notes_lines.append(
-            f"Preaviso Art.28 CT: {preaviso_days} días "
-            f"{'— APLICA' if preaviso_applies else '— no aplica (renuncia voluntaria)'}"
+            f"Preaviso Art.28 CT: {preaviso_days} dias "
+            f"{'-- APLICA' if preaviso_applies else '-- no aplica (renuncia voluntaria)'}"
         )
 
-        # ── Cesantía (Art. 29 CT — máx 8 años) ──────────────────────────────
+        # -- Cesantia (Art. 29 CT -- max 8 anos) ------------------------------
         cesantia_applies = self.termination_reason == 'dismissal'
         if cesantia_applies:
-            # FIX-O6: la versión anterior usaba salary * years * factor (incorrecto).
-            # Art. 29 CT establece una tabla de DÍAS POR AÑO (no un factor del salario mensual).
-            # Fórmula correcta: daily_salary × suma_de_días_tabla, igual que employee_termination.py.
-            # Error anterior: para 4 años con ₡1M de salario daba ₡800k en vez de ₡2.7M (3.4x menos).
+            # FIX-O6: la version anterior usaba salary * years * factor (incorrecto).
+            # Art. 29 CT establece una tabla de DIAS POR ANO (no un factor del salario mensual).
+            # Formula correcta: daily_salary x suma_de_dias_tabla, igual que employee_termination.py.
+            # Error anterior: para 4 anos con CRC1M de salario daba CRC800k en vez de CRC2.7M (3.4x menos).
             cesantia_days_table = {
                 1: 19.5, 2: 20.0, 3: 20.5, 4: 21.0,
                 5: 21.24, 6: 21.5, 7: 22.0, 8: 22.0,
@@ -145,26 +145,26 @@ class TerminationSimulator(models.TransientModel):
             cesantia_days = 0.0
             for y in range(1, years_int + 1):
                 cesantia_days += cesantia_days_table.get(y, 22.0)
-            # Fracción del año en curso (proporcional)
+            # Fraccion del ano en curso (proporcional)
             if years_int < 8:
                 days_this_year = cesantia_days_table.get(years_int + 1, 22.0)
                 cesantia_days += days_this_year * fraction
             cesantia_amount = round(daily * cesantia_days, 2)
             if years < 1:
                 cesantia_amount = 0.0
-                notes_lines.append('Cesantía Art.29 CT: menos de 1 año — no aplica')
+                notes_lines.append('Cesantia Art.29 CT: menos de 1 ano -- no aplica')
             else:
-                notes_lines.append(f'Cesantía Art.29 CT: {years:.2f} años × {cesantia_days:.1f} días (tabla Art. 29)')
+                notes_lines.append(f'Cesantia Art.29 CT: {years:.2f} anos x {cesantia_days:.1f} dias (tabla Art. 29)')
         else:
             cesantia_amount = 0.0
-            notes_lines.append('Cesantía Art.29 CT: no aplica para este tipo de salida')
+            notes_lines.append('Cesantia Art.29 CT: no aplica para este tipo de salida')
 
-        # ── Vacaciones pendientes ────────────────────────────────────────────
+        # -- Vacaciones pendientes --------------------------------------------
         vac_days   = emp.vacation_days_available or 0.0
         vac_amount = round(daily * vac_days, 2)
-        notes_lines.append(f'Vacaciones Art.153 CT: {vac_days:.1f} días disponibles × ₡{daily:,.2f}/día')
+        notes_lines.append(f'Vacaciones Art.153 CT: {vac_days:.1f} dias disponibles x CRC{daily:,.2f}/dia')
 
-        # ── Aguinaldo proporcional (Art. 42 CT — dic 1 a nov 30) ────────────
+        # -- Aguinaldo proporcional (Art. 42 CT -- dic 1 a nov 30) ------------
         if exit_date.month >= 12:
             ref_dec = datetime.date(exit_date.year, 12, 1)
         else:
@@ -173,12 +173,12 @@ class TerminationSimulator(models.TransientModel):
         aguinaldo = round(salary * months_worked / 12.0, 2)
         notes_lines.append(f'Aguinaldo Art.42 CT: {months_worked} meses desde 1-dic')
 
-        # ── Totales ──────────────────────────────────────────────────────────
+        # -- Totales ----------------------------------------------------------
         total_gross = preaviso_amount + cesantia_amount + vac_amount + aguinaldo
         ccss        = round(total_gross * K.CCSS_EMP, 2)
         total_net   = round(total_gross - ccss, 2)
 
-        # ── Préstamos y adelantos pendientes ─────────────────────────────────
+        # -- Prestamos y adelantos pendientes ---------------------------------
         loans = self.env['planilla.employee.loan'].search([
             ('employee_id', '=', emp.id),
             ('state', 'in', ('active', 'approved')),
@@ -187,7 +187,7 @@ class TerminationSimulator(models.TransientModel):
         loan_lines = []
         total_pending = 0.0
         type_labels = {
-            'loan':    'Préstamo',
+            'loan':    'Prestamo',
             'advance': 'Adelanto de Salario',
         }
         for loan in loans:
@@ -206,12 +206,12 @@ class TerminationSimulator(models.TransientModel):
 
         if loan_lines:
             notes_lines.append(
-                f'\nDeducciones por préstamos/adelantos: ₡{total_pending:,.2f}'
-                f' ({len(loan_lines)} obligación(es) pendiente(s))'
+                f'\nDeducciones por prestamos/adelantos: CRC{total_pending:,.2f}'
+                f' ({len(loan_lines)} obligacion(es) pendiente(s))'
             )
-        notes_lines.append(f'\nTOTAL FINAL a pagar: ₡{total_final:,.2f}')
+        notes_lines.append(f'\nTOTAL FINAL a pagar: CRC{total_final:,.2f}')
 
-        # Limpiar líneas anteriores antes de escribir
+        # Limpiar lineas anteriores antes de escribir
         self.loan_line_ids.unlink()
 
         self.write({

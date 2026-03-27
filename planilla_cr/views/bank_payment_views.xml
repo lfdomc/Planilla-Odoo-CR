@@ -66,18 +66,18 @@
                         </group>
                     </group>
 
-                    <!-- Sección SINPE Móvil -->
+                    <!-- Seccion SINPE Movil -->
                     <group invisible="bank_format != 'sinpe_movil'">
-                        <group string="Configuración SINPE Móvil">
+                        <group string="Configuracion SINPE Movil">
                             <field name="sinpe_concept"
-                                   placeholder="Pago de Planilla — máx 60 caracteres"/>
+                                   placeholder="Pago de Planilla -- max 60 caracteres"/>
                         </group>
                         <group colspan="2">
                             <div class="alert alert-info" role="alert">
-                                <strong><i class="fa fa-mobile" title="Mobile"/> SINPE Móvil — Todos los bancos:</strong>
-                                Genera un CSV con teléfono, monto y concepto por empleado.
+                                <strong><i class="fa fa-mobile" title="Mobile"/> SINPE Movil -- Todos los bancos:</strong>
+                                Genera un CSV con telefono, monto y concepto por empleado.
                                 Compatible con BAC, Scotiabank, Davivienda, BCR, BNCR y cualquier banco adherido a SINPE.
-                                Cada empleado debe tener registrado su <strong>Teléfono SINPE Móvil</strong> de 8 dígitos en su ficha.
+                                Cada empleado debe tener registrado su <strong>Telefono SINPE Movil</strong> de 8 digitos en su ficha.
                             </div>
                         </group>
                     </group>

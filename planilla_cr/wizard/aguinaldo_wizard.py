@@ -1,7 +1,7 @@
 """
-Reporte de Décimo Mes (Aguinaldo) — Art. 228 Código de Trabajo CR
+Reporte de Decimo Mes (Aguinaldo) -- Art. 228 Codigo de Trabajo CR
 Calcula el aguinaldo real que le corresponde a cada empleado
-basado en los salarios ordinarios del periodo junio-noviembre del año en curso.
+basado en los salarios ordinarios del periodo junio-noviembre del ano en curso.
 """
 from odoo import models, fields, api
 from odoo.exceptions import UserError
@@ -11,10 +11,10 @@ import base64
 
 class AguinaldoWizard(models.TransientModel):
     _name = 'planilla.aguinaldo.wizard'
-    _description = 'Reporte Décimo Mes (Aguinaldo)'
+    _description = 'Reporte Decimo Mes (Aguinaldo)'
 
     year = fields.Integer(
-        string='Año', required=True,
+        string='Ano', required=True,
         default=lambda self: fields.Date.context_today(self).year
     )
     branch_id = fields.Many2one('planilla.branch', string='Sucursal (opcional)')
@@ -25,8 +25,8 @@ class AguinaldoWizard(models.TransientModel):
     # Resultado
     salary_basis = fields.Selection([
         ('gross', 'Salario Bruto (base_salary + horas extras + vacaciones)'),
-        ('base',  'Salario Base únicamente'),
-    ], string='Base de Cálculo', required=True, default='gross',
+        ('base',  'Salario Base unicamente'),
+    ], string='Base de Calculo', required=True, default='gross',
        help='Art. 228 CT: el aguinaldo se calcula sobre salarios ordinarios devengados. '
             'Se recomienda usar Salario Bruto para incluir todos los componentes ordinarios.')
 
@@ -50,15 +50,15 @@ class AguinaldoWizard(models.TransientModel):
     def action_compute(self):
         """
         Art. 228 CT: Aguinaldo = suma de salarios ordinarios recibidos
-        en el periodo junio 1 - noviembre 30 del año, dividido entre 12.
-        Para empleados con menos de un año, proporcional al tiempo trabajado.
+        en el periodo junio 1 - noviembre 30 del ano, dividido entre 12.
+        Para empleados con menos de un ano, proporcional al tiempo trabajado.
         FIX M-03 v59: Limpiar result_ids previos para evitar duplicados
-        si el usuario ejecuta el botón más de una vez.
+        si el usuario ejecuta el boton mas de una vez.
         """
         self.ensure_one()
-        # FIX M-03 / FIX-B1: Eliminar cálculos anteriores UNA sola vez al inicio.
-        # La versión anterior llamaba unlink() dos veces (líneas 61 y 108),
-        # la segunda podía fallar silenciosamente o borrar líneas recién creadas
+        # FIX M-03 / FIX-B1: Eliminar calculos anteriores UNA sola vez al inicio.
+        # La version anterior llamaba unlink() dos veces (lineas 61 y 108),
+        # la segunda podia fallar silenciosamente o borrar lineas recien creadas
         # si el loop tardaba y el usuario recargaba.
         self.result_ids.unlink()
         from datetime import date
@@ -99,17 +99,17 @@ class AguinaldoWizard(models.TransientModel):
                     'slip_count': 0,
                 }
             # Art. 228 CT: usar salario bruto (incluye horas extras, vacaciones)
-            # o solo base según la selección del usuario
+            # o solo base segun la seleccion del usuario
             if self.salary_basis == 'gross':
                 employee_data[eid]['total_ordinary'] += slip.gross_salary or 0.0
             else:
                 employee_data[eid]['total_ordinary'] += slip.base_salary or 0.0
             employee_data[eid]['slip_count'] += 1
 
-        # Calcular aguinaldo por empleado (result_ids ya se limpió al inicio del método)
+        # Calcular aguinaldo por empleado (result_ids ya se limpio al inicio del metodo)
         lines = []
         for eid, data in employee_data.items():
-            # Meses trabajados en el periodo (máx 6)
+            # Meses trabajados en el periodo (max 6)
             entry = data['entry_date']
             if entry and entry > period_start:
                 from dateutil.relativedelta import relativedelta
@@ -155,7 +155,7 @@ class AguinaldoWizard(models.TransientModel):
         try:
             import xlsxwriter
         except ImportError:
-            raise UserError('xlsxwriter no está instalado.')
+            raise UserError('xlsxwriter no esta instalado.')
 
         output = io.BytesIO()
         wb = xlsxwriter.Workbook(output, {'in_memory': True})
@@ -172,7 +172,7 @@ class AguinaldoWizard(models.TransientModel):
         ws.set_column('C:F', 16)
 
         headers = ['Empleado', 'Sucursal', 'Boletas Jun-Nov', 'Meses Trabajados',
-                   'Total Salarios Ordinarios (₡)', 'Aguinaldo a Pagar (₡)']
+                   'Total Salarios Ordinarios (CRC)', 'Aguinaldo a Pagar (CRC)']
         for col, h in enumerate(headers):
             ws.write(0, col, h, bold)
 
@@ -202,14 +202,14 @@ class AguinaldoWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
+            'url': f'/web/content/{attachment.id}download=true',
             'target': 'self',
         }
 
 
 class AguinaldoLine(models.TransientModel):
     _name = 'planilla.aguinaldo.line'
-    _description = 'Línea de Aguinaldo por Empleado'
+    _description = 'Linea de Aguinaldo por Empleado'
     _order = 'employee_id asc'
 
     wizard_id   = fields.Many2one('planilla.aguinaldo.wizard', ondelete='cascade')
@@ -218,10 +218,10 @@ class AguinaldoLine(models.TransientModel):
     slip_count  = fields.Integer(string='Boletas')
     months_worked = fields.Float(string='Meses Jun-Nov', digits=(4, 1))
     total_ordinary = fields.Monetary(
-        string='Salarios Ordinarios (₡)', currency_field='currency_id'
+        string='Salarios Ordinarios (CRC)', currency_field='currency_id'
     )
     aguinaldo_amount = fields.Monetary(
-        string='Aguinaldo (₡)', currency_field='currency_id'
+        string='Aguinaldo (CRC)', currency_field='currency_id'
     )
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.ref('base.CRC')

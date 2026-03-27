@@ -29,7 +29,7 @@
                         <h4>Reporte de Costos Patronales Consolidado</h4>
                         <p>
                             <t t-out="wizard.company_id.name"/> |
-                            Período: <t t-out="str(wizard.date_from)"/> al <t t-out="str(wizard.date_to)"/> |
+                            Periodo: <t t-out="str(wizard.date_from)"/> al <t t-out="str(wizard.date_to)"/> |
                             Sucursal: <t t-out="wizard.branch_id.name if wizard.branch_id else 'Todas'"/> |
                             Agrupado por: <t t-out="dict(wizard._fields['group_by'].selection).get(wizard.group_by, '')"/>
                         </p>
@@ -39,19 +39,19 @@
                     <div class="kpi-grid">
                         <div class="kpi">
                             <div class="kpi-l">Salario Bruto Total</div>
-                            <div class="kpi-v">₡ <t t-out="'{:,.0f}'.format(data['totals']['gross'])"/></div>
+                            <div class="kpi-v">CRC <t t-out="'{:,.0f}'.format(data['totals']['gross'])"/></div>
                         </div>
                         <div class="kpi">
                             <div class="kpi-l">CCSS + INS Patronal</div>
-                            <div class="kpi-v">₡ <t t-out="'{:,.0f}'.format(data['totals']['ccss_patronal'] + data['totals']['ins'])"/></div>
+                            <div class="kpi-v">CRC <t t-out="'{:,.0f}'.format(data['totals']['ccss_patronal'] + data['totals']['ins'])"/></div>
                         </div>
                         <div class="kpi">
                             <div class="kpi-l">Provisiones (Agu+Ces+Vac)</div>
-                            <div class="kpi-v">₡ <t t-out="'{:,.0f}'.format(data['totals']['aguinaldo'] + data['totals']['cesantia'] + data['totals']['vacaciones'])"/></div>
+                            <div class="kpi-v">CRC <t t-out="'{:,.0f}'.format(data['totals']['aguinaldo'] + data['totals']['cesantia'] + data['totals']['vacaciones'])"/></div>
                         </div>
                         <div class="kpi" style="background:#FDE8E8">
                             <div class="kpi-l">COSTO TOTAL EMPRESA</div>
-                            <div class="kpi-v" style="color:#C0392B">₡ <t t-out="'{:,.0f}'.format(data['totals']['total_cost'])"/></div>
+                            <div class="kpi-v" style="color:#C0392B">CRC <t t-out="'{:,.0f}'.format(data['totals']['total_cost'])"/></div>
                         </div>
                     </div>
 
@@ -59,26 +59,26 @@
                         <thead>
                             <tr>
                                 <th style="width:22%">Grupo / Empleado</th>
-                                <th>Bruto (₡)</th>
+                                <th>Bruto (CRC)</th>
                                 <th>CCSS Pat.</th>
                                 <th>INS</th>
                                 <th>Aguinaldo</th>
-                                <th>Cesantía</th>
+                                <th>Cesantia</th>
                                 <th>Vacaciones</th>
-                                <th style="background:#C0392B">COSTO TOTAL (₡)</th>
+                                <th style="background:#C0392B">COSTO TOTAL (CRC)</th>
                             </tr>
                         </thead>
                         <tbody>
                             <t t-foreach="data['groups']" t-as="grp">
                                 <tr class="grp">
                                     <td><t t-out="grp['label']"/></td>
-                                    <td>₡ <t t-out="'{:,.0f}'.format(grp['gross'])"/></td>
-                                    <td>₡ <t t-out="'{:,.0f}'.format(grp['ccss_patronal'])"/></td>
-                                    <td>₡ <t t-out="'{:,.0f}'.format(grp['ins'])"/></td>
-                                    <td>₡ <t t-out="'{:,.0f}'.format(grp['aguinaldo'])"/></td>
-                                    <td>₡ <t t-out="'{:,.0f}'.format(grp['cesantia'])"/></td>
-                                    <td>₡ <t t-out="'{:,.0f}'.format(grp['vacaciones'])"/></td>
-                                    <td style="color:#C0392B;font-weight:bold">₡ <t t-out="'{:,.0f}'.format(grp['total_cost'])"/></td>
+                                    <td>CRC <t t-out="'{:,.0f}'.format(grp['gross'])"/></td>
+                                    <td>CRC <t t-out="'{:,.0f}'.format(grp['ccss_patronal'])"/></td>
+                                    <td>CRC <t t-out="'{:,.0f}'.format(grp['ins'])"/></td>
+                                    <td>CRC <t t-out="'{:,.0f}'.format(grp['aguinaldo'])"/></td>
+                                    <td>CRC <t t-out="'{:,.0f}'.format(grp['cesantia'])"/></td>
+                                    <td>CRC <t t-out="'{:,.0f}'.format(grp['vacaciones'])"/></td>
+                                    <td style="color:#C0392B;font-weight:bold">CRC <t t-out="'{:,.0f}'.format(grp['total_cost'])"/></td>
                                 </tr>
                                 <t t-if="wizard.group_by == 'branch'">
                                     <t t-foreach="grp['detail_rows']" t-as="d">
@@ -97,19 +97,19 @@
                             </t>
                             <tr class="total-row">
                                 <td>TOTAL GENERAL</td>
-                                <td>₡ <t t-out="'{:,.0f}'.format(data['totals']['gross'])"/></td>
-                                <td>₡ <t t-out="'{:,.0f}'.format(data['totals']['ccss_patronal'])"/></td>
-                                <td>₡ <t t-out="'{:,.0f}'.format(data['totals']['ins'])"/></td>
-                                <td>₡ <t t-out="'{:,.0f}'.format(data['totals']['aguinaldo'])"/></td>
-                                <td>₡ <t t-out="'{:,.0f}'.format(data['totals']['cesantia'])"/></td>
-                                <td>₡ <t t-out="'{:,.0f}'.format(data['totals']['vacaciones'])"/></td>
-                                <td style="color:#C0392B;font-size:11px">₡ <t t-out="'{:,.0f}'.format(data['totals']['total_cost'])"/></td>
+                                <td>CRC <t t-out="'{:,.0f}'.format(data['totals']['gross'])"/></td>
+                                <td>CRC <t t-out="'{:,.0f}'.format(data['totals']['ccss_patronal'])"/></td>
+                                <td>CRC <t t-out="'{:,.0f}'.format(data['totals']['ins'])"/></td>
+                                <td>CRC <t t-out="'{:,.0f}'.format(data['totals']['aguinaldo'])"/></td>
+                                <td>CRC <t t-out="'{:,.0f}'.format(data['totals']['cesantia'])"/></td>
+                                <td>CRC <t t-out="'{:,.0f}'.format(data['totals']['vacaciones'])"/></td>
+                                <td style="color:#C0392B;font-size:11px">CRC <t t-out="'{:,.0f}'.format(data['totals']['total_cost'])"/></td>
                             </tr>
                         </tbody>
                     </table>
                     <div class="footer">
-                        Costos patronales: CCSS patronal + INS + provisiones de aguinaldo, cesantía y vacaciones.
-                        Solo boletas en estado PAGADO. Generado por Planilla CR — Odoo 19.
+                        Costos patronales: CCSS patronal + INS + provisiones de aguinaldo, cesantia y vacaciones.
+                        Solo boletas en estado PAGADO. Generado por Planilla CR -- Odoo 19.
                     </div>
                 </div>
             </t>

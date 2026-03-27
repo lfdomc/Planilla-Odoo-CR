@@ -10,11 +10,11 @@ _logger = logging.getLogger(__name__)
 
 class PayslipValidationMixin(models.AbstractModel):
     """
-    Mixin: totales, helpers y validación pre-confirmación.
+    Mixin: totales, helpers y validacion pre-confirmacion.
     _compute_totals, _get_bono_salarial_names, _is_bono_salarial,
     _validate_before_confirm.
 
-    v58: P-02 — freq_factor centralizado con K.FREQ_FACTORS.
+    v58: P-02 -- freq_factor centralizado con K.FREQ_FACTORS.
          @api.depends agregado a _compute_totals.
     """
     _name = 'planilla.payslip.validation.mixin'
@@ -28,20 +28,20 @@ class PayslipValidationMixin(models.AbstractModel):
     )
     def _compute_deduction_summaries(self) -> None:
         """
-        Calcula resúmenes por categoría de deducción/ingreso para la vista de lista.
-        Permite al usuario ver de un vistazo cuánto pesa cada rubro en la boleta
+        Calcula resumenes por categoria de deduccion/ingreso para la vista de lista.
+        Permite al usuario ver de un vistazo cuanto pesa cada rubro en la boleta
         sin necesidad de abrir el formulario.
-        Orden de aplicación según prioridad legal (BLP Legal / Art. 172 CT):
-          1. Pensión alimentaria (prioridad absoluta — Ley 8590)
-          2. Embargos judiciales (máx. 25% neto — Art. 172 CT)
-          3. Préstamos y adelantos
+        Orden de aplicacion segun prioridad legal (BLP Legal / Art. 172 CT):
+          1. Pension alimentaria (prioridad absoluta -- Ley 8590)
+          2. Embargos judiciales (max. 25% neto -- Art. 172 CT)
+          3. Prestamos y adelantos
           4. Cobros al empleado (charges)
           5. Cuotas sindicales / cooperativas
           6. Licencias sin goce / ausencias
 
         FIX BUG-DOBLE-BONO: amount_bonos_exentos excluye los bonos salariales
-        (afecto_ccss=True) que ya están contados en bono_salarial_amount.
-        De lo contrario el Resumen Completo mostraría el mismo bono dos veces:
+        (afecto_ccss=True) que ya estan contados en bono_salarial_amount.
+        De lo contrario el Resumen Completo mostraria el mismo bono dos veces:
         una en "Bonos Salariales (afecto CCSS)" y otra en "Ingresos Adicionales".
         """
         for rec in self:
@@ -74,12 +74,12 @@ class PayslipValidationMixin(models.AbstractModel):
                 l.amount for l in lines
                 if l.deduction_category in ('licencia_sin_goce', 'ausencia') and l.line_type == 'deduction'
             ), 2)
-            # ── Ingresos adicionales desglosados por sub-categoría ────────────
-            # Excluimos bonos salariales (afecto_ccss=True) que ya están en
+            # -- Ingresos adicionales desglosados por sub-categoria ------------
+            # Excluimos bonos salariales (afecto_ccss=True) que ya estan en
             # bono_salarial_amount para evitar doble conteo en el Resumen.
             nombres_salariales = rec._get_bono_salarial_names()
             # 1. Bonos exentos de CCSS/Renta (afecto_ccss=False):
-            #    transporte, representación, incentivos no salariales
+            #    transporte, representacion, incentivos no salariales
             rec.amount_bonos_exentos = round(sum(
                 l.amount for l in lines
                 if l.line_type == 'income'
@@ -87,7 +87,7 @@ class PayslipValidationMixin(models.AbstractModel):
                 and (l.description or '').replace('Bono: ', '').strip() not in nombres_salariales
             ), 2)
             # 2. Licencias especiales con goce de sueldo:
-            #    duelo, paternidad, matrimonio, adopción, donación de sangre
+            #    duelo, paternidad, matrimonio, adopcion, donacion de sangre
             rec.amount_licencias_con_goce = round(sum(
                 l.amount for l in lines
                 if l.line_type == 'income'
@@ -132,7 +132,7 @@ class PayslipValidationMixin(models.AbstractModel):
                     and (l.description or '').replace('Bono: ', '').strip() in nombres_salariales
                 )
             )
-            # Deducciones adicionales: sindicato, cooperativa, embargo, préstamos, licencias sin goce
+            # Deducciones adicionales: sindicato, cooperativa, embargo, prestamos, licencias sin goce
             extra_deductions = sum(
                 l.amount for l in rec.deduction_line_ids
                 if l.line_type == 'deduction'
@@ -158,9 +158,9 @@ class PayslipValidationMixin(models.AbstractModel):
                 (rec.employer_disability_cost or 0.0) +
                 licencias_con_goce, 2  # FIX-AUD-03: duelo, matrimonio, paternidad, etc.
             )
-            # Salario Neto = Bruto − TODAS las deducciones del obrero
+            # Salario Neto = Bruto  TODAS las deducciones del obrero
             # + subsidio CCSS (pasa por planilla) + paternidad + ingresos adicionales
-            # NOTA: ins_subsidy_total NO suma al neto — el INS paga directamente al empleado
+            # NOTA: ins_subsidy_total NO suma al neto -- el INS paga directamente al empleado
             rec.net_salary = round(
                 (rec.gross_salary or 0.0) - rec.total_employee_deductions +
                 (rec.ccss_subsidy_total or 0.0) +
@@ -169,7 +169,7 @@ class PayslipValidationMixin(models.AbstractModel):
             )
             rec.salary_payable = rec.net_salary
 
-            # ── Desglose patrono vs CCSS/INS (todos los tipos de incapacidad) ──
+            # -- Desglose patrono vs CCSS/INS (todos los tipos de incapacidad) --
             ccss_sub = rec.ccss_subsidy_total or 0.0
             ins_sub  = rec.ins_subsidy_total  or 0.0
             if rec.disability_days_in_period:
@@ -190,12 +190,12 @@ class PayslipValidationMixin(models.AbstractModel):
             else:
                 rec.cost_per_net_colon = 0.0
 
-    # ── Validacion pre-confirmacion ───────────────────────────────────
+    # -- Validacion pre-confirmacion -----------------------------------
     def _get_bono_salarial_names(self) -> set:
         """
         FIX v54b (N+1): Retorna el set de nombres de bonos salariales (afecto_ccss=True)
         del empleado. Se llama UNA vez desde _compute_totals y se usa para filtrar
-        las líneas de ingreso, evitando un search() por cada línea.
+        las lineas de ingreso, evitando un search() por cada linea.
         """
         self.ensure_one()
         bonos = self.env['planilla.bono'].search([
@@ -207,7 +207,7 @@ class PayslipValidationMixin(models.AbstractModel):
 
     def _is_bono_salarial(self, line):
         """
-        Helper de compatibilidad — usa caché interno para evitar N+1.
+        Helper de compatibilidad -- usa cache interno para evitar N+1.
         Prefer _get_bono_salarial_names() cuando se llama en loop.
         """
         self.ensure_one()
@@ -222,23 +222,23 @@ class PayslipValidationMixin(models.AbstractModel):
     def _validate_before_confirm(self) -> None:
         """Valida que la boleta tenga datos completos y correctos antes de confirmar.
         FIX PERF-06: pre-cargar rate_helper y min_salary una vez para todos los registros.
-        Para 200 boletas: 400 queries → 1.
+        Para 200 boletas: 400 queries -> 1.
         """
         errors = []
         warnings = []
 
-        # FIX-D2: pre-cargar el salario mínimo UNA vez fuera del loop.
-        # El comentario original decía "FIX PERF-06: pre-cargar..." pero el código
-        # lo llamaba dentro del loop (1 query por empleado → N queries).
-        # get_current_minimum sin categoría devuelve el mínimo global (trabajador no calificado)
-        # — suficiente para detectar salarios claramente bajo el mínimo legal.
+        # FIX-D2: pre-cargar el salario minimo UNA vez fuera del loop.
+        # El comentario original decia "FIX PERF-06: pre-cargar..." pero el codigo
+        # lo llamaba dentro del loop (1 query por empleado -> N queries).
+        # get_current_minimum sin categoria devuelve el minimo global (trabajador no calificado)
+        # -- suficiente para detectar salarios claramente bajo el minimo legal.
         min_salary_global = self.env['planilla.minimum.salary'].get_current_minimum()
 
         for rec in self:
             emp = rec.employee_id
             prefix = f'[{emp.name}]'
 
-            # ── Datos obligatorios del empleado ──────────────────────
+            # -- Datos obligatorios del empleado ----------------------
             if not emp.identification_id:
                 errors.append(f'{prefix} No tiene numero de cedula/identificacion registrado.')
 
@@ -248,14 +248,14 @@ class PayslipValidationMixin(models.AbstractModel):
             if not rec.payroll_calendar_id:
                 errors.append(f'{prefix} No tiene calendarizacion de planilla asignada.')
 
-            # ── Montos calculados coherentes ─────────────────────────
+            # -- Montos calculados coherentes -------------------------
             if rec.gross_salary <= 0:
                 errors.append(f'{prefix} El salario bruto calculado es 0 o negativo ({rec.gross_salary:,.2f}).')
 
-            # ── Validación salario mínimo MTSS — FIX M-03 v54 / FIX-D2 ──────
+            # -- Validacion salario minimo MTSS -- FIX M-03 v54 / FIX-D2 ------
             # FIX-D2: usar el valor pre-cargado fuera del loop (1 query total).
-            # Se usa el mínimo global; si el empleado tiene tipo configurado se intenta
-            # una consulta más específica solo cuando el global no es suficiente.
+            # Se usa el minimo global; si el empleado tiene tipo configurado se intenta
+            # una consulta mas especifica solo cuando el global no es suficiente.
             min_salary = min_salary_global
             if rec.employee_id.employee_type_id and rec.employee_id.employee_type_id.name:
                 specific = self.env['planilla.minimum.salary'].get_current_minimum(
@@ -270,15 +270,15 @@ class PayslipValidationMixin(models.AbstractModel):
                 min_periodo = round(min_salary * freq_factor, 2)
                 if rec.base_salary < min_periodo:
                     errors.append(
-                        f'{prefix} El salario base del período (₡{rec.base_salary:,.2f}) '
-                        f'está por debajo del mínimo MTSS vigente para el período '
-                        f'(₡{min_periodo:,.2f} = ₡{min_salary:,.2f}/mes × {freq_factor}). '
-                        f'Corrija el salario o verifique la categoría ocupacional.'
+                        f'{prefix} El salario base del periodo (CRC{rec.base_salary:,.2f}) '
+                        f'esta por debajo del minimo MTSS vigente para el periodo '
+                        f'(CRC{min_periodo:,.2f} = CRC{min_salary:,.2f}/mes x {freq_factor}). '
+                        f'Corrija el salario o verifique la categoria ocupacional.'
                     )
             elif emp.base_salary and 0 < emp.base_salary < 100_000:
                 warnings.append(
-                    f'{prefix} El salario base (₡{emp.base_salary:,.0f}) parece muy bajo. '
-                    f'Configure los Salarios Mínimos MTSS en Configuración para validación precisa.'
+                    f'{prefix} El salario base (CRC{emp.base_salary:,.0f}) parece muy bajo. '
+                    f'Configure los Salarios Minimos MTSS en Configuracion para validacion precisa.'
                 )
 
             if rec.net_salary < 0:
@@ -288,46 +288,46 @@ class PayslipValidationMixin(models.AbstractModel):
                 )
 
             # AUDIT-03: Validar que embargos judiciales no superen el 25% del neto
-            # Base legal: Art. 172 Código de Trabajo CR.
-            # El límite aplica sobre el salario NETO (después de CCSS y Renta).
-            # Excepción: pensión alimentaria NO tiene límite de porcentaje (Ley 8590).
+            # Base legal: Art. 172 Codigo de Trabajo CR.
+            # El limite aplica sobre el salario NETO (despues de CCSS y Renta).
+            # Excepcion: pension alimentaria NO tiene limite de porcentaje (Ley 8590).
             total_embargos = sum(
                 l.amount for l in rec.deduction_line_ids
                 if l.deduction_category == 'embargo' and l.line_type == 'deduction'
             )
             if total_embargos > 0 and rec.net_salary > 0:
                 max_embargo_legal = round(rec.net_salary * K.MAX_PCT_EMBARGO / 100, 2)
-                if total_embargos > max_embargo_legal + 0.5:  # tolerancia ₡0.50 por redondeo
+                if total_embargos > max_embargo_legal + 0.5:  # tolerancia CRC0.50 por redondeo
                     errors.append(
-                        f'{prefix} Los embargos judiciales (₡{total_embargos:,.2f}) superan '
-                        f'el límite legal del {K.MAX_PCT_EMBARGO:.0f}% del salario neto '
-                        f'(₡{max_embargo_legal:,.2f}). '
-                        f'Base legal: Art. 172 Código de Trabajo CR. '
-                        f'Reduzca el monto del embargo a un máximo de ₡{max_embargo_legal:,.2f}.'
+                        f'{prefix} Los embargos judiciales (CRC{total_embargos:,.2f}) superan '
+                        f'el limite legal del {K.MAX_PCT_EMBARGO:.0f}% del salario neto '
+                        f'(CRC{max_embargo_legal:,.2f}). '
+                        f'Base legal: Art. 172 Codigo de Trabajo CR. '
+                        f'Reduzca el monto del embargo a un maximo de CRC{max_embargo_legal:,.2f}.'
                     )
 
 
-            # (duelo, paternidad, matrimonio), subsidio CCSS por incapacidad, o paternidad —
-            # todos son ingresos adicionales legítimos que el patrono agrega al neto.
-            # La validación correcta es: neto no debe superar bruto + todos los ingresos adicionales legítimos.
-            # FIX-M3: NO separar licencias_con_goce del sum(income_lines) — ya están incluidas
+            # (duelo, paternidad, matrimonio), subsidio CCSS por incapacidad, o paternidad --
+            # todos son ingresos adicionales legitimos que el patrono agrega al neto.
+            # La validacion correcta es: neto no debe superar bruto + todos los ingresos adicionales legitimos.
+            # FIX-M3: NO separar licencias_con_goce del sum(income_lines) -- ya estan incluidas
             # en ese total. Separarlas y sumarlas por separado causaba doble conteo, haciendo
-            # que max_net_expected fuera mayor de lo correcto y la validación nunca detectara errores.
+            # que max_net_expected fuera mayor de lo correcto y la validacion nunca detectara errores.
             max_net_expected = round(
                 rec.gross_salary
                 + (rec.ccss_subsidy_total or 0.0)
                 + (rec.paternity_amount or 0.0)
                 + sum(l.amount for l in rec.deduction_line_ids if l.line_type == 'income'), 2
             )
-            if rec.net_salary > max_net_expected + 1.0:  # tolerancia ₡1 por redondeo
+            if rec.net_salary > max_net_expected + 1.0:  # tolerancia CRC1 por redondeo
                 errors.append(
                     f'{prefix} El salario neto ({rec.net_salary:,.2f}) supera '
-                    f'el máximo esperado ({max_net_expected:,.2f}). Verifique las deducciones e ingresos adicionales.'
+                    f'el maximo esperado ({max_net_expected:,.2f}). Verifique las deducciones e ingresos adicionales.'
                 )
 
-            # ── CCSS coherente ───────────────────────────────────────
+            # -- CCSS coherente ---------------------------------------
             # FIX D-04 v53: usar get_ccss_employee_rate() en lugar de 0.1083 hardcoded
-            # para que la validación respete la tasa configurada en la empresa.
+            # para que la validacion respete la tasa configurada en la empresa.
             rh = rec.env['planilla.rate.helper'].with_company(rec.company_id)
             expected_ccss_emp = round(rec.gross_salary * rh.get_ccss_employee_rate(), 2)
             if rec.ccss_employee and abs(rec.ccss_employee - expected_ccss_emp) > 1.0:
@@ -337,26 +337,26 @@ class PayslipValidationMixin(models.AbstractModel):
                     f'Verifique si hay deducciones manuales.'
                 )
 
-            # ── FIX v49 Bug 3: validar attendance_hours y existencia de registros ──
+            # -- FIX v49 Bug 3: validar attendance_hours y existencia de registros --
             if (rec.employee_id.payroll_calculation_method or 'fixed') == 'attendance':
                 # FIX TZ v55: mismo ajuste UTC-6 que en _compute_attendance_hours
                 dt_from = fields.Datetime.to_datetime(rec.date_from)
                 dt_to   = fields.Datetime.to_datetime(rec.date_to) + datetime.timedelta(days=1, hours=6)
 
-                # Contar registros totales en el período (abiertos y cerrados)
+                # Contar registros totales en el periodo (abiertos y cerrados)
                 total_att = self.env['hr.attendance'].search_count([
                     ('employee_id', '=', emp.id),
                     ('check_in',    '>=', dt_from),
                     ('check_in',    '<',  dt_to),
                 ])
 
-                # Error si no hay NINGÚN registro de asistencia en el período
+                # Error si no hay NINGUN registro de asistencia en el periodo
                 if total_att == 0:
                     errors.append(
-                        f'{prefix} Modo de cálculo por asistencia pero no hay '
-                        f'registros de asistencia (check_in) en el período '
-                        f'{rec.date_from} — {rec.date_to}. '
-                        f'El salario bruto sería ₡0. '
+                        f'{prefix} Modo de calculo por asistencia pero no hay '
+                        f'registros de asistencia (check_in) en el periodo '
+                        f'{rec.date_from} -- {rec.date_to}. '
+                        f'El salario bruto seria CRC0. '
                         f'Registre las asistencias antes de confirmar.'
                     )
 
@@ -364,19 +364,19 @@ class PayslipValidationMixin(models.AbstractModel):
                 elif (rec.attendance_hours or 0.0) <= 0:
                     errors.append(
                         f'{prefix} Las horas trabajadas calculadas son 0 '
-                        f'en modo de cálculo por asistencia. '
-                        f'Verifique que los registros tengan check_out y horas válidas.'
+                        f'en modo de calculo por asistencia. '
+                        f'Verifique que los registros tengan check_out y horas validas.'
                     )
 
                 # Advertencia si el gross_salary resultante es 0 (captura otros casos)
                 elif rec.gross_salary <= 0:
                     errors.append(
-                        f'{prefix} El salario bruto es ₡0 en modo attendance '
+                        f'{prefix} El salario bruto es CRC0 en modo attendance '
                         f'({rec.attendance_hours:.1f}h trabajadas). '
-                        f'Verifique la tasa horaria y las asistencias del período.'
+                        f'Verifique la tasa horaria y las asistencias del periodo.'
                     )
 
-                # ── Asistencias abiertas (C5) ────────────────────────────────────
+                # -- Asistencias abiertas (C5) ------------------------------------
                 open_att = self.env['hr.attendance'].search_count([
                     ('employee_id', '=', emp.id),
                     ('check_in',    '>=', dt_from),
@@ -386,10 +386,10 @@ class PayslipValidationMixin(models.AbstractModel):
                 if open_att:
                     errors.append(
                         f'{prefix} Hay {open_att} registro(s) de asistencia sin check_out '
-                        f'en el período. Corrija las marcas antes de confirmar.'
+                        f'en el periodo. Corrija las marcas antes de confirmar.'
                     )
 
-            # ── Periodo cerrado ──────────────────────────────────────
+            # -- Periodo cerrado --------------------------------------
             closed = PlanillaClosedPeriod.is_period_closed(
                 self.env, rec.company_id.id,
                 rec.date_from, rec.date_to,
@@ -402,9 +402,9 @@ class PayslipValidationMixin(models.AbstractModel):
                     f'por {closed.closed_by.name}). No se puede confirmar una boleta en un periodo cerrado.'
                 )
 
-            # ── Duplicados con períodos solapados ────────────────
+            # -- Duplicados con periodos solapados ----------------
             # FIX v512 BUG-06: usar solapamiento (<=,>=) igual que _check_no_duplicate_employee_period.
-            # La validación anterior usaba fechas exactas (=) y dejaba pasar boletas solapadas
+            # La validacion anterior usaba fechas exactas (=) y dejaba pasar boletas solapadas
             # que fallaban luego en el constraint de BD con un error menos descriptivo.
             duplicate = self.env['planilla.payslip.cr'].search([
                 ('employee_id', '=', emp.id),
@@ -416,14 +416,14 @@ class PayslipValidationMixin(models.AbstractModel):
             if duplicate:
                 errors.append(
                     f'{prefix} Ya existe una boleta confirmada o pagada que se solapa con el '
-                    f'período {rec.date_from} — {rec.date_to} '
-                    f'(Ref: {duplicate.name}, período: {duplicate.date_from} — {duplicate.date_to}).'
+                    f'periodo {rec.date_from} -- {rec.date_to} '
+                    f'(Ref: {duplicate.name}, periodo: {duplicate.date_from} -- {duplicate.date_to}).'
                 )
 
         if errors:
             raise UserError(
                 'No se puede confirmar. Se encontraron los siguientes errores:\n\n' +
-                '\n'.join(f'• {e}' for e in errors)
+                '\n'.join(f' {e}' for e in errors)
             )
 
         if warnings:
@@ -431,4 +431,4 @@ class PayslipValidationMixin(models.AbstractModel):
             return '\n'.join(warnings)
         return None
 
-    # ── Acciones ──────────────────────────────────────────────────────
+    # -- Acciones ------------------------------------------------------

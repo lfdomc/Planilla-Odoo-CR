@@ -9,47 +9,47 @@ class ScheduleType(models.Model):
     _description = 'Tipo de Horario'
 
     name = fields.Char(string='Nombre', required=True)
-    code = fields.Char(string='Código')
+    code = fields.Char(string='Codigo')
     active = fields.Boolean(default=True)
-    hours_per_day = fields.Float(string='Horas por Día', default=8.0)
+    hours_per_day = fields.Float(string='Horas por Dia', default=8.0)
     hours_per_week = fields.Float(string='Horas por Semana', default=40.0)
-    days_per_week = fields.Integer(string='Días por Semana', default=5)
+    days_per_week = fields.Integer(string='Dias por Semana', default=5)
     overtime_factor = fields.Float(
         string='Factor Horas Extras',
         default=1.5,
-        help='Multiplicador para el cálculo de horas extras (ej: 1.5 = 150%)'
+        help='Multiplicador para el calculo de horas extras (ej: 1.5 = 150%)'
     )
-    description = fields.Text(string='Descripción')
+    description = fields.Text(string='Descripcion')
 
     @api.constrains('hours_per_day')
     def _check_hours_per_day(self):
-        """FIX C-06 v53: Validar rango legal de horas por día (Art. 136 CT: máx 8h ordinarias)."""
+        """FIX C-06 v53: Validar rango legal de horas por dia (Art. 136 CT: max 8h ordinarias)."""
         for rec in self:
             if rec.hours_per_day <= 0:
-                raise ValidationError('Las horas por día deben ser mayor a 0.')
+                raise ValidationError('Las horas por dia deben ser mayor a 0.')
             if rec.hours_per_day > 12:
                 raise ValidationError(
-                    f'Las horas por día ({rec.hours_per_day}) superan el máximo permitido (12h). '
-                    f'La jornada ordinaria máxima es 8h + 4h extras (Art. 136 y 139 CT).'
+                    f'Las horas por dia ({rec.hours_per_day}) superan el maximo permitido (12h). '
+                    f'La jornada ordinaria maxima es 8h + 4h extras (Art. 136 y 139 CT).'
                 )
 
     @api.constrains('days_per_week')
     def _check_days_per_week(self):
-        """Validar rango de días por semana."""
+        """Validar rango de dias por semana."""
         for rec in self:
             if rec.days_per_week < 1 or rec.days_per_week > 7:
-                raise ValidationError('Los días por semana deben estar entre 1 y 7.')
+                raise ValidationError('Los dias por semana deben estar entre 1 y 7.')
 
 
 class PayrollCalendar(models.Model):
     _name = 'planilla.calendar'
-    _description = 'Calendarización de Planilla'
+    _description = 'Calendarizacion de Planilla'
     _inherit = ['mail.thread']
 
     name = fields.Char(string='Nombre', required=True)
     active = fields.Boolean(default=True)
     company_id = fields.Many2one(
-        'res.company', string='Compañía',
+        'res.company', string='Compania',
         required=True, default=lambda self: self.env.company
     )
     branch_id = fields.Many2one('planilla.branch', string='Sucursal')
@@ -62,12 +62,12 @@ class PayrollCalendar(models.Model):
     ], string='Frecuencia de Pago', required=True, default='monthly', tracking=True)
 
     payment_day = fields.Integer(
-        string='Día de Pago',
-        help='Día del mes en que se realiza el pago (para pagos mensuales/quincenales)'
+        string='Dia de Pago',
+        help='Dia del mes en que se realiza el pago (para pagos mensuales/quincenales)'
     )
     second_payment_day = fields.Integer(
-        string='Segundo Día de Pago',
-        help='Segundo día de pago (solo para pagos quincenales)'
+        string='Segundo Dia de Pago',
+        help='Segundo dia de pago (solo para pagos quincenales)'
     )
 
     deduction_code_ids = fields.Many2many(
@@ -80,7 +80,7 @@ class PayrollCalendar(models.Model):
     note = fields.Text(string='Notas')
 
     def get_period_dates(self, ref_date=None):
-        """Devuelve fecha de inicio y fin del período actual según la frecuencia."""
+        """Devuelve fecha de inicio y fin del periodo actual segun la frecuencia."""
         self.ensure_one()
         today = ref_date or date.today()
         if self.frequency == 'monthly':

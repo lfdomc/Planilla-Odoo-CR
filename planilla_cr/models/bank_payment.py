@@ -18,14 +18,14 @@ class BankPaymentWizard(models.TransientModel):
     bank_format = fields.Selection([
         ('bcr_dav', 'BCR - Archivo DAV (CSV)'),
         ('bncr_sin', 'BNCR - Archivo SINPE (.SIN)'),
-        ('sinpe_movil', 'SINPE Móvil — Todos los bancos (CSV)'),
+        ('sinpe_movil', 'SINPE Movil -- Todos los bancos (CSV)'),
     ], string='Formato Bancario', required=True, default='bcr_dav')
 
-    # Campos SINPE Móvil
+    # Campos SINPE Movil
     sinpe_concept = fields.Char(
-        string='Concepto SINPE Móvil',
+        string='Concepto SINPE Movil',
         default='Pago de Planilla',
-        help='Descripción que verá el empleado al recibir el pago (max 60 caracteres).'
+        help='Descripcion que vera el empleado al recibir el pago (max 60 caracteres).'
     )
 
     # Campos especificos BNCR SIN
@@ -77,9 +77,9 @@ class BankPaymentWizard(models.TransientModel):
             domain.append(('branch_id', '=', self.branch_id.id))
         return self.env['planilla.payslip.cr'].search(domain)
 
-    # ─────────────────────────────────────────────────────────────
+    # -------------------------------------------------------------
     #  BCR  DAV  (CSV)
-    # ─────────────────────────────────────────────────────────────
+    # -------------------------------------------------------------
     def _validate_bank_accounts(self, payslips):
         """FIX-P3: Verifica que todos los empleados tengan datos de pago.
         BCR/BNCR usan bank_iban; SINPE Movil usa sinpe_phone.
@@ -150,13 +150,13 @@ class BankPaymentWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
+            'url': f'/web/content/{attachment.id}download=true',
             'target': 'self',
         }
 
-    # ─────────────────────────────────────────────────────────────
+    # -------------------------------------------------------------
     #  BNCR  SINPE  (.SIN)  -  Formato posicional fijo
-    # ─────────────────────────────────────────────────────────────
+    # -------------------------------------------------------------
     def _pad(self, value, length, align='left', fill=' '):
         value = str(value) if value else ''
         if align == 'left':
@@ -257,7 +257,7 @@ class BankPaymentWizard(models.TransientModel):
         monto_total_fmt = self._format_monto(total_monto, 16)
         sum_corr_fmt = str(sum_correlativos).rjust(10, '0')
 
-        # ── Registro tipo 1: Encabezado ──
+        # -- Registro tipo 1: Encabezado --
         r1 = (
             '1' +                           # pos 01: tipo registro
             client_id_padded +              # pos 02: ID cliente (15)
@@ -277,7 +277,7 @@ class BankPaymentWizard(models.TransientModel):
         )
         lines.append(r1)
 
-        # ── Registro tipo 2: Debito empresa ──
+        # -- Registro tipo 2: Debito empresa --
         debit_comprobante = '00000001'
         r2 = (
             '2' +                           # pos 01: tipo registro
@@ -292,7 +292,7 @@ class BankPaymentWizard(models.TransientModel):
         )
         lines.append(r2)
 
-        # ── Registros tipo 3: Creditos por empleado ──
+        # -- Registros tipo 3: Creditos por empleado --
         for i, cred in enumerate(creditos):
             # Tipo procesamiento: 1=BNCR, 2=otros bancos T+1
             # Detectamos si es BNCR por los primeros digitos del IBAN
@@ -337,16 +337,16 @@ class BankPaymentWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
+            'url': f'/web/content/{attachment.id}download=true',
             'target': 'self',
         }
 
-    # ─────────────────────────────────────────────────────────────
-    #  SINPE  MÓVIL  —  CSV  universal  (todos los bancos)
-    # ─────────────────────────────────────────────────────────────
+    # -------------------------------------------------------------
+    #  SINPE  MOVIL  --  CSV  universal  (todos los bancos)
+    # -------------------------------------------------------------
     def action_export_sinpe_movil(self):
-        """Genera CSV para pago masivo vía SINPE Móvil.
-        Formato: teléfono, monto, concepto — compatible con portales
+        """Genera CSV para pago masivo via SINPE Movil.
+        Formato: telefono, monto, concepto -- compatible con portales
         de BAC, Scotiabank, Davivienda, BCR, BNCR y otros.
         """
         self.ensure_one()
@@ -357,7 +357,7 @@ class BankPaymentWizard(models.TransientModel):
 
         output = io.StringIO()
         writer = csv.writer(output, lineterminator='\r\n')
-        # Encabezado estándar compatible con plataformas de pago masivo CR
+        # Encabezado estandar compatible con plataformas de pago masivo CR
         writer.writerow(['telefono', 'monto', 'concepto', 'empleado', 'cedula'])
 
         concept = (self.sinpe_concept or 'Pago de Planilla')[:60]
@@ -369,13 +369,13 @@ class BankPaymentWizard(models.TransientModel):
             phone = (getattr(emp, 'sinpe_phone', None) or
                      getattr(emp, 'mobile_phone', None) or
                      getattr(emp, 'work_phone', None) or '').strip()
-            # Limpiar teléfono — solo dígitos, 8 caracteres para CR
+            # Limpiar telefono -- solo digitos, 8 caracteres para CR
             phone_clean = ''.join(filter(str.isdigit, phone))
             if not phone_clean:
-                errors.append(f'{emp.name}: sin teléfono SINPE registrado')
+                errors.append(f'{emp.name}: sin telefono SINPE registrado')
                 continue
             if len(phone_clean) != 8:
-                errors.append(f'{emp.name}: teléfono inválido ({phone_clean}) — debe tener 8 dígitos')
+                errors.append(f'{emp.name}: telefono invalido ({phone_clean}) -- debe tener 8 digitos')
                 continue
 
             net = round(payslip.salary_payable, 2)  # B1 FIX: salary_payable (neto real despues de todas las deducciones)
@@ -390,7 +390,7 @@ class BankPaymentWizard(models.TransientModel):
 
         csv_content = output.getvalue()
         if errors:
-            warn = '# ADVERTENCIA — Empleados omitidos por falta de teléfono SINPE:\n'
+            warn = '# ADVERTENCIA -- Empleados omitidos por falta de telefono SINPE:\n'
             warn += '\n'.join(f'# - {e}' for e in errors) + '\n'
             csv_content = warn + csv_content
 
@@ -403,7 +403,7 @@ class BankPaymentWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
+            'url': f'/web/content/{attachment.id}download=true',
             'target': 'self',
         }
 

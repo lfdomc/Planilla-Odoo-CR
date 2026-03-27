@@ -1,14 +1,14 @@
 """
-EDDI-7 — Exportación Declaración Mensual CCSS (Planilla Digital)
-Formato oficial CCSS Costa Rica para declaración mensual de patronos.
+EDDI-7 -- Exportacion Declaracion Mensual CCSS (Planilla Digital)
+Formato oficial CCSS Costa Rica para declaracion mensual de patronos.
 
-Referencia: Manual Técnico EDDI-7, CCSS Costa Rica
-Estructura: archivo .txt con filas de longitud fija, codificación UTF-8 o ISO-8859-1
+Referencia: Manual Tecnico EDDI-7, CCSS Costa Rica
+Estructura: archivo .txt con filas de longitud fija, codificacion UTF-8 o ISO-8859-1
 
 Tipos de registro:
-  Tipo 1 — Encabezado patrono (1 registro por archivo)
-  Tipo 2 — Detalle por trabajador
-  Tipo 9 — Totales / cierre
+  Tipo 1 -- Encabezado patrono (1 registro por archivo)
+  Tipo 2 -- Detalle por trabajador
+  Tipo 9 -- Totales / cierre
 """
 import re
 from datetime import date
@@ -18,14 +18,14 @@ from odoo.exceptions import UserError, ValidationError
 
 class Eddi7Export(models.TransientModel):
     _name = 'planilla.eddi7.export'
-    _description = 'Exportación EDDI-7 — Declaración Mensual CCSS'
+    _description = 'Exportacion EDDI-7 -- Declaracion Mensual CCSS'
 
     company_id = fields.Many2one(
-        'res.company', string='Compañía',
+        'res.company', string='Compania',
         required=True, default=lambda self: self.env.company
     )
     year = fields.Integer(
-        string='Año', required=True,
+        string='Ano', required=True,
         default=lambda self: date.today().year
     )
     month = fields.Selection([
@@ -37,14 +37,14 @@ class Eddi7Export(models.TransientModel):
         default=lambda self: f'{date.today().month:02d}'
     )
     patron_number = fields.Char(
-        string='Número de Patrono CCSS',
+        string='Numero de Patrono CCSS',
         required=True,
-        help='Número de patrono asignado por la CCSS (9 dígitos). '
-             'Se encuentra en el carné patronal o en SICERE.'
+        help='Numero de patrono asignado por la CCSS (9 digitos). '
+             'Se encuentra en el carne patronal o en SICERE.'
     )
     branch_id = fields.Many2one(
         'planilla.branch', string='Sucursal',
-        help='Filtrar por sucursal. Dejar vacío para todas.'
+        help='Filtrar por sucursal. Dejar vacio para todas.'
     )
     include_maternity = fields.Boolean(
         string='Incluir Subsidio Maternidad',
@@ -61,9 +61,9 @@ class Eddi7Export(models.TransientModel):
     ], default='draft')
     line_count = fields.Integer(string='Trabajadores incluidos', readonly=True)
     total_salaries = fields.Float(string='Total Salarios', readonly=True)
-    validation_errors = fields.Text(string='Errores de Validación', readonly=True)
+    validation_errors = fields.Text(string='Errores de Validacion', readonly=True)
 
-    # ── Helpers de formato ────────────────────────────────────────
+    # -- Helpers de formato ----------------------------------------
 
     @staticmethod
     def _fmt_str(value, length, fill=' ', align='left'):
@@ -75,7 +75,7 @@ class Eddi7Export(models.TransientModel):
 
     @staticmethod
     def _fmt_num(value, length, decimals=0):
-        """Formatea número entero sin punto decimal (CCSS usa enteros en colones)."""
+        """Formatea numero entero sin punto decimal (CCSS usa enteros en colones)."""
         try:
             v = int(round(float(value or 0)))
         except (ValueError, TypeError):
@@ -85,30 +85,30 @@ class Eddi7Export(models.TransientModel):
 
     @staticmethod
     def _fmt_cedula(cedula):
-        """Normaliza cédula a 9 dígitos (solo números)."""
+        """Normaliza cedula a 9 digitos (solo numeros)."""
         clean = re.sub(r'[^0-9]', '', str(cedula or ''))
         return clean.zfill(9)[:9]
 
     @staticmethod
     def _fmt_patron(patron):
-        """Normaliza número de patrono a 9 dígitos."""
+        """Normaliza numero de patrono a 9 digitos."""
         clean = re.sub(r'[^0-9]', '', str(patron or ''))
         return clean.zfill(9)[:9]
 
-    # ── Validaciones previas ──────────────────────────────────────
+    # -- Validaciones previas --------------------------------------
 
     def _validate_patron_number(self):
-        """Valida que el número de patrono tenga formato correcto."""
+        """Valida que el numero de patrono tenga formato correcto."""
         clean = re.sub(r'[^0-9]', '', self.patron_number or '')
         if len(clean) < 8:
             raise ValidationError(
-                f'El número de patrono CCSS debe tener al menos 8 dígitos. '
+                f'El numero de patrono CCSS debe tener al menos 8 digitos. '
                 f'Ingresado: "{self.patron_number}".'
             )
         return clean.zfill(9)[:9]
 
     def _get_payslips_for_month(self):
-        """Obtiene boletas pagadas del mes/año seleccionado."""
+        """Obtiene boletas pagadas del mes/ano seleccionado."""
         from datetime import date as date_cls
         import calendar
         y = self.year
@@ -130,23 +130,23 @@ class Eddi7Export(models.TransientModel):
         if not payslips:
             raise UserError(
                 f'No se encontraron boletas pagadas para {self.month}/{self.year}. '
-                f'Verifique que las boletas estén en estado "Pagado" y '
-                f'el mes/año seleccionados sean correctos.'
+                f'Verifique que las boletas esten en estado "Pagado" y '
+                f'el mes/ano seleccionados sean correctos.'
             )
         return payslips
 
-    # ── Construcción del archivo ──────────────────────────────────
+    # -- Construccion del archivo ----------------------------------
 
     def _build_tipo1(self, patron_num, year, month, total_workers, total_salaries):
         """
-        Registro Tipo 1 — Encabezado de la declaración.
+        Registro Tipo 1 -- Encabezado de la declaracion.
         Posiciones (1-indexed, longitud fija):
           01-01: Tipo registro = '1'
-          02-10: Número patrono (9 dígitos)
-          11-14: Año (4 dígitos)
-          15-16: Mes (2 dígitos)
-          17-22: Cantidad trabajadores (6 dígitos)
-          23-35: Total salarios en colones (13 dígitos, sin decimales)
+          02-10: Numero patrono (9 digitos)
+          11-14: Ano (4 digitos)
+          15-16: Mes (2 digitos)
+          17-22: Cantidad trabajadores (6 digitos)
+          23-35: Total salarios en colones (13 digitos, sin decimales)
           36-80: Espacios (relleno)
         """
         line = (
@@ -162,16 +162,16 @@ class Eddi7Export(models.TransientModel):
 
     def _build_tipo2(self, patron_num, emp_data, year, month):
         """
-        Registro Tipo 2 — Detalle por trabajador.
+        Registro Tipo 2 -- Detalle por trabajador.
         Posiciones (longitud fija 120 caracteres):
           01-01:  Tipo registro = '2'
-          02-10:  Número patrono (9 dígitos)
-          11-19:  Cédula trabajador (9 dígitos)
-          20-49:  Apellido 1 (30 chars, mayúsculas)
-          50-79:  Apellido 2 (30 chars, mayúsculas)
-          80-99:  Nombre (20 chars, mayúsculas)
-          100-112: Salario bruto mensual (13 dígitos, sin decimales)
-          113-116: Días trabajados (4 dígitos)
+          02-10:  Numero patrono (9 digitos)
+          11-19:  Cedula trabajador (9 digitos)
+          20-49:  Apellido 1 (30 chars, mayusculas)
+          50-79:  Apellido 2 (30 chars, mayusculas)
+          80-99:  Nombre (20 chars, mayusculas)
+          100-112: Salario bruto mensual (13 digitos, sin decimales)
+          113-116: Dias trabajados (4 digitos)
           117-117: Tipo trabajador: 1=regular, 2=parcial, 3=temporal
           118-118: Subsidio maternidad: S/N
           119-120: Relleno
@@ -205,10 +205,10 @@ class Eddi7Export(models.TransientModel):
     def _build_tipo9(self, patron_num, year, month, total_workers, total_salaries,
                      total_ccss_obrero, total_ccss_patronal):
         """
-        Registro Tipo 9 — Totales / cierre del archivo.
+        Registro Tipo 9 -- Totales / cierre del archivo.
           01-01:  Tipo registro = '9'
-          02-10:  Número patrono (9 dígitos)
-          11-14:  Año
+          02-10:  Numero patrono (9 digitos)
+          11-14:  Ano
           15-16:  Mes
           17-22:  Total trabajadores
           23-35:  Total salarios
@@ -229,12 +229,12 @@ class Eddi7Export(models.TransientModel):
         )
         return line
 
-    # ── Extracción de datos del empleado ─────────────────────────
+    # -- Extraccion de datos del empleado -------------------------
 
     def _parse_employee_name(self, full_name):
         """
         Intenta separar nombre y apellidos del nombre completo.
-        Convención CR: 'Apellido1 Apellido2 Nombre(s)' o 'Nombre Apellido1 Apellido2'
+        Convencion CR: 'Apellido1 Apellido2 Nombre(s)' o 'Nombre Apellido1 Apellido2'
         Retorna (apellido1, apellido2, nombre).
         """
         parts = (full_name or '').strip().split()
@@ -249,7 +249,7 @@ class Eddi7Export(models.TransientModel):
         """Extrae datos del empleado para el registro Tipo 2."""
         emp = payslip.employee_id
 
-        # Cédula: usar campo de identificación del empleado
+        # Cedula: usar campo de identificacion del empleado
         cedula = ''
         if hasattr(emp, 'identification_id') and emp.identification_id:
             cedula = emp.identification_id
@@ -258,7 +258,7 @@ class Eddi7Export(models.TransientModel):
 
         apellido1, apellido2, nombre = self._parse_employee_name(emp.name)
 
-        # Calcular días trabajados en el mes
+        # Calcular dias trabajados en el mes
         import calendar
         y, m = self.year, int(self.month)
         days_in_month = calendar.monthrange(y, m)[1]
@@ -300,7 +300,7 @@ class Eddi7Export(models.TransientModel):
             'maternidad': maternidad,
         }
 
-    # ── Validacion formato EDDI-7 v4.x ──────────────────────────
+    # -- Validacion formato EDDI-7 v4.x --------------------------
 
     # FIX NEW-07 v54: validar que cada linea generada cumple la especificacion
     # EDDI-7 version 4.x vigente CCSS 2026.
@@ -322,7 +322,7 @@ class Eddi7Export(models.TransientModel):
         errors = []
         import unicodedata
         for i, line in enumerate(lines, start=1):
-            tipo = line[0] if line else '?'
+            tipo = line[0] if line else ''
             expected_len = self.EDDI7_LINE_LENGTHS.get(tipo)
             if expected_len and len(line) != expected_len:
                 errors.append(
@@ -355,11 +355,11 @@ class Eddi7Export(models.TransientModel):
         ascii_s = ascii_s.upper() if align == 'upper' else ascii_s
         return ascii_s[:length].ljust(length)
 
-    # ── Acción principal ──────────────────────────────────────────
+    # -- Accion principal ------------------------------------------
 
     def action_generate_eddi7(self):
         """
-        Genera el archivo EDDI-7 para declaración mensual CCSS.
+        Genera el archivo EDDI-7 para declaracion mensual CCSS.
         Produce un archivo .txt con registros tipo 1, 2... y 9.
         """
         self.ensure_one()
@@ -378,10 +378,10 @@ class Eddi7Export(models.TransientModel):
         worker_count = 0
 
         # FIX-P2: Agrupar boletas por empleado SUMANDO todos los salarios del mes.
-        # La versión anterior tomaba solo la última boleta — para empleados quincenales
+        # La version anterior tomaba solo la ultima boleta -- para empleados quincenales
         # o semanales esto reportaba la mitad (o menos) del salario mensual real a la CCSS,
-        # lo cual constituye una subdeclaración con posibles sanciones patronales.
-        # EDDI-7 requiere el salario MENSUAL total cotizable (suma de todos los períodos).
+        # lo cual constituye una subdeclaracion con posibles sanciones patronales.
+        # EDDI-7 requiere el salario MENSUAL total cotizable (suma de todos los periodos).
         payslips_by_emp = {}  # emp_id -> {'payslip': last_ps, 'total_gross': sum}
         for ps in payslips:
             emp_id = ps.employee_id.id
@@ -391,7 +391,7 @@ class Eddi7Export(models.TransientModel):
                     'total_gross': ps.gross_salary or 0.0,
                 }
             else:
-                # Acumular salario y guardar la boleta más reciente para datos del empleado
+                # Acumular salario y guardar la boleta mas reciente para datos del empleado
                 payslips_by_emp[emp_id]['total_gross'] += ps.gross_salary or 0.0
                 if ps.date_to > payslips_by_emp[emp_id]['payslip'].date_to:
                     payslips_by_emp[emp_id]['payslip'] = ps
@@ -402,14 +402,14 @@ class Eddi7Export(models.TransientModel):
             emp = payslip.employee_id
             try:
                 emp_data = self._get_employee_data(payslip)
-                # Usar el salario MENSUAL total (suma de boletas) no el de la última boleta
+                # Usar el salario MENSUAL total (suma de boletas) no el de la ultima boleta
                 emp_data['salario_bruto'] = round(emp_info['total_gross'])
 
-                # Validar cédula obligatoria
+                # Validar cedula obligatoria
                 if not emp_data['cedula']:
                     errors.append(
                         f'Empleado {emp.name} (ID {emp_id}): '
-                        f'Sin número de cédula. Configure en Empleado → Información Privada.'
+                        f'Sin numero de cedula. Configure en Empleado -> Informacion Privada.'
                     )
                     continue
 
@@ -427,10 +427,10 @@ class Eddi7Export(models.TransientModel):
                 lines.append(tipo2_line)
 
             except Exception as e:
-                errors.append(f'Empleado {emp.name}: Error generando registro — {str(e)}')
+                errors.append(f'Empleado {emp.name}: Error generando registro -- {str(e)}')
 
         if not lines:
-            error_detail = '\n'.join(errors) if errors else 'Sin boletas válidas.'
+            error_detail = '\n'.join(errors) if errors else 'Sin boletas validas.'
             raise UserError(
                 f'No se generaron registros para el archivo EDDI-7.\n\n{error_detail}'
             )
@@ -464,7 +464,7 @@ class Eddi7Export(models.TransientModel):
             'validation_errors': '\n'.join(errors) if errors else False,
         })
 
-        # Notificación de advertencias
+        # Notificacion de advertencias
         if errors:
             self.env['bus.bus']._sendone(
                 self.env.user.partner_id,
@@ -494,6 +494,6 @@ class Eddi7Export(models.TransientModel):
             raise UserError('Genere primero el archivo EDDI-7.')
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/planilla.eddi7.export/{self.id}/eddi7_file/{self.eddi7_filename}?download=true',
+            'url': f'/web/content/planilla.eddi7.export/{self.id}/eddi7_file/{self.eddi7_filename}download=true',
             'target': 'self',
         }

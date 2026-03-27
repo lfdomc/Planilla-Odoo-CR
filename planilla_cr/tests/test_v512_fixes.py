@@ -1,18 +1,18 @@
 """
-Tests v5.12 — Verificación de todos los fixes aplicados en v5.12
+Tests v5.12 -- Verificacion de todos los fixes aplicados en v5.12
 ================================================================
-Cubre los bugs y mejoras corregidos en esta versión:
+Cubre los bugs y mejoras corregidos en esta version:
 
-  BUG-03 — Estado 'done' en action_pay (era 'paid')
-  BUG-05 — @api.depends incluye rop_employer
-  BUG-06 — _validate_before_confirm usa solapamiento de fechas
-  BUG-07 — K.TEST_CEDULA unificado en import_data_wizard
-  BP-01  — Variable 'today' eliminada de _sync_bonos
-  BP-02  — ensure_one() en action_cancel del run
-  BP-04  — _compute_bono_salarial no hace N+1 (precarga bonos)
-  BP-05  — Lógica afecto_ccss corregida (era invertida)
-  SEC-01 — Códigos de deducción protegidos contra race conditions
-  SEC-02 — Trazabilidad en AccountMovePayrollSync
+  BUG-03 -- Estado 'done' en action_pay (era 'paid')
+  BUG-05 -- @api.depends incluye rop_employer
+  BUG-06 -- _validate_before_confirm usa solapamiento de fechas
+  BUG-07 -- K.TEST_CEDULA unificado en import_data_wizard
+  BP-01  -- Variable 'today' eliminada de _sync_bonos
+  BP-02  -- ensure_one() en action_cancel del run
+  BP-04  -- _compute_bono_salarial no hace N+1 (precarga bonos)
+  BP-05  -- Logica afecto_ccss corregida (era invertida)
+  SEC-01 -- Codigos de deduccion protegidos contra race conditions
+  SEC-02 -- Trazabilidad en AccountMovePayrollSync
 
 Ejecutar:
   docker compose exec web odoo -d prueba --test-enable \\
@@ -122,9 +122,9 @@ class TestV512FixBase(TransactionCase):
         })
 
 
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 # BUG-03: Estado 'done' en action_pay
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 class TestBug03EstadoDone(TestV512FixBase):
 
     def test_01_boletas_done_no_bloquean_action_pay_run(self):
@@ -144,27 +144,27 @@ class TestBug03EstadoDone(TestV512FixBase):
         slip.sudo().write({'state': 'confirmed'})
         run.sudo().write({'state': 'confirmed'})
 
-        # El estado 'done' es el estado real tras pagar — no 'paid'
+        # El estado 'done' es el estado real tras pagar -- no 'paid'
         self.assertNotEqual(
             slip._fields['state'].selection,
             [('draft', ''), ('confirmed', ''), ('paid', ''), ('cancelled', '')],
-            "El modelo usa 'done' no 'paid' — verificar que el fix sea coherente"
+            "El modelo usa 'done' no 'paid' -- verificar que el fix sea coherente"
         )
-        # Verificar que los estados válidos incluyen 'done'
+        # Verificar que los estados validos incluyen 'done'
         valid_states = [s[0] for s in slip._fields['state'].selection]
         self.assertIn('done', valid_states, "Estado 'done' debe existir en el modelo")
         self.assertNotIn('paid', valid_states, "Estado 'paid' NO debe existir en el modelo")
 
 
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 # BUG-05: @api.depends incluye rop_employer
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 class TestBug05ROPEmployerDepends(TestV512FixBase):
 
     def test_02_total_rop_employer_se_recalcula(self):
         """
         BUG-05 fix: total_rop_employer en PayrollRunCR se recalcula
-        automáticamente cuando cambia rop_employer en una boleta.
+        automaticamente cuando cambia rop_employer en una boleta.
         """
         emp = self._emp('Bug05 ROP', 600_000, rop=True)
         run = self._run('2027-01-01', '2027-01-31')
@@ -182,12 +182,12 @@ class TestBug05ROPEmployerDepends(TestV512FixBase):
         expected = round(slip.rop_employer, 2)
         actual = round(run.total_rop_employer, 2)
         self.assertAlmostEqual(actual, expected, delta=0.05,
-            msg=f'total_rop_employer del run: esperado ₡{expected:,.2f}, '
-                f'obtenido ₡{actual:,.2f}. El @api.depends puede estar incompleto.')
+            msg=f'total_rop_employer del run: esperado CRC{expected:,.2f}, '
+                f'obtenido CRC{actual:,.2f}. El @api.depends puede estar incompleto.')
 
     def test_03_total_rop_employer_en_depends_declarado(self):
         """
-        Verificar que 'payslip_ids.rop_employer' está declarado en
+        Verificar que 'payslip_ids.rop_employer' esta declarado en
         el @api.depends de PayrollRunCR._compute_totals.
         """
         from odoo.addons.planilla_cr.models.payroll_run_cr import PayrollRunCR
@@ -201,9 +201,9 @@ class TestBug05ROPEmployerDepends(TestV512FixBase):
         )
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# BUG-06: Validación de fechas con solapamiento
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# BUG-06: Validacion de fechas con solapamiento
+# =======================================================================
 class TestBug06ValidacionFechasSolapamiento(TestV512FixBase):
 
     def test_04_validate_detecta_solapamiento_parcial(self):
@@ -214,11 +214,11 @@ class TestBug06ValidacionFechasSolapamiento(TestV512FixBase):
         emp = self._emp('Bug06 Solapamiento', 500_000)
         emp.write({'identification_id': '1-0101-0001'})
 
-        # Boleta 1: Febrero completo — confirmar
+        # Boleta 1: Febrero completo -- confirmar
         slip1 = self._slip(emp, '2027-02-01', '2027-02-28')
         slip1.sudo().write({'state': 'confirmed'})
 
-        # Boleta 2: Feb 15 - Mar 15 (se solapa) — debe fallar al crear
+        # Boleta 2: Feb 15 - Mar 15 (se solapa) -- debe fallar al crear
         from odoo.exceptions import ValidationError
         with self.assertRaises(Exception, msg=(
             'BUG-06 no corregido: crear boleta solapada debe lanzar error'
@@ -227,7 +227,7 @@ class TestBug06ValidacionFechasSolapamiento(TestV512FixBase):
 
     def test_05_validate_permite_periodos_no_solapados(self):
         """
-        Períodos que no se solapan deben pasar la validación sin error.
+        Periodos que no se solapan deben pasar la validacion sin error.
         """
         emp = self._emp('Bug06 No Solap', 500_000)
         emp.write({'identification_id': '1-0101-0002'})
@@ -236,22 +236,22 @@ class TestBug06ValidacionFechasSolapamiento(TestV512FixBase):
         slip1 = self._slip(emp, '2027-03-01', '2027-03-31')
         slip1.sudo().write({'state': 'confirmed'})
 
-        # Boleta 2: Febrero — no se solapa con Enero
+        # Boleta 2: Febrero -- no se solapa con Enero
         slip2 = self._slip(emp, '2027-04-01', '2027-04-30')
 
-        # No debe lanzar excepción
+        # No debe lanzar excepcion
         try:
             result = slip2.sudo()._validate_before_confirm()
-            # Si no lanza excepción, el test pasa
+            # Si no lanza excepcion, el test pasa
         except UserError as e:
             self.fail(
-                f'_validate_before_confirm lanzó UserError para períodos no solapados: {e}'
+                f'_validate_before_confirm lanzo UserError para periodos no solapados: {e}'
             )
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# BUG-07: Cédula de prueba unificada con K.TEST_CEDULA
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# BUG-07: Cedula de prueba unificada con K.TEST_CEDULA
+# =======================================================================
 class TestBug07CedulaPrueba(TestV512FixBase):
 
     def test_06_sample_cedula_unificada(self):
@@ -266,32 +266,32 @@ class TestBug07CedulaPrueba(TestV512FixBase):
             ImportDataWizard._SAMPLE_CEDULA, K.TEST_CEDULA,
             msg=(
                 f'BUG-07 no corregido: _SAMPLE_CEDULA ({ImportDataWizard._SAMPLE_CEDULA!r}) '
-                f'≠ K.TEST_CEDULA ({K.TEST_CEDULA!r}). '
-                f'Actualizar K.TEST_CEDULA no actualizaría _is_sample().'
+                f' K.TEST_CEDULA ({K.TEST_CEDULA!r}). '
+                f'Actualizar K.TEST_CEDULA no actualizaria _is_sample().'
             )
         )
 
     def test_07_k_sample_y_test_cedula_son_distintas(self):
         """
-        K.SAMPLE_CEDULA (fila verde excel) ≠ K.TEST_CEDULA (empleado de prueba).
-        Son dos propósitos distintos y deben tener valores distintos.
+        K.SAMPLE_CEDULA (fila verde excel)  K.TEST_CEDULA (empleado de prueba).
+        Son dos propositos distintos y deben tener valores distintos.
         """
         from odoo.addons.planilla_cr.models import planilla_const as K
         self.assertNotEqual(
             K.SAMPLE_CEDULA, K.TEST_CEDULA,
-            msg='K.SAMPLE_CEDULA y K.TEST_CEDULA deben ser cédulas distintas'
+            msg='K.SAMPLE_CEDULA y K.TEST_CEDULA deben ser cedulas distintas'
         )
 
 
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 # BP-02: ensure_one() en action_cancel del run
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 class TestBP02EnsureOneCancel(TestV512FixBase):
 
     def test_08_action_cancel_run_acepta_single_record(self):
         """
         BP-02: action_cancel() del run debe aceptar un solo registro.
-        Con ensure_one(), llamar sobre un recordset de más de uno debe fallar.
+        Con ensure_one(), llamar sobre un recordset de mas de uno debe fallar.
         """
         run1 = self._run('2027-05-01', '2027-05-31')
         run2 = self._run('2027-06-01', '2027-06-30')
@@ -300,11 +300,11 @@ class TestBP02EnsureOneCancel(TestV512FixBase):
         try:
             run1.sudo().action_cancel()
         except Exception as e:
-            self.fail(f'action_cancel() falló en un solo registro: {e}')
+            self.fail(f'action_cancel() fallo en un solo registro: {e}')
 
     def test_09_action_cancel_run_falla_con_multiples(self):
         """
-        Tras agregar ensure_one(), action_cancel() sobre múltiples registros
+        Tras agregar ensure_one(), action_cancel() sobre multiples registros
         debe lanzar error (behavior correcto de Odoo).
         """
         run1 = self._run('2027-07-01', '2027-07-31')
@@ -312,15 +312,15 @@ class TestBP02EnsureOneCancel(TestV512FixBase):
         multi = run1 | run2
 
         with self.assertRaises(Exception, msg=(
-            'BP-02: action_cancel() con ensure_one() debería fallar '
-            'si se llama con múltiples registros'
+            'BP-02: action_cancel() con ensure_one() deberia fallar '
+            'si se llama con multiples registros'
         )):
             multi.sudo().action_cancel()
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# BP-04 + BP-05: _compute_bono_salarial sin N+1 y lógica afecto_ccss
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# BP-04 + BP-05: _compute_bono_salarial sin N+1 y logica afecto_ccss
+# =======================================================================
 class TestBP04BP05BonoSalarial(TestV512FixBase):
 
     def test_10_bono_afecto_ccss_incluido_en_bruto(self):
@@ -331,21 +331,21 @@ class TestBP04BP05BonoSalarial(TestV512FixBase):
         """
         emp = self._emp('BP05 Bono CCSS', 500_000)
 
-        # Código de deducción para bonos
+        # Codigo de deduccion para bonos
         bono_code = self.env['planilla.deduction.code'].search(
             [('code', '=', 'BONO')], limit=1
         ) or self.env['planilla.deduction.code'].create({
             'code': 'BONO', 'name': 'Bono Test', 'deduction_type': 'employee',
         })
 
-        # Bono salarial (afecto_ccss=True) — debe entrar al bruto
+        # Bono salarial (afecto_ccss=True) -- debe entrar al bruto
         bono_sal = self.env['planilla.bono'].create({
             'employee_id': emp.id, 'name': 'Bono Productividad Test',
             'amount': 50_000, 'amount_type': 'fixed',
             'afecto_ccss': True, 'state': 'active',
             'date_start': '2020-01-01',
         })
-        # Bono exento (afecto_ccss=False) — NO debe entrar al bruto
+        # Bono exento (afecto_ccss=False) -- NO debe entrar al bruto
         bono_exe = self.env['planilla.bono'].create({
             'employee_id': emp.id, 'name': 'Subsidio Transporte Test',
             'amount': 30_000, 'amount_type': 'fixed',
@@ -364,9 +364,9 @@ class TestBP04BP05BonoSalarial(TestV512FixBase):
             self.assertAlmostEqual(bono_sal_amount, 50_000, delta=1,
                 msg=(
                     f'bono_salarial_amount debe incluir SOLO bonos afecto_ccss=True.\n'
-                    f'  Esperado: ₡50,000 (bono productividad)\n'
-                    f'  Obtenido: ₡{bono_sal_amount:,.2f}\n'
-                    f'  Si incluye los ₡30,000 del transporte, la lógica está invertida (BP-05).'
+                    f'  Esperado: CRC50,000 (bono productividad)\n'
+                    f'  Obtenido: CRC{bono_sal_amount:,.2f}\n'
+                    f'  Si incluye los CRC30,000 del transporte, la logica esta invertida (BP-05).'
                 )
             )
 
@@ -396,7 +396,7 @@ class TestBP04BP05BonoSalarial(TestV512FixBase):
             self.assertEqual(slip.bono_salarial_amount, 0.0,
                 msg=(
                     f'Un bono con afecto_ccss=False no debe entrar en bono_salarial_amount.\n'
-                    f'  Obtenido: ₡{slip.bono_salarial_amount:,.2f}'
+                    f'  Obtenido: CRC{slip.bono_salarial_amount:,.2f}'
                 )
             )
 
@@ -405,7 +405,7 @@ class TestBP04BP05BonoSalarial(TestV512FixBase):
 
     def test_12_compute_bono_salarial_multiples_registros(self):
         """
-        BP-04: _compute_bono_salarial debe manejar un recordset de múltiples
+        BP-04: _compute_bono_salarial debe manejar un recordset de multiples
         boletas sin hacer N+1 (se llama una sola query para todos los empleados).
         Test de comportamiento: resultado correcto para 3 boletas distintas.
         """
@@ -423,7 +423,7 @@ class TestBP04BP05BonoSalarial(TestV512FixBase):
             recordset._compute_bono_salarial()
         except Exception as e:
             self.fail(
-                f'_compute_bono_salarial falló con recordset de múltiples boletas: {e}'
+                f'_compute_bono_salarial fallo con recordset de multiples boletas: {e}'
             )
 
         # Sin bonos configurados, todos deben ser 0
@@ -432,37 +432,37 @@ class TestBP04BP05BonoSalarial(TestV512FixBase):
                 msg=f'Sin bonos activos, bono_salarial_amount debe ser 0 para {slip.employee_id.name}')
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# SEC-01: Códigos de deducción — creación idempotente
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# SEC-01: Codigos de deduccion -- creacion idempotente
+# =======================================================================
 class TestSEC01DeductionCodeIdempotent(TestV512FixBase):
 
     def test_13_pension_code_creado_una_vez(self):
         """
         SEC-01: Llamar _sync_pension_alimentaria dos veces en boletas distintas
-        del mismo empleado debe crear el código PENSION_ALIM solo una vez.
+        del mismo empleado debe crear el codigo PENSION_ALIM solo una vez.
         """
-        # Asegurar que no existe el código
+        # Asegurar que no existe el codigo
         self.env['planilla.deduction.code'].search(
             [('code', '=', 'PENSION_ALIM_TEST')]
         ).unlink()
 
         emp = self._emp('SEC01 Pension', 500_000)
-        # Llamar sincronización dos veces — solo debe haber un código
+        # Llamar sincronizacion dos veces -- solo debe haber un codigo
         slip1 = self._slip(emp, '2027-10-01', '2027-10-31')
         slip2 = self._slip(emp, '2027-11-01', '2027-11-30')
 
-        # Los dos slips deberían usar el mismo código PENSION_ALIM
+        # Los dos slips deberian usar el mismo codigo PENSION_ALIM
         pension_codes = self.env['planilla.deduction.code'].search(
             [('code', '=', 'PENSION_ALIM')]
         )
         self.assertLessEqual(len(pension_codes), 1,
-            msg=f'Debe existir máximo 1 código PENSION_ALIM, encontrados: {len(pension_codes)}')
+            msg=f'Debe existir maximo 1 codigo PENSION_ALIM, encontrados: {len(pension_codes)}')
 
     def test_14_rop_code_creado_una_vez(self):
         """
-        SEC-01: Código ROP debe existir máximo una vez aunque se llame
-        _sync_rop múltiples veces.
+        SEC-01: Codigo ROP debe existir maximo una vez aunque se llame
+        _sync_rop multiples veces.
         """
         emp1 = self._emp('SEC01 ROP A', 500_000, rop=True)
         emp2 = self._emp('SEC01 ROP B', 600_000, rop=True)
@@ -472,11 +472,11 @@ class TestSEC01DeductionCodeIdempotent(TestV512FixBase):
 
         rop_codes = self.env['planilla.deduction.code'].search([('code', '=', 'ROP')])
         self.assertLessEqual(len(rop_codes), 1,
-            msg=f'Debe existir máximo 1 código ROP, encontrados: {len(rop_codes)}')
+            msg=f'Debe existir maximo 1 codigo ROP, encontrados: {len(rop_codes)}')
 
     def test_15_embargo_code_creado_una_vez(self):
         """
-        SEC-01: Código EMB debe existir máximo una vez aunque múltiples
+        SEC-01: Codigo EMB debe existir maximo una vez aunque multiples
         embargos sean procesados para distintos empleados.
         """
         emp1 = self._emp('SEC01 Emb A', 500_000)
@@ -495,19 +495,19 @@ class TestSEC01DeductionCodeIdempotent(TestV512FixBase):
 
         emb_codes = self.env['planilla.deduction.code'].search([('code', '=', 'EMB')])
         self.assertLessEqual(len(emb_codes), 1,
-            msg=f'Debe existir máximo 1 código EMB, encontrados: {len(emb_codes)}')
+            msg=f'Debe existir maximo 1 codigo EMB, encontrados: {len(emb_codes)}')
 
 
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 # SEC-02: Trazabilidad en AccountMovePayrollSync
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 class TestSEC02Trazabilidad(TestV512FixBase):
 
     def test_16_move_sync_tiene_logger_warning(self):
         """
         SEC-02: AccountMovePayrollSync.write() debe registrar _logger.warning
         antes de cancelar boletas masivamente.
-        Verifica que la función exista y contenga la llamada al logger.
+        Verifica que la funcion exista y contenga la llamada al logger.
         """
         from odoo.addons.planilla_cr.models.payroll_run_cr import AccountMovePayrollSync
         import inspect
@@ -515,11 +515,11 @@ class TestSEC02Trazabilidad(TestV512FixBase):
         self.assertIn('_logger.warning', source,
             msg='AccountMovePayrollSync.write() debe tener _logger.warning para trazabilidad')
         self.assertIn('message_post', source,
-            msg='AccountMovePayrollSync.write() debe tener message_post para notificación')
+            msg='AccountMovePayrollSync.write() debe tener message_post para notificacion')
 
     def test_17_move_unlink_tiene_trazabilidad(self):
         """
-        SEC-02: AccountMovePayrollSync.unlink() también debe tener trazabilidad.
+        SEC-02: AccountMovePayrollSync.unlink() tambien debe tener trazabilidad.
         """
         from odoo.addons.planilla_cr.models.payroll_run_cr import AccountMovePayrollSync
         import inspect

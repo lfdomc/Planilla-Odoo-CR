@@ -9,7 +9,7 @@
                         <table width="100%">
                             <tr>
                                 <td width="70%">
-                                    <h2 style="color:#1F4E79; margin:0;">CARTA DE LIQUIDACIÓN / FINIQUITO</h2>
+                                    <h2 style="color:#1F4E79; margin:0;">CARTA DE LIQUIDACION / FINIQUITO</h2>
                                     <h4 style="margin:2px 0 0 0; color:#555;"><t t-esc="doc.company_id.name"/></h4>
                                 </td>
                                 <td width="30%" style="text-align:right; font-size:11px; color:#555;">
@@ -25,7 +25,7 @@
                         <tr style="background:#f5f5f5;">
                             <td style="padding:6px; border:1px solid #ddd; width:25%;"><strong>Empleado:</strong></td>
                             <td style="padding:6px; border:1px solid #ddd;"><t t-esc="doc.employee_id.name"/></td>
-                            <td style="padding:6px; border:1px solid #ddd; width:25%;"><strong>Identificación:</strong></td>
+                            <td style="padding:6px; border:1px solid #ddd; width:25%;"><strong>Identificacion:</strong></td>
                             <td style="padding:6px; border:1px solid #ddd;"><t t-esc="doc.employee_id.identification_id or ''"/></td>
                         </tr>
                         <tr>
@@ -36,7 +36,7 @@
                         </tr>
                         <tr style="background:#f5f5f5;">
                             <td style="padding:6px; border:1px solid #ddd;"><strong>Tiempo Servicio:</strong></td>
-                            <td style="padding:6px; border:1px solid #ddd;"><t t-esc="'%.1f años (%d meses)' % (doc.years_service, doc.months_service)"/></td>
+                            <td style="padding:6px; border:1px solid #ddd;"><t t-esc="'%.1f anos (%d meses)' % (doc.years_service, doc.months_service)"/></td>
                             <td style="padding:6px; border:1px solid #ddd;"><strong>Motivo Salida:</strong></td>
                             <td style="padding:6px; border:1px solid #ddd;">
                                 <t t-if="doc.termination_reason == 'renuncia'">Renuncia voluntaria</t>
@@ -49,68 +49,68 @@
                         </tr>
                         <tr>
                             <td style="padding:6px; border:1px solid #ddd;"><strong>Salario Mensual:</strong></td>
-                            <td style="padding:6px; border:1px solid #ddd;"><t t-esc="'₡ {:,.2f}'.format(doc.last_salary)"/></td>
+                            <td style="padding:6px; border:1px solid #ddd;"><t t-esc="'CRC {:,.2f}'.format(doc.last_salary)"/></td>
                             <td style="padding:6px; border:1px solid #ddd;"><strong>Salario Diario:</strong></td>
-                            <td style="padding:6px; border:1px solid #ddd;"><t t-esc="'₡ {:,.2f}'.format(doc.last_salary / 30)"/></td>
+                            <td style="padding:6px; border:1px solid #ddd;"><t t-esc="'CRC {:,.2f}'.format(doc.last_salary / 30)"/></td>
                         </tr>
                     </table>
 
-                    <!-- Desglose liquidación -->
-                    <h4 style="color:#1F4E79; border-bottom:1px solid #1F4E79; padding-bottom:4px;">Desglose de Liquidación</h4>
+                    <!-- Desglose liquidacion -->
+                    <h4 style="color:#1F4E79; border-bottom:1px solid #1F4E79; padding-bottom:4px;">Desglose de Liquidacion</h4>
                     <table width="100%" style="border-collapse:collapse; font-size:11px;">
                         <thead>
                             <tr style="background:#2E75B6; color:#fff;">
                                 <th style="padding:6px; border:1px solid #ccc; text-align:left;">Concepto</th>
                                 <th style="padding:6px; border:1px solid #ccc; text-align:center;">Detalle</th>
-                                <th style="padding:6px; border:1px solid #ccc; text-align:right;">Monto (₡)</th>
+                                <th style="padding:6px; border:1px solid #ccc; text-align:right;">Monto (CRC)</th>
                             </tr>
                         </thead>
                         <tbody>
                             <t t-if="doc.preaviso_applies and doc.preaviso_amount">
                                 <tr>
                                     <td style="padding:5px; border:1px solid #ddd;">Preaviso</td>
-                                    <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="doc.preaviso_days"/> días (Art. 28 CT)</td>
-                                    <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'₡ {:,.2f}'.format(doc.preaviso_amount)"/></td>
+                                    <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="doc.preaviso_days"/> dias (Art. 28 CT)</td>
+                                    <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'CRC {:,.2f}'.format(doc.preaviso_amount)"/></td>
                                 </tr>
                             </t>
                             <t t-if="doc.cesantia_applies and doc.cesantia_amount">
                                 <tr style="background:#f9f9f9;">
-                                    <td style="padding:5px; border:1px solid #ddd;">Cesantía</td>
-                                    <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="'%.1f' % doc.years_service"/> años (Art. 29 CT)</td>
-                                    <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'₡ {:,.2f}'.format(doc.cesantia_amount)"/></td>
+                                    <td style="padding:5px; border:1px solid #ddd;">Cesantia</td>
+                                    <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="'%.1f' % doc.years_service"/> anos (Art. 29 CT)</td>
+                                    <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'CRC {:,.2f}'.format(doc.cesantia_amount)"/></td>
                                 </tr>
                             </t>
                             <tr>
                                 <td style="padding:5px; border:1px solid #ddd;">Vacaciones Proporcionales</td>
-                                <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="'%.2f' % doc.vacation_days_accrued"/> días (Art. 153 CT)</td>
-                                <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'₡ {:,.2f}'.format(doc.vacation_amount)"/></td>
+                                <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="'%.2f' % doc.vacation_days_accrued"/> dias (Art. 153 CT)</td>
+                                <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'CRC {:,.2f}'.format(doc.vacation_amount)"/></td>
                             </tr>
                             <t t-if="doc.aguinaldo_amount">
                                 <tr style="background:#f9f9f9;">
                                     <td style="padding:5px; border:1px solid #ddd;">Aguinaldo Proporcional</td>
                                     <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="doc.aguinaldo_months"/> meses (Art. 228 CT)</td>
-                                    <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'₡ {:,.2f}'.format(doc.aguinaldo_amount)"/></td>
+                                    <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'CRC {:,.2f}'.format(doc.aguinaldo_amount)"/></td>
                                 </tr>
                             </t>
                             <t t-if="doc.other_payments">
                                 <tr>
                                     <td style="padding:5px; border:1px solid #ddd;">Otros Pagos</td>
                                     <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="doc.other_payments_note or ''"/></td>
-                                    <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'₡ {:,.2f}'.format(doc.other_payments)"/></td>
+                                    <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'CRC {:,.2f}'.format(doc.other_payments)"/></td>
                                 </tr>
                             </t>
                             <t t-if="doc.deductions">
                                 <tr style="background:#fff3f3;">
                                     <td style="padding:5px; border:1px solid #ddd;">(-) Deducciones</td>
                                     <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="doc.deductions_note or ''"/></td>
-                                    <td style="padding:5px; border:1px solid #ddd; text-align:right; color:#c00;">(<t t-esc="'₡ {:,.2f}'.format(doc.deductions)"/>)</td>
+                                    <td style="padding:5px; border:1px solid #ddd; text-align:right; color:#c00;">(<t t-esc="'CRC {:,.2f}'.format(doc.deductions)"/>)</td>
                                 </tr>
                             </t>
                         </tbody>
                         <tfoot>
                             <tr style="background:#1F4E79; color:#fff; font-weight:bold; font-size:12px;">
                                 <td colspan="2" style="padding:8px; border:1px solid #ccc; text-align:right;">TOTAL NETO A PAGAR</td>
-                                <td style="padding:8px; border:1px solid #ccc; text-align:right;"><t t-esc="'₡ {:,.2f}'.format(doc.total_net)"/></td>
+                                <td style="padding:8px; border:1px solid #ccc; text-align:right;"><t t-esc="'CRC {:,.2f}'.format(doc.total_net)"/></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -134,8 +134,8 @@
                     </div>
 
                     <div style="margin-top:20px; font-size:8px; color:#888; text-align:center; border-top:1px solid #ddd; padding-top:6px;">
-                        Liquidación emitida el <t t-esc="doc.termination_date"/> |
-                        Montos calculados conforme al Código de Trabajo de Costa Rica
+                        Liquidacion emitida el <t t-esc="doc.termination_date"/> |
+                        Montos calculados conforme al Codigo de Trabajo de Costa Rica
                     </div>
                 </div>
             </t>
@@ -143,7 +143,7 @@
     </template>
 
     <record id="action_report_termination" model="ir.actions.report">
-        <field name="name">Liquidación / Finiquito</field>
+        <field name="name">Liquidacion / Finiquito</field>
         <field name="model">planilla.termination</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">planilla_cr.report_termination_template</field>

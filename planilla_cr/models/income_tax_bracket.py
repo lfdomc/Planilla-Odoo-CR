@@ -8,34 +8,34 @@ class IncomeTaxBracket(models.Model):
     _order = 'sequence asc'
 
     company_id = fields.Many2one(
-        'res.company', string='Compañía',
+        'res.company', string='Compania',
         required=True, default=lambda self: self.env.company
     )
     sequence = fields.Integer(string='Orden', default=10)
-    name = fields.Char(string='Descripción', required=True)
+    name = fields.Char(string='Descripcion', required=True)
 
-    # AUDIT-02: año fiscal explícito — identifica a qué resolución DGT pertenece el tramo
+    # AUDIT-02: ano fiscal explicito -- identifica a que resolucion DGT pertenece el tramo
     year = fields.Integer(
-        string='Año Fiscal',
+        string='Ano Fiscal',
         required=True,
         default=lambda self: fields.Date.today().year,
-        help='Año al que corresponde esta tabla de renta (ej: 2026). '
-             'Todos los tramos activos deben pertenecer al MISMO año fiscal. '
-             'El sistema valida que no haya tramos activos de años diferentes '
+        help='Ano al que corresponde esta tabla de renta (ej: 2026). '
+             'Todos los tramos activos deben pertenecer al MISMO ano fiscal. '
+             'El sistema valida que no haya tramos activos de anos diferentes '
              'para evitar mezclas de tablas DGT.'
     )
 
     limit_from = fields.Monetary(
-        string='Desde (₡)', currency_field='currency_id',
-        help='Monto mínimo de salario bruto mensual para aplicar este tramo. 0 = desde cero.'
+        string='Desde (CRC)', currency_field='currency_id',
+        help='Monto minimo de salario bruto mensual para aplicar este tramo. 0 = desde cero.'
     )
     limit_to = fields.Monetary(
-        string='Hasta (₡)', currency_field='currency_id',
-        help='Monto máximo. Dejar en 0 para indicar "sin límite superior".'
+        string='Hasta (CRC)', currency_field='currency_id',
+        help='Monto maximo. Dejar en 0 para indicar "sin limite superior".'
     )
     rate = fields.Float(
         string='Tasa (%)', digits=(5, 2),
-        help='Porcentaje aplicable sobre el exceso del límite inferior.'
+        help='Porcentaje aplicable sobre el exceso del limite inferior.'
     )
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.ref('base.CRC')
@@ -54,23 +54,23 @@ class IncomeTaxBracket(models.Model):
     def _check_limits(self):
         for rec in self:
             if rec.limit_to and rec.limit_to <= rec.limit_from:
-                raise ValidationError('El límite superior debe ser mayor al inferior.')
+                raise ValidationError('El limite superior debe ser mayor al inferior.')
 
     @api.constrains('active', 'year', 'company_id')
     def _check_single_active_year(self):
         """
         AUDIT-02: Valida que todos los tramos ACTIVOS de una empresa pertenezcan
-        al mismo año fiscal. Esto previene mezclas de tablas DGT (ej: tramos 2025
-        activos junto con tramos 2026 activos), que causarían cálculos incorrectos.
+        al mismo ano fiscal. Esto previene mezclas de tablas DGT (ej: tramos 2025
+        activos junto con tramos 2026 activos), que causarian calculos incorrectos.
 
-        Regla: si existen tramos activos de año X, no se puede activar un tramo de año Y.
-        Para cambiar de año: desactivar TODOS los tramos del año anterior primero,
-        o usar el botón "Activar tabla [año]" que lo hace automáticamente.
+        Regla: si existen tramos activos de ano X, no se puede activar un tramo de ano Y.
+        Para cambiar de ano: desactivar TODOS los tramos del ano anterior primero,
+        o usar el boton "Activar tabla [ano]" que lo hace automaticamente.
         """
         for rec in self:
             if not rec.active:
                 continue  # tramos inactivos no generan conflicto
-            # Buscar otros años distintos con tramos activos en la misma empresa
+            # Buscar otros anos distintos con tramos activos en la misma empresa
             otros_anos = self.search([
                 ('company_id', '=', rec.company_id.id),
                 ('active', '=', True),
@@ -79,12 +79,12 @@ class IncomeTaxBracket(models.Model):
             ], limit=1)
             if otros_anos:
                 raise ValidationError(
-                    f'No se puede activar un tramo del año {rec.year} porque ya existen '
-                    f'tramos activos del año {otros_anos.year} en esta empresa.\n\n'
+                    f'No se puede activar un tramo del ano {rec.year} porque ya existen '
+                    f'tramos activos del ano {otros_anos.year} en esta empresa.\n\n'
                     f'Para actualizar la tabla de renta:\n'
-                    f'  1. Desactive TODOS los tramos del año {otros_anos.year}, o\n'
-                    f'  2. Use el botón "Activar tabla [año]" en la vista de lista, '
-                    f'     que desactiva el año anterior automáticamente.\n\n'
-                    f'Mezclar tablas de años distintos causa cálculos de renta incorrectos.'
+                    f'  1. Desactive TODOS los tramos del ano {otros_anos.year}, o\n'
+                    f'  2. Use el boton "Activar tabla [ano]" en la vista de lista, '
+                    f'     que desactiva el ano anterior automaticamente.\n\n'
+                    f'Mezclar tablas de anos distintos causa calculos de renta incorrectos.'
                 )
 

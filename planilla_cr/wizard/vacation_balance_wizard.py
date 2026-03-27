@@ -26,7 +26,7 @@ class VacationBalanceWizard(models.TransientModel):
             import xlsxwriter
         except ImportError:
             from odoo.exceptions import UserError
-            raise UserError('xlsxwriter no está instalado.')
+            raise UserError('xlsxwriter no esta instalado.')
 
         rows = self._get_vacation_report_data()
         output = io.BytesIO()
@@ -49,8 +49,8 @@ class VacationBalanceWizard(models.TransientModel):
 
         cols = [
             ('Empleado', 30), ('Sucursal', 16), ('Fecha Ingreso', 14),
-            ('Antigüedad (años)', 16), ('Días Acumulados', 16),
-            ('Días Tomados', 14), ('Saldo Disponible', 16), ('Provisión (₡)', 16),
+            ('Antiguedad (anos)', 16), ('Dias Acumulados', 16),
+            ('Dias Tomados', 14), ('Saldo Disponible', 16), ('Provision (CRC)', 16),
         ]
         row = 5
         for col, (name, width) in enumerate(cols):
@@ -79,7 +79,7 @@ class VacationBalanceWizard(models.TransientModel):
             'datas': base64.b64encode(output.getvalue()),
             'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}?download=true', 'target': 'self'}
+        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}download=true', 'target': 'self'}
 
     def _get_vacation_report_data(self):
         today = date.today()

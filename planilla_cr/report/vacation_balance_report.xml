@@ -43,11 +43,11 @@
                             <div class="kpi-val"><t t-out="len(rows)"/></div>
                         </div>
                         <div class="kpi">
-                            <div class="kpi-label">Días Acumulados Total</div>
+                            <div class="kpi-label">Dias Acumulados Total</div>
                             <div class="kpi-val"><t t-out="'{:.1f}'.format(sum(r['accrued'] for r in rows))"/></div>
                         </div>
                         <div class="kpi">
-                            <div class="kpi-label">Días Tomados Total</div>
+                            <div class="kpi-label">Dias Tomados Total</div>
                             <div class="kpi-val"><t t-out="'{:.1f}'.format(sum(r['taken'] for r in rows))"/></div>
                         </div>
                         <div class="kpi" style="background:#FDE8E8;">
@@ -62,11 +62,11 @@
                                 <th>Empleado</th>
                                 <th>Sucursal</th>
                                 <th>Fecha Ingreso</th>
-                                <th style="text-align:right;">Antigüedad (años)</th>
-                                <th style="text-align:right;">Días Acumulados</th>
-                                <th style="text-align:right;">Días Tomados</th>
+                                <th style="text-align:right;">Antiguedad (anos)</th>
+                                <th style="text-align:right;">Dias Acumulados</th>
+                                <th style="text-align:right;">Dias Tomados</th>
                                 <th style="text-align:right;">Saldo Disponible</th>
-                                <th style="text-align:right;">Provisión (₡)</th>
+                                <th style="text-align:right;">Provision (CRC)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -82,15 +82,15 @@
                                         t-att-class="'neg' if r['available'] &lt; 0 else ('zero' if r['available'] == 0 else 'pos')">
                                         <t t-out="'{:.1f}'.format(r['available'])"/>
                                     </td>
-                                    <td style="text-align:right;">₡ <t t-out="'{:,.0f}'.format(r['provision'])"/></td>
+                                    <td style="text-align:right;">CRC <t t-out="'{:,.0f}'.format(r['provision'])"/></td>
                                 </tr>
                             </t>
                         </tbody>
                     </table>
 
                     <div class="footer">
-                        Basado en Art. 153 CT CR: 12 días hábiles por año trabajado (proporcional por semanas).
-                        Filas en rojo indican saldo negativo — el empleado ha tomado más días de los acumulados.
+                        Basado en Art. 153 CT CR: 12 dias habiles por ano trabajado (proporcional por semanas).
+                        Filas en rojo indican saldo negativo -- el empleado ha tomado mas dias de los acumulados.
                         Reporte generado por Planilla CR para Odoo 19.
                     </div>
                 </div>

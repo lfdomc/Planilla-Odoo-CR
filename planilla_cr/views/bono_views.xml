@@ -43,7 +43,7 @@
 
                     <!-- Aviso cuando el bono es puntual — impacto en renta -->
                     <div invisible="is_recurring" class="alert alert-warning" role="alert">
-                        <strong>⚠️ Bono Puntual — Tratamiento Fiscal Especial</strong><br/>
+                        <strong>⚠ Bono Puntual — Tratamiento Fiscal Especial</strong><br/>
                         Este bono <strong>NO es recurrente</strong> (is_recurring = No).
                         El sistema aplicará el siguiente tratamiento fiscal (v5.28.45):<br/>
                         • <strong>Renta:</strong> el monto NO se anualiza para calcular el tramo de impuesto.
@@ -53,13 +53,13 @@
                         Fundamento legal: Art. 33 LIR / DGT-R-016-2026.
                     </div>
 
-                    <group string="📋 Tipo de Bono">
+                    <group string=" Tipo de Bono">
                         <group>
                             <field name="bono_type"/>
                         </group>
                         <group>
                             <div class="alert alert-info" role="alert">
-                                <strong>ℹ️ Reglas fiscales CR:</strong><br/>
+                                <strong>ℹ Reglas fiscales CR:</strong><br/>
                                 • <strong>Productividad, Asistencia, Antigüedad, Comisiones:</strong>
                                   Afectos CCSS y Renta — integran el salario para aguinaldo y cesantía.<br/>
                                 • <strong>Transporte:</strong> Exento CCSS/Renta hasta ₡74 000/mes (Reglamento 2023).<br/>
@@ -69,7 +69,7 @@
                         </group>
                     </group>
 
-                    <group string="💰 Monto">
+                    <group string=" Monto">
                         <group>
                             <field name="amount_type" widget="radio"/>
                             <field name="amount"
@@ -85,7 +85,7 @@
                         </group>
                     </group>
 
-                    <group string="⚖️ Afectación Fiscal">
+                    <group string="⚖ Afectación Fiscal">
                         <group>
                             <field name="afecto_ccss"/>
                             <field name="afecto_renta"/>

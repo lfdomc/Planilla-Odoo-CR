@@ -8,7 +8,7 @@
                   decoration-muted="active == False"
                   decoration-success="active == True">
                 <field name="sequence" widget="handle"/>
-                <field name="year" string="Año Fiscal"/>
+                <field name="year" string="Ano Fiscal"/>
                 <field name="name"/>
                 <field name="limit_from"/>
                 <field name="limit_to"/>
@@ -36,7 +36,7 @@
                         </group>
                         <group>
                             <field name="limit_from"/>
-                            <field name="limit_to" help="0 = sin límite superior"/>
+                            <field name="limit_to" help="0 = sin limite superior"/>
                             <field name="rate" string="Tasa (%)"/>
                             <field name="note" placeholder="Ej: DGT-R-016-2026"/>
                         </group>
@@ -44,7 +44,7 @@
                     <div class="alert alert-warning" role="alert"
                          invisible="active == True">
                         <i class="fa fa-exclamation-triangle"/>
-                        Este tramo está <strong>inactivo</strong> y NO se usa en el cálculo de renta.
+                        Este tramo esta <strong>inactivo</strong> y NO se usa en el calculo de renta.
                     </div>
                 </sheet>
             </form>
@@ -61,11 +61,11 @@
                 Configure los tramos del Impuesto sobre la Renta para asalariados.
             </p>
             <p>
-                <strong>Regla importante:</strong> Solo puede haber tramos activos de UN año fiscal a la vez.
-                Para actualizar la tabla anual: desactive todos los tramos del año anterior
-                y active los del año nuevo. El sistema valida que no haya mezclas de años.
+                <strong>Regla importante:</strong> Solo puede haber tramos activos de UN ano fiscal a la vez.
+                Para actualizar la tabla anual: desactive todos los tramos del ano anterior
+                y active los del ano nuevo. El sistema valida que no haya mezclas de anos.
             </p>
-            <p>Fuente: Resolución DGT del Ministerio de Hacienda (publicada cada enero).</p>
+            <p>Fuente: Resolucion DGT del Ministerio de Hacienda (publicada cada enero).</p>
         </field>
     </record>
 </odoo>

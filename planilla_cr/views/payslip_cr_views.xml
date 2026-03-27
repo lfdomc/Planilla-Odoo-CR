@@ -287,7 +287,7 @@
                                     <!-- Nota cuando la incapacidad viene de un período anterior -->
                                     <div invisible="not incap_viene_de_anterior"
                                          style="font-size:12px;color:var(--color-text-warning);background:rgba(255,193,7,0.12);border-radius:6px;padding:8px 10px;margin-bottom:8px;border-left:3px solid var(--color-text-warning);">
-                                        ℹ️ <field name="nota_incap_anterior" readonly="1" nolabel="1" style="display:inline;"/>
+                                        ℹ <field name="nota_incap_anterior" readonly="1" nolabel="1" style="display:inline;"/>
                                     </div>
 
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">

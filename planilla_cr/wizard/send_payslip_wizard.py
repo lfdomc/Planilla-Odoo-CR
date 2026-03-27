@@ -17,7 +17,7 @@ class SendPayslipWizard(models.TransientModel):
         string='Mensaje',
         default="""
 <p>Estimado/a colaborador/a,</p>
-<p>Adjunto encontrará su boleta de pago correspondiente al período indicado.</p>
+<p>Adjunto encontrara su boleta de pago correspondiente al periodo indicado.</p>
 <p>Si tiene alguna consulta, no dude en contactar al departamento de Recursos Humanos.</p>
 <br/>
 <p>Atentamente,<br/>Departamento de Recursos Humanos</p>
@@ -25,7 +25,7 @@ class SendPayslipWizard(models.TransientModel):
     )
 
     def action_send(self):
-        """Envía las boletas por correo a cada empleado."""
+        """Envia las boletas por correo a cada empleado."""
         import base64
         sent_count = 0
         errors = []
@@ -41,7 +41,7 @@ class SendPayslipWizard(models.TransientModel):
                 continue
 
             try:
-                # FIX-I9: usar mismo patrón que audit_zip_wizard — pasar el record,
+                # FIX-I9: usar mismo patron que audit_zip_wizard -- pasar el record,
                 # no el xml_id del template. La firma correcta en Odoo 19 es:
                 # env['ir.actions.report']._render_qweb_pdf(report_record, res_ids)
                 pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(
@@ -83,7 +83,7 @@ class SendPayslipWizard(models.TransientModel):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': 'Envío de Boletas',
+                'title': 'Envio de Boletas',
                 'message': message,
                 'type': 'success' if not errors else 'warning',
                 'sticky': True,

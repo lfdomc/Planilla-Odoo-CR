@@ -11,24 +11,24 @@ class PublicHoliday(models.Model):
     type = fields.Selection([
         ('national', 'Nacional Obligatorio (Art. 148 CT)'),
         ('optional', 'No Obligatorio / Trasladable (Ley 8886)'),
-        ('civic',    'Cívico No Laborable'),
+        ('civic',    'Civico No Laborable'),
         ('custom',   'Personalizado'),
     ], string='Tipo', default='national', required=True)
 
     # FIX BUG-N06 v52: campo is_paid para distinguir pago obligatorio vs. opcional
-    # Feriado obligatorio (is_paid=True): trabajar ese día devuelve doble salario (Art. 148 CT)
+    # Feriado obligatorio (is_paid=True): trabajar ese dia devuelve doble salario (Art. 148 CT)
     # Feriado no obligatorio (is_paid=False): no genera pago doble obligatorio, es trasladable
     is_paid = fields.Boolean(
         string='Pago Obligatorio',
         default=True,
         help='Art. 148 CT: feriados obligatorios requieren pago doble si se trabaja.\n'
              'Feriados no obligatorios (ej: 2 de diciembre) son trasladables y '
-             'no generan doble salario automáticamente.'
+             'no generan doble salario automaticamente.'
     )
     company_id = fields.Many2one(
         'res.company', string='Empresa',
         default=lambda self: self.env.company,
-        help='Dejar vacío para aplicar a todas las empresas.'
+        help='Dejar vacio para aplicar a todas las empresas.'
     )
     active = fields.Boolean(default=True)
     note = fields.Text(string='Notas')
@@ -46,7 +46,7 @@ class PublicHoliday(models.Model):
     @api.model
     def is_paid_holiday(self, date_to_check, company_id=None):
         """Retorna True si la fecha es feriado de pago obligatorio (Art. 148 CT).
-        Usar para determinar si se debe pagar doble al empleado que trabaja ese día.
+        Usar para determinar si se debe pagar doble al empleado que trabaja ese dia.
         """
         domain = [
             ('date', '=', date_to_check),
@@ -74,7 +74,7 @@ class PublicHoliday(models.Model):
     @api.model
     def get_paid_holidays_in_range(self, date_from, date_to, company_id=None):
         """Retorna solo feriados de pago obligatorio en el rango dado.
-        Útil para cálculo de horas extras en días feriados (tipo 'holiday' en overtime).
+        Util para calculo de horas extras en dias feriados (tipo 'holiday' en overtime).
         """
         domain = [
             ('date', '>=', date_from),

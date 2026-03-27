@@ -10,12 +10,12 @@ _logger = logging.getLogger(__name__)
 class PayslipComputeMixin(models.AbstractModel):
     """
     Mixin: campos computados de la boleta de pago.
-    Métodos: _compute_proportional_days, _compute_name, _compute_base_salary,
+    Metodos: _compute_proportional_days, _compute_name, _compute_base_salary,
     _compute_attendance_hours, _compute_extras, _compute_bono_salarial,
     _compute_gross, _compute_deductions, _onchange_auto_proportional,
     _calc_income_tax, _compute_totals.
 
-    v58: _calc_income_tax movido aquí desde payslip_cr.py.
+    v58: _calc_income_tax movido aqui desde payslip_cr.py.
          P-02: dicts de frecuencia centralizados con K.FREQ_FACTORS.
          B-04: K.PERIODOS_POR_MES['bimonthly'] corregido a 0.5.
     """
@@ -26,14 +26,14 @@ class PayslipComputeMixin(models.AbstractModel):
         """
         Retorna la frecuencia de pago efectiva para esta boleta.
 
-        Orden de prioridad (FIX F5 — Bug calendarización faltante):
-          1. Calendarización del EMPLEADO (employee_id.payroll_calendar_id)
-          2. Calendarización de la PLANILLA (payroll_run_id.payroll_calendar_id)
+        Orden de prioridad (FIX F5 -- Bug calendarizacion faltante):
+          1. Calendarizacion del EMPLEADO (employee_id.payroll_calendar_id)
+          2. Calendarizacion de la PLANILLA (payroll_run_id.payroll_calendar_id)
           3. Fallback: 'monthly'
 
-        Esto evita que un empleado sin calendarización configurada
+        Esto evita que un empleado sin calendarizacion configurada
         reciba un salario mensual completo en una planilla quincenal.
-        El patrono debe configurar la calendarización en la ficha del empleado,
+        El patrono debe configurar la calendarizacion en la ficha del empleado,
         pero mientras tanto el sistema usa la frecuencia de la planilla como
         referencia en lugar de asumir mensual por defecto.
         """
@@ -91,7 +91,7 @@ class PayslipComputeMixin(models.AbstractModel):
                 hours_per_day     = emp.schedule_type_id.hours_per_day if emp.schedule_type_id else K.HORAS_JORNADA_DEFAULT
                 period_days       = max(rec.days_in_period or 30, 1)
                 freq              = rec._get_effective_freq()
-                # FIX B-04 v58: usar K.PERIODOS_POR_MES — bimonthly ahora es 0.5 (corregido)
+                # FIX B-04 v58: usar K.PERIODOS_POR_MES -- bimonthly ahora es 0.5 (corregido)
                 periods_per_month = K.PERIODOS_POR_MES.get(freq, 1)
                 monthly_hours     = hours_per_day * period_days * periods_per_month
                 hourly_rate       = emp.base_salary / monthly_hours if monthly_hours else 0.0
@@ -106,7 +106,7 @@ class PayslipComputeMixin(models.AbstractModel):
 
     @api.onchange('date_from', 'date_to', 'employee_id')
     def _onchange_auto_proportional(self):
-        """Auto-detecta si el empleado ingresó o salió durante el período."""
+        """Auto-detecta si el empleado ingreso o salio durante el periodo."""
         for rec in self:
             emp = rec.employee_id
             if emp and emp.entry_date and rec.date_from and rec.date_to:
@@ -142,7 +142,7 @@ class PayslipComputeMixin(models.AbstractModel):
                 fechas = ', '.join(str(a.check_in)[:10] for a in open_att)
                 rec.attendance_hours   = 0.0
                 rec.attendance_details = (
-                    f'⚠ ADVERTENCIA: Existen {len(open_att)} registro(s) de asistencia '
+                    f'WARN ADVERTENCIA: Existen {len(open_att)} registro(s) de asistencia '
                     f'sin check_out en las fechas: {fechas}. '
                     f'Corrija las marcas antes de confirmar la boleta.'
                 )
@@ -154,7 +154,7 @@ class PayslipComputeMixin(models.AbstractModel):
                     for a in attendances.sorted('check_in')
                 )
             else:
-                rec.attendance_details = 'Sin registros de asistencia en el período.'
+                rec.attendance_details = 'Sin registros de asistencia en el periodo.'
 
     @api.depends('overtime_ids.amount', 'overtime_ids.state',
                  'vacation_ids.total_amount', 'vacation_ids.state',
@@ -174,33 +174,33 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.disability_days          = sum(d.days for d in active_dis)
             rec.employer_disability_cost = round(sum(d.employer_cost for d in active_dis), 2)
 
-            # ── BUG FIX MATERNIDAD: calcular subsidio y cotizable por período ──
+            # -- BUG FIX MATERNIDAD: calcular subsidio y cotizable por periodo --
             dias_incap_periodo    = 0
             ccss_subsidy_periodo  = 0.0
             ins_subsidy_periodo   = 0.0  # INS paga fuera de planilla
-            costo_patrono_periodo = 0.0  # días 1-3 a cargo del patrono en este período
+            costo_patrono_periodo = 0.0  # dias 1-3 a cargo del patrono en este periodo
 
             if rec.date_from and rec.date_to:
-                # ── Agrupación de incapacidades consecutivas (prorrogas) ────────
-                # Regla legal CR (CCSS): si una incapacidad inicia el día siguiente
-                # a que termina otra del mismo empleado, es una PRÓRROGA del mismo
-                # evento. Los 3 días del tramo patronal (Art. 79 CT) NO se reinician
-                # en cada incapacidad individual — se comparten en todo el grupo.
+                # -- Agrupacion de incapacidades consecutivas (prorrogas) --------
+                # Regla legal CR (CCSS): si una incapacidad inicia el dia siguiente
+                # a que termina otra del mismo empleado, es una PRORROGA del mismo
+                # evento. Los 3 dias del tramo patronal (Art. 79 CT) NO se reinician
+                # en cada incapacidad individual -- se comparten en todo el grupo.
                 #
-                # Ejemplo: Incap1=26-feb→9-mar, Incap2=10-mar→13-mar
-                #   → Grupo continuo. Días 1-3 patronal se agotaron en febrero.
-                #   → En marzo: 13 días todos subsidiados CCSS al 60%.
+                # Ejemplo: Incap1=26-feb->9-mar, Incap2=10-mar->13-mar
+                #   -> Grupo continuo. Dias 1-3 patronal se agotaron en febrero.
+                #   -> En marzo: 13 dias todos subsidiados CCSS al 60%.
                 from datetime import timedelta as _td
 
                 dis_validas = sorted(
                     [d for d in active_dis if d.date_start and d.date_end],
                     key=lambda d: d.date_start
                 )
-                # Construir grupos: agregar a grupo si inicia el día siguiente del último
+                # Construir grupos: agregar a grupo si inicia el dia siguiente del ultimo
                 groups = []
                 for dis in dis_validas:
                     if groups and dis.date_start <= groups[-1][-1].date_end + _td(days=1):
-                        groups[-1].append(dis)   # prórroga del mismo evento
+                        groups[-1].append(dis)   # prorroga del mismo evento
                     else:
                         groups.append([dis])     # nuevo evento independiente
 
@@ -222,11 +222,11 @@ class PayslipComputeMixin(models.AbstractModel):
 
                         if dis.disability_type == 'ins':
                             # INS - Riesgo Laboral (Art. 218 CT):
-                            # • Cubre desde el DÍA 1 sin carencia patronal.
-                            # • 60% del salario asegurado (subsidy_percentage=60).
-                            # • Paga FUERA de planilla → va a ins_subsidy_periodo.
-                            # • No afecta salario_cotizable CCSS (base=₡0 en planilla).
-                            # • Patrono: ₡0, no hay días carencia.
+                            #  Cubre desde el DIA 1 sin carencia patronal.
+                            #  60% del salario asegurado (subsidy_percentage=60).
+                            #  Paga FUERA de planilla -> va a ins_subsidy_periodo.
+                            #  No afecta salario_cotizable CCSS (base=CRC0 en planilla).
+                            #  Patrono: CRC0, no hay dias carencia.
                             ins_rate = (dis.subsidy_percentage or 60.0) / 100.0
                             ins_subsidy_periodo += round(dias_overlap * daily * ins_rate, 2)
                             # dias_patrono y subsidiados = 0 para CCSS (no aplica)
@@ -252,7 +252,7 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.ins_subsidy_total   = round(ins_subsidy_periodo, 2)
             rec.costo_patrono_periodo = round(costo_patrono_periodo, 2)
 
-            # Detectar si alguna incapacidad viene de un período anterior
+            # Detectar si alguna incapacidad viene de un periodo anterior
             viene_de_anterior = False
             fechas_anteriores = []
             if rec.date_from:
@@ -264,32 +264,32 @@ class PayslipComputeMixin(models.AbstractModel):
                     if ov_e >= ov_s and dis.date_start < rec.date_from:
                         viene_de_anterior = True
                         fechas_anteriores.append(
-                            f"{dis.date_start.strftime('%d/%m/%Y')} → {dis.date_end.strftime('%d/%m/%Y')}"
+                            f"{dis.date_start.strftime('%d/%m/%Y')} -> {dis.date_end.strftime('%d/%m/%Y')}"
                         )
             rec.incap_viene_de_anterior = viene_de_anterior
             if viene_de_anterior and costo_patrono_periodo == 0.0:
                 rec.nota_incap_anterior = (
-                    f"Prórroga de incapacidad iniciada el {fechas_anteriores[0].split(' → ')[0]}. "
-                    f"Los 3 días del tramo patronal (Art. 79 CT) ya se aplicaron en el período anterior — "
+                    f"Prorroga de incapacidad iniciada el {fechas_anteriores[0].split(' -> ')[0]}. "
+                    f"Los 3 dias del tramo patronal (Art. 79 CT) ya se aplicaron en el periodo anterior -- "
                     f"no generan costo patronal en esta quincena."
                 )
             elif viene_de_anterior:
                 rec.nota_incap_anterior = (
-                    f"Incapacidad iniciada el {fechas_anteriores[0].split(' → ')[0]}, "
-                    f"continúa en este período."
+                    f"Incapacidad iniciada el {fechas_anteriores[0].split(' -> ')[0]}, "
+                    f"continua en este periodo."
                 )
             else:
                 rec.nota_incap_anterior = ""
 
 
-            # ── Salario cotizable por período ────────────────────────────────
+            # -- Salario cotizable por periodo --------------------------------
             emp = rec.employee_id
             if emp and emp.base_salary and dias_incap_periodo > 0:
                 salario_diario  = round(emp.base_salary / K.DIAS_MES, 4)
                 dias_periodo    = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else K.DIAS_MES
                 dias_trabajados = max(dias_periodo - dias_incap_periodo, 0)
 
-                # Detectar tipo de incapacidad dominante en el período
+                # Detectar tipo de incapacidad dominante en el periodo
                 dis_in_per = [
                     d for d in active_dis
                     if d.date_start and d.date_end
@@ -309,21 +309,21 @@ class PayslipComputeMixin(models.AbstractModel):
                     rec.salario_cotizable = 0.0
                 elif es_ins_total:
                     # INS total: el INS paga fuera de planilla.
-                    # Base cotizable CCSS = ₡0 (no hay salario que reportar).
+                    # Base cotizable CCSS = CRC0 (no hay salario que reportar).
                     rec.salario_cotizable = 0.0
                 else:
                     # Incapacidad normal CCSS o mixta: usar costo_patrono_periodo
-                    # con lógica de grupos (prorrogas). Este valor ya considera
-                    # correctamente si los días 1-3 del patrono cayeron en un
-                    # período anterior (prórroga → costo_patrono_periodo = 0).
-                    # NO usar min(dias_incap, 3) que ignora las prórrogas.
+                    # con logica de grupos (prorrogas). Este valor ya considera
+                    # correctamente si los dias 1-3 del patrono cayeron en un
+                    # periodo anterior (prorroga -> costo_patrono_periodo = 0).
+                    # NO usar min(dias_incap, 3) que ignora las prorrogas.
                     rec.salario_cotizable = round(
                         (dias_trabajados * salario_diario) + costo_patrono_periodo,
                         2
                     )
             else:
-                # Sin incapacidades: salario cotizable = salario base del período
-                # (gross_salary no está disponible aquí sin crear dependencia circular)
+                # Sin incapacidades: salario cotizable = salario base del periodo
+                # (gross_salary no esta disponible aqui sin crear dependencia circular)
                 emp = rec.employee_id
                 if emp and emp.base_salary:
                     freq = rec._get_effective_freq()
@@ -341,11 +341,11 @@ class PayslipComputeMixin(models.AbstractModel):
         FIX C-01 v54: Suma de bonos con afecto_ccss=True para integrar al salario bruto.
 
         FIX v512 BUG-04 + BP-05:
-          - BUG-04: eliminado N+1 — se precarga un único dict de bonos para TODOS los
+          - BUG-04: eliminado N+1 -- se precarga un unico dict de bonos para TODOS los
             registros del recordset antes del loop, en lugar de un search por cada boleta.
-          - BP-05: corregida lógica de afecto_ccss: solo se suma si el bono SE ENCUENTRA
-            y tiene afecto_ccss=True. Antes la lógica era inversa: si no encontraba el bono
-            lo asumía afecto_ccss=True (inclusivo por defecto — incorrecto fiscalmente).
+          - BP-05: corregida logica de afecto_ccss: solo se suma si el bono SE ENCUENTRA
+            y tiene afecto_ccss=True. Antes la logica era inversa: si no encontraba el bono
+            lo asumia afecto_ccss=True (inclusivo por defecto -- incorrecto fiscalmente).
         """
         if not self:
             return
@@ -357,7 +357,7 @@ class PayslipComputeMixin(models.AbstractModel):
             ('employee_id', 'in', emp_ids),
             ('state', '=', 'active'),
         ])
-        # Índice: emp_id → {bono_name: bono_rec}
+        # Indice: emp_id -> {bono_name: bono_rec}
         bono_index: dict = {}
         for b in all_bonos:
             bono_index.setdefault(b.employee_id.id, {})[b.name] = b
@@ -376,8 +376,8 @@ class PayslipComputeMixin(models.AbstractModel):
                 concepto = (line.description or '').replace('Bono: ', '').strip()
                 bono_rec = emp_bonos.get(concepto)
                 # FIX BP-05: solo sumar si el bono existe Y tiene afecto_ccss=True.
-                # La lógica anterior (not bono_rec OR afecto_ccss) era incorrecta:
-                # sumaba bonos no encontrados como si fueran salariales (fiscalmente erróneo).
+                # La logica anterior (not bono_rec OR afecto_ccss) era incorrecta:
+                # sumaba bonos no encontrados como si fueran salariales (fiscalmente erroneo).
                 if bono_rec and bono_rec.afecto_ccss:
                     total += line.amount
             rec.bono_salarial_amount = round(total, 2)
@@ -391,11 +391,11 @@ class PayslipComputeMixin(models.AbstractModel):
                  'date_from', 'date_to')
     def _compute_gross(self) -> None:
         for rec in self:
-            # ── Base salarial según incapacidad ──────────────────────────────
+            # -- Base salarial segun incapacidad ------------------------------
             # REGLA LEGAL (Art. 79 y 94 CT):
-            # - Sin incapacidad: gross = base_salary completo del período
-            # - Incapacidad normal (1-3 días patrono): gross = salario_cotizable
-            #     = días_trabajados×diario + días_1-3×diario×50%
+            # - Sin incapacidad: gross = base_salary completo del periodo
+            # - Incapacidad normal (1-3 dias patrono): gross = salario_cotizable
+            #     = dias_trabajadosxdiario + dias_1-3xdiariox50%
             #     El neto correcto: cotizable - CCSS (sin "salario fantasma")
             # - Maternidad completa: gross = 0 (patrono no paga nada)
             dis_in_period = []
@@ -452,14 +452,14 @@ class PayslipComputeMixin(models.AbstractModel):
             # F3: tasa CCSS obrero depende del tipo de pensionado
             pensioner = rec.employee_id.pensioner_type or 'none'
             if pensioner == 'estado':
-                ccss_emp = rh.get_ccss_pensionado_rate()  # 6.50% — exonerado IVM
+                ccss_emp = rh.get_ccss_pensionado_rate()  # 6.50% -- exonerado IVM
             else:
-                ccss_emp = rh.get_ccss_employee_rate()    # 10.83% — normal e IVM
+                ccss_emp = rh.get_ccss_employee_rate()    # 10.83% -- normal e IVM
             ccss_pat = rh.get_ccss_employer_rate()
             agu_rate = rh.get_aguinaldo_rate()
-            # L1+L3 FIX: Cesantía con tabla Art. 29 CT según años de servicio.
-            # Pasa entry_date del empleado para calcular la tasa exacta por año.
-            # Máximo legal: año 8 → 23 días → 6.3889%.
+            # L1+L3 FIX: Cesantia con tabla Art. 29 CT segun anos de servicio.
+            # Pasa entry_date del empleado para calcular la tasa exacta por ano.
+            # Maximo legal: ano 8 -> 23 dias -> 6.3889%.
             emp_entry = rec.employee_id.entry_date if rec.employee_id else None
             ces_rate = rh.get_cesantia_rate(
                 entry_date=emp_entry,
@@ -467,19 +467,19 @@ class PayslipComputeMixin(models.AbstractModel):
             )
             vac_rate = rh.get_vacation_rate()
 
-            # ── Base cotizable para CCSS, Renta, ROP y provisiones ───────────
-            # REGLA: si hay incapacidades activas en el período, usar
-            # salario_cotizable directamente (puede ser 0 para maternidad —
-            # es un cero LEGÍTIMO, no un fallback).
+            # -- Base cotizable para CCSS, Renta, ROP y provisiones -----------
+            # REGLA: si hay incapacidades activas en el periodo, usar
+            # salario_cotizable directamente (puede ser 0 para maternidad --
+            # es un cero LEGITIMO, no un fallback).
             # Si NO hay incapacidades, usar gross_salary como base.
-            # El fallback anterior (0 > 0 → gross_salary) rompía maternidad
-            # porque convertía el cero correcto en el salario bruto completo.
+            # El fallback anterior (0 > 0 -> gross_salary) rompia maternidad
+            # porque convertia el cero correcto en el salario bruto completo.
             #
             # Base legal: Art. 94 CT (maternidad, base=0),
-            #             Art. 79 CT (incapacidad normal, base=días_patrono×50%),
+            #             Art. 79 CT (incapacidad normal, base=dias_patronox50%),
             #             Art. 8 Ley ISR / Sala Segunda Voto 622-2010.
 
-            # Detectar si hay alguna incapacidad activa que solape este período
+            # Detectar si hay alguna incapacidad activa que solape este periodo
             active_dis_period = rec.disability_ids.filtered(
                 lambda d: d.state in ('confirmed', 'paid')
                 and d.date_start and d.date_end
@@ -496,15 +496,15 @@ class PayslipComputeMixin(models.AbstractModel):
                 # (0 es el valor correcto para maternidad completa)
                 g = rec.salario_cotizable or 0.0
             else:
-                # Sin incapacidad: base = salario bruto del período
+                # Sin incapacidad: base = salario bruto del periodo
                 g = rec.gross_salary or 0.0
 
             # FIX LICENCIAS: restar licencias sin goce y ausencias de la base cotizable.
-            # Un día no laborado no genera salario → no debe generar CCSS obrero,
-            # patronal, Renta, ROP ni provisiones (aguinaldo, cesantía, vacaciones).
+            # Un dia no laborado no genera salario -> no debe generar CCSS obrero,
+            # patronal, Renta, ROP ni provisiones (aguinaldo, cesantia, vacaciones).
             # Base legal: Arts. 31 y 79 CT / Circular CCSS DSA-1183 /
             #             Sala Segunda Voto 2018-000622.
-            # Esto es idéntico al tratamiento de los días subsidiados en incapacidades.
+            # Esto es identico al tratamiento de los dias subsidiados en incapacidades.
             licencias_sg = round(sum(
                 l.amount for l in rec.deduction_line_ids
                 if l.deduction_category in ('licencia_sin_goce', 'ausencia')
@@ -513,7 +513,7 @@ class PayslipComputeMixin(models.AbstractModel):
             if licencias_sg > 0:
                 g = max(round(g - licencias_sg, 2), 0.0)
 
-            # Almacenar la base cotizable final (para Resumen Completo y auditoría)
+            # Almacenar la base cotizable final (para Resumen Completo y auditoria)
             rec.base_cotizable_final = g
 
             rec.ccss_employee = round(g * ccss_emp, 2)
@@ -523,18 +523,18 @@ class PayslipComputeMixin(models.AbstractModel):
             else:
                 rec.paternity_amount = 0.0
             # FIX RENTA-BONO: calcular bonos NO recurrentes para excluirlos
-            # de la anualización en _calc_income_tax.
+            # de la anualizacion en _calc_income_tax.
             one_time_bonus = sum(
                 l.amount for l in rec.deduction_line_ids
                 if l.line_type == 'income'
                 and l.deduction_category == 'bonus'
                 and not l.is_recurring_bono
             )
-            # F1 + F2: toggle base renta + créditos fiscales
+            # F1 + F2: toggle base renta + creditos fiscales
             tax_neto, creditos = rec._calc_income_tax(g, rec.ccss_employee, one_time_bonus)
             rec.income_tax        = round(tax_neto, 2)
             rec.income_tax_credits = round(creditos, 2)
-            # Desglose de créditos para mostrar en Resumen
+            # Desglose de creditos para mostrar en Resumen
             _freq   = rec._get_effective_freq() if hasattr(rec, '_get_effective_freq') else 'biweekly'
             _ff     = K.FREQ_FACTORS.get(_freq, 0.5)
             _emp    = rec.employee_id
@@ -544,10 +544,10 @@ class PayslipComputeMixin(models.AbstractModel):
             # Texto de detalle para mostrar en la vista (evita campos monetarios nuevos en OWL)
             parts = []
             if rec.credit_conyuge:
-                parts.append(f"Cónyuge: ₡{rec.credit_conyuge:,.2f}")
+                parts.append(f"Conyuge: CRC{rec.credit_conyuge:,.2f}")
             if rec.credit_hijos and rec.income_tax_children_count:
-                parts.append(f"{rec.income_tax_children_count} hijo(s): ₡{rec.credit_hijos:,.2f}")
-            rec.tax_credits_detail = '  ·  '.join(parts) if parts else ''
+                parts.append(f"{rec.income_tax_children_count} hijo(s): CRC{rec.credit_hijos:,.2f}")
+            rec.tax_credits_detail = '  .  '.join(parts) if parts else ''
             rec.ccss_employer = round(g * ccss_pat, 2)
             risk              = rec.employee_id.ins_risk_class or 'II'
             rec.ins_employer  = round(g * rh.get_ins_rate(risk), 2)
@@ -563,46 +563,44 @@ class PayslipComputeMixin(models.AbstractModel):
         """
         Calculo progresivo de renta usando tramos configurados en la UI.
 
-        NUEVO PARÁMETRO: one_time_bonus — monto de bonos NO recurrentes.
+        NUEVO PARAMETRO: one_time_bonus -- monto de bonos NO recurrentes.
         Los bonos puntuales (is_recurring=False) NO se anualizan porque no
-        se repetirán en el próximo período. Anualizarlos generaría un impuesto
-        incorrecto proyectando ingresos que no existirán.
+        se repetiran en el proximo periodo. Anualizarlos generaria un impuesto
+        incorrecto proyectando ingresos que no existiran.
 
-        Lógica correcta (DGT-R-016-2026, Art. 33 LIR):
-          - base recurrente = gross - one_time_bonus → se anualiza × períodos/mes
-          - bono puntual = one_time_bonus → se agrega SIN anualizar
-          monthly_equiv = (gross - one_time_bonus) × periods_per_month + one_time_bonus
+        Logica correcta (DGT-R-016-2026, Art. 33 LIR):
+          - base recurrente = gross - one_time_bonus -> se anualiza x periodos/mes
+          - bono puntual = one_time_bonus -> se agrega SIN anualizar
+          monthly_equiv = (gross - one_time_bonus) x periods_per_month + one_time_bonus
 
         Retorna tupla (tax_neto, creditos_aplicados) para que _compute_deductions
         pueda almacenar ambos valores por separado en la boleta.
 
-        Los tramos de renta del MTSS están definidos en base mensual.
-        Para períodos quincenales/semanales se anualiza el salario,
-        se aplican los tramos equivalentes y se divide entre los períodos.
+        Los tramos de renta del MTSS estan definidos en base mensual.
+        Para periodos quincenales/semanales se anualiza el salario,
+        se aplican los tramos equivalentes y se divide entre los periodos.
         Esto evita que un quincenal pague menos renta de la que corresponde.
         """
-        # ── Toggle base de cálculo (Feature 1) ───────────────────────────────
+        # -- Toggle base de calculo (Feature 1) -------------------------------
         config = self.env['planilla.accounting.config'].search(
             [('company_id', '=', self.company_id.id)], limit=1
         )
         tax_base_mode = (config.income_tax_base or K.RENTA_BASE_DEFAULT) if config else K.RENTA_BASE_DEFAULT
         if tax_base_mode == 'net_ccss':
             gross = max(gross - ccss_emp, 0.0)
-        # ─────────────────────────────────────────────────────────────────────
+        # ---------------------------------------------------------------------
 
         freq = self._get_effective_freq()
         # FIX B-04 v58: usar K.PERIODOS_POR_MES corregido (bimonthly = 0.5)
         periods_per_month = K.PERIODOS_POR_MES.get(freq, 1)
         # FIX RENTA-BONO: solo anualizar la parte recurrente del salario.
         # Los bonos puntuales (is_recurring=False) no se proyectan al mes
-        # porque no se repetirán en el siguiente período.
+        # porque no se repetiran en el siguiente periodo.
         base_recurrente = max(gross - one_time_bonus, 0.0)
         monthly_equiv = base_recurrente * periods_per_month + one_time_bonus
 
         brackets = self.env['planilla.income.tax.bracket'].search(
             # FIX-R12: filtrar por empresa actual o globales (company_id=False).
-            # Sin este filtro, en multi-empresa se mezclaban los tramos de todas las
-            # compañías y el impuesto de renta se calculaba incorrectamente.
             ['|',
              ('company_id', '=', self.company_id.id),
              ('company_id', '=', False),
@@ -610,40 +608,37 @@ class PayslipComputeMixin(models.AbstractModel):
             order='sequence asc'
         )
         if not brackets:
-            # Fallback hardcoded — Tramos 2026 (DGT-R-016-2026)
-            # ACTUALIZAR cada enero en:
-            # https://www.hacienda.go.cr/contenido/15169-impuesto-sobre-la-renta-asalariados
-            g = monthly_equiv
-            if g <= K.RENTA_EXENTO:
-                tax_monthly = 0.0
-            elif g <= K.RENTA_TOPE_10:
-                tax_monthly = (g - K.RENTA_EXENTO) * K.RENTA_TASA_1
-            elif g <= K.RENTA_TOPE_15:
-                tax_monthly = ((K.RENTA_TOPE_10 - K.RENTA_EXENTO) * K.RENTA_TASA_1
-                               + (g - K.RENTA_TOPE_10) * K.RENTA_TASA_2)
-            elif g <= K.RENTA_TOPE_20:
-                tax_monthly = ((K.RENTA_TOPE_10 - K.RENTA_EXENTO) * K.RENTA_TASA_1
-                               + (K.RENTA_TOPE_15 - K.RENTA_TOPE_10) * K.RENTA_TASA_2
-                               + (g - K.RENTA_TOPE_15) * K.RENTA_TASA_3)
-            else:
-                tax_monthly = ((K.RENTA_TOPE_10 - K.RENTA_EXENTO) * K.RENTA_TASA_1
-                               + (K.RENTA_TOPE_15 - K.RENTA_TOPE_10) * K.RENTA_TASA_2
-                               + (K.RENTA_TOPE_20 - K.RENTA_TOPE_15) * K.RENTA_TASA_3
-                               + (g - K.RENTA_TOPE_20) * K.RENTA_TASA_4)
-        else:
-            g           = monthly_equiv
-            tax_monthly = 0.0
-            for bracket in brackets:
-                if g <= bracket.limit_from:
-                    break
-                limit_to = bracket.limit_to if bracket.limit_to else float('inf')
-                taxable  = min(g, limit_to) - bracket.limit_from
-                if taxable > 0:
-                    tax_monthly += taxable * (bracket.rate / 100)
+            # FIX RENTA-CONFIG-01: NUNCA usar fallback hardcodeado.
+            # Si no hay tramos configurados en la BD, bloquear con error claro.
+            # Esto evita que valores incorrectos del codigo fuente se usen
+            # silenciosamente en lugar de los tramos que el administrador definio.
+            raise UserError(
+                'WARN No hay tramos de impuesto de renta activos configurados.\n\n'
+                'Para crear boletas debe configurar los tramos primero:\n'
+                'Planilla -> Configuracion -> Tramos de Renta\n\n'
+                'Los tramos vigentes para 2026 (DGT-R-016-2026) son:\n'
+                '   Exento: hasta CRC918,000\n'
+                '   10%: sobre el exceso de CRC918,000 hasta CRC1,381,000\n'
+                '   15%: sobre el exceso de CRC1,381,000 hasta CRC2,423,000\n'
+                '   20%: sobre el exceso de CRC2,423,000 hasta CRC4,845,000\n'
+                '   25%: sobre el exceso de CRC4,845,000\n\n'
+                'Fuente: Ministerio de Hacienda -- '
+                'https://www.hacienda.go.cr/contenido/15169-impuesto-sobre-la-renta-asalariados'
+            )
+
+        g           = monthly_equiv
+        tax_monthly = 0.0
+        for bracket in brackets:
+            if g <= bracket.limit_from:
+                break
+            limit_to = bracket.limit_to if bracket.limit_to else float('inf')
+            taxable  = min(g, limit_to) - bracket.limit_from
+            if taxable > 0:
+                tax_monthly += taxable * (bracket.rate / 100)
 
         tax_raw = tax_monthly / periods_per_month if periods_per_month else 0.0
 
-        # ── Créditos fiscales (Feature 2) — Art. 34 LIR ──────────────────────
+        # -- Creditos fiscales (Feature 2) -- Art. 34 LIR ----------------------
         # Solo aplican si hay impuesto calculado. Se descuentan del impuesto
         # ya calculado. El resultado nunca puede ser negativo.
         emp             = self.employee_id
@@ -652,10 +647,10 @@ class PayslipComputeMixin(models.AbstractModel):
         credito_conyuge = K.CREDITO_FISCAL_CONYUGE * freq_factor if emp.income_tax_spouse_credit else 0.0
         total_creditos  = credito_hijos + credito_conyuge
 
-        # Los créditos solo reducen hasta ₡0 — nunca generan reembolso
+        # Los creditos solo reducen hasta CRC0 -- nunca generan reembolso
         creditos_aplicados = min(total_creditos, tax_raw)
         tax_neto           = max(tax_raw - total_creditos, 0.0)
-        # ─────────────────────────────────────────────────────────────────────
+        # ---------------------------------------------------------------------
 
         return tax_neto, creditos_aplicados
 

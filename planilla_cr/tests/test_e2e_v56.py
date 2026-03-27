@@ -1,17 +1,17 @@
 """
-Tests End-to-End v5.6 — Sistema Planilla CR
+Tests End-to-End v5.6 -- Sistema Planilla CR
 ============================================
-Flujo completo: create → sync → confirm → pay → asiento contable
+Flujo completo: create -> sync -> confirm -> pay -> asiento contable
 
 Cubre:
-  - Flujo básico mensual con CCSS, Renta, Provisiones
+  - Flujo basico mensual con CCSS, Renta, Provisiones
   - Flujo con ROP activo (asiento cuadra con 230350)
   - Flujo con bono salarial (base CCSS incluye bono)
   - Flujo con embargo (cuenta 230960 separada)
   - Flujo per_run (asiento consolidado cuadra)
-  - Cancelación y reversión de asiento
-  - Liquidación completa (termination)
-  - Incapacidad CCSS días 1-3
+  - Cancelacion y reversion de asiento
+  - Liquidacion completa (termination)
+  - Incapacidad CCSS dias 1-3
 
 Ejecutar:
   docker compose run --rm web odoo -d prueba --test-enable \\
@@ -139,12 +139,12 @@ class TestE2EBase(TransactionCase):
         return debit
 
 
-class TestE2EFlujoBásico(TestE2EBase):
-    """Flujo completo básico: create→sync→confirm→pay→asiento."""
+class TestE2EFlujoBasico(TestE2EBase):
+    """Flujo completo basico: create->sync->confirm->pay->asiento."""
 
     def test_01_flujo_basico_crea_asiento(self):
-        """Boleta mensual básica: crear, confirmar, pagar → asiento cuadra."""
-        emp = self._make_employee('E2E Básico', 600_000)
+        """Boleta mensual basica: crear, confirmar, pagar -> asiento cuadra."""
+        emp = self._make_employee('E2E Basico', 600_000)
         slip = self._make_slip(emp)
 
         # Estado inicial: draft
@@ -165,7 +165,7 @@ class TestE2EFlujoBásico(TestE2EBase):
         self.assertTrue(slip.move_id, 'Debe generarse asiento contable')
 
         # Asiento cuadra
-        total = self._assert_balanced(slip.move_id, 'flujo básico')
+        total = self._assert_balanced(slip.move_id, 'flujo basico')
         self.assertGreater(total, 0, 'Asiento debe tener montos > 0')
 
     def test_02_ccss_obrera_en_asiento(self):
@@ -181,7 +181,7 @@ class TestE2EFlujoBásico(TestE2EBase):
         ccss_lines = slip.move_id.line_ids.filtered(
             lambda l: l.account_id.id == self.acc_ccss_pay.id
         )
-        self.assertTrue(ccss_lines, 'Debe haber línea de CCSS en el asiento')
+        self.assertTrue(ccss_lines, 'Debe haber linea de CCSS en el asiento')
         total_ccss = sum(ccss_lines.mapped('credit'))
         expected_ccss = round(slip.gross_salary * (0.1083 + 0.2683), 2)
         self.assertAlmostEqual(total_ccss, expected_ccss, delta=2,
@@ -198,13 +198,13 @@ class TestE2EFlujoBásico(TestE2EBase):
             slip.sudo().action_pay(skip_accounting=True)
 
         if not slip.move_id:
-            self.skipTest('Sin asiento contable — verificar configuración de cuentas')
+            self.skipTest('Sin asiento contable -- verificar configuracion de cuentas')
         prov_lines = slip.move_id.line_ids.filtered(
             lambda l: l.account_id.id in [
                 self.acc_agu_prov.id, self.acc_ces_prov.id, self.acc_vac_prov.id
             ]
         )
-        self.assertEqual(len(prov_lines), 3, 'Deben existir 3 líneas de provisión en el asiento')
+        self.assertEqual(len(prov_lines), 3, 'Deben existir 3 lineas de provision en el asiento')
         total_prov = sum(prov_lines.mapped('credit'))
         expected_prov = round(slip.gross_salary * 0.1782, 2)
         self.assertAlmostEqual(total_prov, expected_prov, delta=slip.gross_salary * 0.005,
@@ -273,7 +273,7 @@ class TestE2EFlujoROP(TestE2EBase):
         rop_lines = slip.deduction_line_ids.filtered(
             lambda l: l.deduction_category == 'rop'
         )
-        self.assertTrue(rop_lines, 'Deben existir líneas de deducción ROP')
+        self.assertTrue(rop_lines, 'Deben existir lineas de deduccion ROP')
 
         # Verify rop_employer > 0
         self.assertGreater(slip.rop_employer or 0, 0,
@@ -305,13 +305,13 @@ class TestE2EFlujoROP(TestE2EBase):
             msg=f'ROP patronal: {slip.rop_employer:,.2f} vs esperado {expected_patron:,.2f}')
 
     def test_08_rop_desactivado_no_genera_lineas(self):
-        """rop_applies=False (default) no debe generar líneas ROP."""
+        """rop_applies=False (default) no debe generar lineas ROP."""
         emp = self._make_employee('E2E ROP Off', 500_000, rop=False)
         slip = self._make_slip(emp)
         rop_lines = slip.deduction_line_ids.filtered(
             lambda l: l.deduction_category == 'rop'
         )
-        self.assertFalse(rop_lines, 'rop_applies=False no debe generar líneas ROP')
+        self.assertFalse(rop_lines, 'rop_applies=False no debe generar lineas ROP')
         self.assertEqual(slip.rop_employer or 0, 0, 'rop_employer debe ser 0')
 
 
@@ -418,14 +418,14 @@ class TestE2EFlujoPerRun(TestE2EBase):
             rop_lines = run.move_id.line_ids.filtered(
                 lambda l: 'ROP' in (l.name or '')
             )
-            self.assertTrue(rop_lines, 'Asiento per_run debe incluir líneas ROP')
+            self.assertTrue(rop_lines, 'Asiento per_run debe incluir lineas ROP')
             self._assert_balanced(run.move_id, 'per_run ROP check')
         finally:
             self.config.sudo().write({'accounting_entry_mode': 'per_employee'})
 
 
 class TestE2ECancelacion(TestE2EBase):
-    """Cancelación y reversión de boleta."""
+    """Cancelacion y reversion de boleta."""
 
     def test_12_cancelar_revierte_asiento(self):
         """Cancelar una boleta confirmada revierte el asiento contable."""
@@ -448,7 +448,7 @@ class TestE2ECancelacion(TestE2EBase):
         self.assertEqual(slip.state, 'draft',
             'Boleta cancelada debe poder volver a draft')
 
-        # Después de reset, los syncs deben funcionar sin duplicar
+        # Despues de reset, los syncs deben funcionar sin duplicar
         slip.sudo().action_sync_novedades()
         slip.sudo().action_confirm()
         self.assertEqual(slip.state, 'confirmed')
@@ -466,10 +466,10 @@ class TestE2ECancelacion(TestE2EBase):
 
 
 class TestE2ETerminacion(TestE2EBase):
-    """Flujo de liquidación/finiquito."""
+    """Flujo de liquidacion/finiquito."""
 
     def test_15_liquidacion_despido_injusto_completa(self):
-        """Liquidación por despido injustificado: todos los montos > 0."""
+        """Liquidacion por despido injustificado: todos los montos > 0."""
         emp = self._make_employee('E2E Liquid', 600_000)
         emp.entry_date = date.today() - relativedelta(years=3)
 
@@ -482,17 +482,17 @@ class TestE2ETerminacion(TestE2EBase):
             'last_salary': 600_000,
         })
 
-        self.assertGreater(term.cesantia_amount, 0, 'Cesantía > 0')
+        self.assertGreater(term.cesantia_amount, 0, 'Cesantia > 0')
         self.assertGreater(term.preaviso_amount, 0, 'Preaviso > 0')
         self.assertGreater(term.vacation_amount, 0, 'Vacaciones proporcionales > 0')
         self.assertGreater(term.aguinaldo_amount, 0, 'Aguinaldo proporcional > 0')
         self.assertGreater(term.total_gross, 0, 'Total bruto > 0')
         self.assertGreater(term.total_net, 0, 'Total neto > 0')
         self.assertLess(term.total_net, term.total_gross,
-            'Neto liquidación debe ser menor que bruto (hay retenciones)')
+            'Neto liquidacion debe ser menor que bruto (hay retenciones)')
 
     def test_16_liquidacion_renuncia_sin_cesantia(self):
-        """Renuncia voluntaria no genera cesantía (Art. 29 CT)."""
+        """Renuncia voluntaria no genera cesantia (Art. 29 CT)."""
         emp = self._make_employee('E2E Renuncia', 500_000)
         emp.entry_date = date.today() - relativedelta(years=5)
 
@@ -505,16 +505,16 @@ class TestE2ETerminacion(TestE2EBase):
             'last_salary': 500_000,
         })
         self.assertFalse(term.cesantia_applies,
-            'Renuncia no aplica cesantía')
+            'Renuncia no aplica cesantia')
         self.assertEqual(term.cesantia_amount, 0,
-            'Cesantía debe ser 0 en renuncia voluntaria')
+            'Cesantia debe ser 0 en renuncia voluntaria')
 
 
 class TestE2EIncapacidad(TestE2EBase):
     """Flujo de incapacidades."""
 
     def test_17_incapacidad_ccss_dias_1_3_patrono(self):
-        """Días 1-3 de incapacidad CCSS son cargo del patrono."""
+        """Dias 1-3 de incapacidad CCSS son cargo del patrono."""
         emp = self._make_employee('E2E Incap', 500_000)
         dis = self.env['planilla.disability'].create({
             'employee_id': emp.id,
@@ -524,13 +524,13 @@ class TestE2EIncapacidad(TestE2EBase):
         })
         dis._compute_costs()
         self.assertGreater(dis.employer_cost, 0,
-            'Días 1-3 incapacidad CCSS: costo patrono > 0 (Art. 79 Regl. CCSS)')
+            'Dias 1-3 incapacidad CCSS: costo patrono > 0 (Art. 79 Regl. CCSS)')
         self.assertEqual(dis.ccss_subsidy, 0,
-            'Días 1-3: CCSS no paga subsidio (es cargo del patrono)')
+            'Dias 1-3: CCSS no paga subsidio (es cargo del patrono)')
         dis.unlink()
 
     def test_18_incapacidad_ccss_mas_3_dias(self):
-        """Incapacidad >3 días: días 1-3 patrono + días 4+ CCSS."""
+        """Incapacidad >3 dias: dias 1-3 patrono + dias 4+ CCSS."""
         emp = self._make_employee('E2E Incap+3', 500_000)
         dis = self.env['planilla.disability'].create({
             'employee_id': emp.id,
@@ -539,6 +539,6 @@ class TestE2EIncapacidad(TestE2EBase):
             'date_end': '2026-08-10',
         })
         dis._compute_costs()
-        self.assertGreater(dis.employer_cost, 0, 'Días 1-3 cargo patrono')
-        self.assertGreater(dis.ccss_subsidy, 0, 'Días 4+ subsidio CCSS')
+        self.assertGreater(dis.employer_cost, 0, 'Dias 1-3 cargo patrono')
+        self.assertGreater(dis.ccss_subsidy, 0, 'Dias 4+ subsidio CCSS')
         dis.unlink()

@@ -14,7 +14,7 @@ class PayslipActionMixin(models.AbstractModel):
 
     v58:
       - B-06: action_confirm usa self.write() batch para atomicidad completa.
-      - action_sync_novedades movido aquí desde payslip_cr.py.
+      - action_sync_novedades movido aqui desde payslip_cr.py.
       - @api.model_create_multi en create().
     """
     _name = 'planilla.payslip.action.mixin'
@@ -26,7 +26,7 @@ class PayslipActionMixin(models.AbstractModel):
         # FIX PERF-05: Si se crean muchas boletas (planilla grupal), usar
         # sync por lote para reducir queries. Threshold: >1 boleta = modo batch.
         if len(records) == 1:
-            # Creación individual (UI): sync normal por boleta
+            # Creacion individual (UI): sync normal por boleta
             rec = records
             rec._sync_novedades()
             rec._sync_recurring_benefits()
@@ -36,13 +36,13 @@ class PayslipActionMixin(models.AbstractModel):
             rec._sync_loan_deductions()
             rec._sync_employee_charges()
         else:
-            # Creación masiva (planilla grupal): sync por lote
-            # Guardia: verificar que todas las boletas tienen el mismo período.
-            # Si hay fechas mixtas (caso atípico), hacer sync individual seguro.
+            # Creacion masiva (planilla grupal): sync por lote
+            # Guardia: verificar que todas las boletas tienen el mismo periodo.
+            # Si hay fechas mixtas (caso atipico), hacer sync individual seguro.
             date_froms = set(r.date_from for r in records if r.date_from)
             date_tos   = set(r.date_to   for r in records if r.date_to)
             if len(date_froms) == 1 and len(date_tos) == 1:
-                # Mismo período para todos → modo batch (óptimo)
+                # Mismo periodo para todos -> modo batch (optimo)
                 records._sync_novedades_batch()
                 records._sync_recurring_benefits_batch()
                 records._sync_rop_batch()
@@ -51,7 +51,7 @@ class PayslipActionMixin(models.AbstractModel):
                 records._sync_loan_deductions_batch()
                 records._sync_employee_charges_batch()
             else:
-                # Períodos distintos → sync individual seguro
+                # Periodos distintos -> sync individual seguro
                 for rec in records:
                     rec._sync_novedades()
                     rec._sync_recurring_benefits()
@@ -63,10 +63,10 @@ class PayslipActionMixin(models.AbstractModel):
         return records
 
     def action_sync_novedades(self) -> bool:
-        """Botón manual: re-sincroniza novedades del período en la boleta.
-        FIX-N2: agrega _sync_loan_deductions que faltaba. Sin este método,
-        al presionar el botón "Sincronizar" las cuotas de préstamos no se
-        actualizaban en la boleta aunque el préstamo estuviera activo.
+        """Boton manual: re-sincroniza novedades del periodo en la boleta.
+        FIX-N2: agrega _sync_loan_deductions que faltaba. Sin este metodo,
+        al presionar el boton "Sincronizar" las cuotas de prestamos no se
+        actualizaban en la boleta aunque el prestamo estuviera activo.
         """
         for rec in self:
             if rec.state == 'draft':
@@ -75,23 +75,23 @@ class PayslipActionMixin(models.AbstractModel):
                 rec._sync_rop()
                 rec._sync_bonos()
                 rec._sync_embargos()
-                rec._sync_loan_deductions()  # FIX-N2: faltaba — préstamos no se sincronizaban
+                rec._sync_loan_deductions()  # FIX-N2: faltaba -- prestamos no se sincronizaban
                 rec._sync_employee_charges() # Cobros al empleado (almuerzos, productos, etc.)
         return True
 
     def action_recalculate(self) -> bool:
-        """Fuerza el recálculo completo de la boleta (salario base, deducciones,
+        """Fuerza el recalculo completo de la boleta (salario base, deducciones,
         impuesto de renta, cargas patronales y totales) sin modificar novedades.
 
-        Útil cuando se cambian tramos de renta, tasas de CCSS u otras
+        Util cuando se cambian tramos de renta, tasas de CCSS u otras
         configuraciones en la BD sin que haya cambiado el salario del empleado,
-        ya que Odoo no detecta automáticamente ese cambio externo en campos
+        ya que Odoo no detecta automaticamente ese cambio externo en campos
         store=True.
         """
         for rec in self:
             if rec.state != 'draft':
                 continue
-            # Odoo 19: env.context es read-only — usar with_context() para
+            # Odoo 19: env.context es read-only -- usar with_context() para
             # invalidar el cache de tramos de renta en este request.
             rec = rec.with_context(
                 **{k: v for k, v in rec.env.context.items()
@@ -108,7 +108,7 @@ class PayslipActionMixin(models.AbstractModel):
         return True
 
     def action_confirm(self) -> None:
-        """FIX B-06 v58: write() batch — atomicidad total."""
+        """FIX B-06 v58: write() batch -- atomicidad total."""
         if not self.env.su and not self.env.user.has_group('planilla_cr.group_planilla_aprobador'):
             raise UserError(
                 'No tiene permisos para confirmar boletas. '
@@ -116,7 +116,7 @@ class PayslipActionMixin(models.AbstractModel):
             )
         for rec in self:
             if rec.state != 'draft':
-                raise UserError(f'La boleta {rec.name} no está en borrador.')
+                raise UserError(f'La boleta {rec.name} no esta en borrador.')
         self._validate_before_confirm()
         self.write({'state': 'confirmed'})
         _logger.info(
@@ -158,7 +158,7 @@ class PayslipActionMixin(models.AbstractModel):
                     # y _onchange_employee (liquidaciones/simulador) encuentren este
                     # registro al calcular el promedio de salarios variables (Art. 153 CT).
                     # Sin este campo el historial queda en 'draft' y es invisible
-                    # para todas las consultas de promedio → salario variable no funciona.
+                    # para todas las consultas de promedio -> salario variable no funciona.
                     'state':          'authorized',
                     'authorized_by':  self.env.user.id,
                     'authorized_date': fields.Datetime.now(),
@@ -176,9 +176,9 @@ class PayslipActionMixin(models.AbstractModel):
                     try:
                         rec.message_post(
                             body=(
-                                f'⚠️ <b>No se pudo enviar el email de boleta</b> al correo '
+                                f'WARN <b>No se pudo enviar el email de boleta</b> al correo '
                                 f'{rec.employee_id.work_email}. Error: {str(e)[:200]}. '
-                                f'Use el botón "Enviar Boleta" para reenviar manualmente.'
+                                f'Use el boton "Enviar Boleta" para reenviar manualmente.'
                             ),
                             message_type='notification',
                         )
@@ -204,7 +204,7 @@ class PayslipActionMixin(models.AbstractModel):
             rec.disability_ids.filtered(lambda d: d.state == 'paid').write({'state': 'confirmed'})
             rec.overtime_ids.filtered(lambda o: o.state == 'paid').write({'state': 'approved'})
             # FIX-AUD-01: restaurar licencias especiales al estado aprobado
-            # Si no se hace, la licencia queda en 'paid' huérfana y no se puede
+            # Si no se hace, la licencia queda en 'paid' huerfana y no se puede
             # sincronizar a otra boleta en caso de que se regenere la planilla.
             rec.leave_cr_ids.filtered(lambda l: l.state == 'paid').write({
                 'state': 'approved',
@@ -218,20 +218,20 @@ class PayslipActionMixin(models.AbstractModel):
             if charge_lines:
                 charge_ids_list = [l.employee_charge_id for l in charge_lines if l.employee_charge_id]
                 if charge_ids_list:
-                    # FIX BUG-COBRO-01: separar cobros únicos de recurrentes.
+                    # FIX BUG-COBRO-01: separar cobros unicos de recurrentes.
                     all_charges = self.env['planilla.employee.charge'].browse(charge_ids_list)
-                    # Únicos (applied) → volver a approved
+                    # Unicos (applied) -> volver a approved
                     unique_charges = all_charges.filtered(
                         lambda c: not c.is_recurring and c.state == 'applied'
                                   and c.payslip_id.id == rec.id
                     )
                     if unique_charges:
                         unique_charges.write({'state': 'approved', 'payslip_id': False})
-                    # Recurrentes → limpiar el período de applied_periods
+                    # Recurrentes -> limpiar el periodo de applied_periods
                     recurring_charges = all_charges.filtered(lambda c: c.is_recurring)
                     for charge in recurring_charges:
                         charge._remove_period_applied(rec.date_from)
-                        # Si ya no tiene más períodos activos, limpiar payslip_id
+                        # Si ya no tiene mas periodos activos, limpiar payslip_id
                         if not charge.applied_periods:
                             charge.payslip_id = False
             rec.state = 'cancelled'
@@ -244,7 +244,7 @@ class PayslipActionMixin(models.AbstractModel):
             # FIX BUG-UNLINK-01: restaurar TODOS los objetos vinculados al volver
             # a borrador, no solo leave_cr. Permite resincronizar completamente.
 
-            # Cuotas de préstamo: deducted → pending
+            # Cuotas de prestamo: deducted -> pending
             loan_lines = rec.deduction_line_ids.filtered(lambda l: l.loan_installment_id)
             for line in loan_lines:
                 inst = line.loan_installment_id
@@ -253,27 +253,27 @@ class PayslipActionMixin(models.AbstractModel):
                     if inst.loan_id and inst.loan_id.state == 'paid':
                         inst.loan_id.write({'state': 'active'})
 
-            # Horas extra: paid → approved
+            # Horas extra: paid -> approved
             rec.overtime_ids.filtered(
                 lambda o: o.state == 'paid'
             ).write({'state': 'approved'})
 
-            # Vacaciones: paid → approved
+            # Vacaciones: paid -> approved
             rec.vacation_ids.filtered(
                 lambda v: v.state == 'paid'
             ).write({'state': 'approved'})
 
-            # Incapacidades: paid → confirmed
+            # Incapacidades: paid -> confirmed
             rec.disability_ids.filtered(
                 lambda d: d.state == 'paid'
             ).write({'state': 'confirmed'})
 
-            # Licencias especiales CR: paid → approved + limpiar payslip_id
+            # Licencias especiales CR: paid -> approved + limpiar payslip_id
             rec.leave_cr_ids.filtered(
                 lambda l: l.state in ('paid', 'approved')
             ).write({'payslip_id': False, 'state': 'approved'})
 
-            # Cobros recurrentes: limpiar período de applied_periods
+            # Cobros recurrentes: limpiar periodo de applied_periods
             charge_lines = rec.deduction_line_ids.filtered(lambda l: l.employee_charge_id)
             if charge_lines:
                 charge_ids = [l.employee_charge_id for l in charge_lines if l.employee_charge_id]

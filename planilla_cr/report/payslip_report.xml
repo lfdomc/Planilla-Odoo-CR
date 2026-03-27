@@ -15,7 +15,7 @@
                         </div>
                         <div class="col-6 text-end">
                             <p><strong>Referencia:</strong> <t t-out="doc.name"/></p>
-                            <p><strong>Período:</strong> <t t-out="doc.date_from"/> — <t t-out="doc.date_to"/></p>
+                            <p><strong>Periodo:</strong> <t t-out="doc.date_from"/> -- <t t-out="doc.date_to"/></p>
                         </div>
                     </div>
                     <div class="row mb-3 p-2" style="background:#f0f4f8; border-radius:5px;">
@@ -27,12 +27,12 @@
                             </t>
                         </div>
                         <div class="col-6">
-                            <p class="mb-1"><strong>Identificación:</strong> <t t-out="doc.employee_id.identification_id or ''"/></p>
+                            <p class="mb-1"><strong>Identificacion:</strong> <t t-out="doc.employee_id.identification_id or ''"/></p>
                             <t t-if="doc.employee_id.ccss_number">
                                 <p class="mb-1"><strong>CCSS:</strong> <t t-out="doc.employee_id.ccss_number"/></p>
                             </t>
                             <p class="mb-1"><strong>Fecha Ingreso:</strong> <t t-out="doc.employee_id.entry_date or ''"/></p>
-                            <p class="mb-1"><strong>Método de pago:</strong>
+                            <p class="mb-1"><strong>Metodo de pago:</strong>
                                 <t t-if="doc.calculation_method == 'attendance'">Por Horas Trabajadas</t>
                                 <t t-else="">Salario Fijo</t>
                             </p>
@@ -43,7 +43,7 @@
                     <t t-if="doc.calculation_method == 'attendance'">
                         <div class="row mb-2 p-2" style="background:#fff8e1; border-radius:4px; border-left:4px solid #ffc107;">
                             <div class="col-12">
-                                <strong>Horas trabajadas en el período: <t t-out="doc.attendance_hours"/> horas</strong>
+                                <strong>Horas trabajadas en el periodo: <t t-out="doc.attendance_hours"/> horas</strong>
                             </div>
                         </div>
                     </t>
@@ -85,7 +85,7 @@
                                 <tr t-if="lic.has_salary or lic.has_salary_override">
                                     <td>
                                         <t t-out="dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)"/>
-                                        (<t t-out="lic.working_days if lic.working_days > 0 else lic.days"/> día(s))
+                                        (<t t-out="lic.working_days if lic.working_days > 0 else lic.days"/> dia(s))
                                     </td>
                                     <td class="text-end text-success">
                                         <t t-out="'{:,.2f}'.format(lic.leave_amount)"/>
@@ -95,9 +95,9 @@
                                 <tr t-if="not lic.has_salary and not lic.has_salary_override">
                                     <td></td><td></td>
                                     <td>
-                                        Lic. sin goce —
+                                        Lic. sin goce --
                                         <t t-out="dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)"/>
-                                        (<t t-out="lic.working_days if lic.working_days > 0 else lic.days"/> día(s))
+                                        (<t t-out="lic.working_days if lic.working_days > 0 else lic.days"/> dia(s))
                                     </td>
                                     <td class="text-end text-danger">
                                         <t t-out="'{:,.2f}'.format(lic.leave_amount)"/>

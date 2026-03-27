@@ -44,7 +44,7 @@
                             <field name="vacation_type"/>
                             <field name="days_accrued" readonly="1"/>
                         </group>
-                        <group string="Período">
+                        <group string="Periodo">
                             <field name="date_start"/>
                             <field name="date_end"/>
                             <field name="days" readonly="1"/>
@@ -52,8 +52,8 @@
                             <field name="total_amount" readonly="1"/>
                         </group>
                     </group>
-                    <!-- Método de pago Art. 153-156 CT -->
-                    <group string="Método de Pago (Art. 153-156 CT)">
+                    <!-- Metodo de pago Art. 153-156 CT -->
+                    <group string="Metodo de Pago (Art. 153-156 CT)">
                         <field name="payment_method"/>
 
                         <!-- Alerta: empleado con salario variable y use_average desactivado -->
@@ -61,23 +61,23 @@
                              invisible="use_average or not employee_id">
                             <i class="fa fa-exclamation-triangle" title="Advertencia"/> <strong>Art. 153 CT:</strong>
                             Si el empleado recibe comisiones, horas extras recurrentes u otros
-                            ingresos variables, debe usar el <strong>Promedio de las últimas 4 semanas</strong>
-                            para calcular el pago de vacaciones. Active la opción abajo.
+                            ingresos variables, debe usar el <strong>Promedio de las ultimas 4 semanas</strong>
+                            para calcular el pago de vacaciones. Active la opcion abajo.
                         </div>
 
                         <field name="use_average" string="Usar Promedio 4 Semanas (Art. 153 CT)"/>
 
-                        <!-- Bloque de promedio visible cuando use_average está activo -->
+                        <!-- Bloque de promedio visible cuando use_average esta activo -->
                         <div class="col-12" invisible="not use_average">
                             <group col="2">
-                                <field name="avg_last_4_weeks" string="Salario Diario Promedio (₡)"/>
+                                <field name="avg_last_4_weeks" string="Salario Diario Promedio (CRC)"/>
                                 <field name="avg_vs_base_diff_pct"
                                        string="Diferencia vs Salario Base (%)"
                                        readonly="1"/>
                             </group>
                             <div class="alert alert-info" role="alert"
                                  invisible="avg_vs_base_diff_pct &lt; 5">
-                                <i class="fa fa-info-circle" title="Información"/>
+                                <i class="fa fa-info-circle" title="Informacion"/>
                                 El promedio difiere en <strong><field name="avg_vs_base_diff_pct" nolabel="1" readonly="1"/>%</strong>
                                 del salario base diario. Esto es normal si el empleado tiene
                                 comisiones o horas extras variables. Verifique que el historial
@@ -86,9 +86,9 @@
                             <div class="alert alert-warning" role="alert"
                                  invisible="avg_last_4_weeks &gt; 0">
                                 <i class="fa fa-exclamation-triangle" title="Advertencia"/>
-                                No hay historial salarial disponible. El sistema usará el salario
-                                base diario como aproximación. Para mayor precisión, asegúrese de
-                                que las boletas anteriores estén pagadas y en el historial.
+                                No hay historial salarial disponible. El sistema usara el salario
+                                base diario como aproximacion. Para mayor precision, asegurese de
+                                que las boletas anteriores esten pagadas y en el historial.
                             </div>
                         </div>
 

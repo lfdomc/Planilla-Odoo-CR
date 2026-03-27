@@ -7,14 +7,14 @@
             <form string="Reporte Planilla INS">
                 <sheet>
                     <div class="oe_title">
-                        <h2>Planilla INS — Riesgos del Trabajo</h2>
+                        <h2>Planilla INS -- Riesgos del Trabajo</h2>
                         <p class="text-muted">
-                            Reporte obligatorio para el INS. Presentar antes del día 10 de cada mes
+                            Reporte obligatorio para el INS. Presentar antes del dia 10 de cada mes
                             via RT-Virtual (rtvirtual.grupoins.com).
                         </p>
                     </div>
                     <group>
-                        <group string="Período">
+                        <group string="Periodo">
                             <field name="date_from"/>
                             <field name="date_to"/>
                             <field name="frequency"/>

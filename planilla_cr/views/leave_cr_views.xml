@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ═══════════════════════════════════════════════════════════════════
+    <!-- ===================================================================
          LISTA
-    ════════════════════════════════════════════════════════════════════ -->
+    ==================================================================== -->
     <record id="view_leave_cr_list" model="ir.ui.view">
         <field name="name">planilla.leave.cr.list</field>
         <field name="model">planilla.leave.cr</field>
@@ -32,9 +32,9 @@
         </field>
     </record>
 
-    <!-- ═══════════════════════════════════════════════════════════════════
+    <!-- ===================================================================
          FORMULARIO
-    ════════════════════════════════════════════════════════════════════ -->
+    ==================================================================== -->
     <record id="view_leave_cr_form" model="ir.ui.view">
         <field name="name">planilla.leave.cr.form</field>
         <field name="model">planilla.leave.cr</field>
@@ -52,7 +52,7 @@
                     <button name="action_cancel" type="object"
                             string="Cancelar"
                             invisible="state in ('paid', 'cancelled')"
-                            confirm="¿Está seguro de cancelar esta licencia?"/>
+                            confirm="¿Esta seguro de cancelar esta licencia?"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,approved,paid"/>
                 </header>
@@ -64,14 +64,14 @@
                         <strong>Base Legal: </strong>
                         <field name="legal_basis" readonly="1" nolabel="1"/>
                         <span invisible="max_days_info == 0">
-                            — Máximo <field name="max_days_info" readonly="1" nolabel="1"/> días hábiles.
+                            -- Maximo <field name="max_days_info" readonly="1" nolabel="1"/> dias habiles.
                         </span>
                     </div>
 
                     <!-- Alerta si procesada en boleta -->
                     <div class="alert alert-success col-12" role="alert"
                          invisible="not payslip_id">
-                        <strong>✔ Procesada en boleta:</strong>
+                        <strong>OK Procesada en boleta:</strong>
                         <field name="payslip_id" readonly="1" nolabel="1"/>
                     </div>
 
@@ -96,8 +96,8 @@
                     </group>
 
                     <group>
-                        <!-- Período por DÍAS -->
-                        <group string="Período"
+                        <!-- Periodo por DIAS -->
+                        <group string="Periodo"
                                invisible="leave_unit == 'hour'">
                             <field name="date_start"
                                    readonly="state != 'draft'"/>
@@ -106,10 +106,10 @@
                             <field name="days" readonly="1"/>
                             <field name="working_days"
                                    readonly="state != 'draft'"
-                                   help="Si la ley habla de días HÁBILES (duelo, paternidad, matrimonio), ingrese aquí los días hábiles. El sistema calculará el monto sobre este valor. Si queda en 0 se usan los días calendario."/>
+                                   help="Si la ley habla de dias HABILES (duelo, paternidad, matrimonio), ingrese aqui los dias habiles. El sistema calculara el monto sobre este valor. Si queda en 0 se usan los dias calendario."/>
                         </group>
-                        <!-- Período por HORAS -->
-                        <group string="Período"
+                        <!-- Periodo por HORAS -->
+                        <group string="Periodo"
                                invisible="leave_unit == 'day'">
                             <field name="date_start"
                                    string="Fecha del Permiso"
@@ -126,7 +126,7 @@
                         </group>
                     </group>
 
-                    <!-- Sección Duelo -->
+                    <!-- Seccion Duelo -->
                     <group string="Datos del Fallecido (Ley 8698 / Art. 37 bis CT)"
                            invisible="leave_type not in ('duelo_primer_grado', 'duelo_otro')">
                         <group>
@@ -139,67 +139,67 @@
                         <div class="alert alert-warning col-12" role="alert"
                              invisible="leave_type != 'duelo_primer_grado'">
                             <strong>Art. 37 bis CT (Ley 8698):</strong>
-                            El trabajador tiene derecho a <strong>3 días hábiles</strong>
-                            con goce de sueldo por fallecimiento de cónyuge, compañero(a),
+                            El trabajador tiene derecho a <strong>3 dias habiles</strong>
+                            con goce de sueldo por fallecimiento de conyuge, companero(a),
                             hijo(a), padre, madre o hermano(a).<br/>
-                            Se requiere presentar el <strong>acta de defunción</strong>
+                            Se requiere presentar el <strong>acta de defuncion</strong>
                             y documento que acredite el parentesco.
                         </div>
                         <div class="alert alert-info col-12" role="alert"
                              invisible="leave_type != 'duelo_otro'">
-                            <strong>Duelo — Otros parientes:</strong>
+                            <strong>Duelo -- Otros parientes:</strong>
                             La ley no obliga al patrono a pagar licencia por fallecimiento
                             de parientes fuera del primer grado de consanguinidad.<br/>
                             Puede activar <em>"¿Pagar voluntariamente?"</em> si la
-                            política de la empresa así lo establece.
+                            politica de la empresa asi lo establece.
                         </div>
                     </group>
 
-                    <!-- Sección Paternidad -->
+                    <!-- Seccion Paternidad -->
                     <div class="alert alert-info col-12" role="alert"
                          invisible="leave_type not in ('paternidad', 'paternidad_adopcion')">
                         <strong>Ley 8107 / Art. 95 CT:</strong>
-                        El padre tiene derecho a <strong>8 días hábiles</strong>
+                        El padre tiene derecho a <strong>8 dias habiles</strong>
                         con goce de sueldo al 100%, a cargo del patrono.<br/>
-                        Debe presentar el <strong>acta de nacimiento o de adopción</strong>
-                        dentro de los 8 días hábiles del parto o de la resolución de adopción.
+                        Debe presentar el <strong>acta de nacimiento o de adopcion</strong>
+                        dentro de los 8 dias habiles del parto o de la resolucion de adopcion.
                     </div>
 
-                    <!-- Sección Adopción -->
+                    <!-- Seccion Adopcion -->
                     <div class="alert alert-warning col-12" role="alert"
                          invisible="leave_type != 'adopcion'">
-                        <strong>Ley 9406 — Licencia por Adopción:</strong>
+                        <strong>Ley 9406 -- Licencia por Adopcion:</strong>
                         La persona adoptante primaria tiene derecho a
-                        <strong>3 meses (90 días)</strong> con goce de sueldo.<br/>
+                        <strong>3 meses (90 dias)</strong> con goce de sueldo.<br/>
                         Si el trabajador cotiza a la CCSS, el subsidio lo cubre la CCSS
-                        (igual que maternidad). En ese caso, regístrelo también en
-                        <strong>Novedades → Incapacidades</strong> con tipo <em>Maternidad</em>
+                        (igual que maternidad). En ese caso, registrelo tambien en
+                        <strong>Novedades -> Incapacidades</strong> con tipo <em>Maternidad</em>
                         para que el sistema calcule el subsidio CCSS correctamente.<br/>
-                        Si la empresa lo paga directamente (sin trámite CCSS), manténgalo
-                        aquí y el monto se registrará como gasto patronal (cuenta 630800).
+                        Si la empresa lo paga directamente (sin tramite CCSS), mantengalo
+                        aqui y el monto se registrara como gasto patronal (cuenta 630800).
                     </div>
 
-                    <!-- Sección Lactancia -->
+                    <!-- Seccion Lactancia -->
                     <div class="alert alert-info col-12" role="alert"
                          invisible="leave_type != 'lactancia'">
-                        <strong>Art. 95 CT — Período de Lactancia:</strong>
-                        La madre tiene derecho a <strong>dos períodos de 15 minutos</strong>
-                        cada uno durante la jornada laboral, por un mínimo de 1 año
+                        <strong>Art. 95 CT -- Periodo de Lactancia:</strong>
+                        La madre tiene derecho a <strong>dos periodos de 15 minutos</strong>
+                        cada uno durante la jornada laboral, por un minimo de 1 ano
                         desde el parto.<br/>
-                        Este registro documenta el período de lactancia activo.
-                        No genera deducción salarial.
+                        Este registro documenta el periodo de lactancia activo.
+                        No genera deduccion salarial.
                     </div>
 
-                    <!-- Sección Matrimonio -->
+                    <!-- Seccion Matrimonio -->
                     <div class="alert alert-info col-12" role="alert"
                          invisible="leave_type != 'matrimonio'">
-                        <strong>Art. 37 CT — Licencia por Matrimonio:</strong>
-                        El trabajador tiene derecho a <strong>2 días</strong>
+                        <strong>Art. 37 CT -- Licencia por Matrimonio:</strong>
+                        El trabajador tiene derecho a <strong>2 dias</strong>
                         con goce de sueldo por su matrimonio.<br/>
                         Se requiere presentar el <strong>acta de matrimonio</strong>.
                     </div>
 
-                    <group string="Documentación y Notas">
+                    <group string="Documentacion y Notas">
                         <field name="certificate_number"
                                string="N° Documento (Acta/Certificado)"
                                readonly="state != 'draft'"
@@ -213,9 +213,9 @@
         </field>
     </record>
 
-    <!-- ═══════════════════════════════════════════════════════════════════
-         BÚSQUEDA
-    ════════════════════════════════════════════════════════════════════ -->
+    <!-- ===================================================================
+         BUSQUEDA
+    ==================================================================== -->
     <record id="view_leave_cr_search" model="ir.ui.view">
         <field name="name">planilla.leave.cr.search</field>
         <field name="model">planilla.leave.cr</field>
@@ -247,9 +247,9 @@
         </field>
     </record>
 
-    <!-- ═══════════════════════════════════════════════════════════════════
-         ACCIÓN
-    ════════════════════════════════════════════════════════════════════ -->
+    <!-- ===================================================================
+         ACCION
+    ==================================================================== -->
     <record id="action_leave_cr" model="ir.actions.act_window">
         <field name="name">Licencias Especiales</field>
         <field name="res_model">planilla.leave.cr</field>
@@ -261,8 +261,8 @@
                 No hay licencias especiales registradas.
             </p>
             <p>
-                Registre aquí las licencias laborales con base legal costarricense:
-                duelo, paternidad, matrimonio, adopción, lactancia, sin goce, etc.
+                Registre aqui las licencias laborales con base legal costarricense:
+                duelo, paternidad, matrimonio, adopcion, lactancia, sin goce, etc.
             </p>
         </field>
     </record>

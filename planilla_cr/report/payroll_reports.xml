@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ══════════════════════════════════════════════════════════
+    <!-- ==========================================================
          REPORTE: RESUMEN MENSUAL
-    ══════════════════════════════════════════════════════════ -->
+    ========================================================== -->
     <template id="report_monthly_summary_template">
         <t t-call="web.html_container">
             <meta charset="UTF-8"/>
@@ -19,7 +19,7 @@
                                     <h2 style="color:#1F4E79;">RESUMEN MENSUAL DE PLANILLA</h2>
                                     <h4><t t-out="data['wizard'].company_id.name"/></h4>
                                     <p class="text-muted">
-                                        Período: <strong><t t-out="str(data['wizard'].date_from)"/></strong>
+                                        Periodo: <strong><t t-out="str(data['wizard'].date_from)"/></strong>
                                         al <strong><t t-out="str(data['wizard'].date_to)"/></strong>
                                         | Moneda: <strong><t t-out="data['currency'].name if data.get('currency') else ''"/></strong>
                                     </p>
@@ -43,13 +43,13 @@
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td>Deducción CCSS Obrero (10.83%)</td>
+                                                <td>Deduccion CCSS Obrero (10.83%)</td>
                                                 <td class="text-end text-danger">
                                                     (<t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_ccss_employee'])"/>)
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td>Retención Impuesto de Renta</td>
+                                                <td>Retencion Impuesto de Renta</td>
                                                 <td class="text-end text-danger">
                                                     (<t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_income_tax'])"/>)
                                                 </td>
@@ -80,15 +80,15 @@
                                                 <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_ins'])"/></td>
                                             </tr>
                                             <tr>
-                                                <td>Provisión Aguinaldo (8.33%)</td>
+                                                <td>Provision Aguinaldo (8.33%)</td>
                                                 <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_aguinaldo'])"/></td>
                                             </tr>
                                             <tr>
-                                                <td>Provisión Cesantía (5.33%)</td>
+                                                <td>Provision Cesantia (5.33%)</td>
                                                 <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_cesantia'])"/></td>
                                             </tr>
                                             <tr>
-                                                <td>Provisión Vacaciones (4.16%)</td>
+                                                <td>Provision Vacaciones (4.16%)</td>
                                                 <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_vacation'])"/></td>
                                             </tr>
                                             <tr style="background:#fff3cd;">
@@ -171,9 +171,9 @@
         <field name="binding_model_id" ref="model_planilla_report_wizard"/>
     </record>
 
-    <!-- ══════════════════════════════════════════════════════════
+    <!-- ==========================================================
          REPORTE: PLANILLA CCSS
-    ══════════════════════════════════════════════════════════ -->
+    ========================================================== -->
     <template id="report_ccss_template">
         <t t-call="web.html_container">
             <meta charset="UTF-8"/>
@@ -184,10 +184,10 @@
                         <div class="page">
                             <div class="row mb-4">
                                 <div class="col-12 text-center">
-                                    <h2 style="color:#1F4E79;">PLANILLA DE PATRONO — CCSS</h2>
+                                    <h2 style="color:#1F4E79;">PLANILLA DE PATRONO -- CCSS</h2>
                                     <h4><t t-out="data['wizard'].company_id.name"/></h4>
                                     <p class="text-muted">
-                                        Período: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
+                                        Periodo: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
                                     </p>
                                 </div>
                             </div>
@@ -241,7 +241,7 @@
                                     <p><strong>Firma y Sello:</strong> ____________________________</p>
                                 </div>
                                 <div class="col-6 text-end">
-                                    <p><strong>Fecha de presentación:</strong> ___________________</p>
+                                    <p><strong>Fecha de presentacion:</strong> ___________________</p>
                                 </div>
                             </div>
                         </div>
@@ -261,9 +261,9 @@
         <field name="binding_model_id" ref="model_planilla_report_wizard"/>
     </record>
 
-    <!-- ══════════════════════════════════════════════════════════
+    <!-- ==========================================================
          REPORTE: COSTO POR SUCURSAL
-    ══════════════════════════════════════════════════════════ -->
+    ========================================================== -->
     <template id="report_cost_branch_template">
         <t t-call="web.html_container">
             <meta charset="UTF-8"/>
@@ -277,7 +277,7 @@
                                     <h2 style="color:#1F4E79;">COSTO DE PLANILLA POR SUCURSAL</h2>
                                     <h4><t t-out="data['wizard'].company_id.name"/></h4>
                                     <p class="text-muted">
-                                        Período: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
+                                        Periodo: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
                                     </p>
                                 </div>
                             </div>
@@ -336,9 +336,9 @@
         <field name="binding_model_id" ref="model_planilla_report_wizard"/>
     </record>
 
-    <!-- ══════════════════════════════════════════════════════════
+    <!-- ==========================================================
          REPORTE: DETALLE POR EMPLEADO
-    ══════════════════════════════════════════════════════════ -->
+    ========================================================== -->
     <template id="report_employee_detail_template">
         <t t-call="web.html_container">
             <meta charset="UTF-8"/>
@@ -352,7 +352,7 @@
                                     <h2 style="color:#1F4E79;">DETALLE DE PLANILLA POR EMPLEADO</h2>
                                     <h4><t t-out="data['wizard'].company_id.name"/></h4>
                                     <p class="text-muted">
-                                        Período: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
+                                        Periodo: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
                                     </p>
                                 </div>
                             </div>
@@ -361,11 +361,11 @@
                                 <div class="row mb-3" style="border:1px solid #dee2e6; padding:10px; border-radius:5px;">
                                     <div class="col-6">
                                         <strong><t t-out="p.employee_id.name"/></strong><br/>
-                                        <small>Cédula: <t t-out="p.employee_id.identification_id or ''"/></small><br/>
+                                        <small>Cedula: <t t-out="p.employee_id.identification_id or ''"/></small><br/>
                                         <small>CCSS: <t t-out="p.employee_id.ccss_number or ''"/></small>
                                     </div>
                                     <div class="col-6 text-end">
-                                        <small>Período: <t t-out="str(p.date_from)"/> - <t t-out="str(p.date_to)"/></small>
+                                        <small>Periodo: <t t-out="str(p.date_from)"/> - <t t-out="str(p.date_to)"/></small>
                                     </div>
                                     <div class="col-6 mt-2">
                                         <table class="table table-sm table-bordered" style="font-size:10px;">

@@ -13,7 +13,7 @@ class PayrollRunCR(models.Model):
 
     # FIX v58: El constraint de BD UNIQUE y el ORM simple han sido reemplazados
     # por _check_no_duplicate_employees_across_runs() que implementa la regla
-    # de negocio correcta: se permiten múltiples planillas en el mismo período
+    # de negocio correcta: se permiten multiples planillas en el mismo periodo
     # siempre que no dupliquen empleados.
 
     @api.constrains('company_id', 'date_start', 'date_end')
@@ -21,24 +21,24 @@ class PayrollRunCR(models.Model):
         """
         Regla de negocio central v58 para planillas:
 
-        Se PERMITEN múltiples planillas (runs) en el mismo período calendario
-        siempre que cumplan: ningún empleado aparece en dos planillas solapadas.
+        Se PERMITEN multiples planillas (runs) en el mismo periodo calendario
+        siempre que cumplan: ningun empleado aparece en dos planillas solapadas.
 
-        Criterios de agrupación VÁLIDOS para planillas del mismo período:
-          ✓ Por calendarización (quincenal, mensual, semanal)
-          ✓ Por sucursal (Alajuela, San José, Heredia)
-          ✓ Por departamento (Ventas, Producción, Admin)
-          ✓ Planilla especial de corrección con empleados distintos
-          ✓ Cualquier combinación, si no hay empleados duplicados
+        Criterios de agrupacion VALIDOS para planillas del mismo periodo:
+          OK Por calendarizacion (quincenal, mensual, semanal)
+          OK Por sucursal (Alajuela, San Jose, Heredia)
+          OK Por departamento (Ventas, Produccion, Admin)
+          OK Planilla especial de correccion con empleados distintos
+          OK Cualquier combinacion, si no hay empleados duplicados
 
         Lo que se BLOQUEA:
-          ✗ Mismo empleado en dos planillas con períodos que se solapan
+          X Mismo empleado en dos planillas con periodos que se solapan
 
-        NOTA: La validación efectiva del empleado ocurre al crear la boleta
+        NOTA: La validacion efectiva del empleado ocurre al crear la boleta
         (PayslipCR._check_no_duplicate_employee_period). Este constraint en el
         Run es un guardia preventivo que verifica si las boletas YA EXISTENTES
-        de esta planilla cruzarían con los de otra planilla activa en el mismo
-        período de la misma empresa.
+        de esta planilla cruzarian con los de otra planilla activa en el mismo
+        periodo de la misma empresa.
         """
         for rec in self:
             if not rec.date_start or not rec.date_end:
@@ -53,12 +53,12 @@ class PayrollRunCR(models.Model):
             ])
             if not otras_runs:
                 continue
-            # Verificar si algún empleado de esta planilla ya está en otra planilla solapada
+            # Verificar si algun empleado de esta planilla ya esta en otra planilla solapada
             mis_empleados = rec.payslip_ids.filtered(
                 lambda p: p.state != 'cancelled'
             ).mapped('employee_id')
             if not mis_empleados:
-                continue  # Sin boletas aún — no hay conflicto posible
+                continue  # Sin boletas aun -- no hay conflicto posible
             for otra in otras_runs:
                 empleados_otra = otra.payslip_ids.filtered(
                     lambda p: p.state != 'cancelled'
@@ -67,19 +67,19 @@ class PayrollRunCR(models.Model):
                 if duplicados:
                     nombres = ', '.join(duplicados.mapped('name'))
                     raise ValidationError(
-                        f'La planilla "{rec.name}" ({rec.date_start} — {rec.date_end}) '
+                        f'La planilla "{rec.name}" ({rec.date_start} -- {rec.date_end}) '
                         f'tiene empleado(s) que ya aparecen en la planilla '
-                        f'"{otra.name}" ({otra.date_start} — {otra.date_end}):\n\n'
+                        f'"{otra.name}" ({otra.date_start} -- {otra.date_end}):\n\n'
                         f'  {nombres}\n\n'
                         f'Un mismo empleado no puede tener boletas en dos planillas '
-                        f'con períodos que se solapan en el calendario. '
+                        f'con periodos que se solapan en el calendario. '
                         f'Verifique que las planillas tengan empleados distintos o '
-                        f'que sus períodos no se crucen.'
+                        f'que sus periodos no se crucen.'
                     )
 
     name = fields.Char(string='Nombre', required=True, tracking=True)
     company_id = fields.Many2one(
-        'res.company', string='Compañía',
+        'res.company', string='Compania',
         required=True, default=lambda self: self.env.company
     )
     branch_id = fields.Many2one('planilla.branch', string='Sucursal', tracking=True)
@@ -88,7 +88,7 @@ class PayrollRunCR(models.Model):
         help='Si se selecciona, solo se generan boletas para empleados de este departamento.'
     )
     payroll_calendar_id = fields.Many2one(
-        'planilla.calendar', string='Calendarización', tracking=True
+        'planilla.calendar', string='Calendarizacion', tracking=True
     )
 
     date_start = fields.Date(string='Desde', required=True, tracking=True)
@@ -144,15 +144,15 @@ class PayrollRunCR(models.Model):
         help='Total neto a transferir a los empleados (bruto - CCSS obrero - renta - deducciones)'
     )
     cost_per_net_colon = fields.Float(
-        string='Costo por ₡1 neto', digits=(6, 4),
+        string='Costo por CRC1 neto', digits=(6, 4),
         compute='_compute_totals', store=True,
-        help='Por cada ₡1 que recibe el empleado en mano, cuánto gasta la empresa en total (salario + cargas patronales)'
+        help='Por cada CRC1 que recibe el empleado en mano, cuanto gasta la empresa en total (salario + cargas patronales)'
     )
-    # FIX F5: contador de boletas con empleados sin calendarización o sin horario
+    # FIX F5: contador de boletas con empleados sin calendarizacion o sin horario
     count_missing_calendar = fields.Integer(
-        string='Empleados sin calendarización',
+        string='Empleados sin calendarizacion',
         compute='_compute_totals', store=True,
-        help='Cantidad de boletas donde el empleado no tiene calendarización configurada. '
+        help='Cantidad de boletas donde el empleado no tiene calendarizacion configurada. '
              'Esto puede causar que el salario se calcule con frecuencia mensual aunque '
              'la planilla sea quincenal o semanal.'
     )
@@ -161,7 +161,7 @@ class PayrollRunCR(models.Model):
         compute='_compute_totals', store=True,
         help='Cantidad de boletas donde el empleado no tiene tipo de horario configurado.'
     )
-    # ── Totales desglosados para vista de lista ───────────────────────────────
+    # -- Totales desglosados para vista de lista -------------------------------
     total_salario_cotizable = fields.Monetary(
         string='Total Salario Cotizable', currency_field='currency_id',
         compute='_compute_totals', store=True,
@@ -180,19 +180,19 @@ class PayrollRunCR(models.Model):
         compute='_compute_totals', store=True,
     )
     total_disability_days = fields.Integer(
-        string='Total Días Incapacidad', compute='_compute_totals', store=True,
+        string='Total Dias Incapacidad', compute='_compute_totals', store=True,
     )
     total_ccss_subsidy = fields.Monetary(
         string='Total Subsidio CCSS', currency_field='currency_id',
         compute='_compute_totals', store=True,
-        help='Suma de subsidios CCSS por incapacidades en el período.'
+        help='Suma de subsidios CCSS por incapacidades en el periodo.'
     )
     total_income_tax_credits = fields.Monetary(
-        string='Total Créditos Fiscales', currency_field='currency_id',
+        string='Total Creditos Fiscales', currency_field='currency_id',
         compute='_compute_totals', store=True,
     )
     total_pension_alimentaria = fields.Monetary(
-        string='Total Pensión Alimentaria', currency_field='currency_id',
+        string='Total Pension Alimentaria', currency_field='currency_id',
         compute='_compute_totals', store=True,
     )
     total_embargo = fields.Monetary(
@@ -200,7 +200,7 @@ class PayrollRunCR(models.Model):
         compute='_compute_totals', store=True,
     )
     total_loans = fields.Monetary(
-        string='Total Préstamos', currency_field='currency_id',
+        string='Total Prestamos', currency_field='currency_id',
         compute='_compute_totals', store=True,
     )
     total_cobros_empleado = fields.Monetary(
@@ -220,7 +220,7 @@ class PayrollRunCR(models.Model):
         compute='_compute_totals', store=True,
     )
     total_cesantia_provision = fields.Monetary(
-        string='Total Prov. Cesantía', currency_field='currency_id',
+        string='Total Prov. Cesantia', currency_field='currency_id',
         compute='_compute_totals', store=True,
     )
     total_vacation_provision = fields.Monetary(
@@ -284,7 +284,7 @@ class PayrollRunCR(models.Model):
             else:
                 rec.cost_per_net_colon = 0.0
 
-            # ── Nuevos totales desglosados ─────────────────────────────────────
+            # -- Nuevos totales desglosados -------------------------------------
             rec.total_salario_cotizable    = round(sum(active_slips.mapped('salario_cotizable')), 2)
             rec.total_bonos_salariales     = round(sum(active_slips.mapped('bono_salarial_amount')), 2)
             rec.total_overtime             = round(sum(active_slips.mapped('overtime_amount')), 2)
@@ -302,7 +302,7 @@ class PayrollRunCR(models.Model):
             rec.total_cesantia_provision   = round(sum(active_slips.mapped('cesantia_provision')), 2)
             rec.total_vacation_provision   = round(sum(active_slips.mapped('vacation_provision')), 2)
 
-            # FIX F5: contar boletas con empleados sin calendarización o sin horario
+            # FIX F5: contar boletas con empleados sin calendarizacion o sin horario
             rec.count_missing_calendar = sum(
                 1 for s in active_slips
                 if not s.employee_id.payroll_calendar_id
@@ -314,16 +314,16 @@ class PayrollRunCR(models.Model):
 
     def action_generate_payslips(self):
         """
-        Genera boletas para todos los empleados activos según los filtros de la planilla.
+        Genera boletas para todos los empleados activos segun los filtros de la planilla.
 
-        v58: Antes de crear boletas, verifica si algún empleado ya tiene boleta activa
-        en OTRA planilla con período solapado. Reporta los conflictos claramente
-        para que RRHH pueda decidir qué hacer antes de continuar.
+        v58: Antes de crear boletas, verifica si algun empleado ya tiene boleta activa
+        en OTRA planilla con periodo solapado. Reporta los conflictos claramente
+        para que RRHH pueda decidir que hacer antes de continuar.
 
         Filtros aplicados (acumulativos):
-          - Sucursal:         si branch_id está definido
-          - Departamento:     si department_id está definido
-          - Calendarización:  si payroll_calendar_id está definido
+          - Sucursal:         si branch_id esta definido
+          - Departamento:     si department_id esta definido
+          - Calendarizacion:  si payroll_calendar_id esta definido
         """
         self.ensure_one()
         if self.state != 'draft':
@@ -351,20 +351,20 @@ class PayrollRunCR(models.Model):
             names = ', '.join(without_status.mapped('name'))
             self.message_post(
                 body=(
-                    f'⚠️ <b>Empleados sin Estado de Nómina:</b> Los siguientes empleados '
+                    f'WARN <b>Empleados sin Estado de Nomina:</b> Los siguientes empleados '
                     f'no tienen un "Estado de Empleado" configurado y fueron excluidos: '
                     f'<b>{names}</b>. '
-                    f'Configure el estado en Planilla → Empleados → Estado de Empleado.'
+                    f'Configure el estado en Planilla -> Empleados -> Estado de Empleado.'
                 ),
                 message_type='notification',
             )
 
-        # Excluir empleados sin seguro CCSS de la planilla estándar
+        # Excluir empleados sin seguro CCSS de la planilla estandar
         employees_active = employees_active.filtered(
             lambda e: getattr(e, 'ccss_insured', True)
         )
 
-        # ── Verificación cruzada: detectar empleados ya en otra planilla solapada ──
+        # -- Verificacion cruzada: detectar empleados ya en otra planilla solapada --
         # Esto previene el error de constraint ANTES de intentar crear las boletas,
         # dando un reporte completo de todos los conflictos en lugar de fallar uno a uno.
         conflictos = []
@@ -381,27 +381,27 @@ class PayrollRunCR(models.Model):
             for otra in otras_runs_activas:
                 for slip in otra.payslip_ids.filtered(lambda p: p.state != 'cancelled'):
                     emp_en_otras.setdefault(slip.employee_id.id, []).append(
-                        f'{otra.name} ({otra.date_start} — {otra.date_end})'
+                        f'{otra.name} ({otra.date_start} -- {otra.date_end})'
                     )
             for emp in employees_active:
                 if emp.id in emp_en_otras:
                     runs_texto = ', '.join(emp_en_otras[emp.id])
-                    conflictos.append(f'  • {emp.name} → ya en: {runs_texto}')
+                    conflictos.append(f'   {emp.name} -> ya en: {runs_texto}')
 
         if conflictos:
             raise UserError(
                 f'No se pueden generar boletas porque los siguientes empleados ya tienen '
-                f'boletas activas en otra(s) planilla(s) con período solapado '
-                f'({self.date_start} — {self.date_end}):\n\n'
+                f'boletas activas en otra(s) planilla(s) con periodo solapado '
+                f'({self.date_start} -- {self.date_end}):\n\n'
                 + '\n'.join(conflictos) + '\n\n'
                 f'Opciones:\n'
-                f'  1. Ajuste los filtros de esta planilla (sucursal/departamento/calendarización) '
+                f'  1. Ajuste los filtros de esta planilla (sucursal/departamento/calendarizacion) '
                 f'para excluir esos empleados.\n'
                 f'  2. Cancele las boletas en conflicto en las otras planillas.\n'
-                f'  3. Ajuste los períodos para que no se solapeen.'
+                f'  3. Ajuste los periodos para que no se solapeen.'
             )
 
-        # ── Generación por lotes (FIX B-10 v58) ──────────────────────────────────
+        # -- Generacion por lotes (FIX B-10 v58) ----------------------------------
         BATCH_SIZE = int(self.env['ir.config_parameter'].sudo().get_param(
             'planilla_cr.batch_size_generate', default=50
         ))
@@ -410,8 +410,8 @@ class PayrollRunCR(models.Model):
         skipped_count  = 0
 
         # FIX PERF-04: Pre-cargar en UNA query los empleados que ya tienen boleta
-        # en esta planilla (re-ejecución del botón). Elimina el search() por empleado
-        # en el loop: N queries → 1 query. Para 200 emp: 200 → 1.
+        # en esta planilla (re-ejecucion del boton). Elimina el search() por empleado
+        # en el loop: N queries -> 1 query. Para 200 emp: 200 -> 1.
         emp_ids_con_boleta = set(
             self.env['planilla.payslip.cr'].search([
                 ('payroll_run_id', '=', self.id),
@@ -435,11 +435,11 @@ class PayrollRunCR(models.Model):
             if vals_to_create:
                 self.env['planilla.payslip.cr'].create(vals_to_create)
                 created_count += len(vals_to_create)
-                # Actualizar el set para re-ejecuciones del botón en el mismo batch
+                # Actualizar el set para re-ejecuciones del boton en el mismo batch
                 # (no relevante en primer uso, pero protege la idempotencia)
 
         _logger.info(
-            'planilla_cr.action_generate_payslips: planilla "%s" — %d creadas, %d omitidas (lote=%d)',
+            'planilla_cr.action_generate_payslips: planilla "%s" -- %d creadas, %d omitidas (lote=%d)',
             self.name, created_count, skipped_count, BATCH_SIZE
         )
 
@@ -466,7 +466,7 @@ class PayrollRunCR(models.Model):
         if not_confirmed:
             names = ', '.join(not_confirmed.mapped('employee_id.name'))
             raise UserError(
-                f'Las siguientes boletas no están confirmadas:\n{names}\n\n'
+                f'Las siguientes boletas no estan confirmadas:\n{names}\n\n'
                 f'Confirme todas las boletas antes de pagar la planilla.'
             )
 
@@ -474,7 +474,7 @@ class PayrollRunCR(models.Model):
         if not payslips_to_pay:
             raise UserError(
                 'No hay boletas confirmadas para pagar. '
-                'Todas las boletas están canceladas o ya fueron pagadas.'
+                'Todas las boletas estan canceladas o ya fueron pagadas.'
             )
 
         config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
@@ -491,24 +491,24 @@ class PayrollRunCR(models.Model):
         self.state = 'done'
 
     def _create_consolidated_accounting_entry(self, payslips):
-        """Genera un único asiento contable consolidado para toda la planilla."""
+        """Genera un unico asiento contable consolidado para toda la planilla."""
         if not payslips:
             return
 
         config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
         if not config:
             raise UserError(
-                'No hay configuración contable para esta compañía. '
-                'Configure las cuentas en Planilla → Configuración → Contabilidad.'
+                'No hay configuracion contable para esta compania. '
+                'Configure las cuentas en Planilla -> Configuracion -> Contabilidad.'
             )
         if not config.journal_id:
             raise UserError(
-                'El diario de planilla no está configurado. '
-                'Vaya a Planilla → Configuración → Contabilidad y asigne un diario, '
-                'o use el botón "⚡ Autocompletar Cuentas CR".'
+                'El diario de planilla no esta configurado. '
+                'Vaya a Planilla -> Configuracion -> Contabilidad y asigne un diario, '
+                'o use el boton " Autocompletar Cuentas CR".'
             )
 
-        # ── Sumar todos los montos de todas las boletas ──────────────────────
+        # -- Sumar todos los montos de todas las boletas ----------------------
         total_gross         = round(sum(payslips.mapped('gross_salary')), 2)
         total_ccss_employer = round(sum(payslips.mapped('ccss_employer')), 2)
         total_ins_employer  = round(sum(payslips.mapped('ins_employer')), 2)
@@ -518,7 +518,7 @@ class PayrollRunCR(models.Model):
         total_ccss_employee = round(sum(payslips.mapped('ccss_employee')), 2)
         total_income_tax    = round(sum(payslips.mapped('income_tax')), 2)
 
-        # FIX v48 — Componentes que faltaban y causaban descuadre en modo per_run
+        # FIX v48 -- Componentes que faltaban y causaban descuadre en modo per_run
         total_subsidy    = round(sum(payslips.mapped('ccss_subsidy_total')), 2)
         total_dis_cost   = round(sum(payslips.mapped('employer_disability_cost')), 2)
         total_paternity  = round(sum(payslips.mapped('paternity_amount')), 2)
@@ -555,9 +555,9 @@ class PayrollRunCR(models.Model):
             if l.line_type == 'income'
             and l.deduction_category not in ('bonus', 'licencia_con_goce')
         ), 2)
-        # FIX-G4: excluir licencias_con_goce de total_extra_income — se agregan
-        # como línea de DEBE separada (account_licencia_expense 630800).
-        # Incluirlas aquí causaba doble DEBE idéntico al bug F5 en modo per_employee.
+        # FIX-G4: excluir licencias_con_goce de total_extra_income -- se agregan
+        # como linea de DEBE separada (account_licencia_expense 630800).
+        # Incluirlas aqui causaba doble DEBE identico al bug F5 en modo per_employee.
         total_extra_income = round(total_bonos_total + total_otros_ingresos, 2)
 
         total_pensiones = round(sum(
@@ -576,8 +576,8 @@ class PayrollRunCR(models.Model):
             l.amount for l in all_deduction_lines
             if l.deduction_category == 'ausencia'
         ), 2)
-        # FIX v512 BUG-CRÍTICO-01: 'rop' excluido de total_otras_ded.
-        # FIX-AUD-04: 'licencia_sin_goce' excluida de otras_ded — tiene su propia línea HABER.
+        # FIX v512 BUG-CRITICO-01: 'rop' excluido de total_otras_ded.
+        # FIX-AUD-04: 'licencia_sin_goce' excluida de otras_ded -- tiene su propia linea HABER.
         total_otras_ded = round(sum(
             l.amount for l in all_deduction_lines
             if l.line_type == 'deduction'
@@ -588,7 +588,7 @@ class PayrollRunCR(models.Model):
 
         # Neto total a depositar
         # FIX-J1: total_licencias_con_goce se agrega al neto porque el patrono las
-        # paga al empleado (igual que vacaciones o paternidad). FIX-G4 las excluyó
+        # paga al empleado (igual que vacaciones o paternidad). FIX-G4 las excluyo
         # de total_extra_income (evitar doble DEBE) pero deben seguir en el HABER
         # para que el empleado reciba el pago correcto.
         total_net_for_accounting = round(
@@ -613,28 +613,28 @@ class PayrollRunCR(models.Model):
                 'credit': round(credit, 2),
             }))
 
-        # ── DÉBITOS (Gastos del patrono) ────────────────────────────────────
+        # -- DEBITOS (Gastos del patrono) ------------------------------------
         run_name = self.name
         add_line(config.account_salary_expense, debit=total_gross,
-                 name=f'Salarios — Planilla {run_name}')
+                 name=f'Salarios -- Planilla {run_name}')
         add_line(config.account_social_charges_expense,
                  debit=round(total_ccss_employer + total_ins_employer, 2),
-                 name=f'Cargas Sociales — Planilla {run_name}')
+                 name=f'Cargas Sociales -- Planilla {run_name}')
         add_line(config.account_vacation_expense, debit=total_vacation_prov,
-                 name=f'Provisión Vacaciones — Planilla {run_name}')
+                 name=f'Provision Vacaciones -- Planilla {run_name}')
         add_line(config.account_aguinaldo_expense, debit=total_aguinaldo_prov,
-                 name=f'Provisión Aguinaldo — Planilla {run_name}')
+                 name=f'Provision Aguinaldo -- Planilla {run_name}')
         add_line(config.account_cesantia_expense, debit=total_cesantia_prov,
-                 name=f'Provisión Cesantía — Planilla {run_name}')
-        # FIX v48 — Paternidad, días 1-3 incapacidad y subsidio (mismo lógica que asiento individual)
+                 name=f'Provision Cesantia -- Planilla {run_name}')
+        # FIX v48 -- Paternidad, dias 1-3 incapacidad y subsidio (mismo logica que asiento individual)
         if total_paternity > 0:
             add_line(config.account_salary_expense, debit=total_paternity,
-                     name=f'Paternidad (Art. 95 CT) — Planilla {run_name}')
+                     name=f'Paternidad (Art. 95 CT) -- Planilla {run_name}')
         if total_dis_cost > 0:
             add_line(config.account_salary_expense, debit=total_dis_cost,
-                     name=f'Incapacidad días 1-3 (cargo patrono) — Planilla {run_name}')
+                     name=f'Incapacidad dias 1-3 (cargo patrono) -- Planilla {run_name}')
         if total_subsidy > 0:
-            # FIX v49 Bug 5: misma jerarquía que el asiento individual
+            # FIX v49 Bug 5: misma jerarquia que el asiento individual
             ccss_subsidy_acct = config.account_ccss_subsidy_receivable
             if not ccss_subsidy_acct:
                 ccss_subsidy_acct = self.env['account.account'].search([
@@ -644,85 +644,85 @@ class PayrollRunCR(models.Model):
             if not ccss_subsidy_acct:
                 ccss_subsidy_acct = config.account_ccss_payable
             add_line(ccss_subsidy_acct, debit=total_subsidy,
-                     name=f'Subsidio CCSS por Cobrar (incapacidades) — Planilla {run_name}')
-        # FIX v56: ROP patronal — costo del patrono
+                     name=f'Subsidio CCSS por Cobrar (incapacidades) -- Planilla {run_name}')
+        # FIX v56: ROP patronal -- costo del patrono
         if total_rop_emp > 0:
             add_line(config.account_social_charges_expense,
                      debit=total_rop_emp,
-                     name=f'ROP Patronal 3.25% Ley 7983 — Planilla {run_name}')
+                     name=f'ROP Patronal 3.25% Ley 7983 -- Planilla {run_name}')
 
         if total_bonos_salariales > 0:
             bono_acct = config.account_bono_expense or config.account_salary_expense
             add_line(bono_acct, debit=total_bonos_salariales,
-                     name=f'Bonos e Incentivos Salariales — Planilla {run_name}')
+                     name=f'Bonos e Incentivos Salariales -- Planilla {run_name}')
         if total_subsidios_exentos > 0:
             subs_acct = config.account_subsidio_expense or config.account_salary_expense
             add_line(subs_acct, debit=total_subsidios_exentos,
-                     name=f'Subsidios al Personal (exentos) — Planilla {run_name}')
+                     name=f'Subsidios al Personal (exentos) -- Planilla {run_name}')
         if total_otros_ingresos > 0:
             add_line(config.account_salary_expense, debit=total_otros_ingresos,
-                     name=f'Otros Ingresos en Boletas — Planilla {run_name}')
-        # FIX-AUD-04: licencias con goce → DEBE 630800 (gasto patronal)
+                     name=f'Otros Ingresos en Boletas -- Planilla {run_name}')
+        # FIX-AUD-04: licencias con goce -> DEBE 630800 (gasto patronal)
         if total_licencias_con_goce > 0:
             lic_acct = getattr(config, 'account_licencia_expense', None) or config.account_salary_expense
             add_line(lic_acct, debit=total_licencias_con_goce,
-                     name=f'Licencias con Goce (duelo/paternidad/matrimonio…) — Planilla {run_name}')
+                     name=f'Licencias con Goce (duelo/paternidad/matrimonio...) -- Planilla {run_name}')
 
-        # CRÉDITOS
-        add_line(config.account_ccss_payable, credit=total_ccss_employee + total_ccss_employer, name='CCSS por Pagar — Planilla ' + self.name)
-        add_line(config.account_ins_payable, credit=total_ins_employer, name='INS por Pagar — Planilla ' + self.name)
-        add_line(config.account_income_tax_payable, credit=total_income_tax, name='Retención Renta — Planilla ' + self.name)
-        add_line(config.account_aguinaldo_provision, credit=total_aguinaldo_prov, name='Provisión Aguinaldo — Planilla ' + self.name)
-        add_line(config.account_cesantia_provision, credit=total_cesantia_prov, name='Provisión Cesantía — Planilla ' + self.name)
-        add_line(config.account_vacation_provision, credit=total_vacation_prov, name='Provisión Vacaciones — Planilla ' + self.name)
+        # CREDITOS
+        add_line(config.account_ccss_payable, credit=total_ccss_employee + total_ccss_employer, name='CCSS por Pagar -- Planilla ' + self.name)
+        add_line(config.account_ins_payable, credit=total_ins_employer, name='INS por Pagar -- Planilla ' + self.name)
+        add_line(config.account_income_tax_payable, credit=total_income_tax, name='Retencion Renta -- Planilla ' + self.name)
+        add_line(config.account_aguinaldo_provision, credit=total_aguinaldo_prov, name='Provision Aguinaldo -- Planilla ' + self.name)
+        add_line(config.account_cesantia_provision, credit=total_cesantia_prov, name='Provision Cesantia -- Planilla ' + self.name)
+        add_line(config.account_vacation_provision, credit=total_vacation_prov, name='Provision Vacaciones -- Planilla ' + self.name)
 
-        # FIX C-01 v58: ROP obrero + patronal — consolidar en account_rop_payable.
-        # El bug anterior ponía el crédito del ROP obrero en account_ccss_payable,
+        # FIX C-01 v58: ROP obrero + patronal -- consolidar en account_rop_payable.
+        # El bug anterior ponia el credito del ROP obrero en account_ccss_payable,
         # separado del HABER del ROP patronal, causando descuadre cuando rop_emp >0.
-        # Ambos tramos van al HABER en la misma cuenta 230350 para depósito al operador.
+        # Ambos tramos van al HABER en la misma cuenta 230350 para deposito al operador.
         total_rop_pagar = round(total_rop_obrero + total_rop_emp, 2)
         if total_rop_pagar > 0:
             rop_acct = (getattr(config, 'account_rop_payable', None)
                         or config.account_ccss_payable)
             add_line(rop_acct, credit=total_rop_pagar,
-                     name=f'ROP por Pagar (obrero 1% + patronal 3.25%) — Planilla {run_name}')
+                     name=f'ROP por Pagar (obrero 1% + patronal 3.25%) -- Planilla {run_name}')
 
-        # Embargos judiciales — cuenta separada 230960 para control judicial
+        # Embargos judiciales -- cuenta separada 230960 para control judicial
         if total_embargos > 0:
             embargo_account = (config.account_embargo_payable or config.account_salary_payable)
             add_line(embargo_account, credit=total_embargos,
-                     name=f'Embargos Judiciales Retenidos — Planilla {run_name}')
+                     name=f'Embargos Judiciales Retenidos -- Planilla {run_name}')
 
         # FIX NEW-01 v54: usar account_pension_alimentaria_payable (campo correcto).
         # La version anterior usaba hasattr('account_pension_payable') que no existe en
-        # accounting_config.py — las pensiones siempre iban a account_salary_payable.
+        # accounting_config.py -- las pensiones siempre iban a account_salary_payable.
         if total_pensiones > 0:
             pension_account = (config.account_pension_alimentaria_payable
                                or config.account_salary_payable)
-            add_line(pension_account, credit=total_pensiones, name='Pensiones Alimentarias Retenidas — Planilla ' + self.name)
+            add_line(pension_account, credit=total_pensiones, name='Pensiones Alimentarias Retenidas -- Planilla ' + self.name)
 
-        # B7 FIX: cuotas de préstamos retenidas
+        # B7 FIX: cuotas de prestamos retenidas
         if total_prestamos > 0:
             loan_account = config.account_loans_payable if config.account_loans_payable else config.account_salary_payable
-            add_line(loan_account, credit=total_prestamos, name='Cuotas Préstamos Retenidos — Planilla ' + self.name)
+            add_line(loan_account, credit=total_prestamos, name='Cuotas Prestamos Retenidos -- Planilla ' + self.name)
 
         # B7 FIX: otras deducciones adicionales
         if total_ausencias > 0:
             add_line(config.account_salary_payable, credit=total_ausencias,
-                     name=f'Descuento Ausencias Sin Goce — Planilla {run_name}')
-        # FIX-AUD-04: licencias sin goce → HABER 230000 (reduce neto a pagar)
+                     name=f'Descuento Ausencias Sin Goce -- Planilla {run_name}')
+        # FIX-AUD-04: licencias sin goce -> HABER 230000 (reduce neto a pagar)
         if total_licencias_sin_goce > 0:
             add_line(config.account_salary_payable, credit=total_licencias_sin_goce,
-                     name=f'Descuento Licencias Sin Goce — Planilla {run_name}')
+                     name=f'Descuento Licencias Sin Goce -- Planilla {run_name}')
         if total_otras_ded > 0:
             add_line(config.account_salary_payable, credit=total_otras_ded,
-                     name=f'Otras Deducciones Retenidas — Planilla {run_name}')
+                     name=f'Otras Deducciones Retenidas -- Planilla {run_name}')
         if total_dis_cost > 0:
             add_line(config.account_salary_payable, credit=total_dis_cost,
-                     name=f'Incapacidad días 1-3 (por pagar al empleado) — Planilla {run_name}')
+                     name=f'Incapacidad dias 1-3 (por pagar al empleado) -- Planilla {run_name}')
         if total_net_for_accounting > 0:
             add_line(config.account_salary_payable, credit=total_net_for_accounting,
-                     name=f'Salarios por Pagar (neto a depositar) — Planilla {run_name}')
+                     name=f'Salarios por Pagar (neto a depositar) -- Planilla {run_name}')
 
         if not lines:
             return
@@ -732,15 +732,15 @@ class PayrollRunCR(models.Model):
         total_credit = round(sum(l[2]['credit'] for l in lines), 2)
         if abs(total_debit - total_credit) > 0.02:
             detail = '\n'.join(
-                f"  {'DEBE' if l[2]['debit'] else 'HABER'} ₡{max(l[2]['debit'], l[2]['credit']):>12,.2f}  {l[2]['name']}"
+                f"  {'DEBE' if l[2]['debit'] else 'HABER'} CRC{max(l[2]['debit'], l[2]['credit']):>12,.2f}  {l[2]['name']}"
                 for l in lines
             )
             raise UserError(
                 f'El asiento consolidado no cuadra para la planilla {run_name}:\n'
-                f'  Débitos:  ₡{total_debit:,.2f}\n'
-                f'  Créditos: ₡{total_credit:,.2f}\n'
-                f'  Diferencia: ₡{abs(total_debit - total_credit):,.2f}\n\n'
-                f'Detalle de líneas:\n{detail}'
+                f'  Debitos:  CRC{total_debit:,.2f}\n'
+                f'  Creditos: CRC{total_credit:,.2f}\n'
+                f'  Diferencia: CRC{abs(total_debit - total_credit):,.2f}\n\n'
+                f'Detalle de lineas:\n{detail}'
             )
 
         move = self.env['account.move'].create({
@@ -754,20 +754,20 @@ class PayrollRunCR(models.Model):
         self.move_id = move.id
         # FIX M-05 v58: Logging de trazabilidad del asiento consolidado
         _logger.info(
-            'planilla_cr.per_run._create_consolidated: asiento %s (id=%d) — '
-            '%d boleta(s), DEBE=₡%.2f HABER=₡%.2f planilla="%s"',
+            'planilla_cr.per_run._create_consolidated: asiento %s (id=%d) -- '
+            '%d boleta(s), DEBE=CRC%.2f HABER=CRC%.2f planilla="%s"',
             move.name, move.id, len(payslips),
             total_debit, total_credit, self.name
         )
-        # FIX v512 BUG-CRÍTICO-02: eliminado bloque de código muerto (ensure_one +
-        # return act_window) que apareció aquí por error en refactoring.
-        # El caller action_pay() no usa el valor de retorno de este método privado.
-        # La acción de ver el asiento ya existe en action_view_accounting_entry().
+        # FIX v512 BUG-CRITICO-02: eliminado bloque de codigo muerto (ensure_one +
+        # return act_window) que aparecio aqui por error en refactoring.
+        # El caller action_pay() no usa el valor de retorno de este metodo privado.
+        # La accion de ver el asiento ya existe en action_view_accounting_entry().
 
     def _check_no_duplicate_payment(self):
         """
-        Verifica que ningún empleado en esta corrida ya tenga una boleta
-        PAGADA en el mismo período (mismo date_start/date_end).
+        Verifica que ningun empleado en esta corrida ya tenga una boleta
+        PAGADA en el mismo periodo (mismo date_start/date_end).
         Previene doble pago accidental al recrear una planilla.
         """
         self.ensure_one()
@@ -775,7 +775,7 @@ class PayrollRunCR(models.Model):
         if not employee_ids:
             return
 
-        # Buscar boletas ya pagadas de estos empleados en el mismo período
+        # Buscar boletas ya pagadas de estos empleados en el mismo periodo
         # Excluir las propias boletas de esta corrida
         duplicates = self.env['planilla.payslip.cr'].search([
             ('employee_id', 'in', employee_ids),
@@ -787,8 +787,8 @@ class PayrollRunCR(models.Model):
         if duplicates:
             names = ', '.join(sorted(set(duplicates.mapped('employee_id.name'))))
             raise UserError(
-                f'⚠️ Doble pago detectado — los siguientes empleados ya tienen '
-                f'una boleta PAGADA en el período {self.date_start} – {self.date_end}:\n\n'
+                f'WARN Doble pago detectado -- los siguientes empleados ya tienen '
+                f'una boleta PAGADA en el periodo {self.date_start} - {self.date_end}:\n\n'
                 f'{names}\n\n'
                 f'Cancele o archive la planilla anterior antes de continuar. '
                 f'Si es un reliquidado, use el campo "Notas" en la boleta para documentarlo.'
@@ -799,8 +799,8 @@ class PayrollRunCR(models.Model):
         if self.state != 'draft':
             raise UserError('Solo se pueden confirmar planillas en borrador.')
 
-        # ── Validación F5: empleados sin calendarización o sin tipo de horario ──
-        # Bloquea la confirmación para evitar planillas con salarios mal calculados.
+        # -- Validacion F5: empleados sin calendarizacion o sin tipo de horario --
+        # Bloquea la confirmacion para evitar planillas con salarios mal calculados.
         active_slips = self.payslip_ids.filtered(lambda p: p.state != 'cancelled')
 
         sin_calendario = active_slips.filtered(
@@ -813,30 +813,30 @@ class PayrollRunCR(models.Model):
 
         errores = []
         if sin_calendario:
-            nombres = '\n'.join(f'  • {n}' for n in sorted(set(sin_calendario)))
+            nombres = '\n'.join(f'   {n}' for n in sorted(set(sin_calendario)))
             errores.append(
-                f'Los siguientes empleados NO tienen calendarización de planilla configurada.\n'
-                f'Sin calendarización el sistema no puede determinar la frecuencia de pago\n'
-                f'(mensual, quincenal, semanal) y el salario base quedará calculado incorrectamente.\n\n'
+                f'Los siguientes empleados NO tienen calendarizacion de planilla configurada.\n'
+                f'Sin calendarizacion el sistema no puede determinar la frecuencia de pago\n'
+                f'(mensual, quincenal, semanal) y el salario base quedara calculado incorrectamente.\n\n'
                 f'{nombres}\n\n'
-                f'Corrija en: Empleados → pestaña Planilla CR → Horario y Pago → Calendarización de Planilla.'
+                f'Corrija en: Empleados -> pestana Planilla CR -> Horario y Pago -> Calendarizacion de Planilla.'
             )
 
         if sin_horario:
-            nombres = '\n'.join(f'  • {n}' for n in sorted(set(sin_horario)))
+            nombres = '\n'.join(f'   {n}' for n in sorted(set(sin_horario)))
             errores.append(
                 f'Los siguientes empleados NO tienen tipo de horario configurado.\n'
-                f'Sin tipo de horario el cálculo de horas extras y jornadas puede ser incorrecto.\n\n'
+                f'Sin tipo de horario el calculo de horas extras y jornadas puede ser incorrecto.\n\n'
                 f'{nombres}\n\n'
-                f'Corrija en: Empleados → pestaña Planilla CR → Horario y Pago → Tipo de Horario.'
+                f'Corrija en: Empleados -> pestana Planilla CR -> Horario y Pago -> Tipo de Horario.'
             )
 
         if errores:
             raise UserError(
                 f'No se puede confirmar la planilla "{self.name}".\n\n'
-                + '\n\n─────────────────────────────────\n\n'.join(errores)
+                + '\n\n---------------------------------\n\n'.join(errores)
             )
-        # ─────────────────────────────────────────────────────────────────────
+        # ---------------------------------------------------------------------
 
         # Verificar doble pago antes de confirmar
         self._check_no_duplicate_payment()
@@ -844,28 +844,28 @@ class PayrollRunCR(models.Model):
         if not payslips_draft:
             raise UserError(
                 'No hay boletas en borrador para confirmar. '
-                'Todas las boletas ya están confirmadas, pagadas o canceladas.'
+                'Todas las boletas ya estan confirmadas, pagadas o canceladas.'
             )
         # FIX A-01 v58: Delegar al action_confirm del mixin que usa write() batch
         # con atomicidad completa. El savepoint garantiza que si una boleta falla,
-        # ninguna queda confirmada (antes era loop individual — posible estado inconsistente).
+        # ninguna queda confirmada (antes era loop individual -- posible estado inconsistente).
         with self.env.cr.savepoint():
             try:
                 payslips_draft.action_confirm()
             except Exception as e:
                 raise UserError(
                     f'No se pudo confirmar la planilla "{self.name}". '
-                    f'Ninguna boleta fue confirmada (rollback automático).\n\n'
+                    f'Ninguna boleta fue confirmada (rollback automatico).\n\n'
                     f'Error: {str(e)}'
                 )
             self.write({'state': 'confirmed'})
         _logger.info(
-            'planilla_cr.run.action_confirm: planilla "%s" confirmada — %d boleta(s)',
+            'planilla_cr.run.action_confirm: planilla "%s" confirmada -- %d boleta(s)',
             self.name, len(payslips_draft)
         )
 
     def action_send_all_payslips(self):
-        """Envía todas las boletas por correo."""
+        """Envia todas las boletas por correo."""
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
@@ -890,7 +890,7 @@ class PayrollRunCR(models.Model):
         }
 
     def action_cancel(self):
-        # FIX v512 BP-02: ensure_one() consistente con otros métodos del modelo
+        # FIX v512 BP-02: ensure_one() consistente con otros metodos del modelo
         self.ensure_one()
         self.payslip_ids.action_cancel()
         self.state = 'cancelled'
@@ -905,9 +905,9 @@ class PayrollRunCR(models.Model):
                 )
             # FIX BUG-UNLINK-01: llamar action_cancel en las boletas antes de borrarlas
             # para que el unlink() de PayslipCR restaure todos los objetos vinculados
-            # (préstamos, HE, vacaciones, incapacidades, cobros, licencias).
+            # (prestamos, HE, vacaciones, incapacidades, cobros, licencias).
             # Sin esto, el cascade delete de la BD borraba las boletas sin pasar por
-            # el ORM de Odoo, dejando huérfanos en todos los modelos relacionados.
+            # el ORM de Odoo, dejando huerfanos en todos los modelos relacionados.
             slips_to_clean = rec.payslip_ids.filtered(
                 lambda p: p.state not in ('cancelled',)
             )
@@ -949,15 +949,15 @@ class AccountMovePayrollSync(models.Model):
                 ('state', '=', 'done'),
             ])
         res = super().write(vals)
-        # Ahora verificar si el asiento ya no está publicado
+        # Ahora verificar si el asiento ya no esta publicado
         if runs_to_check:
             for run in runs_to_check:
                 if run.move_id and run.move_id.state != 'posted':
                     # FIX v512 SEC-02: registrar trazabilidad ANTES de cancelar masivo.
-                    # Sin este log, era imposible auditar quién revirtió el asiento y cuándo.
+                    # Sin este log, era imposible auditar quien revirtio el asiento y cuando.
                     _logger.warning(
                         'planilla_cr.AccountMovePayrollSync: asiento %s revertido/cancelado '
-                        'por usuario %s (id=%d) — cancelando planilla "%s" y %d boleta(s).',
+                        'por usuario %s (id=%d) -- cancelando planilla "%s" y %d boleta(s).',
                         run.move_id.name, run.env.user.name, run.env.user.id,
                         run.name, len(run.payslip_ids.filtered(lambda p: p.state != 'cancelled'))
                     )
@@ -966,21 +966,21 @@ class AccountMovePayrollSync(models.Model):
                     )
                     slips_to_cancel.write({'state': 'cancelled'})
                     run.write({'state': 'cancelled'})
-                    # Notificar al grupo aprobador para revisión inmediata
+                    # Notificar al grupo aprobador para revision inmediata
                     try:
                         run.message_post(
                             body=(
-                                f'⚠️ <b>Planilla cancelada automáticamente</b> porque el asiento '
+                                f'WARN <b>Planilla cancelada automaticamente</b> porque el asiento '
                                 f'contable <b>{run.move_id.name}</b> fue revertido o cancelado '
                                 f'por <b>{run.env.user.name}</b>. '
                                 f'Se cancelaron {len(slips_to_cancel)} boleta(s). '
-                                f'Revise si esto fue intencional y tome acción si corresponde.'
+                                f'Revise si esto fue intencional y tome accion si corresponde.'
                             ),
                             message_type='notification',
                         )
                     except Exception as e:
                         _logger.error(
-                            'planilla_cr.AccountMovePayrollSync: error enviando notificación: %s', e
+                            'planilla_cr.AccountMovePayrollSync: error enviando notificacion: %s', e
                         )
         return res
 
@@ -995,9 +995,9 @@ class AccountMovePayrollSync(models.Model):
             slips_to_cancel = run.payslip_ids.filtered(
                 lambda p: p.state not in ('cancelled',)
             )
-            # FIX v512 SEC-02: trazabilidad en eliminación de asiento
+            # FIX v512 SEC-02: trazabilidad en eliminacion de asiento
             _logger.warning(
-                'planilla_cr.AccountMovePayrollSync.unlink: asiento eliminado — '
+                'planilla_cr.AccountMovePayrollSync.unlink: asiento eliminado -- '
                 'cancelando planilla "%s" y %d boleta(s). Usuario: %s.',
                 run.name, len(slips_to_cancel), run.env.user.name
             )
@@ -1006,7 +1006,7 @@ class AccountMovePayrollSync(models.Model):
             try:
                 run.message_post(
                     body=(
-                        f'⚠️ <b>Planilla cancelada automáticamente</b> porque el asiento '
+                        f'WARN <b>Planilla cancelada automaticamente</b> porque el asiento '
                         f'contable fue <b>eliminado</b> por <b>{run.env.user.name}</b>. '
                         f'Se cancelaron {len(slips_to_cancel)} boleta(s). '
                         f'Revise si esto fue intencional.'
@@ -1015,6 +1015,6 @@ class AccountMovePayrollSync(models.Model):
                 )
             except Exception as e:
                 _logger.error(
-                    'planilla_cr.AccountMovePayrollSync.unlink: error notificación: %s', e
+                    'planilla_cr.AccountMovePayrollSync.unlink: error notificacion: %s', e
                 )
         return res

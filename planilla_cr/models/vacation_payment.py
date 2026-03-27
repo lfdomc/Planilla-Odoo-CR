@@ -26,13 +26,13 @@ class VacationPayment(models.Model):
                              default=fields.Date.today)
     date_end = fields.Date(string='Fecha Fin', required=True,
                            default=fields.Date.today)
-    days = fields.Integer(string='Días', compute='_compute_days', store=True)
+    days = fields.Integer(string='Dias', compute='_compute_days', store=True)
 
-    # Según Código de Trabajo CR: 2 semanas (12 días hábiles) por año trabajado
+    # Segun Codigo de Trabajo CR: 2 semanas (12 dias habiles) por ano trabajado
     days_accrued = fields.Float(
-        string='Días Disponibles',
+        string='Dias Disponibles',
         compute='_compute_days_accrued',
-        help='Días de vacaciones disponibles según hr_employee (descuenta vacaciones tomadas)'
+        help='Dias de vacaciones disponibles segun hr_employee (descuenta vacaciones tomadas)'
     )
 
     daily_salary = fields.Monetary(
@@ -52,12 +52,12 @@ class VacationPayment(models.Model):
         ('cancelled', 'Cancelado'),
     ], string='Estado', default='draft', tracking=True)
 
-    # ── Método de pago Art. 153-156 CT ─────────────────────────────
+    # -- Metodo de pago Art. 153-156 CT -----------------------------
     payment_method = fields.Selection([
-        ('disfrutadas', 'Días disfrutados (descuento de salario)'),
-        ('dinero',      'Pago en dinero (Art. 156 CT — acuerdo mutuo)'),
+        ('disfrutadas', 'Dias disfrutados (descuento de salario)'),
+        ('dinero',      'Pago en dinero (Art. 156 CT -- acuerdo mutuo)'),
         ('mixto',       'Mixto: parte disfrutada + parte en dinero'),
-    ], string='Método de Pago', default='disfrutadas', tracking=True,
+    ], string='Metodo de Pago', default='disfrutadas', tracking=True,
         help='Art. 156 CT: solo se pueden pagar en dinero con acuerdo de ambas partes')
 
     # Calculo promedio ultimas 4 semanas (Art. 153 CT)
@@ -67,19 +67,19 @@ class VacationPayment(models.Model):
     avg_last_4_weeks = fields.Monetary(
         string='Salario Diario Promedio Hist. (Art. 153 CT)', currency_field='currency_id',  # FIX-I1: daily rate
         compute='_compute_avg_last_4_weeks', store=True, readonly=False,
-        help='Promedio del salario bruto de las últimas 4 semanas antes del inicio de vacaciones.\n'
-             'Se calcula automáticamente desde el historial salarial (boletas pagadas).\n'
+        help='Promedio del salario bruto de las ultimas 4 semanas antes del inicio de vacaciones.\n'
+             'Se calcula automaticamente desde el historial salarial (boletas pagadas).\n'
              'Incluye salario base + horas extras + comisiones de cada boleta.\n'
-             'Puede editarse manualmente si necesita ajustar el cálculo.\n'
+             'Puede editarse manualmente si necesita ajustar el calculo.\n'
              'Obligatorio para empleados con salario variable (Art. 153 CT).'
     )
     use_average = fields.Boolean(
         string='Usar Promedio 4 Semanas (Art. 153 CT)',
         default=False,
         help='OBLIGATORIO para empleados con comisiones, horas extras recurrentes u otros ingresos variables.\n'
-             'Se activa automáticamente si el empleado tiene el flag "Salario Variable" activo.\n'
+             'Se activa automaticamente si el empleado tiene el flag "Salario Variable" activo.\n'
              'Art. 153 CT: durante vacaciones el trabajador recibe el promedio de lo devengado\n'
-             'en las últimas 4 semanas antes del inicio de las vacaciones.'
+             'en las ultimas 4 semanas antes del inicio de las vacaciones.'
     )
     # Campo informativo: indica si el promedio difiere significativamente del salario base
     avg_vs_base_diff_pct = fields.Float(
@@ -102,21 +102,21 @@ class VacationPayment(models.Model):
     @api.depends('employee_id', 'date_start')
     def _compute_avg_last_4_weeks(self):
         """
-        Art. 153 CT CR: calcula el salario diario promedio de las últimas 4 boletas pagadas.
+        Art. 153 CT CR: calcula el salario diario promedio de las ultimas 4 boletas pagadas.
 
         FIX-I1: El campo almacena la TARIFA DIARIA promedio (avg_monthly / 30),
-        NO la tarifa semanal. _compute_total multiplica este valor por los días
-        de vacaciones — igual que hace con daily_salary — así ambas rutas son
+        NO la tarifa semanal. _compute_total multiplica este valor por los dias
+        de vacaciones -- igual que hace con daily_salary -- asi ambas rutas son
         intercambiables y consistentes.
 
-        Error anterior: se guardaba avg_monthly * 12/52 (tarifa semanal ≈ 115k
-        para salario de 500k) y se multiplicaba por días → 12 días * 115k = 1.38M
-        en lugar de 12 días * 16,667 = 200k. Overpayment de 7x cuando use_average=True.
+        Error anterior: se guardaba avg_monthly * 12/52 (tarifa semanal  115k
+        para salario de 500k) y se multiplicaba por dias -> 12 dias * 115k = 1.38M
+        en lugar de 12 dias * 16,667 = 200k. Overpayment de 7x cuando use_average=True.
 
-        El historial salarial guarda el gross_salary MENSUAL real de cada boleta —
+        El historial salarial guarda el gross_salary MENSUAL real de cada boleta --
         que incluye salario base + HE + comisiones + bonos. El promedio de esos 4
         registros da el salario mensual promedio representativo, que dividido entre
-        30 da la tarifa diaria correcta para el cálculo de vacaciones.
+        30 da la tarifa diaria correcta para el calculo de vacaciones.
         """
         for rec in self:
             if not rec.employee_id or not rec.date_start:
@@ -129,71 +129,71 @@ class VacationPayment(models.Model):
             ], order='effective_date desc', limit=4)
             if history:
                 salaries = [h.gross_salary or h.salary or 0.0 for h in history]
-                # Promedio mensual de las últimas 4 boletas
+                # Promedio mensual de las ultimas 4 boletas
                 avg_monthly = sum(salaries) / len(salaries)
-                # Tarifa diaria = promedio mensual / 30 días (Art. 153 CT)
+                # Tarifa diaria = promedio mensual / 30 dias (Art. 153 CT)
                 # Se almacena como tarifa DIARIA para ser consistente con daily_salary
                 avg_daily = round(avg_monthly / 30, 2)
                 rec.avg_last_4_weeks = avg_daily
             else:
-                # Sin historial: usar salario base actual como aproximación
+                # Sin historial: usar salario base actual como aproximacion
                 base = rec.employee_id.base_salary or 0.0
                 rec.avg_last_4_weeks = round(base / 30, 2)
 
     @api.onchange('employee_id')
     def _onchange_employee_variable_income(self):
         """
-        MEJORA: si el empleado tiene has_variable_income=True, activa automáticamente
+        MEJORA: si el empleado tiene has_variable_income=True, activa automaticamente
         use_average para cumplir con Art. 153 CT sin depender del operador.
         """
         if self.employee_id and getattr(self.employee_id, 'has_variable_income', False):
             self.use_average = True
     days_in_money = fields.Integer(
-        string='Días a Pagar en Dinero',
-        help='Para tipo Mixto: días que se pagan en efectivo (Art. 156 CT)'
+        string='Dias a Pagar en Dinero',
+        help='Para tipo Mixto: dias que se pagan en efectivo (Art. 156 CT)'
     )
     vacation_income_payslip = fields.Boolean(
         string='Incluir en Boleta como Ingreso',
         default=True,
-        help='Al aprobar, se agrega automáticamente como ingreso adicional en la boleta'
+        help='Al aprobar, se agrega automaticamente como ingreso adicional en la boleta'
     )
 
     payslip_id = fields.Many2one('planilla.payslip.cr', string='Boleta de Pago')
     move_id = fields.Many2one('account.move', string='Asiento Contable', readonly=True)
     note = fields.Text(string='Observaciones')
 
-    # ── BUG #5 FIX v50: action_approve unificado con validación ────
+    # -- BUG #5 FIX v50: action_approve unificado con validacion ----
     def action_approve(self):
         """
-        BUG #5 FIX v50: action_approve ahora valida días disponibles,
+        BUG #5 FIX v50: action_approve ahora valida dias disponibles,
         igual que action_approve_and_pay. Elimina la posibilidad de evadir
-        la validación usando el botón simple de aprobación.
-        FIX A-01 v59: Agregar validación para tipo "adelanto" (sin límite anterior).
+        la validacion usando el boton simple de aprobacion.
+        FIX A-01 v59: Agregar validacion para tipo "adelanto" (sin limite anterior).
         """
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('Solo se pueden aprobar vacaciones en borrador.')
-            # Validar días disponibles según tipo
+            # Validar dias disponibles segun tipo
             if rec.vacation_type in ('disfrutadas', 'proporcionales'):
                 if rec.days > rec.days_accrued:
                     raise ValidationError(
-                        f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} días '
-                        f'disponibles pero solicita {rec.days} días.'
+                        f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} dias '
+                        f'disponibles pero solicita {rec.days} dias.'
                     )
             elif rec.vacation_type == 'adelanto':
-                # FIX A-01 v59: Adelanto máximo = días anuales (Art. 153 CT: 12 días/50 semanas)
+                # FIX A-01 v59: Adelanto maximo = dias anuales (Art. 153 CT: 12 dias/50 semanas)
                 MAX_ADELANTO = 12
                 if rec.days > MAX_ADELANTO:
                     raise ValidationError(
-                        f'El adelanto de vacaciones ({rec.days} días) supera el máximo '
-                        f'permitido de {MAX_ADELANTO} días anuales (Art. 153 CT). '
-                        f'Consulte con RRHH si requiere una excepción documentada.'
+                        f'El adelanto de vacaciones ({rec.days} dias) supera el maximo '
+                        f'permitido de {MAX_ADELANTO} dias anuales (Art. 153 CT). '
+                        f'Consulte con RRHH si requiere una excepcion documentada.'
                     )
 
             rec.state = 'approved'
             # FIX A-01 v53: Modelo correcto planilla.payslip.cr (no planilla.payslip).
             # El modelo incorrecto generaba KeyError al aprobar vacaciones cuando
-            # había boletas abiertas del empleado.
+            # habia boletas abiertas del empleado.
             draft_payslips = self.env['planilla.payslip.cr'].search([
                 ('employee_id', '=', rec.employee_id.id),
                 ('state', 'in', ['draft', 'confirmed']),
@@ -210,12 +210,12 @@ class VacationPayment(models.Model):
             if rec.state != 'draft':
                 raise UserError('Solo se pueden aprobar vacaciones en borrador.')
 
-            # BUG #1 FIX v50: Verificar días disponibles usando vacation_days_available
+            # BUG #1 FIX v50: Verificar dias disponibles usando vacation_days_available
             # (campo calculado en hr_employee que descuenta vacaciones ya tomadas)
             if rec.days > rec.days_accrued:
                 raise ValidationError(
-                    f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} días '
-                    f'disponibles pero solicita {rec.days} días.'
+                    f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} dias '
+                    f'disponibles pero solicita {rec.days} dias.'
                 )
 
             rec.state = 'approved'
@@ -230,7 +230,7 @@ class VacationPayment(models.Model):
                         self.env['planilla.payslip.deduction.line'].create({
                             'payslip_id': rec.payslip_id.id,
                             'deduction_code_id': vac_code.id,
-                            'description': f'Pago vacaciones — {rec.days} días (Art. 156 CT)',
+                            'description': f'Pago vacaciones -- {rec.days} dias (Art. 156 CT)',
                             'line_type': 'income',
                             'deduction_category': 'vacation',
                             'amount_type': 'fixed',
@@ -238,7 +238,7 @@ class VacationPayment(models.Model):
                         })
 
             # BUG #2 FIX v50: Generar asiento contable para pagos en dinero (Art. 156 CT)
-            # Vacaciones pagadas en dinero generan gasto real, no solo provisión
+            # Vacaciones pagadas en dinero generan gasto real, no solo provision
             if rec.payment_method in ('dinero', 'mixto') and rec.total_amount > 0:
                 rec._create_vacation_accounting_entry()
 
@@ -252,15 +252,15 @@ class VacationPayment(models.Model):
         """
         self.ensure_one()
         # FIX B-04 v51: pasar company_id del empleado para soporte multi-empresa.
-        # Sin este fix, en empresas con múltiples compañías se obtenía la config
-        # de env.company (la activa en sesión) en vez de la del empleado.
+        # Sin este fix, en empresas con multiples companias se obtenia la config
+        # de env.company (la activa en sesion) en vez de la del empleado.
         config = self.env['planilla.accounting.config'].get_config(
             self.employee_id.company_id.id if self.employee_id.company_id else None
         )
         if not config or not config.journal_id:
             self.message_post(
-                body='<b>Aviso:</b> No se generó asiento contable de vacaciones porque '
-                     'no hay configuración contable. Vaya a Planilla → Configuración → Contabilidad.',
+                body='<b>Aviso:</b> No se genero asiento contable de vacaciones porque '
+                     'no hay configuracion contable. Vaya a Planilla -> Configuracion -> Contabilidad.',
                 message_type='notification',
             )
             return False
@@ -271,7 +271,7 @@ class VacationPayment(models.Model):
             self.message_post(
                 body='<b>Aviso:</b> Faltan cuentas contables para vacaciones '
                      '(630200 Vacaciones o 230000 Salarios por Pagar). '
-                     'Use el botón ⚡ Autocompletar en Configuración → Contabilidad.',
+                     'Use el boton  Autocompletar en Configuracion -> Contabilidad.',
                 message_type='notification',
             )
             return False
@@ -281,13 +281,13 @@ class VacationPayment(models.Model):
         lines = [
             (0, 0, {
                 'account_id': exp_account.id,
-                'name': f'Vacaciones en dinero — {emp} — {self.days} días (Art. 156 CT)',
+                'name': f'Vacaciones en dinero -- {emp} -- {self.days} dias (Art. 156 CT)',
                 'debit': amount,
                 'credit': 0.0,
             }),
             (0, 0, {
                 'account_id': pay_account.id,
-                'name': f'Vacaciones por pagar — {emp}',
+                'name': f'Vacaciones por pagar -- {emp}',
                 'debit': 0.0,
                 'credit': amount,
             }),
@@ -296,7 +296,7 @@ class VacationPayment(models.Model):
         move = self.env['account.move'].create({
             'journal_id': config.journal_id.id,
             'date': self.date_start or fields.Date.context_today(self),
-            'ref': f'Vacaciones Art. 156 CT — {emp} — {self.name}',
+            'ref': f'Vacaciones Art. 156 CT -- {emp} -- {self.name}',
             'move_type': 'entry',
             'line_ids': lines,
         })
@@ -328,7 +328,7 @@ class VacationPayment(models.Model):
         """
         BUG #1 FIX v50: Usa vacation_days_available del empleado (calculado en
         hr_employee_extension._compute_vacation_balance) que descuenta vacaciones
-        ya tomadas y pagadas. El cálculo anterior (years * 12) era incorrecto
+        ya tomadas y pagadas. El calculo anterior (years * 12) era incorrecto
         porque ignoraba el historial de vacaciones del empleado.
         """
         for rec in self:
@@ -351,7 +351,7 @@ class VacationPayment(models.Model):
         """
         BUG #14 FIX v50: Implementa use_average con avg_last_4_weeks (Art. 153 CT).
         Si use_average=True y hay promedio, usa ese valor como base diaria.
-        Para tipo mixto: días_en_dinero * tarifa + resto días disfrutados.
+        Para tipo mixto: dias_en_dinero * tarifa + resto dias disfrutados.
         """
         for rec in self:
             # Tarifa base: promedio 4 semanas (Art. 153 CT) o salario diario
@@ -361,7 +361,7 @@ class VacationPayment(models.Model):
                 base_rate = rec.daily_salary
 
             if rec.payment_method == 'mixto' and rec.days_in_money > 0:
-                # Pago mixto: días en dinero + días disfrutados
+                # Pago mixto: dias en dinero + dias disfrutados
                 money_days = min(rec.days_in_money, rec.days)
                 rec.total_amount = round(money_days * base_rate, 2)
             else:
@@ -371,7 +371,7 @@ class VacationPayment(models.Model):
         self.write({'state': 'cancelled'})
 
     def write(self, vals):
-        # FIX B-01 v53: Al cambiar estado (approved → cancelled / draft → approved),
+        # FIX B-01 v53: Al cambiar estado (approved -> cancelled / draft -> approved),
         # invalidar vacation_days_available en el empleado para que el saldo
         # se recalcule de inmediato en la UI sin esperar el siguiente cron.
         res = super().write(vals)

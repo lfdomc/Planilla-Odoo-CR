@@ -1,10 +1,10 @@
 """
-Procesadores de importación masiva — Planilla CR v5.6
-Cada procesador es un método del wizard ImportDataWizard.
-Se importan desde import_data_wizard.py via herencia múltiple.
+Procesadores de importacion masiva -- Planilla CR v5.6
+Cada procesador es un metodo del wizard ImportDataWizard.
+Se importan desde import_data_wizard.py via herencia multiple.
 """
 import logging
-import traceback  # FIX-L3: faltaba — usado en los bloques except para traceback.format_exc()
+import traceback  # FIX-L3: faltaba -- usado en los bloques except para traceback.format_exc()
 from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
@@ -13,7 +13,7 @@ from ...models import planilla_const as K
 _logger = logging.getLogger(__name__)
 
 class ImportProcessorLoans(models.AbstractModel):
-    """Procesadores de préstamos, pensiones alimentarias y beneficios recurrentes."""
+    """Procesadores de prestamos, pensiones alimentarias y beneficios recurrentes."""
     _name = 'planilla.import.processor.loans'
     _description = 'Procesador Importacion Prestamos y Pensiones'
 
@@ -25,7 +25,7 @@ class ImportProcessorLoans(models.AbstractModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -43,11 +43,11 @@ class ImportProcessorLoans(models.AbstractModel):
             try:
                 with self.env.cr.savepoint():
                     amount_total = _parse_float(v('Monto Total', 'Monto'))
-                    installments = _parse_int(v('Número de Cuotas', 'Cuotas', 'Installments'))
+                    installments = _parse_int(v('Numero de Cuotas', 'Cuotas', 'Installments'))
                     date_granted = _parse_date(v('Fecha de Otorgamiento', 'Fecha Otorgamiento'))
-                    date_first   = _parse_date(v('Fecha Primera Deducción', 'Primera Deduccion'))
+                    date_first   = _parse_date(v('Fecha Primera Deduccion', 'Primera Deduccion'))
                     state_raw    = _map(LOAN_STATE, v('Estado')) or 'approved'
-                    loan_type    = _map(LOAN_TYPE, v('Tipo de Préstamo', 'Tipo')) or 'loan'
+                    loan_type    = _map(LOAN_TYPE, v('Tipo de Prestamo', 'Tipo')) or 'loan'
                     amount_paid  = _parse_float(v('Monto ya Pagado', 'Monto Pagado'))
 
                     if amount_total <= 0 or installments <= 0:
@@ -56,7 +56,7 @@ class ImportProcessorLoans(models.AbstractModel):
                     loan = self.env['planilla.employee.loan'].create({
                         'employee_id':         emp.id,
                         'loan_type':           loan_type,
-                        'description':         str(v('Descripción', 'Descripcion', 'Motivo') or '').strip() or False,
+                        'description':         str(v('Descripcion', 'Descripcion', 'Motivo') or '').strip() or False,
                         'amount_total':        amount_total,
                         'installments':        installments,
                         'date_granted':        date_granted or date.today(),
@@ -65,7 +65,7 @@ class ImportProcessorLoans(models.AbstractModel):
                         'note':                str(v('Observaciones') or '').strip() or False,
                     })
 
-                    # Generar cuotas automáticamente
+                    # Generar cuotas automaticamente
                     loan._generate_installments()
 
                     # Si ya tiene pagos parciales, marcar cuotas como descontadas
@@ -104,13 +104,13 @@ class ImportProcessorLoans(models.AbstractModel):
 
     def _process_pension(self, wb, errors):
         created = err_count = 0
-        hdrs, rows = self._sheet_rows(wb, ['PENSION', 'PENSIÓN'])
+        hdrs, rows = self._sheet_rows(wb, ['PENSION', 'PENSION'])
         if not rows:
             return 0, 0
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -127,7 +127,7 @@ class ImportProcessorLoans(models.AbstractModel):
 
             try:
                 with self.env.cr.savepoint():
-                    calc_type = _map(PENSION_CALC, v('Tipo de Cálculo', 'Tipo Calculo')) or 'fixed'
+                    calc_type = _map(PENSION_CALC, v('Tipo de Calculo', 'Tipo Calculo')) or 'fixed'
                     pct_raw   = _parse_float(v('Porcentaje'))
                     monto_raw = _parse_float(v('Monto Fijo', 'Monto'))
 
@@ -136,11 +136,11 @@ class ImportProcessorLoans(models.AbstractModel):
 
                     vals = {
                         'employee_id':          emp.id,
-                        'numero_expediente':    str(v('Expediente', 'Número de Expediente') or '').strip() or False,
+                        'numero_expediente':    str(v('Expediente', 'Numero de Expediente') or '').strip() or False,
                         'juzgado':              str(v('Juzgado') or '').strip() or False,
-                        'fecha_resolucion':     _parse_date(v('Fecha de Resolución', 'Fecha Resolucion')),
+                        'fecha_resolucion':     _parse_date(v('Fecha de Resolucion', 'Fecha Resolucion')),
                         'beneficiario_nombre':  str(v('Beneficiario', 'Nombre Beneficiario') or '').strip() or False,
-                        'beneficiario_relacion': _map(PENSION_RELATION, v('Relación', 'Relacion')) or 'hijo',
+                        'beneficiario_relacion': _map(PENSION_RELATION, v('Relacion', 'Relacion')) or 'hijo',
                         'beneficiario_cuenta':  str(v('Cuenta Beneficiario') or '').strip() or False,
                         'calculation_type':     calc_type,
                         'percentage':           pct_raw if calc_type == 'percentage' else 0.0,
@@ -176,7 +176,7 @@ class ImportProcessorLoans(models.AbstractModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -199,8 +199,8 @@ class ImportProcessorLoans(models.AbstractModel):
                     pct          = _parse_float(v('Porcentaje'))
                     concepto     = str(v('Concepto') or '').strip()
 
-                    # Buscar código de deducción por código o por nombre
-                    ded_code_raw = str(v('Código Deducción', 'Codigo', 'Código') or '').strip()
+                    # Buscar codigo de deduccion por codigo o por nombre
+                    ded_code_raw = str(v('Codigo Deduccion', 'Codigo', 'Codigo') or '').strip()
                     ded_code = None
                     if ded_code_raw:
                         ded_code = (
@@ -211,7 +211,7 @@ class ImportProcessorLoans(models.AbstractModel):
                         ) or None
 
                     # deduction_code_id es required=True en el modelo.
-                    # Si no se especificó, usar el primer código disponible del tipo correcto,
+                    # Si no se especifico, usar el primer codigo disponible del tipo correcto,
                     # o el primero que exista.
                     if not ded_code:
                         ded_type = 'employee' if benefit_type == 'deduction' else 'employer'
@@ -224,8 +224,8 @@ class ImportProcessorLoans(models.AbstractModel):
                     if not concepto:
                         raise ValueError('El campo Concepto es obligatorio')
                     if not ded_code:
-                        raise ValueError('No existe ningún Código de Deducción en Odoo. '
-                                         'Cree al menos uno en Configuración → Códigos de Deducción')
+                        raise ValueError('No existe ningun Codigo de Deduccion en Odoo. '
+                                         'Cree al menos uno en Configuracion -> Codigos de Deduccion')
 
                     vals = {
                         'employee_id':      emp.id,

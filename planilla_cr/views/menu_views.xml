@@ -128,7 +128,7 @@
               sequence="7"/>
 
     <menuitem id="menu_eddi7_export"
-              name="📋 Declaración EDDI-7 CCSS"
+              name=" Declaración EDDI-7 CCSS"
               parent="menu_planilla_cr_reports"
               action="planilla_cr.action_eddi7_export"
               sequence="8"/>

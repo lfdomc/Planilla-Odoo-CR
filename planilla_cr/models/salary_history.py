@@ -22,7 +22,7 @@ class SalaryHistory(models.Model):
     payslip_id     = fields.Many2one('planilla.payslip.cr', string='Boleta de Pago')
     note           = fields.Text(string='Notas')
 
-    # ── Flujo de autorización ──────────────────────────────────────────
+    # -- Flujo de autorizacion ------------------------------------------
     state = fields.Selection([
         ('draft', 'Borrador'),
         ('authorized', 'Autorizado'),
@@ -30,16 +30,16 @@ class SalaryHistory(models.Model):
     ], default='draft', string='Estado', tracking=True)
 
     authorized_by   = fields.Many2one('res.users', string='Autorizado por', readonly=True)
-    authorized_date = fields.Datetime(string='Fecha de Autorización', readonly=True)
+    authorized_date = fields.Datetime(string='Fecha de Autorizacion', readonly=True)
     rejection_note  = fields.Text(string='Motivo de Rechazo', readonly=True)
 
-    # ── Salario anterior (para mostrar variación) ─────────────────────
+    # -- Salario anterior (para mostrar variacion) ---------------------
     previous_salary = fields.Monetary(
-        string='Salario Anterior (₡)', currency_field='currency_id',
+        string='Salario Anterior (CRC)', currency_field='currency_id',
         compute='_compute_previous_salary', store=True
     )
     variation_amount = fields.Monetary(
-        string='Variacion (₡)', currency_field='currency_id',
+        string='Variacion (CRC)', currency_field='currency_id',
         compute='_compute_previous_salary', store=True
     )
     variation_pct = fields.Float(
@@ -49,7 +49,7 @@ class SalaryHistory(models.Model):
     @api.depends('employee_id', 'effective_date', 'gross_salary')
     def _compute_previous_salary(self):
         # FIX PERF-07: cuando se computa sobre un recordset (ej. al crear varias historias
-        # juntas), pre-cargar todos los históricos de los empleados involucrados en una sola
+        # juntas), pre-cargar todos los historicos de los empleados involucrados en una sola
         # query y resolver en Python, en lugar de 1 search() por registro.
         if not self:
             return
@@ -58,14 +58,14 @@ class SalaryHistory(models.Model):
             ('employee_id', 'in', emp_ids),
             ('state', '=', 'authorized'),
         ], order='employee_id, effective_date desc')
-        # Índice: employee_id → lista ordenada desc por fecha
+        # Indice: employee_id -> lista ordenada desc por fecha
         by_emp = {}
         for h in all_hist:
             by_emp.setdefault(h.employee_id.id, []).append(h)
 
         for rec in self:
             hist_list = by_emp.get(rec.employee_id.id, [])
-            # Buscar el más reciente ANTERIOR a rec.effective_date, excluyendo rec mismo
+            # Buscar el mas reciente ANTERIOR a rec.effective_date, excluyendo rec mismo
             prev_salary = 0.0
             for h in hist_list:
                 if h.id != rec.id and h.effective_date and rec.effective_date:
@@ -92,8 +92,8 @@ class SalaryHistory(models.Model):
                 'rejection_note':  False,
             })
             # FIX C-01 v59: Actualizar el salario base del empleado en hr.employee.
-            # Sin este paso, la autorización es solo administrativa — las próximas
-            # boletas calcularían CCSS, Renta y provisiones sobre el salario viejo.
+            # Sin este paso, la autorizacion es solo administrativa -- las proximas
+            # boletas calcularian CCSS, Renta y provisiones sobre el salario viejo.
             # FIX-Q15: usar skip_salary_history=True en el contexto para que
             # hr_employee_extension.write() NO cree un segundo registro de historial
             # salarial. El registro ya existe (este mismo rec) y acaba de ser autorizado.
@@ -104,8 +104,8 @@ class SalaryHistory(models.Model):
                     'salary_effective_date': rec.effective_date,
                 })
                 _logger.info(
-                    'planilla_cr.salary_history.authorize: empleado %s — '
-                    'base_salary ₡%.2f → ₡%.2f (efectivo: %s)',
+                    'planilla_cr.salary_history.authorize: empleado %s -- '
+                    'base_salary CRC%.2f -> CRC%.2f (efectivo: %s)',
                     rec.employee_id.name,
                     rec.previous_salary or 0.0,
                     rec.gross_salary,
@@ -147,7 +147,7 @@ class SalaryRejectWizard(models.TransientModel):
     _name = 'planilla.salary.reject.wizard'
     _description = 'Wizard Rechazo de Cambio Salarial'
     # FIX P-04 v59: TransientModel no necesita mail.thread ni mail.activity.mixin.
-    # Heredarlos genera registros en mail.message en un modelo efímero, consumiendo
+    # Heredarlos genera registros en mail.message en un modelo efimero, consumiendo
     # espacio en BD innecesariamente.
 
     history_id = fields.Many2one('planilla.salary.history', required=True)

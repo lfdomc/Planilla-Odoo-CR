@@ -18,7 +18,7 @@
         <field name="name">planilla.calendar.form</field>
         <field name="model">planilla.calendar</field>
         <field name="arch" type="xml">
-            <form string="Calendarización de Planilla">
+            <form string="Calendarizacion de Planilla">
                 <sheet>
                     <group>
                         <group string="General">
@@ -26,7 +26,7 @@
                             <field name="company_id" groups="base.group_multi_company"/>
                             <field name="branch_id"/>
                         </group>
-                        <group string="Configuración de Pago">
+                        <group string="Configuracion de Pago">
                             <field name="frequency"/>
                             <field name="payment_day"/>
                             <field name="second_payment_day"

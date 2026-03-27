@@ -5,19 +5,19 @@
         <field name="name">planilla.import.data.wizard.form</field>
         <field name="model">planilla.import.data.wizard</field>
         <field name="arch" type="xml">
-            <form string="Importación Masiva de Empleados">
+            <form string="Importacion Masiva de Empleados">
 
-                <!-- ══ PASO 1: CARGA ══════════════════════════════════════ -->
+                <!-- == PASO 1: CARGA ====================================== -->
                 <group invisible="state == 'done'">
 
                     <div class="alert alert-info" role="alert">
                         <i class="fa fa-upload me-2" title="Importar"/>
                         <strong>Carga masiva desde el machote Excel</strong><br/>
-                        Los empleados que ya existan en Odoo (por cédula) serán <strong>omitidos</strong>.
-                        Los nuevos se crearán junto con todos sus datos relacionados.
+                        Los empleados que ya existan en Odoo (por cedula) seran <strong>omitidos</strong>.
+                        Los nuevos se crearan junto con todos sus datos relacionados.
                     </div>
 
-                    <group string="Configuración">
+                    <group string="Configuracion">
                         <group>
                             <field name="company_id"/>
                         </group>
@@ -34,16 +34,16 @@
                         <group>
                             <field name="import_employees"
                                    widget="boolean_toggle"
-                                   string="👤  Empleados (datos principales)"/>
+                                   string="  Empleados (datos principales)"/>
                             <field name="import_loans"
                                    widget="boolean_toggle"
-                                   string="💰  Préstamos y Adelantos"/>
+                                   string="$  Prestamos y Adelantos"/>
                             <field name="import_pension"
                                    widget="boolean_toggle"
-                                   string="👨‍👧  Pensiones Alimentarias"/>
+                                   string="‍  Pensiones Alimentarias"/>
                             <field name="import_overtime"
                                    widget="boolean_toggle"
-                                   string="⏱️  Horas Extras"/>
+                                   string="⏱  Horas Extras"/>
                         </group>
                         <group>
                             <field name="import_benefits"
@@ -51,32 +51,32 @@
                                    string="➕  Beneficios / Deducciones Recurrentes"/>
                             <field name="import_disabilities"
                                    widget="boolean_toggle"
-                                   string="🏥  Incapacidades"/>
+                                   string="  Incapacidades"/>
                             <field name="import_vacations"
                                    widget="boolean_toggle"
-                                   string="🏖️  Saldo de Vacaciones"/>
+                                   string="  Saldo de Vacaciones"/>
                             <field name="import_embargos"
                                    widget="boolean_toggle"
-                                   string="⚖️  Embargos Judiciales"/>
+                                   string="⚖  Embargos Judiciales"/>
                             <field name="import_bonos"
                                    widget="boolean_toggle"
-                                   string="🎯  Bonos y Beneficios"/>
+                                   string="  Bonos y Beneficios"/>
                         </group>
                     </group>
 
-                    <group string="🧪 Datos de Prueba">
+                    <group string=" Datos de Prueba">
                         <field name="import_sample_data"
                                widget="boolean_toggle"
-                               string="🧪  Importar fila de prueba (cédula 1-0000-0001)"/>
+                               string="  Importar fila de prueba (cedula 1-0000-0001)"/>
                         <div class="text-muted small" colspan="2">
-                            Desactivado por defecto. Active solo para verificar que la importación funciona,
-                            luego use el botón para eliminar el empleado de prueba.
+                            Desactivado por defecto. Active solo para verificar que la importacion funciona,
+                            luego use el boton para eliminar el empleado de prueba.
                         </div>
                         <div colspan="2" invisible="not sample_exists">
                             <div class="alert alert-warning mt-1 mb-0 py-2" role="alert">
                                 <i class="fa fa-warning me-1" title="Advertencia"/>
                                 <strong>El EMPLEADO PRUEBA (1-0000-0001) ya existe en Odoo.</strong>
-                                Use el botón para eliminarlo antes de importar datos reales.
+                                Use el boton para eliminarlo antes de importar datos reales.
                             </div>
                         </div>
                     </group>
@@ -84,19 +84,19 @@
                     <div class="alert alert-warning mt-2" role="alert">
                         <i class="fa fa-exclamation-triangle me-1" title="Advertencia"/>
                         <strong>Importante:</strong> Importe primero los empleados antes de importar
-                        préstamos, pensiones u otras hojas. Todas las hojas relacionadas
-                        buscan al empleado por número de cédula.
+                        prestamos, pensiones u otras hojas. Todas las hojas relacionadas
+                        buscan al empleado por numero de cedula.
                     </div>
 
                     <footer>
                         <button name="action_import"
                                 type="object"
-                                string="▶ Iniciar Importación"
+                                string="▶ Iniciar Importacion"
                                 class="btn-primary"
-                                confirm="¿Confirma que desea iniciar la importación? Esta acción creará registros en Odoo."/>
+                                confirm="¿Confirma que desea iniciar la importacion? Esta accion creara registros en Odoo."/>
                         <button name="action_delete_sample"
                                 type="object"
-                                string="🗑️ Eliminar Empleado de Prueba"
+                                string=" Eliminar Empleado de Prueba"
                                 class="btn-danger"
                                 invisible="not sample_exists"
                                 confirm="¿Eliminar el EMPLEADO PRUEBA (1-0000-0001) y todos sus registros relacionados?"/>
@@ -107,39 +107,39 @@
 
                 </group>
 
-                <!-- ══ PASO 2: RESULTADOS ══════════════════════════════════ -->
+                <!-- == PASO 2: RESULTADOS ================================== -->
                 <group invisible="state != 'done'">
 
                     <div class="alert alert-success" role="alert"
                          invisible="total_errors > 0">
-                        <i class="fa fa-check-circle me-2" title="Éxito"/>
-                        <strong>✅ Importación completada sin errores.</strong>
+                        <i class="fa fa-check-circle me-2" title="Exito"/>
+                        <strong>OK Importacion completada sin errores.</strong>
                     </div>
 
                     <div class="alert alert-warning" role="alert"
                          invisible="total_errors == 0">
                         <i class="fa fa-exclamation-triangle me-2" title="Advertencia"/>
-                        <strong>⚠️ Importación completada con errores.</strong>
+                        <strong>! Importacion completada con errores.</strong>
                         Descargue el reporte Excel para ver el detalle y corrija los registros fallidos.
                     </div>
 
                     <group string="Resumen">
                         <group>
-                            <field name="emp_created"  string="👤 Empleados creados"              readonly="1"/>
-                            <field name="emp_skipped"  string="⏭ Empleados omitidos (ya existían)" readonly="1"/>
-                            <field name="total_errors" string="❌ Total errores"                   readonly="1"/>
+                            <field name="emp_created"  string=" Empleados creados"              readonly="1"/>
+                            <field name="emp_skipped"  string="⏭ Empleados omitidos (ya existian)" readonly="1"/>
+                            <field name="total_errors" string="X Total errores"                   readonly="1"/>
                         </group>
                         <group>
-                            <field name="loan_created" string="💰 Préstamos creados"    readonly="1"/>
-                            <field name="pen_created"  string="👨‍👧 Pensiones creadas"    readonly="1"/>
+                            <field name="loan_created" string="$ Prestamos creados"    readonly="1"/>
+                            <field name="pen_created"  string="‍ Pensiones creadas"    readonly="1"/>
                             <field name="ben_created"  string="➕ Otros Descuentos creados"    readonly="1"/>
                         </group>
                         <group>
-                            <field name="dis_created"  string="🏥 Incapacidades creadas"  readonly="1"/>
-                            <field name="vac_created"  string="🏖️ Vacaciones procesadas"  readonly="1"/>
-                            <field name="ot_created"   string="⏱️ Horas extras creadas"   readonly="1"/>
-                            <field name="emb_created"  string="⚖️ Embargos creados"       readonly="1"/>
-                            <field name="bon_created"  string="🎯 Bonos creados"          readonly="1"/>
+                            <field name="dis_created"  string=" Incapacidades creadas"  readonly="1"/>
+                            <field name="vac_created"  string=" Vacaciones procesadas"  readonly="1"/>
+                            <field name="ot_created"   string="⏱ Horas extras creadas"   readonly="1"/>
+                            <field name="emb_created"  string="⚖ Embargos creados"       readonly="1"/>
+                            <field name="bon_created"  string=" Bonos creados"          readonly="1"/>
                         </group>
                     </group>
 
@@ -155,7 +155,7 @@
                         <div class="alert alert-info" role="alert">
                             <i class="fa fa-file-excel-o me-2" title="Excel"/>
                             Descargue el Excel con el detalle de cada error, corrija el machote
-                            y vuelva a importar únicamente los registros fallidos.
+                            y vuelva a importar unicamente los registros fallidos.
                         </div>
                         <field name="report_file"
                                filename="report_name"
@@ -168,7 +168,7 @@
                     <footer>
                         <button name="action_delete_sample"
                                 type="object"
-                                string="🗑️ Eliminar Empleado de Prueba"
+                                string=" Eliminar Empleado de Prueba"
                                 class="btn-danger"
                                 invisible="not sample_exists"
                                 confirm="¿Eliminar el EMPLEADO PRUEBA (1-0000-0001) y todos sus registros relacionados?"/>

@@ -1,14 +1,14 @@
 import logging
 from odoo import models
 from odoo.exceptions import UserError
-from .. import planilla_const as K  # constantes CR 2026 — disponible para uso futuro
+from .. import planilla_const as K  # constantes CR 2026 -- disponible para uso futuro
 
 _logger = logging.getLogger(__name__)
 
 class PayslipAccountingMixin(models.AbstractModel):
     """
-    Mixin: generación del asiento contable de la boleta (per_employee mode).
-    _create_accounting_entry — construye el asiento DEBE/HABER con las 14 cuentas.
+    Mixin: generacion del asiento contable de la boleta (per_employee mode).
+    _create_accounting_entry -- construye el asiento DEBE/HABER con las 14 cuentas.
     """
     _name = 'planilla.payslip.accounting.mixin'
     _description = 'Mixin Contabilidad Boleta'
@@ -17,16 +17,16 @@ class PayslipAccountingMixin(models.AbstractModel):
         self.ensure_one()
         config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
 
-        # C3 — Avisar explícitamente si no hay configuración contable
+        # C3 -- Avisar explicitamente si no hay configuracion contable
         if not config:
             raise UserError(
-                'No existe configuración contable para esta compañía. '
-                'Configure las cuentas en Planilla → Configuración → Contabilidad.'
+                'No existe configuracion contable para esta compania. '
+                'Configure las cuentas en Planilla -> Configuracion -> Contabilidad.'
             )
         if not config.journal_id:
             raise UserError(
                 'No hay diario contable configurado para planilla. '
-                'Configure el diario en Planilla → Configuración → Contabilidad.'
+                'Configure el diario en Planilla -> Configuracion -> Contabilidad.'
             )
 
         lines = []
@@ -41,16 +41,16 @@ class PayslipAccountingMixin(models.AbstractModel):
 
         emp = self.employee_id.name
 
-        # ══════════════════════════════════════════════════════════════════════
-        # LÓGICA DE CUADRE — v48
+        # ======================================================================
+        # LOGICA DE CUADRE -- v48
         #
-        # El asiento DEBE cuadrar con CUALQUIER combinación de:
-        #   - Horas extras (ya incluidas en gross_salary ← OK)
-        #   - Incapacidades: ccss_subsidy_total (subsidio CCSS días 4+)
-        #                    employer_disability_cost (patrono paga días 1-3)
+        # El asiento DEBE cuadrar con CUALQUIER combinacion de:
+        #   - Horas extras (ya incluidas en gross_salary <- OK)
+        #   - Incapacidades: ccss_subsidy_total (subsidio CCSS dias 4+)
+        #                    employer_disability_cost (patrono paga dias 1-3)
         #   - Paternidad:    paternity_amount
         #   - Pensiones alimentarias
-        #   - Préstamos
+        #   - Prestamos
         #   - Ingresos adicionales (line_type='income')
         #   - Otras deducciones (sindicato, embargo, ausencias, etc.)
         #
@@ -58,9 +58,9 @@ class PayslipAccountingMixin(models.AbstractModel):
         #   DEBE = HABER siempre.
         #   Todo lo que entra en salary_payable (HABER) debe tener contrapartida en DEBE.
         #   Todo lo que es gasto patronal (DEBE) debe tener contrapartida en HABER.
-        # ══════════════════════════════════════════════════════════════════════
+        # ======================================================================
 
-        # ── Calcular cada componente localmente (no depender de campos compute) ──
+        # -- Calcular cada componente localmente (no depender de campos compute) --
         gross         = round(self.gross_salary or 0.0, 2)
         ccss_emp      = round(self.ccss_employee or 0.0, 2)
         ccss_pat      = round(self.ccss_employer or 0.0, 2)
@@ -74,34 +74,34 @@ class PayslipAccountingMixin(models.AbstractModel):
         dis_cost      = round(self.employer_disability_cost or 0.0, 2)
 
         # Separar deducciones e ingresos adicionales con detalle para CR
-        # Bonos salariales: afecto_ccss=True → van a cuenta 630600
-        # Subsidios exentos: afecto_ccss=False → van a cuenta 630700
+        # Bonos salariales: afecto_ccss=True -> van a cuenta 630600
+        # Subsidios exentos: afecto_ccss=False -> van a cuenta 630700
         bono_ids_en_boleta = self.deduction_line_ids.filtered(
             lambda l: l.line_type == 'income' and l.deduction_category == 'bonus'
         )
 
         # FIX C-02b v58: Pre-cargar todos los bonos activos del empleado en UNA query.
-        # El loop anterior hacía search() por cada línea de bono (N+1).
+        # El loop anterior hacia search() por cada linea de bono (N+1).
         _bonos_emp = self.env['planilla.bono'].search([
             ('employee_id', '=', self.employee_id.id),
             ('state', '=', 'active'),
         ])
         _bono_map = {b.name: b for b in _bonos_emp}  # O(1) lookup
 
-        # Separar bonos: salariales (afecto_ccss=True → 630600) vs subsidios exentos (630700)
+        # Separar bonos: salariales (afecto_ccss=True -> 630600) vs subsidios exentos (630700)
         bonos_salariales = 0.0
         subsidios_exentos = 0.0
         for line in bono_ids_en_boleta:
             concepto = line.description.replace('Bono: ', '').strip()
-            bono_rec = _bono_map.get(concepto)  # O(1) — sin query adicional
+            bono_rec = _bono_map.get(concepto)  # O(1) -- sin query adicional
             if bono_rec and not bono_rec.afecto_ccss:
                 subsidios_exentos = round(subsidios_exentos + line.amount, 2)
             else:
                 bonos_salariales = round(bonos_salariales + line.amount, 2)
 
         # Otros ingresos adicionales (recurring_benefit tipo income, no bonos, no licencias)
-        # FIX-F5: excluir 'licencia_con_goce' de otros_ingresos — se contabiliza
-        # por separado en account_licencia_expense (630800). Incluirla aquí causaba
+        # FIX-F5: excluir 'licencia_con_goce' de otros_ingresos -- se contabiliza
+        # por separado en account_licencia_expense (630800). Incluirla aqui causaba
         # doble DEBE: una vez en extra_income y otra en add_line(licencias_con_goce),
         # haciendo que el asiento no cuadrara cuando hay licencias especiales.
         otros_ingresos = round(sum(
@@ -127,19 +127,19 @@ class PayslipAccountingMixin(models.AbstractModel):
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'ausencia'
         ), 2)
-        # Licencias CON goce: ingreso adicional en la boleta (gasto patronal → DEBE 630800)
+        # Licencias CON goce: ingreso adicional en la boleta (gasto patronal -> DEBE 630800)
         licencias_con_goce = round(sum(
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'licencia_con_goce' and l.line_type == 'income'
         ), 2)
-        # Licencias SIN goce: deducción al empleado (reduce neto a pagar → HABER 230000)
+        # Licencias SIN goce: deduccion al empleado (reduce neto a pagar -> HABER 230000)
         licencias_sin_goce = round(sum(
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'licencia_sin_goce' and l.line_type == 'deduction'
         ), 2)
-        # FIX v512 BUG-CRÍTICO-01: 'rop' excluido de otras_ded.
+        # FIX v512 BUG-CRITICO-01: 'rop' excluido de otras_ded.
         # El ROP obrero va a account_rop_payable (230350), no a account_salary_payable.
-        # Sin esta exclusión, el ROP se descontaba dos veces de net_for_accounting
+        # Sin esta exclusion, el ROP se descontaba dos veces de net_for_accounting
         # (una en otras_ded y otra en rop_obrero_net), haciendo que salary_payable
         # fuera incorrecto y la cuenta 230000 recibiera el monto equivocado.
         otras_ded = round(sum(
@@ -151,7 +151,7 @@ class PayslipAccountingMixin(models.AbstractModel):
                )
         ), 2)
         # Cobros al empleado (almuerzos, productos, uniformes, etc.)
-        # Categoría 'other' con employee_charge_id → van a cuenta 230970
+        # Categoria 'other' con employee_charge_id -> van a cuenta 230970
         cobros_empleado = round(sum(
             l.amount for l in self.deduction_line_ids
             if l.line_type == 'deduction'
@@ -169,9 +169,9 @@ class PayslipAccountingMixin(models.AbstractModel):
 
         # salary_payable calculado localmente para garantizar cuadre
         # = gross - ccss_emp - renta + subsidio_ccss + paternidad + extra_income
-        #   + licencias_con_goce  (se pagan al empleado → aumentan el neto)
+        #   + licencias_con_goce  (se pagan al empleado -> aumentan el neto)
         #   - pensiones - embargos - prestamos - ausencias
-        #   - licencias_sin_goce  (se descuentan al empleado → reducen el neto)
+        #   - licencias_sin_goce  (se descuentan al empleado -> reducen el neto)
         #   - rop_obrero - otras_ded
         # ROP obrero va a 230350 (rop_payable), no a 230000 (salary_payable)
         rop_obrero_net = round(sum(
@@ -180,67 +180,67 @@ class PayslipAccountingMixin(models.AbstractModel):
         ), 2)
         net_for_accounting = round(
             gross - ccss_emp - renta
-            + subsidy            # subsidio CCSS días 4+ (la CCSS lo deposita al empleado)
-            + pat_amount         # paternidad: patrono asume los 8 días
+            + subsidy            # subsidio CCSS dias 4+ (la CCSS lo deposita al empleado)
+            + pat_amount         # paternidad: patrono asume los 8 dias
             + extra_income       # ingresos adicionales en boleta (bonos + subsidios)
-            + licencias_con_goce # licencias pagadas (duelo, matrimonio, etc.) → aumentan neto
+            + licencias_con_goce # licencias pagadas (duelo, matrimonio, etc.) -> aumentan neto
             - pensiones
             - embargos           # embargos judiciales retenidos
             - prestamos
             - ausencias
-            - licencias_sin_goce # permisos sin goce → reducen neto
-            - rop_obrero_net     # ROP obrero 1% — va a 230350, reduce lo que va a 230000
-            - cobros_empleado    # cobros retenidos (almuerzos, productos…) → van a 230970
+            - licencias_sin_goce # permisos sin goce -> reducen neto
+            - rop_obrero_net     # ROP obrero 1% -- va a 230350, reduce lo que va a 230000
+            - cobros_empleado    # cobros retenidos (almuerzos, productos...) -> van a 230970
             - otras_ded,
             2
         )
 
-        # ── DÉBITOS (Gastos del patrono) ─────────────────────────────────────
+        # -- DEBITOS (Gastos del patrono) -------------------------------------
         add_line(config.account_salary_expense,
                  debit=gross,
-                 name=f'Salarios — {emp}')
+                 name=f'Salarios -- {emp}')
 
         add_line(config.account_social_charges_expense,
                  debit=round(ccss_pat + ins_pat, 2),
-                 name=f'Cargas Sociales Patronales — {emp}')
-        # FIX v56: ROP patronal 3.25% (Ley 7983) — costo del patrono
+                 name=f'Cargas Sociales Patronales -- {emp}')
+        # FIX v56: ROP patronal 3.25% (Ley 7983) -- costo del patrono
         if (self.rop_employer or 0.0) > 0:
             add_line(config.account_social_charges_expense,
                      debit=round(self.rop_employer, 2),
-                     name=f'ROP Patronal 3.25% Ley 7983 — {emp}')
+                     name=f'ROP Patronal 3.25% Ley 7983 -- {emp}')
 
         add_line(config.account_vacation_expense,
                  debit=vac_prov,
-                 name=f'Provisión Vacaciones — {emp}')
+                 name=f'Provision Vacaciones -- {emp}')
 
         add_line(config.account_aguinaldo_expense,
                  debit=agui_prov,
-                 name=f'Provisión Aguinaldo — {emp}')
+                 name=f'Provision Aguinaldo -- {emp}')
 
         add_line(config.account_cesantia_expense,
                  debit=ces_prov,
-                 name=f'Provisión Cesantía — {emp}')
+                 name=f'Provision Cesantia -- {emp}')
 
-        # FIX: Paternidad — gasto patronal que entra en net pero no tenía DEBE
+        # FIX: Paternidad -- gasto patronal que entra en net pero no tenia DEBE
         if pat_amount > 0:
             add_line(config.account_salary_expense,
                      debit=pat_amount,
-                     name=f'Paternidad (8 días Art. 95 CT) — {emp}')
+                     name=f'Paternidad (8 dias Art. 95 CT) -- {emp}')
 
-        # FIX: Días 1-3 incapacidad a cargo del patrono (Art. 79 Reg. CCSS)
+        # FIX: Dias 1-3 incapacidad a cargo del patrono (Art. 79 Reg. CCSS)
         if dis_cost > 0:
             add_line(config.account_salary_expense,
                      debit=dis_cost,
-                     name=f'Incapacidad días 1-3 (cargo patrono) — {emp}')
+                     name=f'Incapacidad dias 1-3 (cargo patrono) -- {emp}')
 
-        # FIX v49 Bug 5: Subsidio CCSS — la CCSS paga días 4+ directamente al empleado.
+        # FIX v49 Bug 5: Subsidio CCSS -- la CCSS paga dias 4+ directamente al empleado.
         # El patrono registra un derecho de cobro (activo corriente) en el DEBE del asiento.
-        # Jerarquía de cuentas:
-        #   1. account_ccss_subsidy_receivable configurado en Planilla → Configuración → Contabilidad
-        #   2. Búsqueda automática de cuenta 120500 en el plan de cuentas de la compañía
-        #   3. Fallback: account_ccss_payable (neteo — menos claro pero cuadra el asiento)
+        # Jerarquia de cuentas:
+        #   1. account_ccss_subsidy_receivable configurado en Planilla -> Configuracion -> Contabilidad
+        #   2. Busqueda automatica de cuenta 120500 en el plan de cuentas de la compania
+        #   3. Fallback: account_ccss_payable (neteo -- menos claro pero cuadra el asiento)
         if subsidy > 0:
-            # Prioridad 1: cuenta configurada explícitamente por el contador
+            # Prioridad 1: cuenta configurada explicitamente por el contador
             ccss_subsidy_acct = config.account_ccss_subsidy_receivable
 
             # Prioridad 2: buscar cuenta 120500 en el plan de cuentas
@@ -256,65 +256,65 @@ class PayslipAccountingMixin(models.AbstractModel):
                 _logger.info(
                     'planilla_cr: usando account_ccss_payable como fallback para subsidio CCSS '
                     '(empresa %s). Configure account_ccss_subsidy_receivable en '
-                    'Planilla → Configuración → Contabilidad para mayor claridad contable.',
+                    'Planilla -> Configuracion -> Contabilidad para mayor claridad contable.',
                     self.company_id.name
                 )
 
             add_line(ccss_subsidy_acct,
                      debit=subsidy,
-                     name=f'Subsidio CCSS por Cobrar (incapacidad) — {emp}')
+                     name=f'Subsidio CCSS por Cobrar (incapacidad) -- {emp}')
 
-        # FIX: Ingresos adicionales en boleta — separados por tipo para CR
-        # Bonos salariales (productividad, asistencia, antigüedad): cuenta 630600
+        # FIX: Ingresos adicionales en boleta -- separados por tipo para CR
+        # Bonos salariales (productividad, asistencia, antiguedad): cuenta 630600
         if bonos_salariales > 0:
             bono_acct = config.account_bono_expense or config.account_salary_expense
             add_line(bono_acct,
                      debit=bonos_salariales,
-                     name=f'Bonos e Incentivos Salariales — {emp}')
-        # Subsidios exentos (transporte hasta tope, representación): cuenta 630700
+                     name=f'Bonos e Incentivos Salariales -- {emp}')
+        # Subsidios exentos (transporte hasta tope, representacion): cuenta 630700
         if subsidios_exentos > 0:
             subs_acct = config.account_subsidio_expense or config.account_salary_expense
             add_line(subs_acct,
                      debit=subsidios_exentos,
-                     name=f'Subsidios al Personal (exentos CCSS/Renta) — {emp}')
+                     name=f'Subsidios al Personal (exentos CCSS/Renta) -- {emp}')
         # Otros ingresos adicionales (recurring_benefit): cuenta 630000
         if otros_ingresos > 0:
             add_line(config.account_salary_expense,
                      debit=otros_ingresos,
-                     name=f'Ingresos Adicionales en Boleta — {emp}')
+                     name=f'Ingresos Adicionales en Boleta -- {emp}')
 
         # Licencias con goce: gasto patronal a cuenta 630800 (o fallback 630000)
-        # Duelo 1er grado, paternidad/adopción, matrimonio, donación de sangre, etc.
+        # Duelo 1er grado, paternidad/adopcion, matrimonio, donacion de sangre, etc.
         if licencias_con_goce > 0:
             lic_acct = getattr(config, 'account_licencia_expense', None) or config.account_salary_expense
             add_line(lic_acct,
                      debit=licencias_con_goce,
-                     name=f'Licencias con Goce (duelo/paternidad/matrimonio…) — {emp}')
+                     name=f'Licencias con Goce (duelo/paternidad/matrimonio...) -- {emp}')
 
-        # ── CRÉDITOS (Pasivos y retenciones) ─────────────────────────────────
+        # -- CREDITOS (Pasivos y retenciones) ---------------------------------
         add_line(config.account_ccss_payable,
                  credit=round(ccss_emp + ccss_pat, 2),
-                 name=f'CCSS por Pagar (obrero + patronal) — {emp}')
+                 name=f'CCSS por Pagar (obrero + patronal) -- {emp}')
 
         add_line(config.account_ins_payable,
                  credit=ins_pat,
-                 name=f'INS por Pagar — {emp}')
+                 name=f'INS por Pagar -- {emp}')
 
         add_line(config.account_income_tax_payable,
                  credit=renta,
-                 name=f'Retención Renta — {emp}')
+                 name=f'Retencion Renta -- {emp}')
 
         add_line(config.account_aguinaldo_provision,
                  credit=agui_prov,
-                 name=f'Provisión Aguinaldo por Pagar — {emp}')
+                 name=f'Provision Aguinaldo por Pagar -- {emp}')
 
         add_line(config.account_cesantia_provision,
                  credit=ces_prov,
-                 name=f'Provisión Cesantía por Pagar — {emp}')
+                 name=f'Provision Cesantia por Pagar -- {emp}')
 
         add_line(config.account_vacation_provision,
                  credit=vac_prov,
-                 name=f'Provisión Vacaciones por Pagar — {emp}')
+                 name=f'Provision Vacaciones por Pagar -- {emp}')
 
         if pensiones > 0:
             # Pensiones alimentarias van a cuenta separada para control judicial (Ley 8590)
@@ -322,7 +322,7 @@ class PayslipAccountingMixin(models.AbstractModel):
                                or config.account_salary_payable)
             add_line(pension_account,
                      credit=pensiones,
-                     name=f'Pensión Alimentaria Retenida — {emp}')
+                     name=f'Pension Alimentaria Retenida -- {emp}')
 
         if embargos > 0:
             # Embargos judiciales van a cuenta separada para control judicial (Art. 172 CT)
@@ -330,27 +330,27 @@ class PayslipAccountingMixin(models.AbstractModel):
                                or config.account_salary_payable)
             add_line(embargo_account,
                      credit=embargos,
-                     name=f'Embargo Judicial Retenido — {emp}')
+                     name=f'Embargo Judicial Retenido -- {emp}')
 
         if prestamos > 0:
             loan_account = config.account_loans_payable or config.account_salary_payable
             add_line(loan_account,
                      credit=prestamos,
-                     name=f'Cuotas Préstamos Retenidos — {emp}')
+                     name=f'Cuotas Prestamos Retenidos -- {emp}')
 
         if ausencias > 0:
             add_line(config.account_salary_payable,
                      credit=ausencias,
-                     name=f'Descuento Ausencias Sin Goce — {emp}')
+                     name=f'Descuento Ausencias Sin Goce -- {emp}')
 
         if licencias_sin_goce > 0:
             add_line(config.account_salary_payable,
                      credit=licencias_sin_goce,
-                     name=f'Descuento Licencias Sin Goce — {emp}')
+                     name=f'Descuento Licencias Sin Goce -- {emp}')
 
-        # FIX v56: ROP — HABER para ambos tramos (obrero + patronal)
+        # FIX v56: ROP -- HABER para ambos tramos (obrero + patronal)
         # El ROP obrero reduce el neto; el ROP patronal es costo adicional del patrono.
-        # Ambos se acumulan en account_rop_payable (230350) para depósito al operador.
+        # Ambos se acumulan en account_rop_payable (230350) para deposito al operador.
         rop_obrero_acct_amt = sum(
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'rop' and l.line_type == 'deduction'
@@ -361,12 +361,12 @@ class PayslipAccountingMixin(models.AbstractModel):
             rop_acct = (getattr(config, 'account_rop_payable', None)
                         or config.account_ccss_payable)
             add_line(rop_acct, credit=total_rop_pagar,
-                     name=f'ROP por Pagar (obrero 1% + patronal 3.25%) — {emp}')
+                     name=f'ROP por Pagar (obrero 1% + patronal 3.25%) -- {emp}')
 
         if otras_ded > 0:
             add_line(config.account_salary_payable,
                      credit=otras_ded,
-                     name=f'Otras Deducciones Retenidas — {emp}')
+                     name=f'Otras Deducciones Retenidas -- {emp}')
 
         # Cobros al empleado: van a cuenta 230970 (separada de 230000 para control)
         if cobros_empleado > 0:
@@ -374,39 +374,39 @@ class PayslipAccountingMixin(models.AbstractModel):
                           or config.account_salary_payable)
             add_line(cobro_acct,
                      credit=cobros_empleado,
-                     name=f'Cobros al Empleado Retenidos (almuerzos/productos…) — {emp}')
+                     name=f'Cobros al Empleado Retenidos (almuerzos/productos...) -- {emp}')
 
-        # Días 1-3 de incapacidad se pagan al empleado pero son gasto patronal
+        # Dias 1-3 de incapacidad se pagan al empleado pero son gasto patronal
         if dis_cost > 0:
             add_line(config.account_salary_payable,
                      credit=dis_cost,
-                     name=f'Incapacidad días 1-3 (por pagar al empleado) — {emp}')
+                     name=f'Incapacidad dias 1-3 (por pagar al empleado) -- {emp}')
 
         # Neto final a depositar (salary_payable calculado localmente)
         if net_for_accounting > 0:
             add_line(config.account_salary_payable,
                      credit=net_for_accounting,
-                     name=f'Salarios por Pagar (neto a depositar) — {emp}')
+                     name=f'Salarios por Pagar (neto a depositar) -- {emp}')
 
         if not lines:
             return
 
-        # ── Verificación de cuadre matemático antes de postear ───────────────
+        # -- Verificacion de cuadre matematico antes de postear ---------------
         total_debit  = round(sum(l[2]['debit']  for l in lines), 2)
         total_credit = round(sum(l[2]['credit'] for l in lines), 2)
         if abs(total_debit - total_credit) > 0.02:
-            # Generar diagnóstico detallado para facilitar depuración
+            # Generar diagnostico detallado para facilitar depuracion
             detail = '\n'.join(
-                f"  {'DEBE' if l[2]['debit'] else 'HABER'} ₡{max(l[2]['debit'], l[2]['credit']):>12,.2f}  {l[2]['name']}"
+                f"  {'DEBE' if l[2]['debit'] else 'HABER'} CRC{max(l[2]['debit'], l[2]['credit']):>12,.2f}  {l[2]['name']}"
                 for l in lines
             )
             raise UserError(
                 f'El asiento contable no cuadra para {emp}:\n'
-                f'  Débitos:  ₡{total_debit:,.2f}\n'
-                f'  Créditos: ₡{total_credit:,.2f}\n'
-                f'  Diferencia: ₡{abs(total_debit - total_credit):,.2f}\n\n'
-                f'Detalle de líneas:\n{detail}\n\n'
-                f'Verifique la configuración contable en Planilla → Configuración → Contabilidad.'
+                f'  Debitos:  CRC{total_debit:,.2f}\n'
+                f'  Creditos: CRC{total_credit:,.2f}\n'
+                f'  Diferencia: CRC{abs(total_debit - total_credit):,.2f}\n\n'
+                f'Detalle de lineas:\n{detail}\n\n'
+                f'Verifique la configuracion contable en Planilla -> Configuracion -> Contabilidad.'
             )
 
         move = self.env['account.move'].create({
@@ -420,8 +420,8 @@ class PayslipAccountingMixin(models.AbstractModel):
         self.move_id = move.id
         # FIX A-03 v58: Logging de trazabilidad del asiento contable
         _logger.info(
-            'planilla_cr._create_accounting_entry: asiento %s (id=%d) — '
-            'DEBE=₡%.2f HABER=₡%.2f empleado=%s fecha=%s',
+            'planilla_cr._create_accounting_entry: asiento %s (id=%d) -- '
+            'DEBE=CRC%.2f HABER=CRC%.2f empleado=%s fecha=%s',
             move.name, move.id, total_debit, total_credit,
             self.employee_id.name, self.date_to
         )

@@ -30,7 +30,7 @@ class Overtime(models.Model):
     overtime_type = fields.Selection([
         ('simple', 'Simple (1.5x)'),
         ('double', 'Doble (2x)'),
-        ('holiday', 'Día Feriado'),
+        ('holiday', 'Dia Feriado'),
     ], string='Tipo', default='simple', required=True, tracking=True)
 
     hourly_rate = fields.Monetary(
@@ -63,14 +63,14 @@ class Overtime(models.Model):
         string='Advertencia Legal',
         compute='_compute_legal_warning',
         store=False,
-        help='Alerta cuando se superan los límites del Art. 139 CT.'
+        help='Alerta cuando se superan los limites del Art. 139 CT.'
     )
 
     @api.depends('employee_id', 'date', 'hours', 'state')
     def _compute_legal_warning(self):
         """
         Calcula advertencias legales sin bloquear.
-        Art. 139 CT: máx 4h extras/día, máx 12h extras/semana.
+        Art. 139 CT: max 4h extras/dia, max 12h extras/semana.
         Se muestra como banner en el formulario pero NO impide guardar ni aprobar.
         """
         from datetime import timedelta
@@ -80,8 +80,8 @@ class Overtime(models.Model):
             warnings = []
             if rec.hours and rec.hours > MAX_HE_DIARIA:
                 warnings.append(
-                    f'⚠ Horas del día ({rec.hours:.1f}h) superan el máximo de '
-                    f'{MAX_HE_DIARIA:.0f}h diarias (Art. 139 Código de Trabajo).'
+                    f'WARN Horas del dia ({rec.hours:.1f}h) superan el maximo de '
+                    f'{MAX_HE_DIARIA:.0f}h diarias (Art. 139 Codigo de Trabajo).'
                 )
             if rec.employee_id and rec.date:
                 day_of_week = rec.date.weekday()
@@ -98,10 +98,10 @@ class Overtime(models.Model):
                 if total_semanal > MAX_HE_SEMANAL:
                     ya_registradas = total_semanal - (rec.hours or 0.0)
                     warnings.append(
-                        f'⚠ Total semanal ({total_semanal:.1f}h, semana {week_start} – {week_end}) '
-                        f'supera el máximo de {MAX_HE_SEMANAL:.0f}h semanales '
+                        f'WARN Total semanal ({total_semanal:.1f}h, semana {week_start} - {week_end}) '
+                        f'supera el maximo de {MAX_HE_SEMANAL:.0f}h semanales '
                         f'(Art. 139 CT). Ya registradas esta semana: {ya_registradas:.1f}h. '
-                        f'Se recomienda gestionar autorización especial con el empleado.'
+                        f'Se recomienda gestionar autorizacion especial con el empleado.'
                     )
             rec.legal_warning = '  |  '.join(warnings) if warnings else False
 
@@ -115,7 +115,7 @@ class Overtime(models.Model):
     @api.depends('employee_id', 'date')
     def _compute_hourly_rate(self):
         """
-        BUG #6 FIX v50: Usa el salario histórico vigente en la fecha de las HE.
+        BUG #6 FIX v50: Usa el salario historico vigente en la fecha de las HE.
         FIX M-04 v51: Usa hours_per_day del schedule_type del empleado en vez
         de 8 horas fijo. Para empleados con jornada de 6h, 10h o 12h la tarifa
         horaria era incorrecta. Fallback a 8h si no hay schedule_type configurado.
@@ -126,7 +126,7 @@ class Overtime(models.Model):
                 continue
             base_salary = 0.0
             if rec.date:
-                # Buscar salario histórico vigente en la fecha de las HE
+                # Buscar salario historico vigente en la fecha de las HE
                 history = self.env['planilla.salary.history'].search([
                     ('employee_id', '=', rec.employee_id.id),
                     ('effective_date', '<=', rec.date),
@@ -137,11 +137,11 @@ class Overtime(models.Model):
             # Fallback: salario base actual
             if not base_salary:
                 base_salary = rec.employee_id.base_salary or 0.0
-            # Horas por día según jornada del empleado (fallback 8h jornada ordinaria)
+            # Horas por dia segun jornada del empleado (fallback 8h jornada ordinaria)
             hours_per_day = 8.0
             if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
                 hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
-            # Tarifa por hora = Salario mensual / 30 días / horas_jornada
+            # Tarifa por hora = Salario mensual / 30 dias / horas_jornada
             rec.hourly_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
 
     @api.depends('hours', 'hourly_rate', 'overtime_type')
@@ -159,18 +159,18 @@ class Overtime(models.Model):
         MAX_HE_DIARIA  = 4.0
         MAX_HE_SEMANAL = 12.0
 
-        # Art. 139 CT — advertencia diaria (ya NO bloquea, registra en chatter)
+        # Art. 139 CT -- advertencia diaria (ya NO bloquea, registra en chatter)
         if self.hours > MAX_HE_DIARIA:
             msg = (
-                f'⚠ ADVERTENCIA LEGAL — Art. 139 Código de Trabajo: '
-                f'Las horas extras aprobadas hoy ({self.hours:.1f}h) superan el máximo '
+                f'WARN ADVERTENCIA LEGAL -- Art. 139 Codigo de Trabajo: '
+                f'Las horas extras aprobadas hoy ({self.hours:.1f}h) superan el maximo '
                 f'de {MAX_HE_DIARIA:.0f}h diarias. Se aprueba con advertencia. '
-                f'Se recomienda gestionar autorización especial con el empleado.'
+                f'Se recomienda gestionar autorizacion especial con el empleado.'
             )
             self.message_post(body=msg)
             _logger.warning('planilla.overtime %s: %s', self.name, msg)
 
-        # Art. 139 CT — advertencia semanal (ya NO bloquea, registra en chatter)
+        # Art. 139 CT -- advertencia semanal (ya NO bloquea, registra en chatter)
         if self.date:
             day_of_week = self.date.weekday()
             week_start  = self.date - timedelta(days=day_of_week)
@@ -186,11 +186,11 @@ class Overtime(models.Model):
             if total_semanal > MAX_HE_SEMANAL:
                 ya_aprobadas = total_semanal - self.hours
                 msg = (
-                    f'⚠ ADVERTENCIA LEGAL — Art. 139 Código de Trabajo: '
-                    f'El total de horas extras de la semana {week_start} – {week_end} '
-                    f'({total_semanal:.1f}h) supera el límite de {MAX_HE_SEMANAL:.0f}h semanales. '
+                    f'WARN ADVERTENCIA LEGAL -- Art. 139 Codigo de Trabajo: '
+                    f'El total de horas extras de la semana {week_start} - {week_end} '
+                    f'({total_semanal:.1f}h) supera el limite de {MAX_HE_SEMANAL:.0f}h semanales. '
                     f'Ya aprobadas esta semana: {ya_aprobadas:.1f}h. '
-                    f'Se aprueba con advertencia. Gestione autorización especial si aplica.'
+                    f'Se aprueba con advertencia. Gestione autorizacion especial si aplica.'
                 )
                 self.message_post(body=msg)
                 _logger.warning('planilla.overtime %s: %s', self.name, msg)
@@ -203,9 +203,9 @@ class Overtime(models.Model):
             )
             if not is_holiday:
                 raise ValidationError(
-                    f'El tipo "Día Feriado" requiere que la fecha ({self.date}) '
-                    f'esté registrada como feriado de pago obligatorio (Art. 148 CT). '
-                    f'Verifique en Planilla → Feriados Nacionales o use tipo Simple/Doble.'
+                    f'El tipo "Dia Feriado" requiere que la fecha ({self.date}) '
+                    f'este registrada como feriado de pago obligatorio (Art. 148 CT). '
+                    f'Verifique en Planilla -> Feriados Nacionales o use tipo Simple/Doble.'
                 )
         self.write({'state': 'approved'})
 

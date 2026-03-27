@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<odoo noupdate="0">
-    <!-- ══════════════════════════════════════════════════════════
-         TRAMOS IMPUESTO DE RENTA 2025 — DESACTIVADOS
-         Decreto Ejecutivo MH 2025
-         NOTA: year=2025 permite identificar claramente a qué tabla
-         pertenecen. La validación del modelo impide activar tramos
-         de dos años distintos al mismo tiempo.
-    ══════════════════════════════════════════════════════════ -->
+<!--
+    IMPORTANTE: noupdate="1" garantiza que este XML solo se carga en la
+    PRIMERA instalación del módulo. Las actualizaciones posteriores NO
+    sobreescriben los tramos que el administrador haya configurado en la UI.
+
+    Para actualizar tramos de un año nuevo:
+      1. Vaya a Planilla → Configuración → Tramos de Renta
+      2. Desactive los tramos del año anterior
+      3. Cree los tramos del año nuevo manualmente
+
+    Fuente: Resolución DGT-R-016-2026 Ministerio de Hacienda CR
+    Vigentes: 1 enero 2026 (para salarios mensuales en ₡)
+-->
+<odoo noupdate="1">
+
+    <!-- TRAMOS 2025 — DESACTIVADOS (referencia histórica) -->
     <record id="tax_bracket_0" model="planilla.income.tax.bracket">
         <field name="sequence">1</field>
         <field name="year">2025</field>
@@ -63,28 +71,29 @@
         <field name="note">Decreto MH 2025 — Reemplazado por DGT-R-016-2026</field>
     </record>
 
-    <!-- ══════════════════════════════════════════════════════════
-         TRAMOS IMPUESTO DE RENTA 2026 — VIGENTES
-         Fuente: Resolución DGT-R-016-2026, Ministerio de Hacienda
-         Vigentes a partir del 1 de enero de 2026
-         ACTUALIZAR cada enero cuando Hacienda publique la resolución anual.
-    ══════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         TRAMOS 2026 — VIGENTES desde marzo 2026
+         Fuente: Resolución DGT-R-016-2026, Ministerio de Hacienda CR
+         El tramo exento es ₡918,000 (10% sobre el exceso).
+         ESTOS VALORES SOLO SE CARGAN EN LA PRIMERA INSTALACIÓN.
+         Para modificarlos use: Planilla → Configuración → Tramos de Renta
+    ═══════════════════════════════════════════════════════════════ -->
     <record id="tax_bracket_2026_0" model="planilla.income.tax.bracket">
         <field name="sequence">10</field>
         <field name="year">2026</field>
-        <field name="name">Exento 2026</field>
+        <field name="name">Exento 2026 — hasta &#8353;918,000</field>
         <field name="limit_from">0</field>
-        <field name="limit_to">941000</field>
+        <field name="limit_to">918000</field>
         <field name="rate">0</field>
         <field name="valid_from">2026-01-01</field>
         <field name="active">True</field>
-        <field name="note">DGT-R-016-2026 — Tramo exento</field>
+        <field name="note">DGT-R-016-2026 — Tramo exento mensual</field>
     </record>
     <record id="tax_bracket_2026_1" model="planilla.income.tax.bracket">
         <field name="sequence">20</field>
         <field name="year">2026</field>
-        <field name="name">10% sobre el exceso de &#8353;941,000</field>
-        <field name="limit_from">941000</field>
+        <field name="name">10% sobre el exceso de &#8353;918,000</field>
+        <field name="limit_from">918000</field>
         <field name="limit_to">1381000</field>
         <field name="rate">10</field>
         <field name="valid_from">2026-01-01</field>
@@ -124,4 +133,5 @@
         <field name="active">True</field>
         <field name="note">DGT-R-016-2026</field>
     </record>
+
 </odoo>

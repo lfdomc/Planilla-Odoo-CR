@@ -49,7 +49,7 @@ class InsReport(models.TransientModel):
         workbook = xlsxwriter.Workbook(output, {'in_memory': True})
         ws = workbook.add_worksheet('Planilla INS')
 
-        # ── Formatos ──────────────────────────────────────────────
+        # -- Formatos ----------------------------------------------
         fmt_title = workbook.add_format({
             'bold': True, 'font_size': 14, 'font_color': '#FFFFFF',
             'bg_color': '#1F4E79', 'align': 'center', 'valign': 'vcenter', 'border': 1
@@ -84,7 +84,7 @@ class InsReport(models.TransientModel):
         fmt_info = workbook.add_format({'font_size': 10, 'font_color': '#555555'})
         fmt_note = workbook.add_format({'font_size': 8, 'font_color': '#888888', 'italic': True})
 
-        # ── Encabezado ────────────────────────────────────────────
+        # -- Encabezado --------------------------------------------
         freq_label = {'monthly': 'Mensual', 'biweekly': 'Quincenal', 'weekly': 'Semanal'}
         ws.merge_range('A1:N1', 'PLANILLA INS - RIESGOS DEL TRABAJO', fmt_title)
         ws.merge_range('A2:N2', self.company_id.name, fmt_subtitle)
@@ -93,7 +93,7 @@ class InsReport(models.TransientModel):
         ws.write('E3', 'Frecuencia:', fmt_info)
         ws.write('F3', freq_label.get(self.frequency, ''), fmt_info)
 
-        # ── Cabecera de columnas ──────────────────────────────────
+        # -- Cabecera de columnas ----------------------------------
         headers = [
             '#', 'Nombre', 'Primer Apellido', 'Segundo Apellido',
             'Identificacion', 'Tipo ID', 'Nacionalidad', 'Estado Civil',
@@ -106,7 +106,7 @@ class InsReport(models.TransientModel):
             ws.set_column(col, col, w)
         ws.set_row(4, 30)
 
-        # ── Catálogos para labels ─────────────────────────────────
+        # -- Catalogos para labels ---------------------------------
         id_types = {
             '01': 'Cedula CR', '02': 'Residencia', '03': 'Permiso',
             '04': 'Pasaporte', '05': 'Indocumentado'
@@ -126,7 +126,7 @@ class InsReport(models.TransientModel):
             self.env['hr.employee']._fields['ins_occupation'].selection
         ) if employees else {}
 
-        # ── Filas de empleados ────────────────────────────────────
+        # -- Filas de empleados ------------------------------------
         row = 5
         total_salary = 0.0
         total_prima = 0.0
@@ -166,15 +166,15 @@ class InsReport(models.TransientModel):
             ws.write(row, 13, emp_prima,                                           fmt_m)
             row += 1
 
-        # ── Fila de totales ───────────────────────────────────────
+        # -- Fila de totales ---------------------------------------
         ws.merge_range(row, 0, row, 11, 'TOTALES', fmt_total_label)
         ws.write(row, 12, total_salary, fmt_total_money)
         ws.write(row, 13, total_prima,  fmt_total_money)
 
-        # ── Nota de tasas ─────────────────────────────────────────
+        # -- Nota de tasas -----------------------------------------
         row += 2
         ws.merge_range(row, 0, row, 13,
-            'Tasas INS (Ley N.° 6727):  Clase I: 0.87%  |  Clase II: 1.49%  |  Clase III: 2.47%  |  Clase IV: 4.13%  |  Clase V: 6.88%',
+            'Tasas INS (Ley N.deg 6727):  Clase I: 0.87%  |  Clase II: 1.49%  |  Clase III: 2.47%  |  Clase IV: 4.13%  |  Clase V: 6.88%',
             fmt_note)
         row += 1
         ws.merge_range(row, 0, row, 13,
@@ -196,6 +196,6 @@ class InsReport(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
+            'url': f'/web/content/{attachment.id}download=true',
             'target': 'self',
         }

@@ -18,18 +18,18 @@ class ImportOvertimeWizard(models.TransientModel):
     branch_id = fields.Many2one('planilla.branch', string='Sucursal (Opcional)')
 
     overtime_type = fields.Selection([
-        ('simple',  'Simple (1.5x) — días hábiles fuera de horario'),
-        ('double',  'Doble (2x) — domingos y feriados'),
-        ('holiday', 'Día Feriado'),
+        ('simple',  'Simple (1.5x) -- dias habiles fuera de horario'),
+        ('double',  'Doble (2x) -- domingos y feriados'),
+        ('holiday', 'Dia Feriado'),
     ], string='Tipo de Hora Extra', default='simple', required=True)
 
     hours_per_day = fields.Float(
-        string='Horas laborales por día',
+        string='Horas laborales por dia',
         default=8.0,
         help='Jornada ordinaria diaria. Las horas adicionales sobre este umbral se consideran extras.'
     )
     min_extra_minutes = fields.Integer(
-        string='Mínimo de minutos extra para registrar',
+        string='Minimo de minutos extra para registrar',
         default=15,
         help='Diferencias menores a este valor se ignoran (evita ruido por fichadas imprecisas).'
     )
@@ -45,11 +45,11 @@ class ImportOvertimeWizard(models.TransientModel):
     def action_preview(self):
         """Calcula las horas extras desde hr.attendance y muestra preview."""
         self.ensure_one()
-        # Verificar que el módulo hr.attendance esté instalado
+        # Verificar que el modulo hr.attendance este instalado
         if 'hr.attendance' not in self.env:
             raise UserError(
-                'El módulo de Asistencias de Odoo no está instalado. '
-                'Instale "Asistencias" (hr_attendance) para usar esta función.'
+                'El modulo de Asistencias de Odoo no esta instalado. '
+                'Instale "Asistencias" (hr_attendance) para usar esta funcion.'
             )
 
         # Limpiar preview anterior
@@ -78,7 +78,7 @@ class ImportOvertimeWizard(models.TransientModel):
             if not attendances:
                 continue
 
-            # Agrupar por día
+            # Agrupar por dia
             by_day = {}
             for att in attendances:
                 day = att.check_in.date()
@@ -100,7 +100,7 @@ class ImportOvertimeWizard(models.TransientModel):
                     auto_type = self.overtime_type
                     if day in holidays or day.weekday() == 6:  # 6 = domingo
                         auto_type = 'holiday'
-                    elif day.weekday() == 5:  # 5 = sábado
+                    elif day.weekday() == 5:  # 5 = sabado
                         auto_type = 'double'
                     lines.append({
                         'wizard_id': self.id,
@@ -115,7 +115,7 @@ class ImportOvertimeWizard(models.TransientModel):
         if not lines:
             raise UserError(
                 f'No se encontraron horas extras en el periodo {self.date_from} al {self.date_to} '
-                f'para los empleados seleccionados (umbral: {threshold}h/día).'
+                f'para los empleados seleccionados (umbral: {threshold}h/dia).'
             )
 
         self.env['planilla.import.overtime.line'].create(lines)
@@ -137,11 +137,11 @@ class ImportOvertimeWizard(models.TransientModel):
         ], limit=1))
 
     def action_import(self):
-        """Crea los registros de horas extras para las líneas seleccionadas."""
+        """Crea los registros de horas extras para las lineas seleccionadas."""
         self.ensure_one()
         to_import = self.preview_ids.filtered(lambda l: l.selected and not l.already_imported)
         if not to_import:
-            raise UserError('No hay líneas seleccionadas para importar (o todas ya fueron importadas).')
+            raise UserError('No hay lineas seleccionadas para importar (o todas ya fueron importadas).')
 
         created = self.env['planilla.overtime']
         for line in to_import:
@@ -166,7 +166,7 @@ class ImportOvertimeWizard(models.TransientModel):
 
 class ImportOvertimeLine(models.TransientModel):
     _name  = 'planilla.import.overtime.line'
-    _description = 'Línea de preview de importación de horas extras'
+    _description = 'Linea de preview de importacion de horas extras'
 
     wizard_id      = fields.Many2one('planilla.import.overtime.wizard', ondelete='cascade')
     selected       = fields.Boolean(string='Importar', default=True)
@@ -177,6 +177,6 @@ class ImportOvertimeLine(models.TransientModel):
     overtime_type  = fields.Selection([
         ('simple',  'Simple (1.5x)'),
         ('double',  'Doble (2x)'),
-        ('holiday', 'Día Feriado'),
+        ('holiday', 'Dia Feriado'),
     ], string='Tipo', readonly=True)
     already_imported = fields.Boolean(string='Ya importado', readonly=True)
