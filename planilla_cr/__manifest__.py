@@ -1,7 +1,59 @@
 {
-    'name': 'Sistema Planilla v5.28.8-PROD',
-    'version': '19.0.5.28.8',
-    # ── Changelog v5.28.8 (Fix maternidad — lógica circular g=fallback) ──────
+    'name': 'Sistema Planilla v5.28.11-PROD',
+    'version': '19.0.5.28.11',
+    # ── Changelog v5.28.11 (Fix gross_salary incapacidad — neto correcto) ────
+    # BUG: gross_salary siempre era base_salary completo (₡275,000) incluso
+    #   con días de incapacidad. El neto resultaba: 275,000 - CCSS_sobre_256,667
+    #   = ₡247,203 (₡18,333 extra que no debía recibir el empleado).
+    # CAUSA LEGAL: El subsidio patrono días 1-3 (50%) NO es salario — no debe
+    #   sumarse al neto. El empleado recibe: días_trabajados×diario + 50%×diario
+    #   por días de incapacidad = salario_cotizable exacto.
+    # FIX-01: _compute_gross() — para incapacidad parcial no maternidad, usa
+    #   sal_base = salario_cotizable (ya calculado correctamente en _compute_extras)
+    #   en lugar de base_salary completo. Añade overtime, vacation, otros encima.
+    #   @api.depends ampliado con salario_cotizable y costo_patrono_periodo.
+    # FIX-02: Dependencia circular rota — _compute_extras.salario_cotizable
+    #   fallback cambia de gross_salary a base_salary×freq_factor×prop_factor.
+    # MOD-01: Vista Resumen Completo — INGRESOS:
+    #   Sin incapacidad: muestra fila normal de "Salario Base".
+    #   Con incapacidad: muestra "Salario por días laborados (N días incap.
+    #   descontados)" con el gross_salary ya reducido. La sección naranja
+    #   INCAPACIDADES muestra subsidio patrono y subsidio CCSS por separado.
+    # RESULTADO para Gonzalo (quincenal ₡275,000, 2 días incap.):
+    #   Salario Bruto:  ₡256,666.67 (no ₡275,000)
+    #   CCSS Obrero:    ₡27,797.00  (sobre ₡256,666.67) ✓
+    #   Neto:           ₡228,869.67 (no ₡247,203) ✓
+    # ── Changelog v5.28.10 (Subsidio patrono días 1-3 en Resumen) ────────────
+    # MEJORA: El Resumen Completo mostraba "Subsidio CCSS (días 4+): ₡0.00"
+    #   para incapacidades cortas (1-3 días), sin explicar el ₡18,333.33 que
+    #   redujo la base cotizable. El usuario no podía entender por qué la base
+    #   era menor al salario bruto.
+    # NEW-01: payslip_cr — campo costo_patrono_periodo (Monetary, computed en
+    #   _compute_extras, stored). Calcula proporcional al overlap del período:
+    #   días 1-3 del registro que caen en este período × sal_diario × 50%.
+    #   Para maternidad siempre es ₡0 (Art. 94 CT).
+    # MOD-01: payslip_compute_mixin._compute_extras() — calcula
+    #   costo_patrono_periodo en el mismo loop de intersección de fechas.
+    #   Usa (overlap_start - dis.date_start).days para saber cuántos días
+    #   del "primer tramo patronal" ya pasaron antes de este período.
+    # MOD-02: payslip_cr_views — bloque Incapacidades del Resumen Completo:
+    #   Nueva fila "Subsidio patrono días 1–3 (50% — Art. 79 CT)" con el monto
+    #   y nota "No es salario → no genera cargas CCSS ni Renta". Visible solo
+    #   cuando costo_patrono_periodo > 0.
+    #   Fila "Subsidio CCSS días 4+" ahora invisible cuando ccss_subsidy_total=0
+    #   (antes siempre mostraba ₡0.00, lo cual era confuso).
+    # RESULTADO para Gonzalo (2 días incapacidad, quincenal ₡275,000):
+    #   Subsidio patrono días 1–3 (50%): − ₡18,333.33
+    #   Subsidio CCSS días 4+: (oculto — es ₡0)
+    #   Base cotizable real: ₡256,666.67
+    # ── Changelog v5.28.9 (Fix RPC_ERROR env.context) ────────────────────────
+    # BUG: action_recalculate() usaba asignación directa rec.env.context = ...
+    #   que Odoo 19 prohibe (env.context es read-only, mensaje: "call env() instead")
+    #   causando RPC_ERROR al presionar el botón Recalcular en cualquier boleta.
+    # FIX: payslip_action_mixin.action_recalculate() — reemplazado por
+    #   rec = rec.with_context(**{k:v for k,v in ctx.items() if k != 'cache'})
+    #   que es el patrón correcto para modificar el contexto en Odoo 19.
+    # ── Changelog v5.28.8 (Fix maternidad lógica circular) ───────────────────
     # BUG: v5.28.7 resolvía salario_cotizable=0 correctamente pero _compute_
     #   deductions tenía el fallback:
     #     g = salario_cotizable if salario_cotizable > 0 else gross_salary

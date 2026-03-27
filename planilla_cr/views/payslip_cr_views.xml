@@ -176,21 +176,36 @@
                                     <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Ingresos del Período</div>
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <!-- Salario base — etiqueta según frecuencia -->
-                                        <tr invisible="effective_frequency != 'monthly'">
+                                        <!-- Sin incapacidad: mostrar salario base normal -->
+                                        <tr invisible="effective_frequency != 'monthly' or disability_days_in_period != 0">
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Base Mensual</td>
                                             <td style="text-align:right;"><field name="base_salary" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                        <tr invisible="effective_frequency != 'biweekly'">
+                                        <tr invisible="effective_frequency != 'biweekly' or disability_days_in_period != 0">
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Base Quincenal <span style="font-size:12px;opacity:.7;">(50% del mensual)</span></td>
                                             <td style="text-align:right;"><field name="base_salary" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                        <tr invisible="effective_frequency != 'weekly'">
+                                        <tr invisible="effective_frequency != 'weekly' or disability_days_in_period != 0">
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Base Semanal <span style="font-size:12px;opacity:.7;">(25% del mensual)</span></td>
                                             <td style="text-align:right;"><field name="base_salary" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                        <tr invisible="effective_frequency != 'bimonthly'">
+                                        <tr invisible="effective_frequency != 'bimonthly' or disability_days_in_period != 0">
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Base Bimensual <span style="font-size:12px;opacity:.7;">(200% del mensual)</span></td>
                                             <td style="text-align:right;"><field name="base_salary" readonly="1" nolabel="1"/></td>
+                                        </tr>
+
+                                        <!-- Con incapacidad: desglosar salario laborado + subsidio patrono -->
+                                        <tr invisible="disability_days_in_period == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">
+                                                Salario por días laborados
+                                                <span style="font-size:11px;opacity:.7;">
+                                                    (<field name="disability_days_in_period" readonly="1" nolabel="1"/> días incapacidad descontados)
+                                                </span>
+                                            </td>
+                                            <td style="text-align:right;">
+                                                <!-- gross = salario_cotizable, subsidio patrono es la diferencia -->
+                                                <field name="gross_salary" readonly="1" nolabel="1"/>
+                                            </td>
                                         </tr>
                                         <!-- Proporcionalidad (si aplica) -->
                                         <tr invisible="not is_proportional">
@@ -246,9 +261,22 @@
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Días de incapacidad en este período</td>
                                             <td style="text-align:right;"><field name="disability_days_in_period" readonly="1" nolabel="1"/> días</td>
                                         </tr>
-                                        <tr>
-                                            <td style="padding:4px 0;color:var(--color-text-secondary);">Subsidio CCSS (días 4+ — no es salario, no genera cargas)</td>
-                                            <td style="text-align:right;"><field name="ccss_subsidy_total" readonly="1" nolabel="1"/></td>
+                                        <!-- Días 1-3: costo patrono (50%) — visible solo cuando hay costo patrono -->
+                                        <tr invisible="costo_patrono_periodo == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">
+                                                Subsidio patrono días 1–3 (50% — Art. 79 CT)
+                                                <span style="font-size:11px;opacity:.75;display:block;">
+                                                    No es salario → no genera cargas CCSS ni Renta
+                                                </span>
+                                            </td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="costo_patrono_periodo" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <!-- Días 4+: subsidio CCSS — visible solo cuando hay subsidio CCSS -->
+                                        <tr invisible="ccss_subsidy_total == 0">
+                                            <td style="padding:4px 0;color:var(--color-text-secondary);">
+                                                Subsidio CCSS días 4+ (no es salario, no genera cargas)
+                                            </td>
+                                            <td style="text-align:right;color:var(--color-text-danger);">− <field name="ccss_subsidy_total" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr style="border-top:1px solid var(--color-border-warning);font-weight:500;">
                                             <td style="padding:6px 0;">Base cotizable real (CCSS, Renta, provisiones)</td>

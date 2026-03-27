@@ -279,6 +279,13 @@ class PayslipCR(models.Model):
         compute='_compute_extras', store=True,
         help='Días 1-3 a cargo del patrono + % días restantes.'
     )
+    costo_patrono_periodo = fields.Monetary(
+        string='Costo Patrono Incap. (período)', currency_field='currency_id',
+        compute='_compute_extras', store=True,
+        help='Monto a cargo del patrono por los días de incapacidad que caen\n'
+             'DENTRO de este período de boleta (días 1-3 al 50%).\n'
+             'Este monto reduce la base cotizable: no es salario → no genera cargas.'
+    )
     salario_cotizable = fields.Monetary(
         string='Salario Cotizable (incapacidad)', currency_field='currency_id',
         compute='_compute_extras', store=True,

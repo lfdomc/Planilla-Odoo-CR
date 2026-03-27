@@ -91,10 +91,12 @@ class PayslipActionMixin(models.AbstractModel):
         for rec in self:
             if rec.state != 'draft':
                 continue
-            # Invalidar el cache de tramos de renta para que _calc_income_tax
-            # los consulte de nuevo desde la BD en este request.
-            rec.env.context = dict(rec.env.context)
-            rec.env.context.pop('_income_tax_brackets_cache', None)
+            # Odoo 19: env.context es read-only — usar with_context() para
+            # invalidar el cache de tramos de renta en este request.
+            rec = rec.with_context(
+                **{k: v for k, v in rec.env.context.items()
+                   if k != '_income_tax_brackets_cache'}
+            )
             # Forzar recompute de toda la cadena de campos computados almacenados.
             rec._compute_proportional_days()
             rec._compute_base_salary()

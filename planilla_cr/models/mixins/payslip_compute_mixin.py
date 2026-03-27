@@ -174,46 +174,45 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.employer_disability_cost = round(sum(d.employer_cost for d in active_dis), 2)
 
             # ── BUG FIX MATERNIDAD: calcular subsidio y cotizable por período ──
-            # Los cálculos anteriores usaban d.ccss_subsidy (total de toda la
-            # incapacidad) y la lógica de días 1-3 sin distinguir tipo.
-            # Para maternidad (Art. 94 CT): patrono paga ₡0 desde día 1 —
-            # solo aplica el subsidio CCSS proporcional al período de la boleta.
-            # Para incapacidad normal (Art. 79 CT): patrono paga días 1-3 al 50%.
-            # ─────────────────────────────────────────────────────────────────
-            dias_incap_periodo = 0
+            dias_incap_periodo   = 0
             ccss_subsidy_periodo = 0.0
+            costo_patrono_periodo = 0.0  # días 1-3 a cargo del patrono en este período
 
             if rec.date_from and rec.date_to:
                 for dis in active_dis:
                     if not dis.date_start or not dis.date_end:
                         continue
-                    # Intersección entre período de boleta y período de incapacidad
                     overlap_start = max(rec.date_from, dis.date_start)
                     overlap_end   = min(rec.date_to,   dis.date_end)
                     if overlap_end >= overlap_start:
                         dias_overlap = (overlap_end - overlap_start).days + 1
                         dias_incap_periodo += dias_overlap
 
-                        # BUG FIX 1: subsidio proporcional al período (no el total de días)
                         if dis.disability_type == 'maternity':
-                            # Maternidad: salario diario promedio × días del período
                             daily = dis.maternity_avg_salary or dis.daily_salary or 0.0
                         else:
-                            # Otras: salario diario del empleado
                             daily = dis.daily_salary or 0.0
-                        # Solo contamos días que la CCSS subsidia (día 4+ en normal, día 1+ en maternidad)
+
+                        # Subsidio CCSS: días 4+ en incapacidad normal, día 1+ en maternidad
                         if dis.disability_type == 'maternity':
-                            dias_subsidiados_overlap = dias_overlap  # CCSS paga 100% desde día 1
+                            dias_subsidiados_overlap = dias_overlap
+                            # Maternidad: patrono no paga nada (Art. 94 CT)
+                            costo_patrono_periodo += 0.0
                         else:
-                            # Para incapacidad normal: días subsidiados = días 4+ dentro del overlap
-                            # (días 1-3 son costo compartido patrono/CCSS pero el subsidio CCSS
-                            # se calcula en el modelo disability.py por el registro completo)
                             dias_subsidiados_overlap = max(dias_overlap - min(3, dis.days), 0)
+                            # Días 1-3 que caen en este overlap → patrono paga 50%
+                            # "días patrono en overlap" = min(overlap, 3) pero respetando
+                            # que no pasen los 3 primeros días del registro completo
+                            dias_patrono_overlap = min(dias_overlap, max(3 - (
+                                (overlap_start - dis.date_start).days
+                            ), 0))
+                            costo_patrono_periodo += round(dias_patrono_overlap * daily * 0.50, 2)
+
                         ccss_subsidy_periodo += round(dias_subsidiados_overlap * daily, 2)
 
             rec.disability_days_in_period = dias_incap_periodo
-            # BUG FIX 1: usar el subsidio calculado para el período (no d.ccss_subsidy total)
-            rec.ccss_subsidy_total = round(ccss_subsidy_periodo, 2)
+            rec.ccss_subsidy_total  = round(ccss_subsidy_periodo, 2)
+            rec.costo_patrono_periodo = round(costo_patrono_periodo, 2)
 
             # ── Salario cotizable por período ────────────────────────────────
             emp = rec.employee_id
@@ -246,8 +245,16 @@ class PayslipComputeMixin(models.AbstractModel):
                         2
                     )
             else:
-                # Sin incapacidades: salario cotizable = gross_salary completo
-                rec.salario_cotizable = rec.gross_salary or 0.0
+                # Sin incapacidades: salario cotizable = salario base del período
+                # (gross_salary no está disponible aquí sin crear dependencia circular)
+                emp = rec.employee_id
+                if emp and emp.base_salary:
+                    freq = rec._get_effective_freq()
+                    freq_factor = K.FREQ_FACTORS.get(freq, 1.0)
+                    prop_factor = rec.proportional_factor if rec.is_proportional else 1.0
+                    rec.salario_cotizable = round(emp.base_salary * freq_factor * prop_factor, 2)
+                else:
+                    rec.salario_cotizable = 0.0
 
 
     @api.depends('deduction_line_ids.amount', 'deduction_line_ids.line_type',
@@ -298,25 +305,23 @@ class PayslipComputeMixin(models.AbstractModel):
                     total += line.amount
             rec.bono_salarial_amount = round(total, 2)
 
-    @api.depends('base_salary', 'overtime_amount', 'vacation_amount', 'other_income',
+    @api.depends('base_salary', 'salario_cotizable', 'costo_patrono_periodo',
+                 'disability_days_in_period',
+                 'overtime_amount', 'vacation_amount', 'other_income',
                  'bono_salarial_amount',
                  'disability_ids.state', 'disability_ids.date_start',
                  'disability_ids.date_end', 'disability_ids.disability_type',
                  'date_from', 'date_to')
     def _compute_gross(self) -> None:
         for rec in self:
-            bruto = round(
-                (rec.base_salary or 0.0) +
-                (rec.overtime_amount or 0.0) +
-                (rec.vacation_amount or 0.0) +
-                (rec.other_income or 0.0) +
-                (rec.bono_salarial_amount or 0.0),
-                2
-            )
-            # Art. 94 CT: maternidad completa → patrono NO paga salario.
-            # Si TODAS las incapacidades del período son maternidad y no hay
-            # días trabajados, el patrono no tiene ningún costo salarial que
-            # registrar — el salario bruto debe ser ₡0.
+            # ── Base salarial según incapacidad ──────────────────────────────
+            # REGLA LEGAL (Art. 79 y 94 CT):
+            # - Sin incapacidad: gross = base_salary completo del período
+            # - Incapacidad normal (1-3 días patrono): gross = salario_cotizable
+            #     = días_trabajados×diario + días_1-3×diario×50%
+            #     El neto correcto: cotizable - CCSS (sin "salario fantasma")
+            # - Maternidad completa: gross = 0 (patrono no paga nada)
+            dis_in_period = []
             if rec.date_from and rec.date_to:
                 active_dis = rec.disability_ids.filtered(
                     lambda d: d.state in ('confirmed', 'paid')
@@ -326,16 +331,29 @@ class PayslipComputeMixin(models.AbstractModel):
                     d for d in active_dis
                     if max(rec.date_from, d.date_start) <= min(rec.date_to, d.date_end)
                 ]
-                if dis_in_period:
-                    dias_periodo = (rec.date_to - rec.date_from).days + 1
-                    dias_incap = sum(
-                        (min(rec.date_to, d.date_end) - max(rec.date_from, d.date_start)).days + 1
-                        for d in dis_in_period
-                    )
-                    es_maternidad_total = all(d.disability_type == 'maternity' for d in dis_in_period)
-                    if es_maternidad_total and dias_incap >= dias_periodo:
-                        # Período completo de maternidad — el patrono no paga salario
-                        bruto = 0.0
+
+            if dis_in_period:
+                dias_periodo = (rec.date_to - rec.date_from).days + 1
+                dias_incap = sum(
+                    (min(rec.date_to, d.date_end) - max(rec.date_from, d.date_start)).days + 1
+                    for d in dis_in_period
+                )
+                es_maternidad_total = all(d.disability_type == 'maternity' for d in dis_in_period)
+                if es_maternidad_total and dias_incap >= dias_periodo:
+                    sal_base = 0.0   # Maternidad total
+                else:
+                    sal_base = rec.salario_cotizable or 0.0  # Incapacidad parcial
+            else:
+                sal_base = rec.base_salary or 0.0  # Sin incapacidad
+
+            bruto = round(
+                sal_base +
+                (rec.overtime_amount or 0.0) +
+                (rec.vacation_amount or 0.0) +
+                (rec.other_income or 0.0) +
+                (rec.bono_salarial_amount or 0.0),
+                2
+            )
             rec.gross_salary = bruto
 
     @api.depends('gross_salary', 'salario_cotizable', 'company_id', 'paternity_days',
