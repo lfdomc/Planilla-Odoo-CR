@@ -175,19 +175,29 @@
                                 <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 8px;margin:24px 0 12px;border-bottom:2px solid #dee2e6;">Ingresos del Período</div>
                                 <div style="padding:0 4px;">
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                                        <!-- Días laborados — siempre visible, usando solo campos existentes -->
-                                        <!-- Sin incapacidad: solo mostrar días del período -->
+                                        <!-- Desglose de días — calculado desde date_from / date_to reales -->
+                                        <!-- Sin incapacidad -->
                                         <tr invisible="disability_days_in_period != 0">
                                             <td style="padding:3px 0 6px;font-size:12px;color:var(--color-text-secondary);">
-                                                Días laborados en el período: <strong><field name="days_in_period" readonly="1" nolabel="1"/> días</strong>
+                                                Días laborados:
+                                                <strong><field name="days_in_period" readonly="1" nolabel="1"/> días</strong>
+                                                <span style="opacity:.65;">
+                                                    (<field name="date_from" readonly="1" nolabel="1"/> al <field name="date_to" readonly="1" nolabel="1"/>)
+                                                </span>
                                             </td>
                                             <td/>
                                         </tr>
-                                        <!-- Con incapacidad: mostrar incapacidad + total período (usuario puede ver diferencia) -->
+                                        <!-- Con incapacidad: desglose sin days_in_period (puede dar 0 si no es proporcional) -->
                                         <tr invisible="disability_days_in_period == 0">
-                                            <td style="padding:3px 0 6px;font-size:12px;color:var(--color-text-secondary);">
-                                                Días de incapacidad: <strong><field name="disability_days_in_period" readonly="1" nolabel="1"/></strong>
-                                                · Período total: <strong><field name="days_in_period" readonly="1" nolabel="1"/> días</strong>
+                                            <td style="padding:3px 0 2px;font-size:12px;color:var(--color-text-secondary);">
+                                                Días de incapacidad: <strong><field name="disability_days_in_period" readonly="1" nolabel="1"/> días</strong>
+                                                <span style="opacity:.65;">(<field name="date_from" readonly="1" nolabel="1"/> al <field name="date_to" readonly="1" nolabel="1"/>)</span>
+                                            </td>
+                                            <td/>
+                                        </tr>
+                                        <tr invisible="disability_days_in_period == 0" style="border-top:1px dashed #dee2e6;">
+                                            <td style="padding:2px 0 6px;font-size:12px;color:var(--color-text-secondary);">
+                                                Días laborados efectivos: <strong><field name="dias_laborados_periodo" readonly="1" nolabel="1"/> días</strong>
                                             </td>
                                             <td/>
                                         </tr>
@@ -215,11 +225,10 @@
                                             <td style="padding:6px 0;color:var(--color-text-secondary);">
                                                 Salario por días laborados
                                                 <span style="font-size:11px;opacity:.7;">
-                                                    (<field name="disability_days_in_period" readonly="1" nolabel="1"/> días incapacidad descontados)
+                                                    (<field name="disability_days_in_period" readonly="1" nolabel="1"/> días de incapacidad descontados del período)
                                                 </span>
                                             </td>
                                             <td style="text-align:right;">
-                                                <!-- gross = salario_cotizable, subsidio patrono es la diferencia -->
                                                 <field name="gross_salary" readonly="1" nolabel="1"/>
                                             </td>
                                         </tr>
@@ -384,8 +393,8 @@
                                         <tr invisible="income_tax_credits == 0">
                                             <td style="padding:6px 0;color:var(--color-text-success);">
                                                 Créditos Fiscales — cargas familiares (Art. 34 LIR)
-                                                <span style="font-size:11px;display:block;opacity:.75;">
-                                                    Cónyuge: ₡2,590/mes · Hijos: ₡1,710/mes c/u (proporcional a la frecuencia)
+                                                <span style="font-size:11px;display:block;opacity:.8;">
+                                                    <field name="tax_credits_detail" readonly="1" nolabel="1"/>
                                                 </span>
                                             </td>
                                             <td style="text-align:right;color:var(--color-text-success);">+ <field name="income_tax_credits" readonly="1" nolabel="1"/></td>

@@ -53,6 +53,7 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.effective_frequency = rec._get_effective_freq()
 
 
+    @api.depends('date_from', 'date_to', 'is_proportional', 'days_worked')
     def _compute_proportional_days(self):
         for rec in self:
             if rec.date_from and rec.date_to:

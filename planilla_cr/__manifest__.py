@@ -1,7 +1,108 @@
 {
-    'name': 'Sistema Planilla v5.28.36-PROD',
-    'version': '19.0.5.28.36',
-    # ── Changelog v5.28.36 (Espaciado Resumen Completo) ───────────────────────
+    'name': 'Sistema Planilla v5.28.44-PROD',
+    'version': '19.0.5.28.44',
+    # ── Changelog v5.28.44 (Créditos fiscales — montos reales por cónyuge/hijos) ─
+    # MEJORA: La línea de créditos fiscales ahora muestra los montos REALES
+    #   aplicados en la boleta (proporcionales a la frecuencia), no las tarifas
+    #   mensuales de referencia.
+    # Ejemplo quincenal con cónyuge + 2 hijos:
+    #   Créditos Fiscales — cargas familiares (Art. 34 LIR)    + ₡3,005.00
+    #     Cónyuge: ₡1,295.00 · 2 hijo(s): ₡1,710.00
+    # El campo tax_credits_detail (Char, store=True) ya estaba registrado en la
+    #   lista desde v5.28.40, por lo que OWL lo reconoce sin error.
+    # ── Changelog v5.28.43 (Fix days_in_period @api.depends) ─────────────────
+    # BUG: "Días del período: 0 días" — days_in_period daba 0 porque
+    #   _compute_proportional_days no tenía @api.depends y no se disparaba
+    #   automáticamente al cambiar date_from/date_to en boletas no proporcionales.
+    # FIX-01: Añadido @api.depends('date_from', 'date_to', 'is_proportional',
+    #   'days_worked') a _compute_proportional_days. Ahora days_in_period
+    #   siempre se calcula al guardar o recalcular la boleta.
+    # FIX-02: Eliminada la fila "Días del período: N días" de la vista con
+    #   incapacidad — era redundante y confusa. Ahora solo muestra:
+    #   "Días de incapacidad: 6 días (1 mar al 15 mar)"
+    #   "─────────────────────────────────────────────"
+    #   "Días laborados efectivos: 9 días"
+    #   donde 9 = dias_laborados_periodo (calculado desde fechas reales).
+    # ── Changelog v5.28.42 (Sin campos nuevos en ninguna vista) ──────────────
+    # El browser tiene en caché el bundle JS b4b90d9 que no incluye los campos
+    # nuevos de esta sesión. El ListArchParser ahora también falla igual que
+    # el FormArchParser. La única solución sin tocar el browser es no referenciar
+    # estos campos en NINGUNA vista (ni list ni form).
+    #
+    # Campos eliminados de todas las vistas:
+    #   - dias_laborados_periodo → form muestra "N − M días" con campos existentes
+    #   - credit_conyuge, credit_hijos, income_tax_children_count → eliminados
+    #   - tax_credits_detail → reemplazado por texto estático de tarifas
+    #
+    # INSTRUCCIÓN PARA EL USUARIO: Para ver los campos nuevos en la UI,
+    #   hacer Ctrl+Shift+R (hard refresh) en el browser después del update.
+    #   Eso limpia el caché JS y Odoo envía el schema actualizado.
+    #   Una vez hecho esto, se pueden agregar los campos de vuelta a las vistas.
+    # ── Changelog v5.28.41 (Fix backslash en list) ───────────────────────────
+    # ERROR: "Did not expect element text there / Element list has extra content"
+    # CAUSA: Un \ quedó al final del comentario <!-- INCAPACIDADES -->\
+    #   en la vista de lista, creando un nodo de texto dentro del <list>
+    #   que Odoo rechaza como XML inválido.
+    # FIX: Eliminado el \ stray. XML verificado con lxml.
+    # ── Changelog v5.28.40 (Fix OWL — registrar campos via list view) ─────────
+    # SOLUCIÓN DEFINITIVA AL ERROR OWL "field is undefined":
+    # OWL construye el schema de campos del modelo al cargar la LISTA (tree view).
+    # Si un campo nuevo no está en la lista, el form view no lo reconoce aunque
+    # exista en la DB. La solución: declarar TODOS los campos nuevos en la lista
+    # con optional="hide" — aparecen como columnas opcionales ocultas, forzando
+    # a Odoo a incluirlos en el metadata que envía al browser.
+    #
+    # Campos registrados en lista (optional="hide"):
+    #   - dias_laborados_periodo
+    #   - credit_conyuge, credit_hijos, income_tax_children_count
+    #   - tax_credits_detail
+    #
+    # Campos ahora usables en form view (Resumen Completo):
+    #   - dias_laborados_periodo: desglose días período/incap/laborados
+    #   - tax_credits_detail: "Cónyuge: ₡1,295 · 2 hijo(s): ₡1,710"
+    # ── Changelog v5.28.39 (Fix OWL dias_laborados) ──────────────────────────
+    # ERROR: "dias_laborados_periodo field is undefined" — mismo problema OWL.
+    # REGLA DEFINITIVA: la vista NUNCA puede referenciar campos añadidos en
+    #   esta sesión de desarrollo hasta que el browser limpie su caché JS.
+    # FIX: dias_laborados_periodo eliminado de la vista.
+    # Se muestran days_in_period y disability_days_in_period (ambos pre-existentes)
+    # con el desglose visual: "31 días − 13 días" dejando claro la resta.
+    # El resultado exacto (18 días) lo ve el usuario en la línea de salario
+    # "Salario por días laborados (13 días de incapacidad descontados del período)"
+    # ── Changelog v5.28.38 (Días reales del período) ──────────────────────────
+    # MEJORA: El desglose de días ahora siempre usa los días REALES del período
+    #   calculados desde date_from hasta date_to: (date_to - date_from).days + 1
+    #   Ejemplos:
+    #     1 mar → 15 mar = 15 días
+    #     1 mar → 16 mar = 16 días
+    #     16 mar → 31 mar = 16 días
+    #     1 ene → 31 ene = 31 días
+    #
+    # Sin incapacidad muestra:
+    #   "Días laborados en el período: 16 días (1 mar — 16 mar)"
+    #
+    # Con incapacidad muestra desglose:
+    #   "Días del período (1 mar — 31 mar): 31 días"
+    #   "Días de incapacidad: 13 días"
+    #   "──────────────────────────────"
+    #   "Días laborados efectivos: 18 días"
+    #
+    # Campos usados:
+    #   - dias_laborados_periodo: store=True, computed en _compute_extras
+    #     desde (date_to - date_from).days + 1 - disability_days_in_period
+    #   - days_in_period: store=True, computed en _compute_proportional_days
+    #     desde (date_to - date_from).days + 1 (mismo cálculo, siempre confiable)
+    # ── Changelog v5.28.37 (Fix días laborados) ──────────────────────────────
+    # BUG: "Período total: 0 días" — days_in_period solo se computa cuando
+    #   is_proportional=True. Para boletas normales (fijo) era 0.
+    # FIX-01: Fila "Con incapacidad" — eliminado "Período total: N días".
+    #   Ahora solo muestra: "Días de incapacidad en el período: 13 días"
+    #   La línea de salario ya describe los días laborados implícitamente.
+    # FIX-02: Fila "Sin incapacidad" — reemplazado el campo days_in_period
+    #   por texto estático según effective_frequency:
+    #   Quincenal → "Días laborados en el período: 15 días"
+    #   Mensual   → 30, Semanal → 7, Bimensual → 60
+    # ── Changelog v5.28.36 (Espaciado) ───────────────────────────────────────
     # Más espacio entre secciones y filas para mejorar legibilidad:
     # - Headers: margin-top 16→24px, padding-bottom 6→8px
     # - Filas de tabla: padding 4px→6px vertical
