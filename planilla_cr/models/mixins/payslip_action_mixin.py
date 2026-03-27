@@ -218,22 +218,78 @@ class PayslipActionMixin(models.AbstractModel):
             if charge_lines:
                 charge_ids_list = [l.employee_charge_id for l in charge_lines if l.employee_charge_id]
                 if charge_ids_list:
-                    charges = self.env['planilla.employee.charge'].browse(charge_ids_list).filtered(
-                        lambda c: c.state == 'applied' and c.payslip_id.id == rec.id
+                    # FIX BUG-COBRO-01: separar cobros únicos de recurrentes.
+                    all_charges = self.env['planilla.employee.charge'].browse(charge_ids_list)
+                    # Únicos (applied) → volver a approved
+                    unique_charges = all_charges.filtered(
+                        lambda c: not c.is_recurring and c.state == 'applied'
+                                  and c.payslip_id.id == rec.id
                     )
-                    if charges:
-                        charges.write({'state': 'approved', 'payslip_id': False})
+                    if unique_charges:
+                        unique_charges.write({'state': 'approved', 'payslip_id': False})
+                    # Recurrentes → limpiar el período de applied_periods
+                    recurring_charges = all_charges.filtered(lambda c: c.is_recurring)
+                    for charge in recurring_charges:
+                        charge._remove_period_applied(rec.date_from)
+                        # Si ya no tiene más períodos activos, limpiar payslip_id
+                        if not charge.applied_periods:
+                            charge.payslip_id = False
             rec.state = 'cancelled'
 
     def action_reset_to_draft(self) -> None:
         for rec in self:
             if rec.state not in ('cancelled', 'confirmed'):
                 raise UserError('Solo se pueden reactivar boletas canceladas o confirmadas.')
-            # FIX-AUD-12: limpiar el vínculo payslip_id en licencias para que
-            # puedan resincronizarse si la boleta vuelve a confirmarse/pagarse.
+
+            # FIX BUG-UNLINK-01: restaurar TODOS los objetos vinculados al volver
+            # a borrador, no solo leave_cr. Permite resincronizar completamente.
+
+            # Cuotas de préstamo: deducted → pending
+            loan_lines = rec.deduction_line_ids.filtered(lambda l: l.loan_installment_id)
+            for line in loan_lines:
+                inst = line.loan_installment_id
+                if inst and inst.state == 'deducted' and inst.payslip_id.id == rec.id:
+                    inst.write({'state': 'pending', 'payslip_id': False})
+                    if inst.loan_id and inst.loan_id.state == 'paid':
+                        inst.loan_id.write({'state': 'active'})
+
+            # Horas extra: paid → approved
+            rec.overtime_ids.filtered(
+                lambda o: o.state == 'paid'
+            ).write({'state': 'approved'})
+
+            # Vacaciones: paid → approved
+            rec.vacation_ids.filtered(
+                lambda v: v.state == 'paid'
+            ).write({'state': 'approved'})
+
+            # Incapacidades: paid → confirmed
+            rec.disability_ids.filtered(
+                lambda d: d.state == 'paid'
+            ).write({'state': 'confirmed'})
+
+            # Licencias especiales CR: paid → approved + limpiar payslip_id
             rec.leave_cr_ids.filtered(
                 lambda l: l.state in ('paid', 'approved')
             ).write({'payslip_id': False, 'state': 'approved'})
+
+            # Cobros recurrentes: limpiar período de applied_periods
+            charge_lines = rec.deduction_line_ids.filtered(lambda l: l.employee_charge_id)
+            if charge_lines:
+                charge_ids = [l.employee_charge_id for l in charge_lines if l.employee_charge_id]
+                if charge_ids:
+                    all_charges = self.env['planilla.employee.charge'].browse(charge_ids).exists()
+                    for charge in all_charges.filtered(lambda c: c.is_recurring):
+                        if rec.date_from:
+                            charge._remove_period_applied(rec.date_from)
+                        if not charge.applied_periods:
+                            charge.payslip_id = False
+                    unique = all_charges.filtered(
+                        lambda c: not c.is_recurring and c.state == 'applied'
+                    )
+                    if unique:
+                        unique.write({'state': 'approved', 'payslip_id': False})
+
             rec.state = 'draft'
 
     def action_send_payslip(self):

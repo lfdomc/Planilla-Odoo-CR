@@ -903,6 +903,16 @@ class PayrollRunCR(models.Model):
                     f'publicado (#{rec.move_id.name}). '
                     'Primero revierta o cancele el asiento desde Contabilidad.'
                 )
+            # FIX BUG-UNLINK-01: llamar action_cancel en las boletas antes de borrarlas
+            # para que el unlink() de PayslipCR restaure todos los objetos vinculados
+            # (préstamos, HE, vacaciones, incapacidades, cobros, licencias).
+            # Sin esto, el cascade delete de la BD borraba las boletas sin pasar por
+            # el ORM de Odoo, dejando huérfanos en todos los modelos relacionados.
+            slips_to_clean = rec.payslip_ids.filtered(
+                lambda p: p.state not in ('cancelled',)
+            )
+            if slips_to_clean:
+                slips_to_clean.action_cancel()
         return super().unlink()
 
     def action_reset_to_draft(self):

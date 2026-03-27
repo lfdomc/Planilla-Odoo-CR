@@ -277,11 +277,97 @@ class PlanillaEmployeeCharge(models.Model):
         periods.add(period_key)
         self.applied_periods = ','.join(sorted(periods))
 
-    def _is_period_already_applied(self, date_from) -> bool:
-        """Verifica si el período YYYY-MM ya fue aplicado en este cobro recurrente."""
+    def _remove_period_applied(self, date_from) -> None:
+        """
+        Elimina el período YYYY-MM de applied_periods.
+        Llamado cuando la boleta que lo aplicó es cancelada o borrada.
+        """
         self.ensure_one()
         period_key = str(date_from)[:7]
-        return period_key in self._get_applied_periods_set()
+        periods = self._get_applied_periods_set()
+        if period_key in periods:
+            periods.discard(period_key)
+            self.applied_periods = ','.join(sorted(periods)) if periods else False
+            _logger.info(
+                'planilla_cr.employee_charge: período huérfano "%s" eliminado de cobro "%s".',
+                period_key, self.name
+            )
+
+    def _is_period_already_applied(self, date_from) -> bool:
+        """
+        Verifica si el período YYYY-MM ya fue aplicado en este cobro recurrente.
+
+        FIX BUG-COBRO-01: Verificación activa de huérfanos.
+        Si el período está en applied_periods pero NO existe una línea de deducción
+        activa (en boleta no cancelada) que lo referencie, el período se considera
+        huérfano (la boleta original fue borrada sin cancelar). Se limpia
+        automáticamente y se permite re-aplicar el cobro.
+        """
+        self.ensure_one()
+        period_key = str(date_from)[:7]
+        if period_key not in self._get_applied_periods_set():
+            return False   # nunca aplicado en este período
+
+        # El período está marcado → verificar que exista una boleta ACTIVA
+        # (estado draft, confirmed o paid) con una línea de deducción de este cobro.
+        active_line = self.env['planilla.payslip.deduction.line'].search([
+            ('employee_charge_id', '=', self.id),
+            ('payslip_id.state', 'in', ('draft', 'confirmed', 'paid')),
+        ], limit=1)
+
+        if active_line:
+            return True   # hay boleta activa → período realmente aplicado
+
+        # No hay boleta activa → período HUÉRFANO (boleta borrada/cancelada sin limpiar)
+        _logger.warning(
+            'planilla_cr.employee_charge: período "%s" huérfano en cobro "%s" (ID %d). '
+            'No existe boleta activa con este cobro — limpiando y permitiendo re-aplicar.',
+            period_key, self.name, self.id
+        )
+        self._remove_period_applied(date_from)
+        return False   # permitir re-aplicar
+
+    def action_clean_orphan_periods(self):
+        """
+        Botón manual: verifica y limpia períodos huérfanos en applied_periods.
+        Un período es huérfano si no hay ninguna boleta activa (draft/confirmed/paid)
+        que tenga una línea de deducción referenciando este cobro.
+        Útil cuando el usuario borra boletas sin cancelarlas.
+        """
+        for rec in self:
+            if not rec.applied_periods:
+                continue
+            periods = rec._get_applied_periods_set()
+            # Obtener los períodos que SÍ tienen boleta activa
+            active_lines = self.env['planilla.payslip.deduction.line'].search([
+                ('employee_charge_id', '=', rec.id),
+                ('payslip_id.state', 'in', ('draft', 'confirmed', 'paid')),
+            ])
+            active_periods = set()
+            for line in active_lines:
+                if line.payslip_id.date_from:
+                    active_periods.add(str(line.payslip_id.date_from)[:7])
+
+            orphans = periods - active_periods
+            if orphans:
+                periods -= orphans
+                rec.applied_periods = ','.join(sorted(periods)) if periods else False
+                _logger.info(
+                    'planilla_cr.employee_charge: %d período(s) huérfano(s) limpiados '
+                    'de cobro "%s": %s',
+                    len(orphans), rec.name, orphans
+                )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Períodos Huérfanos Limpiados',
+                'message': 'Los períodos sin boleta activa han sido eliminados. '
+                           'El cobro puede aplicarse nuevamente.',
+                'type': 'success',
+                'sticky': False,
+            },
+        }
 
     # ── Computed fields ───────────────────────────────────────────────
     @api.depends('employee_id', 'charge_type_id', 'date_from')

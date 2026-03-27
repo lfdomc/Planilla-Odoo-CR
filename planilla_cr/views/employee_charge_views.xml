@@ -163,6 +163,12 @@
                             string="Reactivar a Borrador"
                             invisible="state != 'cancelled'"
                             groups="planilla_cr.group_planilla_aprobador"/>
+                    <button name="action_clean_orphan_periods" type="object"
+                            string="🔄 Limpiar Períodos Huérfanos"
+                            class="btn-warning"
+                            invisible="not applied_periods or state == 'cancelled'"
+                            groups="planilla_cr.group_planilla_aprobador"
+                            confirm="Esto eliminará períodos aplicados que ya no tienen boleta activa. ¿Continuar?"/>
                     <button name="action_print_charge" type="object"
                             string="🖨 Imprimir" class="btn-secondary"
                             invisible="state == 'draft'"/>
@@ -214,6 +220,15 @@
                                invisible="not is_recurring"
                                readonly="1"/>
                     </group>
+                    <!-- Advertencia de período huérfano -->
+                    <div invisible="not applied_periods or state == 'cancelled'"
+                         class="alert alert-warning" role="alert">
+                        <strong>⚠️ Cobro no aplicado en boleta actual</strong><br/>
+                        Este cobro tiene períodos registrados en <em>Períodos Aplicados</em>.
+                        Si fue excluido de una boleta que luego se borró o está en borrador,
+                        use el botón <strong>🔄 Limpiar Períodos Huérfanos</strong> para
+                        permitir que el sistema lo aplique en la próxima sincronización.
+                    </div>
                     <group string="Resumen de Montos" col="3">
                         <field name="total_amount" readonly="1"/>
                         <field name="employer_amount" readonly="1"/>

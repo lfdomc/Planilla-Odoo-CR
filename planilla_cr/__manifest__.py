@@ -1,6 +1,32 @@
 {
-    'name': 'Sistema Planilla v5.28.47-PROD',
-    'version': '19.0.5.28.47',
+    'name': 'Sistema Planilla v5.28.49-PROD',
+    'version': '19.0.5.28.49',
+    # ── Changelog v5.28.49 (FIX BUG-UNLINK-01 — huerfanos en todos los modelos) ──
+    # PROBLEMA: Borrar una boleta sin cancelar dejaba estado corrupto en 5 modelos:
+    #   - loan_installment: state='deducted' sin boleta → cuota bloqueada para siempre
+    #   - overtime: state='paid' sin boleta → HE no se puede replicar
+    #   - vacation_payment: state='paid' sin boleta → vacaciones bloqueadas
+    #   - leave_cr: state='paid' sin boleta → licencia bloqueada
+    #   - disability: state='paid' sin boleta → incapacidad bloqueada
+    # Solo employee_charge tenía el fix (v5.28.48). Los 5 restantes no.
+    # FIX 1 — PayslipCR.unlink() ampliado: restaura los 6 tipos de objeto vinculado.
+    # FIX 2 — action_reset_to_draft ampliado: antes solo restauraba leave_cr.
+    #   Ahora restaura los 6 tipos para que el borrador pueda resincronizar.
+    # FIX 3 — PayrollRunCR.unlink(): antes el cascade de BD borraba las boletas
+    #   directamente sin pasar por el ORM. Ahora llama action_cancel() en las
+    #   boletas activas antes del super().unlink(), asegurando que todos los
+    #   objetos vinculados se restauren antes del borrado en cascada.
+    # Cobertura: unlink + reset_to_draft + action_cancel → 6 entidades × 3 métodos
+    # ── Changelog v5.28.48 (Fix BUG-COBRO-01 cobros recurrentes huerfanos) ───────
+    # PROBLEMA: Cobros recurrentes con applied_periods='2026-03' no se aplicaban
+    #   en boletas nuevas cuando la boleta original fue BORRADA sin cancelar.
+    # FIX 1: _is_period_already_applied verifica si existe boleta activa con
+    #   ese cobro. Si no hay boleta activa, el período es huérfano y se limpia.
+    # FIX 2: PayslipCR.unlink() nuevo override — al borrar boleta, limpia
+    #   applied_periods de cobros recurrentes y restaura cobros únicos a approved.
+    # FIX 3: action_cancel actualizado — separa recurrentes de únicos correctamente.
+    # NUEVO: action_clean_orphan_periods — botón manual para limpiar datos legacy.
+    # NUEVO: alerta naranja en vista del cobro cuando applied_periods tiene datos.
     # ── Changelog v5.28.47 (Fix batch sync bono puntual) ─────────────────────
     # BUG: _sync_bonos_batch (planillas grupales con +200 empleados) no
     #   propagaba is_recurring_bono a las líneas de deducción. Solo
