@@ -16,7 +16,8 @@
                 <field name="fecha_parto" optional="show"/>
                 <field name="prenatal_days" optional="show"/>
                 <field name="postnatal_days" optional="show"/>
-                <field name="employer_cost"/>
+                <field name="is_prorroga" string="Prórroga" widget="boolean_toggle" optional="show"/>
+                <field name="employer_cost" decoration-success="employer_cost == 0 and is_prorroga"/>
                 <field name="ccss_subsidy"/>
                 <field name="state"/>
             </list>
@@ -125,7 +126,16 @@
                     <group string="Documentación">
                         <field name="certificate_number"/>
                         <field name="diagnosis"/>
+                        <field name="is_prorroga" widget="boolean_toggle"/>
+                        <field name="prorroga_de_id" readonly="1"
+                               invisible="not is_prorroga"/>
                     </group>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not is_prorroga">
+                        <i class="fa fa-info-circle"/> <strong>Prórroga del mismo evento:</strong>
+                        Los 3 días del tramo patronal (Art. 79 CT) ya se agotaron en el certificado original.
+                        El patrono NO paga subsidio en esta incapacidad — todo el costo es a cargo de la CCSS (60%).
+                    </div>
                     <field name="note" placeholder="Observaciones..."/>
                 </sheet>
                 <chatter/>

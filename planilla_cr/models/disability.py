@@ -100,6 +100,28 @@ class Disability(models.Model):
     diagnosis = fields.Char(string='Diagnostico')
     note = fields.Text(string='Observaciones')
 
+    # ── Prórroga / Continuidad ────────────────────────────────────────
+    is_prorroga = fields.Boolean(
+        string='Es Prórroga',
+        default=False,
+        tracking=True,
+        help='Marque si esta incapacidad es una PRÓRROGA (continuación) de una '
+             'incapacidad inmediatamente anterior del mismo empleado.\n\n'
+             'Regla legal CR (CCSS): cuando una incapacidad inicia el día siguiente '
+             'a que termina otra del mismo empleado, es prórroga del mismo evento. '
+             'Los 3 días del tramo patronal (Art. 79 CT) NO se reinician — ya se '
+             'agotaron en el certificado original.\n\n'
+             'Si es prórroga: employer_cost = ₡0, todo el subsidio es a cargo de '
+             'la CCSS (60%). El sistema detecta automáticamente si el registro '
+             'inicia el día siguiente a uno existente y activa esta bandera.'
+    )
+    prorroga_de_id = fields.Many2one(
+        'planilla.disability',
+        string='Prórroga de',
+        help='Referencia a la incapacidad original de la que este registro es prórroga.',
+        ondelete='set null'
+    )
+
     state = fields.Selection([
         ('draft',     'Borrador'),
         ('confirmed', 'Confirmado'),
@@ -108,6 +130,7 @@ class Disability(models.Model):
     ], string='Estado', default='draft', tracking=True)
 
     payslip_id = fields.Many2one('planilla.payslip.cr', string='Boleta de Pago')
+
 
     @api.depends('employee_id', 'date_start')
     def _compute_name(self):
@@ -165,7 +188,8 @@ class Disability(models.Model):
                 rec.maternity_avg_salary = 0.0
 
     @api.depends('days', 'daily_salary', 'maternity_avg_salary',
-                 'subsidy_percentage', 'employer_percentage', 'disability_type')
+                 'subsidy_percentage', 'employer_percentage',
+                 'disability_type', 'is_prorroga')
     def _compute_costs(self):
         for rec in self:
             if rec.disability_type == 'maternity':
@@ -176,20 +200,87 @@ class Disability(models.Model):
             elif rec.disability_type == 'ins':
                 rec.employer_cost = 0.0
                 rec.ccss_subsidy = round(rec.days * rec.daily_salary, 2)
+            elif rec.is_prorroga:
+                # Prórroga: los 3 días del tramo patronal ya se agotaron en el
+                # certificado original. Todo el subsidio es a cargo de la CCSS.
+                # Base legal: Art. 79 CT / Circular CCSS sobre continuidad de
+                # incapacidades (sin brecha entre certificados = mismo evento).
+                rec.employer_cost = 0.0
+                rec.ccss_subsidy = round(
+                    rec.days * rec.daily_salary * rec.subsidy_percentage / 100, 2
+                )
             else:
-                # Art. 79 CT: días 1-3 → 50% patrono + 50% CCSS (mandato legal fijo).
-                # días 4+ → 60% CCSS (subsidy_percentage), patrono puede complementar
-                # voluntariamente (employer_percentage, default 0%).
-                first_days = min(rec.days, 3)
+                # Art. 79 CT: días 1-3 → 50% patrono + 50% CCSS.
+                # días 4+ → subsidy_percentage% CCSS, patrono puede complementar.
+                first_days    = min(rec.days, 3)
                 remaining_days = max(rec.days - 3, 0)
                 rec.employer_cost = round(
-                    (first_days * rec.daily_salary * 0.50) +          # 50% patrono días 1-3 (Art. 79 CT)
-                    (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2  # complemento voluntario
+                    (first_days * rec.daily_salary * 0.50) +
+                    (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2
                 )
                 rec.ccss_subsidy = round(
-                    (first_days * rec.daily_salary * 0.50) +           # 50% CCSS días 1-3 (Art. 79 CT)
+                    (first_days * rec.daily_salary * 0.50) +
                     (remaining_days * rec.daily_salary * rec.subsidy_percentage / 100), 2
                 )
+
+    @api.depends('employee_id', 'date_start', 'disability_type')
+    def _compute_is_prorroga(self):
+        """Detecta automáticamente si esta incapacidad es prórroga de otra.
+        Condición: existe una incapacidad del mismo empleado cuyo date_end
+        es exactamente el día anterior a este date_start.
+        """
+        from datetime import timedelta
+        for rec in self:
+            if not rec.employee_id or not rec.date_start or rec.disability_type == 'maternity':
+                rec.is_prorroga = False
+                rec.prorroga_de_id = False
+                continue
+            fecha_anterior = rec.date_start - timedelta(days=1)
+            anterior = self.search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('date_end', '=', fecha_anterior),
+                ('disability_type', '!=', 'maternity'),
+                ('state', 'not in', ['cancelled']),
+                ('id', '!=', rec.id),
+            ], limit=1)
+            if anterior:
+                rec.is_prorroga = True
+                rec.prorroga_de_id = anterior.id
+            else:
+                # No forzar is_prorroga=False si ya fue marcado manualmente
+                if not rec.is_prorroga:
+                    rec.prorroga_de_id = False
+
+    @api.onchange('employee_id', 'date_start')
+    def _onchange_detect_prorroga(self):
+        """Al ingresar empleado o fecha inicio, detectar si es prórroga."""
+        from datetime import timedelta
+        for rec in self:
+            if not rec.employee_id or not rec.date_start or rec.disability_type == 'maternity':
+                continue
+            fecha_anterior = rec.date_start - timedelta(days=1)
+            anterior = self.env['planilla.disability'].search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('date_end', '=', fecha_anterior),
+                ('disability_type', '!=', 'maternity'),
+                ('state', 'not in', ['cancelled']),
+            ], limit=1)
+            if anterior and not rec.is_prorroga:
+                rec.is_prorroga = True
+                rec.prorroga_de_id = anterior.id
+                return {
+                    'warning': {
+                        'title': '⚠️ Prórroga detectada',
+                        'message': (
+                            f'Esta incapacidad inicia el día siguiente a "{anterior.name}" '
+                            f'({anterior.date_start} → {anterior.date_end}).\n\n'
+                            f'Se marcó automáticamente como PRÓRROGA. El patrono no '
+                            f'paga los primeros 3 días (ya se agotaron en el certificado '
+                            f'original). Todo el subsidio es a cargo de la CCSS (60%).'
+                        )
+                    }
+                }
+
 
     @api.onchange('disability_type')
     def _onchange_disability_type(self):

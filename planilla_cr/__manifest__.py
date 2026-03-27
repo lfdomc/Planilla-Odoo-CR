@@ -1,7 +1,28 @@
 {
-    'name': 'Sistema Planilla v5.28.13-PROD',
-    'version': '19.0.5.28.13',
-    # ── Changelog v5.28.13 (Fix prorrogas — días patronal no se reinician) ───
+    'name': 'Sistema Planilla v5.28.14-PROD',
+    'version': '19.0.5.28.14',
+    # ── Changelog v5.28.14 (Prórroga en disability — fix desde el origen) ────
+    # PROBLEMA: La v5.28.13 corregía el cálculo en la boleta, pero el registro
+    #   de incapacidad seguía mostrando employer_cost=₡19,500 para la prórroga.
+    #   El error era visible en la pantalla y confundía al usuario.
+    # SOLUCIÓN: Fix en el modelo disability.py — detectar y marcar la prórroga
+    #   desde el momento de la creación del registro.
+    # NEW-01: Campo is_prorroga (Boolean, tracking=True) en planilla.disability.
+    #   Marcar = los 3 días patronal no aplican — employer_cost=₡0.
+    # NEW-02: Campo prorroga_de_id (Many2one) — referencia al registro original.
+    # NEW-03: _compute_is_prorroga() — detecta automáticamente si date_start es
+    #   el día siguiente al date_end de otra incapacidad del mismo empleado.
+    # NEW-04: _onchange_detect_prorroga() — al ingresar empleado y fecha inicio,
+    #   muestra aviso "⚠️ Prórroga detectada" y activa is_prorroga automáticamente.
+    # MOD-01: _compute_costs() — bloque elif is_prorroga: employer_cost=₡0,
+    #   ccss_subsidy = días × daily × subsidy_pct/100 (100% subsidiados CCSS).
+    # MOD-02: disability_views.xml — formulario: campo is_prorroga con toggle,
+    #   prorroga_de_id visible si es prórroga, alerta naranja explicando la regla.
+    #   Lista: columna is_prorroga opcional, employer_cost resaltado en verde si=0.
+    # RESULTADO: Al crear la segunda incapacidad de Raichel (10-mar, inicia el
+    #   día siguiente de 9-mar), el sistema detecta prórroga automáticamente,
+    #   employer_cost=₡0, ccss_subsidy=₡31,200 (4×13k×60%). Igual en la boleta.
+    # ── Changelog v5.28.13 (Fix prorrogas en boleta) ─────────────────────────
     # REGLA LEGAL CR (CCSS): Si una incapacidad inicia el día siguiente a que
     #   termina otra del mismo empleado, es una PRÓRROGA del mismo evento.
     #   Los 3 días del tramo patronal (Art. 79 CT) NO se reinician — se comparten
