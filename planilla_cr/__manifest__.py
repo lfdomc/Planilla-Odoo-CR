@@ -1,7 +1,141 @@
 {
-    'name': 'Sistema Planilla v5.28.23-PROD',
-    'version': '19.0.5.28.23',
-    # ── Changelog v5.28.23 (Fix días laborados + divisores visibles) ──────────
+    'name': 'Sistema Planilla v5.28.35-PROD',
+    'version': '19.0.5.28.35',
+    # ── Changelog v5.28.35 (Fix divisores — color hardcoded) ─────────────────
+    # Las líneas divisoras de los títulos de sección no se veían porque
+    # border-bottom:1px solid var(--color-border-secondary) no renderizaba
+    # en el contexto del Resumen Completo (variable CSS no resolvía).
+    # Fix: cambiado a border-bottom:2px solid #dee2e6 (color hardcoded
+    # equivalente al gris estándar de Bootstrap/Odoo). Ahora siempre visible.
+    # ── Changelog v5.28.34 (Fix div incapacidad sin cerrar) ──────────────────
+    # BUG: El <div invisible="disability_days_in_period == 0"> de la sección
+    #   INCAPACIDADES no tenía su </div> de cierre. Esto hacía que todas las
+    #   secciones siguientes (Deducciones, Resultado, Cargas) quedaran dentro
+    #   de ese div invisible, por lo que desaparecían cuando no había
+    #   incapacidades — que es el caso de Walter Barrantes.
+    # FIX: Añadido </div><!-- /disability wrapper --> después del cierre
+    #   de la tabla de incapacidades, antes de la sección de Licencias.
+    # También corregido: el </div> extra añadido en v5.28.28 para el wrapper
+    #   max-width fue removido (ya estaba de más después de v5.28.33).
+    # Verificado: XML válido + balance de divs = 0 en Resumen Completo.
+    # ── Changelog v5.28.33 (Fix secciones separator dentro de div) ───────────
+    # PROBLEMA: <separator string="X"/> solo funciona como hijo DIRECTO de
+    #   <page> o <form> en Odoo 19. Dentro de un <div> wrapper (como el
+    #   max-width:720px del Resumen Completo), los separators son ignorados
+    #   y toda la sección después de Ingresos desaparecía.
+    # FIX: Reemplazados todos los <separator> del Resumen Completo por
+    #   <div style="...border-bottom:1px solid...">Título</div>
+    #   Esto garantiza el renderizado dentro de cualquier contenedor div.
+    #   Los separators en otras pestañas (Vacaciones, Ingresos, etc.) que
+    #   son hijos directos de <page> no fueron modificados — siguen funcionando.
+    # ── Changelog v5.28.32 (Fix — sin campos nuevos en vista) ────────────────
+    # PROBLEMA RAÍZ DEFINITIVO: Odoo valida las vistas XML contra el ORM en
+    #   tiempo de carga. Cualquier campo nuevo en <field name="X"> que no
+    #   exista todavía en la instancia en ejecución causa ParseError/OwlError.
+    #   Esto aplica tanto a CLI update como a UI upgrade button.
+    # SOLUCIÓN FINAL: La vista NO usa ningún campo nuevo.
+    #   Los campos credit_conyuge, credit_hijos, income_tax_children_count,
+    #   tax_credits_detail existen en el modelo (store=True) para reportes
+    #   futuros, pero la vista del Resumen Completo solo los muestra como
+    #   texto estático:
+    #     "Cónyuge: ₡2,590/mes · Hijos: ₡1,710/mes c/u (proporcional)"
+    #   El TOTAL sigue usando income_tax_credits (campo existente).
+    #   Para ver el desglose exacto en colones, el usuario puede ir a la
+    #   ficha del empleado o a la pestaña "Abonos y Deducciones".
+    # ── Changelog v5.28.31 (Fix OWL credit_conyuge undefined) ────────────────
+    # ERROR: "planilla.payslip.cr.credit_conyuge field is undefined"
+    # CAUSA RAÍZ: El cliente JS de Odoo 19 (OWL) construye el modelo de campos
+    #   en tiempo de compilación de la vista. Campos nuevos agregados al modelo
+    #   Python (credit_conyuge, credit_hijos, income_tax_children_count) son
+    #   reconocidos por el servidor pero el cliente JS los desconoce si la
+    #   caché del browser no se ha refrescado completamente.
+    # SOLUCIÓN DEFINITIVA: Un solo campo Char (tax_credits_detail) construye
+    #   el texto del desglose en Python durante el cómputo:
+    #   "Cónyuge: ₡1,295.00  ·  2 hijo(s): ₡1,710.00"
+    #   La vista solo usa <field name="tax_credits_detail"> — un Char simple
+    #   que no requiere widget especial ni causa problemas de reconocimiento.
+    # Los campos monetarios credit_conyuge, credit_hijos e
+    #   income_tax_children_count siguen en el modelo (store=True) para
+    #   reportes, pero ya NO aparecen en la vista.
+    # ── Changelog v5.28.30 (income_tax_children_count) ───────────────────────
+    # MEJORA: La línea de crédito fiscal ahora muestra el número exacto de hijos.
+    # NEW-01: payslip_cr — campo income_tax_children_count (Integer, computed,
+    #   stored). Copia el valor de employee_id.income_tax_children al momento
+    #   del cálculo, evitando la notación de punto en la vista.
+    # MOD-01: _compute_deductions — asigna income_tax_children_count.
+    # MOD-02: payslip_cr_views — la fila ahora muestra:
+    #   "2 hijo(s): + ₡1,710.00" en lugar de "Hijos: + ₡1,710.00"
+    # Ejemplo con 1 cónyuge + 2 hijos (quincenal):
+    #   Créditos Fiscales — cargas familiares (Art. 34 LIR)  + ₡2,565.00
+    #     Cónyuge: + ₡1,295.00   2 hijo(s): + ₡1,710.00
+    # ── Changelog v5.28.29 (Fix ParseError employee_id.income_tax_children) ──
+    # ERROR: 'El campo "employee_id.income_tax_children" no existe en el modelo
+    #   "planilla.payslip.cr"'. Las vistas de Odoo NO permiten notación de punto
+    #   (related fields) en <field name="x.y"> directamente en el form view.
+    # FIX: Eliminado "employee_id.income_tax_children" de la vista.
+    #   La fila de hijos ahora muestra solo el monto:
+    #   "Hijos: + ₡855.00" en lugar de "2 hijo(s): + ₡855.00".
+    #   El monto ya es autoexplicativo; si el usuario necesita saber cuántos
+    #   hijos, puede verlo en la ficha del empleado.
+    # XML verificado con lxml — sin errores de sintaxis ni campos inválidos.
+    # ── Changelog v5.28.28 (Fix div sin cerrar) ──────────────────────────────
+    # ERROR: "Opening and ending tag mismatch: div line 163 and page, line 569"
+    # CAUSA: Al refactorizar las secciones con <separator> en v5.28.26,
+    #   el div wrapper <div style="max-width:720px; margin:0 auto;"> de la
+    #   línea 163 quedó sin su </div> de cierre correspondiente.
+    # FIX: Añadido </div> faltante antes de </page>.
+    # Verificado con lxml.etree.parse() — XML válido.
+    # ── Changelog v5.28.27 (Desglose créditos fiscales) ──────────────────────
+    # MEJORA: La línea "Créditos Fiscales (Art. 34 LIR) + ₡1,295" ahora muestra
+    #   el desglose de qué parte corresponde al cónyuge y cuál a los hijos.
+    #   Ejemplo con 1 cónyuge + 0 hijos:
+    #     Créditos Fiscales — cargas familiares (Art. 34 LIR)  + ₡1,295.00
+    #       Cónyuge: + ₡1,295.00
+    #   Ejemplo con 1 cónyuge + 2 hijos:
+    #     Créditos Fiscales — cargas familiares (Art. 34 LIR)  + ₡2,150.00
+    #       Cónyuge: + ₡1,295.00  2 hijo(s): + ₡855.00
+    # NEW-01: payslip_cr — campos credit_conyuge y credit_hijos (Monetary,
+    #   compute='_compute_deductions', store=True).
+    # MOD-01: payslip_compute_mixin._compute_deductions — calcula credit_hijos
+    #   y credit_conyuge usando K.CREDITO_FISCAL_HIJO/CONYUGE × freq_factor.
+    # MOD-02: payslip_cr_views — fila income_tax_credits ampliada con span
+    #   de detalle mostrando cónyuge e hijos cuando son > 0.
+    # ── Changelog v5.28.26 (Separadores nativos Odoo en Resumen) ─────────────
+    # MEJORA: Las secciones del Resumen Completo ahora usan el tag nativo
+    #   <separator string="Título"/> de Odoo, igual que la pestaña
+    #   "Abonos y Deducciones" y otras pestañas del módulo.
+    #   Esto genera automáticamente la línea gris divisoria con el texto
+    #   de la sección, integrado con el tema visual de Odoo 19.
+    # Secciones actualizadas:
+    #   - Ingresos del Período
+    #   - Incapacidades del Período (condicional)
+    #   - Licencias Sin Goce / Ausencias (condicional)
+    #   - Deducciones Legales
+    #   - Deducciones Adicionales
+    #   - Cargas Patronales
+    # También: eliminados los dividers manuales (height:1px div) que no
+    #   renderizaban correctamente, reemplazados por los separators nativos.
+    # ── Changelog v5.28.25 (Fix OwlError dias_laborados) ─────────────────────
+    # ERROR: "planilla.payslip.cr.dias_laborados_periodo field is undefined"
+    # CAUSA: El campo fue añadido al modelo Python (v5.28.22) pero el frontend
+    #   OWL de Odoo 19 no lo reconoce porque el cliente JS no recibió la nueva
+    #   definición del campo (requiere reinicio completo + update).
+    # FIX: Eliminado dias_laborados_periodo de la vista completamente.
+    #   Reemplazado por campos ya existentes y reconocidos:
+    #   - days_in_period (total días del período)
+    #   - disability_days_in_period (días de incapacidad)
+    #   Display resultante:
+    #   Sin incapacidad: "Días laborados en el período: 15 días"
+    #   Con incapacidad: "Días de incapacidad: 13 · Período total: 15 días"
+    #   El campo dias_laborados_periodo sigue en el modelo Python (store=True)
+    #   para futuros reportes, pero la vista ya no lo referencia.
+    # ── Changelog v5.28.24 (Fix divisores — div height:1px) ──────────────────
+    # <hr> tampoco renderiza en Odoo 19 view system.
+    # Solución: div no-self-closing con height:1px y background-color.
+    # <div style="height:1px;background:var(--color-border-secondary);">&#160;</div>
+    # El &#160; (non-breaking space) fuerza al div a tener contenido real
+    # y renderizarse como una línea horizontal visible de 1px de alto.
+    # ── Changelog v5.28.23 (Fix días laborados + <hr> divisores) ─────────────
     # FIX-01: "2 de 0 días" — days_in_period puede ser 0 si la boleta no tiene
     #   proporcionalidad activa. Cambiado el formato de la fila a:
     #   "Días laborados: 2 días · Días de incapacidad: 13 días"

@@ -162,6 +162,26 @@ class PayslipCR(models.Model):
              'Este monto ya está descontado del Impuesto de Renta mostrado arriba. '
              'Créditos 2026: ₡1,710/hijo/mes · ₡2,590/cónyuge/mes.'
     )
+    credit_conyuge = fields.Monetary(
+        string='Crédito por Cónyuge', currency_field='currency_id',
+        compute='_compute_deductions', store=True,
+        help='Crédito fiscal por cónyuge (Art. 34 LIR). ₡2,590/mes proporcional a la frecuencia.'
+    )
+    credit_hijos = fields.Monetary(
+        string='Crédito por Hijos', currency_field='currency_id',
+        compute='_compute_deductions', store=True,
+        help='Crédito fiscal por hijos dependientes (Art. 34 LIR). ₡1,710/hijo/mes.'
+    )
+    income_tax_children_count = fields.Integer(
+        string='Hijos con crédito fiscal',
+        compute='_compute_deductions', store=True,
+        help='Copia del número de hijos con crédito fiscal del empleado al momento del cálculo.'
+    )
+    tax_credits_detail = fields.Char(
+        string='Detalle créditos fiscales',
+        compute='_compute_deductions', store=True,
+        help='Texto descriptivo del desglose de créditos fiscales: cónyuge e hijos.'
+    )
     pensioner_type = fields.Selection(
         related='employee_id.pensioner_type',
         string='Tipo de pensionado', store=True,

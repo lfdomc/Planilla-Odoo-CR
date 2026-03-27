@@ -518,6 +518,20 @@ class PayslipComputeMixin(models.AbstractModel):
             tax_neto, creditos = rec._calc_income_tax(g, rec.ccss_employee)
             rec.income_tax        = round(tax_neto, 2)
             rec.income_tax_credits = round(creditos, 2)
+            # Desglose de créditos para mostrar en Resumen
+            _freq   = rec._get_effective_freq() if hasattr(rec, '_get_effective_freq') else 'biweekly'
+            _ff     = K.FREQ_FACTORS.get(_freq, 0.5)
+            _emp    = rec.employee_id
+            rec.credit_hijos   = round((_emp.income_tax_children or 0) * K.CREDITO_FISCAL_HIJO * _ff, 2)
+            rec.credit_conyuge = round(K.CREDITO_FISCAL_CONYUGE * _ff if _emp.income_tax_spouse_credit else 0.0, 2)
+            rec.income_tax_children_count = _emp.income_tax_children or 0
+            # Texto de detalle para mostrar en la vista (evita campos monetarios nuevos en OWL)
+            parts = []
+            if rec.credit_conyuge:
+                parts.append(f"Cónyuge: ₡{rec.credit_conyuge:,.2f}")
+            if rec.credit_hijos and rec.income_tax_children_count:
+                parts.append(f"{rec.income_tax_children_count} hijo(s): ₡{rec.credit_hijos:,.2f}")
+            rec.tax_credits_detail = '  ·  '.join(parts) if parts else ''
             rec.ccss_employer = round(g * ccss_pat, 2)
             risk              = rec.employee_id.ins_risk_class or 'II'
             rec.ins_employer  = round(g * rh.get_ins_rate(risk), 2)

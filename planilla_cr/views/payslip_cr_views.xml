@@ -172,17 +172,22 @@
                                 </div>
 
                                 <!-- ─── INGRESOS ─────────────────────────────── -->
-                                <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
-                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Ingresos del Período</div>
+                                <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;margin:16px 0 8px;border-bottom:2px solid #dee2e6;">Ingresos del Período</div>
+                                <div style="padding:0 4px;">
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
-                                        <!-- Días laborados — siempre visible -->
-                                        <tr>
+                                        <!-- Días laborados — siempre visible, usando solo campos existentes -->
+                                        <!-- Sin incapacidad: solo mostrar días del período -->
+                                        <tr invisible="disability_days_in_period != 0">
                                             <td style="padding:3px 0 6px;font-size:12px;color:var(--color-text-secondary);">
-                                                Días laborados:
-                                                <strong><field name="dias_laborados_periodo" readonly="1" nolabel="1"/> días</strong>
-                                                <span invisible="disability_days_in_period == 0" style="opacity:.75;">
-                                                    · Días de incapacidad: <field name="disability_days_in_period" readonly="1" nolabel="1"/> días
-                                                </span>
+                                                Días laborados en el período: <strong><field name="days_in_period" readonly="1" nolabel="1"/> días</strong>
+                                            </td>
+                                            <td/>
+                                        </tr>
+                                        <!-- Con incapacidad: mostrar incapacidad + total período (usuario puede ver diferencia) -->
+                                        <tr invisible="disability_days_in_period == 0">
+                                            <td style="padding:3px 0 6px;font-size:12px;color:var(--color-text-secondary);">
+                                                Días de incapacidad: <strong><field name="disability_days_in_period" readonly="1" nolabel="1"/></strong>
+                                                · Período total: <strong><field name="days_in_period" readonly="1" nolabel="1"/> días</strong>
                                             </td>
                                             <td/>
                                         </tr>
@@ -263,13 +268,12 @@
                                     </table>
                                 </div>
 
-                                <!-- ─── DIVISOR ─────────────────────────────── -->
-                                <hr style="border:none;border-top:1px solid var(--color-border-secondary);margin:0 0 12px 0;"/>
+
 
                                 <!-- ─── INCAPACIDADES (solo si hay) ───────────── -->
-                                <div invisible="disability_days_in_period == 0"
-                                     style="background:var(--color-background-warning);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
-                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-warning);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Incapacidades del Período</div>
+                                <div invisible="disability_days_in_period == 0">
+                                <div invisible="disability_days_in_period == 0" style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;margin:16px 0 8px;border-bottom:2px solid #dee2e6;">Incapacidades del Período</div>
+                                <div style="padding:0 4px;">
 
                                     <!-- Nota cuando la incapacidad viene de un período anterior -->
                                     <div invisible="not incap_viene_de_anterior"
@@ -312,14 +316,14 @@
                                         </tr>
                                     </table>
                                 </div>
+                                </div><!-- /disability wrapper -->
 
-                                <!-- ─── DIVISOR (solo si hay incapacidades) ─────────── -->
-                                <hr invisible="disability_days_in_period == 0" style="border:none;border-top:1px solid var(--color-border-secondary);margin:0 0 12px 0;"/>
+
 
                                 <!-- ─── LICENCIAS SIN GOCE / AUSENCIAS (solo si hay) ─ -->
                                 <div invisible="amount_licencias_sin_goce == 0"
-                                     style="background:var(--color-background-warning);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
-                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-warning);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Licencias Sin Goce / Ausencias</div>
+                                     style="padding:0 4px;">
+                                    <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;margin:16px 0 8px;border-bottom:2px solid #dee2e6;">Licencias Sin Goce / Ausencias</div>
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Salario Bruto del período</td>
@@ -340,8 +344,8 @@
                                 </div>
 
                                 <!-- ─── DEDUCCIONES LEGALES ────────────────────── -->
-                                <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
-                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Deducciones Legales</div>
+                                <div style="padding:0 4px;">
+                                    <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;margin:16px 0 8px;border-bottom:2px solid #dee2e6;">Deducciones Legales</div>
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
                                             <!-- CCSS Obrero — etiqueta dinámica por tipo pensionado + frecuencia -->
@@ -378,7 +382,12 @@
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="income_tax" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="income_tax_credits == 0">
-                                            <td style="padding:4px 0;color:var(--color-text-success);">Créditos Fiscales por cargas familiares (Art. 34 LIR)</td>
+                                            <td style="padding:4px 0;color:var(--color-text-success);">
+                                                Créditos Fiscales — cargas familiares (Art. 34 LIR)
+                                                <span style="font-size:11px;display:block;opacity:.75;">
+                                                    Cónyuge: ₡2,590/mes · Hijos: ₡1,710/mes c/u (proporcional a la frecuencia)
+                                                </span>
+                                            </td>
                                             <td style="text-align:right;color:var(--color-text-success);">+ <field name="income_tax_credits" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="paternity_amount == 0">
@@ -390,8 +399,8 @@
 
                                 <!-- ─── DEDUCCIONES ADICIONALES (orden legal) ──── -->
                                 <div invisible="total_employee_deductions == ccss_employee + income_tax"
-                                     style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
-                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Deducciones Adicionales (orden de prioridad legal)</div>
+                                     style="padding:0 4px;">
+                                    <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;margin:16px 0 8px;border-bottom:2px solid #dee2e6;">Deducciones Adicionales</div>
 
                                     <!-- Sub-totales por categoría legal (referencia rápida) -->
                                     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:8px;">
@@ -430,11 +439,10 @@
                                     </table>
                                 </div>
 
-                                <!-- ─── DIVISOR ANTES DE RESULTADO ─────────────── -->
-                                <hr style="border:none;border-top:1px solid var(--color-border-secondary);margin:0 0 12px 0;"/>
+
 
                                 <!-- ─── RESULTADO OBRERO ──────────────────────── -->
-                                <div style="background:var(--color-background-primary);border:1.5px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
+                                <div style="padding:0 4px;">
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
                                             <td style="padding:4px 0;color:var(--color-text-secondary);">Total Deducciones Obrero</td>
@@ -500,12 +508,11 @@
                                     </table>
                                 </div>
 
-                                <!-- ─── DIVISOR ANTES DE CARGAS ─────────────────── -->
-                                <hr style="border:none;border-top:1px solid var(--color-border-secondary);margin:0 0 12px 0;"/>
+
 
                                 <!-- ─── CARGAS PATRONALES ─────────────────────── -->
-                                <div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:12px 16px;margin-bottom:12px;">
-                                    <div style="font-size:13px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Cargas Patronales</div>
+                                <div style="padding:0 4px;">
+                                    <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;margin:16px 0 8px;border-bottom:2px solid #dee2e6;">Cargas Patronales</div>
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
                                             <td style="padding:4px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">Base cotizable Mensual (cargas CCSS, provisiones)</td>
@@ -586,7 +593,7 @@
                             </group>
 
                             <!-- Incapacidades del período -->
-                            <separator string="Incapacidades del Período"/>
+                            <div invisible="disability_days_in_period == 0" style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 6px;margin:16px 0 8px;border-bottom:2px solid #dee2e6;">Incapacidades del Período</div>
                             <group invisible="disability_days == 0">
                                 <group string="Resumen Incapacidades">
                                     <field name="disability_days" readonly="1"/>
