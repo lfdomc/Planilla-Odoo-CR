@@ -574,6 +574,13 @@ class PayslipDeductionLine(models.Model):
              'que originó esta deducción. Evita duplicados al re-sincronizar. '
              'Se usa como Integer para evitar dependencia circular en BD.'
     )
+    is_recurring_bono = fields.Boolean(
+        string='Bono Recurrente',
+        default=True,
+        help='False si el bono es puntual (una sola vez). '
+             'Los bonos puntuales NO se anualizan para calcular renta, '
+             'evitando pagar impuesto por ingresos proyectados que no se repetirán.'
+    )
 
     @api.constrains('amount', 'deduction_category', 'payslip_id')
     def _check_deduction_limits(self):

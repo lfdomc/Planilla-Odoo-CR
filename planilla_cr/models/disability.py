@@ -165,25 +165,40 @@ class Disability(models.Model):
                 rec.maternity_avg_salary = 0.0
                 continue
 
-            rec.daily_salary = round(rec.employee_id.base_salary / 30, 2)
+            # FIX SALARIO-VARIABLE: usar promedio de últimas 3 boletas confirmadas.
+            # Captura comisiones, bonos y horas extra. Fallback: base_salary / 30.
+            # Base legal: la CCSS calcula sobre el salario efectivamente cotizado
+            # (Reglamento del Seguro de Salud, Art. 6).
+            from odoo.fields import Date as _Date
+            ultimas_boletas = rec.env['planilla.payslip.cr'].search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('state', 'in', ('confirmed', 'paid')),
+                ('date_to', '<=', rec.date_start or _Date.context_today(rec)),
+            ], order='date_to desc', limit=3)
+
+            if ultimas_boletas:
+                from .. import planilla_const as _K
+                gross_list = []
+                for bol in ultimas_boletas:
+                    freq = bol._get_effective_freq()
+                    periodos = _K.PERIODOS_POR_MES.get(freq, 2)
+                    gross_list.append(bol.gross_salary * periodos)
+                avg_monthly = sum(gross_list) / len(gross_list)
+                rec.daily_salary = round(avg_monthly / 30, 2)
+            else:
+                rec.daily_salary = round(rec.employee_id.base_salary / 30, 2)
 
             if rec.disability_type == 'maternity':
                 history = rec.env['planilla.salary.history'].search([
                     ('employee_id', '=', rec.employee_id.id),
-                    ('effective_date', '<=', rec.date_start or fields.Date.context_today(rec)),
-                    # FIX-F6: filtrar solo registros autorizados para consistencia
-                    # con _compute_avg_last_4_weeks y _onchange_employee.
-                    # Sin este filtro podían entrar registros en 'draft' o 'rejected'
-                    # que distorsionarían el promedio de maternidad (Regl. CCSS).
+                    ('effective_date', '<=', rec.date_start or _Date.context_today(rec)),
                     ('state', '=', 'authorized'),
                 ], order='effective_date desc', limit=3)
                 if history:
-                    # Promedio de ultimos 3 salarios brutos cotizados (Reglamento CCSS)
                     avg = sum(history.mapped('gross_salary')) / len(history)
                     rec.maternity_avg_salary = round(avg / 30, 2)
                 else:
-                    # Sin historial previo: usa salario base actual del empleado
-                    rec.maternity_avg_salary = round(rec.employee_id.base_salary / 30, 2)
+                    rec.maternity_avg_salary = round(rec.daily_salary, 2)
             else:
                 rec.maternity_avg_salary = 0.0
 
@@ -317,6 +332,34 @@ class Disability(models.Model):
                 if days <= 0:
                     raise ValidationError(
                         'La incapacidad debe tener al menos 1 día.'
+                    )
+
+    @api.constrains('subsidy_percentage', 'disability_type')
+    def _check_subsidy_percentage(self):
+        """
+        Validar que el % de subsidio sea legalmente correcto según el tipo.
+        Art. 79 CT: CCSS paga 60% a partir del día 4.
+        Ley 6727 + Art. 218 CT: INS paga mínimo 60%.
+        Art. 94 CT: Maternidad 100%.
+        """
+        for rec in self:
+            if rec.disability_type in ('ccss', 'ccss_accident', 'ins'):
+                if rec.subsidy_percentage < 60.0:
+                    raise ValidationError(
+                        f'El % de subsidio no puede ser menor al 60% para incapacidades '
+                        f'CCSS/INS (Art. 79 CT / Ley 6727). Valor ingresado: {rec.subsidy_percentage}%.\n'
+                        f'El mínimo legal es 60%. Si su empresa tiene un convenio especial, '
+                        f'use el campo "% Complemento Patronal" para el excedente.'
+                    )
+                if rec.subsidy_percentage > 100.0:
+                    raise ValidationError(
+                        f'El % de subsidio no puede exceder el 100%. Valor: {rec.subsidy_percentage}%.'
+                    )
+            elif rec.disability_type == 'maternity':
+                if rec.subsidy_percentage != 100.0:
+                    raise ValidationError(
+                        f'La licencia de maternidad siempre es al 100% (Art. 94 CT). '
+                        f'Valor ingresado: {rec.subsidy_percentage}%. Corrija a 100%.'
                     )
 
     @api.constrains('date_start', 'date_end', 'fecha_parto', 'disability_type',

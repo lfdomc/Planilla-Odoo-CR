@@ -706,6 +706,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 'amount_type':        bono.amount_type,
                 'amount':             monto,
                 'percentage':         bono.percentage if bono.amount_type == 'percentage' else 0.0,
+                'is_recurring_bono':  bono.is_recurring,
             })
 
     # ══════════════════════════════════════════════════════════════════════

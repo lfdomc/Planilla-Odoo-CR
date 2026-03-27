@@ -1,7 +1,36 @@
 {
-    'name': 'Sistema Planilla v5.28.44-PROD',
-    'version': '19.0.5.28.44',
-    # ── Changelog v5.28.44 (Créditos fiscales — montos reales por cónyuge/hijos) ─
+    'name': 'Sistema Planilla v5.28.45-PROD',
+    'version': '19.0.5.28.45',
+    # ── Changelog v5.28.45 (3 fixes auditoría incapacidades/renta) ───────────
+    #
+    # FIX-1: Salario diario variable para incapacidades
+    # ANTES: daily_salary = base_salary / 30 (ignora bonos, HE, comisiones)
+    # AHORA: promedio de últimas 3 boletas confirmadas anualizado / 30.
+    #   Si no hay historial de boletas: fallback a base_salary / 30.
+    #   Base legal: CCSS calcula sobre salario efectivamente cotizado
+    #   (Reglamento del Seguro de Salud, Art. 6).
+    #
+    # FIX-2: Validación tasa subsidio >= 60% para CCSS/INS
+    # ANTES: subsidy_percentage podía bajarse a 0% sin error.
+    # AHORA: @api.constrains valida:
+    #   - CCSS enfermedad/accidente e INS: mínimo 60% (Art. 79 CT / Ley 6727)
+    #   - Maternidad: exactamente 100% (Art. 94 CT)
+    #   - No puede exceder 100%
+    #
+    # FIX-3: Impuesto de renta con bono puntual (is_recurring=False)
+    # PROBLEMA: El bono de ₡309,372 se anualizaba (×2) → ₡1,043,744 mensual
+    #   → se calculaba renta ₡5,087.20 incorrectamente.
+    #   En Q2 sin bono: ₡425,000 < exento → ₡0 renta. Sobrepago en Q1.
+    # SOLUCIÓN: Los bonos puntuales NO se anualizan.
+    #   monthly_equiv = base_recurrente × periodos + bono_puntual (sin multiplicar)
+    #   Para el ejemplo: 212,500×2 + 309,372 = ₡734,372 < ₡942,000 exento → ₡0 renta ✓
+    # Implementación:
+    #   - is_recurring_bono (Boolean) en PayslipDeductionLine
+    #   - _sync_bonos propaga bono.is_recurring → is_recurring_bono en la línea
+    #   - _compute_deductions calcula one_time_bonus = suma bonos no recurrentes
+    #   - _calc_income_tax(gross, ccss, one_time_bonus) excluye el bono puntual
+    #     de la anualización pero sí lo incluye en la base imponible del período
+    # ── Changelog v5.28.44 (Créditos fiscales montos reales) ─────────────────
     # MEJORA: La línea de créditos fiscales ahora muestra los montos REALES
     #   aplicados en la boleta (proporcionales a la frecuencia), no las tarifas
     #   mensuales de referencia.

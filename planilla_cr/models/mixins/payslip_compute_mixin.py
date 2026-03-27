@@ -515,8 +515,16 @@ class PayslipComputeMixin(models.AbstractModel):
                 rec.paternity_amount = round(daily * rec.paternity_days, 2)
             else:
                 rec.paternity_amount = 0.0
+            # FIX RENTA-BONO: calcular bonos NO recurrentes para excluirlos
+            # de la anualización en _calc_income_tax.
+            one_time_bonus = sum(
+                l.amount for l in rec.deduction_line_ids
+                if l.line_type == 'income'
+                and l.deduction_category == 'bonus'
+                and not l.is_recurring_bono
+            )
             # F1 + F2: toggle base renta + créditos fiscales
-            tax_neto, creditos = rec._calc_income_tax(g, rec.ccss_employee)
+            tax_neto, creditos = rec._calc_income_tax(g, rec.ccss_employee, one_time_bonus)
             rec.income_tax        = round(tax_neto, 2)
             rec.income_tax_credits = round(creditos, 2)
             # Desglose de créditos para mostrar en Resumen
@@ -543,24 +551,23 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.cesantia_provision  = round(g * ces_rate * prov_factor, 2)
             rec.vacation_provision  = round(g * vac_rate * prov_factor, 2)
 
-    def _calc_income_tax(self, gross: float, ccss_emp: float = 0.0) -> tuple:
+    def _calc_income_tax(self, gross: float, ccss_emp: float = 0.0,
+                         one_time_bonus: float = 0.0) -> tuple:
         """
         Calculo progresivo de renta usando tramos configurados en la UI.
-        v58: movido desde payslip_cr.py al mixin correspondiente.
-        FIX PERF-02: caché de tramos en env.context para no repetir la query
-        por cada boleta en el mismo request. Para 200 boletas: 200→1 query.
 
-        FIX F1 (Feature 1): soporte de toggle income_tax_base en la config
-        de la empresa. Dos modalidades:
-          'gross'    → base imponible = salario bruto (Art. 33 LIR — default)
-          'net_ccss' → base imponible = bruto - CCSS obrero
-                       (práctica de algunas empresas, no reconocida por DGT)
+        NUEVO PARÁMETRO: one_time_bonus — monto de bonos NO recurrentes.
+        Los bonos puntuales (is_recurring=False) NO se anualizan porque no
+        se repetirán en el próximo período. Anualizarlos generaría un impuesto
+        incorrecto proyectando ingresos que no existirán.
 
-        FIX F2 (Feature 2): créditos fiscales por cargas familiares (Art. 34 LIR).
-          Se aplican DESPUÉS del cálculo progresivo, restando del impuesto.
-          El resultado nunca es negativo (exceso de créditos = renta ₡0).
-          Retorna tupla (tax_neto, creditos_aplicados) para que _compute_deductions
-          pueda almacenar ambos valores por separado en la boleta.
+        Lógica correcta (DGT-R-016-2026, Art. 33 LIR):
+          - base recurrente = gross - one_time_bonus → se anualiza × períodos/mes
+          - bono puntual = one_time_bonus → se agrega SIN anualizar
+          monthly_equiv = (gross - one_time_bonus) × periods_per_month + one_time_bonus
+
+        Retorna tupla (tax_neto, creditos_aplicados) para que _compute_deductions
+        pueda almacenar ambos valores por separado en la boleta.
 
         Los tramos de renta del MTSS están definidos en base mensual.
         Para períodos quincenales/semanales se anualiza el salario,
@@ -579,7 +586,11 @@ class PayslipComputeMixin(models.AbstractModel):
         freq = self._get_effective_freq()
         # FIX B-04 v58: usar K.PERIODOS_POR_MES corregido (bimonthly = 0.5)
         periods_per_month = K.PERIODOS_POR_MES.get(freq, 1)
-        monthly_equiv     = gross * periods_per_month
+        # FIX RENTA-BONO: solo anualizar la parte recurrente del salario.
+        # Los bonos puntuales (is_recurring=False) no se proyectan al mes
+        # porque no se repetirán en el siguiente período.
+        base_recurrente = max(gross - one_time_bonus, 0.0)
+        monthly_equiv = base_recurrente * periods_per_month + one_time_bonus
 
         brackets = self.env['planilla.income.tax.bracket'].search(
             # FIX-R12: filtrar por empresa actual o globales (company_id=False).
