@@ -27,6 +27,7 @@
                             <field name="company_id"/>
                             <field name="journal_id" domain="[('company_id', '=', company_id), ('type', 'in', ['general', 'purchase'])]"/>
                             <field name="accounting_entry_mode" widget="radio"/>
+                            <field name="default_payroll_calendar_id"/>
                         </group>
                         <group string="Cálculo de Impuesto de Renta">
                             <field name="income_tax_base" widget="radio"/>

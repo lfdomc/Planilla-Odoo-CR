@@ -140,15 +140,22 @@
                     </div>
                     <group>
                         <group string="General">
+                            <field name="payroll_calendar_id" required="1"/>
                             <field name="name"/>
                             <field name="company_id" groups="base.group_multi_company"/>
                             <field name="branch_id"/>
                             <field name="department_id"/>
-                            <field name="payroll_calendar_id"/>
                         </group>
                         <group string="Período">
                             <field name="date_start"/>
                             <field name="date_end"/>
+                            <div colspan="2" style="margin-top:4px">
+                                <button name="action_suggest_dates" type="object"
+                                        string="Sugerir Fechas del Periodo Actual"
+                                        class="btn btn-sm btn-secondary"
+                                        icon="fa-calendar"
+                                        invisible="state != 'draft' or not payroll_calendar_id"/>
+                            </div>
                         </group>
                     </group>
 

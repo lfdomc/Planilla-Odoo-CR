@@ -88,8 +88,26 @@ class PayrollRunCR(models.Model):
         help='Si se selecciona, solo se generan boletas para empleados de este departamento.'
     )
     payroll_calendar_id = fields.Many2one(
-        'planilla.calendar', string='Calendarizacion', tracking=True
+        'planilla.calendar', string='Calendarizacion',
+        required=True, tracking=True
     )
+
+    @api.model
+    def default_get(self, fields_list):
+        """Auto-rellenar calendarizacion, fechas y nombre desde la configuracion de empresa."""
+        defaults = super().default_get(fields_list)
+        config = self.env['planilla.accounting.config'].search(
+            [('company_id', '=', self.env.company.id)], limit=1
+        )
+        if config and config.default_payroll_calendar_id:
+            cal = config.default_payroll_calendar_id
+            defaults['payroll_calendar_id'] = cal.id
+            start, end = cal.get_period_dates()
+            defaults['date_start'] = start
+            defaults['date_end']   = end
+            # Generar nombre automatico
+            defaults['name'] = self._generate_run_name(cal, start, end)
+        return defaults
 
     date_start = fields.Date(string='Desde', required=True, tracking=True)
     date_end = fields.Date(string='Hasta', required=True, tracking=True)
@@ -242,6 +260,226 @@ class PayrollRunCR(models.Model):
         for rec in self:
             if rec.date_start and rec.date_end and rec.date_start > rec.date_end:
                 raise ValidationError('La fecha inicio no puede ser mayor a la fecha fin.')
+
+    @api.constrains('date_start', 'payroll_calendar_id')
+    def _check_date_start_valid_for_frequency(self):
+        """
+        Bloquea al guardar si el dia de inicio no es valido para la frecuencia.
+          Quincenal : dia 1 o dia 16
+          Mensual   : dia 1
+          Semanal   : lunes (weekday = 0)
+          Bimensual : dia 1
+        """
+        for rec in self:
+            if not rec.payroll_calendar_id or not rec.date_start:
+                continue
+            freq = rec.payroll_calendar_id.frequency
+            ds   = rec.date_start
+
+            if freq == 'biweekly' and ds.day not in (1, 16):
+                raise ValidationError(
+                    f'Fecha de inicio invalida para frecuencia Quincenal.\n'
+                    f'Solo se permiten los dias 1 o 16 del mes.\n'
+                    f'Fecha ingresada: {ds.strftime("%d/%m/%Y")} (dia {ds.day}).'
+                )
+            elif freq in ('monthly', 'bimonthly') and ds.day != 1:
+                fn = 'Mensual' if freq == 'monthly' else 'Bimensual'
+                raise ValidationError(
+                    f'Fecha de inicio invalida para frecuencia {fn}.\n'
+                    f'El inicio debe ser el dia 1 del mes.\n'
+                    f'Fecha ingresada: {ds.strftime("%d/%m/%Y")} (dia {ds.day}).'
+                )
+            elif freq == 'weekly' and ds.weekday() != 0:
+                dias = ['lunes','martes','miercoles','jueves',
+                        'viernes','sabado','domingo']
+                raise ValidationError(
+                    f'Fecha de inicio invalida para frecuencia Semanal.\n'
+                    f'El inicio debe ser un lunes.\n'
+                    f'Fecha ingresada: {ds.strftime("%d/%m/%Y")} '
+                    f'({dias[ds.weekday()]}).'
+                )
+
+    @api.constrains('date_start', 'date_end', 'payroll_calendar_id')
+    def _check_period_matches_frequency(self):
+        """
+        Valida que el rango de fechas corresponda exactamente a un periodo
+        valido segun la frecuencia de la calendarizacion.
+
+        Quincenal : periodo 1 = dia 1 al 15, periodo 2 = dia 16 al ultimo del mes
+        Mensual   : dia 1 al ultimo del mes
+        Semanal   : exactamente 7 dias, cualquier dia de inicio
+        Bimensual : dia 1 de un mes al ultimo del mes siguiente
+        """
+        from calendar import monthrange
+        for rec in self:
+            if not rec.payroll_calendar_id or not rec.date_start or not rec.date_end:
+                continue
+            freq = rec.payroll_calendar_id.frequency
+            ds = rec.date_start
+            de = rec.date_end
+            dias = (de - ds).days + 1
+
+            if freq == 'biweekly':
+                # Periodo 1: del dia 1 al 15
+                # Periodo 2: del dia 16 al ultimo dia del mes
+                last_day = monthrange(de.year, de.month)[1]
+                valido_p1 = (ds.day == 1  and de.day == 15 and ds.month == de.month)
+                valido_p2 = (ds.day == 16 and de.day == last_day and ds.month == de.month)
+                if not (valido_p1 or valido_p2):
+                    raise ValidationError(
+                        'Periodo incorrecto para frecuencia Quincenal.\n\n'
+                        'Los unicos periodos validos son:\n'
+                        '  - Del dia 1 al 15 del mes (primera quincena)\n'
+                        '  - Del dia 16 al ultimo dia del mes (segunda quincena)\n\n'
+                        f'Rango ingresado: {ds} al {de} ({dias} dias).\n'
+                        'Use el boton "Sugerir Fechas" para autocompletar el periodo correcto.'
+                    )
+
+            elif freq == 'monthly':
+                last_day = monthrange(de.year, de.month)[1]
+                if not (ds.day == 1 and de.day == last_day and ds.month == de.month and ds.year == de.year):
+                    raise ValidationError(
+                        'Periodo incorrecto para frecuencia Mensual.\n\n'
+                        'El periodo debe iniciar el dia 1 y terminar el ultimo dia del mes.\n\n'
+                        f'Rango ingresado: {ds} al {de} ({dias} dias).\n'
+                        'Use el boton "Sugerir Fechas" para autocompletar el periodo correcto.'
+                    )
+
+            elif freq == 'weekly':
+                if dias != 7:
+                    raise ValidationError(
+                        f'Periodo incorrecto para frecuencia Semanal.\n\n'
+                        f'Un periodo semanal debe tener exactamente 7 dias.\n'
+                        f'Dias ingresados: {dias} (del {ds} al {de}).\n'
+                        'Use el boton "Sugerir Fechas" para autocompletar el periodo correcto.'
+                    )
+
+            elif freq == 'bimonthly':
+                from dateutil.relativedelta import relativedelta as _rd
+                last_day = monthrange(de.year, de.month)[1]
+                mes_siguiente = ds + _rd(months=1)
+                if not (ds.day == 1 and de.day == last_day
+                        and mes_siguiente.month == de.month
+                        and mes_siguiente.year == de.year):
+                    raise ValidationError(
+                        'Periodo incorrecto para frecuencia Bimensual.\n\n'
+                        'El periodo debe abarcar exactamente 2 meses completos, '
+                        'del dia 1 del primer mes al ultimo dia del segundo mes.\n\n'
+                        f'Rango ingresado: {ds} al {de} ({dias} dias).\n'
+                        'Use el boton "Sugerir Fechas" para autocompletar el periodo correcto.'
+                    )
+
+    def _generate_run_name(self, calendar, date_start, date_end):
+        """
+        Genera el nombre de la planilla segun la frecuencia y las fechas.
+        Ejemplos:
+          Quincenal  1-15 mar 2026  -> 'Primera Quincena Marzo 2026'
+          Quincenal 16-31 mar 2026  -> 'Segunda Quincena Marzo 2026'
+          Mensual       mar 2026    -> 'Planilla Marzo 2026'
+          Semanal    1-7  mar 2026  -> 'Primera Semana Marzo 2026'
+          Bimensual  mar-abr 2026   -> 'Planilla Marzo - Abril 2026'
+        """
+        if not calendar or not date_start or not date_end:
+            return ''
+
+        MESES = {
+            1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril',
+            5:'Mayo',  6:'Junio',   7:'Julio', 8:'Agosto',
+            9:'Septiembre', 10:'Octubre', 11:'Noviembre', 12:'Diciembre'
+        }
+        freq  = calendar.frequency
+        mes   = MESES.get(date_start.month, '')
+        anno  = date_start.year
+
+        if freq == 'biweekly':
+            quincena = 'Primera' if date_start.day == 1 else 'Segunda'
+            return f'{quincena} Quincena {mes} {anno}'
+
+        elif freq == 'monthly':
+            return f'Planilla {mes} {anno}'
+
+        elif freq == 'weekly':
+            # Calcular que semana del mes es
+            semana_num = ((date_start.day - 1) // 7) + 1
+            ord_sem = {1:'Primera', 2:'Segunda', 3:'Tercera', 4:'Cuarta', 5:'Quinta'}
+            return f'{ord_sem.get(semana_num, str(semana_num))} Semana {mes} {anno}'
+
+        elif freq == 'bimonthly':
+            mes_fin = MESES.get(date_end.month, '')
+            if date_start.month != date_end.month:
+                return f'Planilla {mes} - {mes_fin} {anno}'
+            return f'Planilla {mes} {anno}'
+
+        return f'Planilla {mes} {anno}'
+
+    @api.onchange('payroll_calendar_id')
+    def _onchange_calendar_suggest_dates(self):
+        """
+        Al cambiar la calendarizacion: recalcula fechas del periodo actual
+        y genera el nombre automaticamente.
+        """
+        if self.payroll_calendar_id:
+            start, end = self.payroll_calendar_id.get_period_dates()
+            self.date_start = start
+            self.date_end   = end
+            self.name = self._generate_run_name(self.payroll_calendar_id, start, end)
+
+    @api.onchange('date_start')
+    def _onchange_date_start_calc_end(self):
+        """
+        Al cambiar fecha de inicio, calcula la fecha de fin segun la frecuencia
+        y regenera el nombre. NO corrige ni advierte sobre el dia de inicio
+        (eso lo hace el constrains al guardar) para evitar falsos avisos cuando
+        el cambio de calendarizacion actualiza date_start internamente.
+        """
+        if not self.payroll_calendar_id or not self.date_start:
+            return
+        from calendar import monthrange
+        from dateutil.relativedelta import relativedelta
+        ds   = self.date_start
+        freq = self.payroll_calendar_id.frequency
+
+        # Calcular fecha fin segun frecuencia y dia de inicio
+        if freq == 'biweekly':
+            if ds.day <= 15:
+                # Primera quincena: fin = 15
+                self.date_end = ds.replace(day=15)
+            else:
+                # Segunda quincena: fin = ultimo dia del mes
+                self.date_end = ds.replace(day=monthrange(ds.year, ds.month)[1])
+        elif freq == 'monthly':
+            self.date_end = ds.replace(day=monthrange(ds.year, ds.month)[1])
+        elif freq == 'weekly':
+            self.date_end = ds + relativedelta(days=6)
+        elif freq == 'bimonthly':
+            nm = ds + relativedelta(months=1)
+            self.date_end = nm.replace(day=monthrange(nm.year, nm.month)[1])
+
+        if self.date_end:
+            self.name = self._generate_run_name(
+                self.payroll_calendar_id, self.date_start, self.date_end)
+
+    @api.onchange('date_end')
+    def _onchange_date_end_update_name(self):
+        """Al cambiar fecha fin manualmente, solo regenerar el nombre."""
+        if self.payroll_calendar_id and self.date_start and self.date_end:
+            self.name = self._generate_run_name(
+                self.payroll_calendar_id, self.date_start, self.date_end
+            )
+
+    def action_suggest_dates(self):
+        """
+        Boton: calcula y asigna las fechas del periodo actual segun la
+        calendarizacion seleccionada. Tambien regenera el nombre.
+        """
+        self.ensure_one()
+        if not self.payroll_calendar_id:
+            raise UserError(
+                'Seleccione una Calendarizacion primero para poder sugerir fechas.'
+            )
+        start, end = self.payroll_calendar_id.get_period_dates()
+        nombre = self._generate_run_name(self.payroll_calendar_id, start, end)
+        self.write({'date_start': start, 'date_end': end, 'name': nombre})
 
     @api.depends('payslip_ids')
     def _compute_payslip_count(self):

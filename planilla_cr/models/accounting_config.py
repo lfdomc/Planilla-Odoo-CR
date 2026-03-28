@@ -40,6 +40,12 @@ class PayrollAccountingConfig(models.Model):
              'El sistema aplica la opcion seleccionada sin validar cual es la correcta.'
     )
 
+    default_payroll_calendar_id = fields.Many2one(
+        'planilla.calendar', string='Calendarizacion por Defecto',
+        help='Al crear una nueva planilla, esta calendarizacion se seleccionara '
+             'automaticamente. Evita tener que escogerla manualmente cada vez.'
+    )
+
     # -- Diario ------------------------------------------------------
     journal_id = fields.Many2one(
         'account.journal', string='Diario de Planilla',

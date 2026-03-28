@@ -600,7 +600,7 @@ class PayslipComputeMixin(models.AbstractModel):
         monthly_equiv = base_recurrente * periods_per_month + one_time_bonus
 
         brackets = self.env['planilla.income.tax.bracket'].search(
-            # FIX-R12: filtrar por empresa actual o globales (company_id=False).
+            # Buscar tramos especificos de la empresa actual O globales.
             ['|',
              ('company_id', '=', self.company_id.id),
              ('company_id', '=', False),
@@ -608,22 +608,24 @@ class PayslipComputeMixin(models.AbstractModel):
             order='sequence asc'
         )
         if not brackets:
-            # FIX RENTA-CONFIG-01: NUNCA usar fallback hardcodeado.
-            # Si no hay tramos configurados en la BD, bloquear con error claro.
-            # Esto evita que valores incorrectos del codigo fuente se usen
-            # silenciosamente en lugar de los tramos que el administrador definio.
+            # Fallback: usar cualquier tramo activo en el sistema.
+            # Cubre el caso donde los tramos fueron cargados con una company_id
+            # distinta (ej: DEMO S.A.) pero se calculan boletas de otra empresa.
+            brackets = self.env['planilla.income.tax.bracket'].search(
+                [('active', '=', True)],
+                order='sequence asc'
+            )
+        if not brackets:
             raise UserError(
-                'WARN No hay tramos de impuesto de renta activos configurados.\n\n'
+                'No hay tramos de impuesto de renta activos configurados.\n\n'
                 'Para crear boletas debe configurar los tramos primero:\n'
                 'Planilla -> Configuracion -> Tramos de Renta\n\n'
-                'Los tramos vigentes para 2026 (DGT-R-016-2026) son:\n'
-                '   Exento: hasta CRC918,000\n'
-                '   10%: sobre el exceso de CRC918,000 hasta CRC1,381,000\n'
-                '   15%: sobre el exceso de CRC1,381,000 hasta CRC2,423,000\n'
-                '   20%: sobre el exceso de CRC2,423,000 hasta CRC4,845,000\n'
-                '   25%: sobre el exceso de CRC4,845,000\n\n'
-                'Fuente: Ministerio de Hacienda -- '
-                'https://www.hacienda.go.cr/contenido/15169-impuesto-sobre-la-renta-asalariados'
+                'Los tramos vigentes para 2026 son:\n'
+                '   Exento: hasta 918,000\n'
+                '   10%%: exceso de 918,000 a 1,381,000\n'
+                '   15%%: exceso de 1,381,000 a 2,423,000\n'
+                '   20%%: exceso de 2,423,000 a 4,845,000\n'
+                '   25%%: exceso de 4,845,000 en adelante'
             )
 
         g           = monthly_equiv
