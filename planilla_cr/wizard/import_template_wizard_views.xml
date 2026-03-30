@@ -60,6 +60,12 @@
                         <field name="include_bonos"
                                widget="boolean_toggle"
                                string="  Bonos y Beneficios"/>
+                        <field name="include_acumulados"
+                               widget="boolean_toggle"
+                               string="  Acumulados Provisiones (aguinaldo/cesantia/vacaciones)"/>
+                        <field name="include_config"
+                               widget="boolean_toggle"
+                               string="  Lista de verificacion configuracion inicial"/>
                     </group>
                 </group>
 

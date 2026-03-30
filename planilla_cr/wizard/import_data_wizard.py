@@ -407,17 +407,31 @@ class ImportDataWizard(models.TransientModel):
                     #   - tiene mas de 80 chars (ninguna cedula/nombre es tan largo), o
                     #   - empieza con un numero seguido de punto y espacio ('1. ', '2. ')
                     def _is_instruction_row(row):
+                        import re as _re
+                        INSTR_KEYWORDS = (
+                            'instruccion', 'instruction', 'nota:', 'note:',
+                            'como calcular', 'ejemplo:', 'example:',
+                        )
                         for c in row:
                             if c is not None and str(c).strip():
                                 txt = str(c).strip()
-                                if txt.startswith(''):
+                                txt_l = txt.lower()
+                                # Fila de prueba WARN
+                                if txt_l.startswith('warn ') or txt_l.startswith('warn:'):
                                     return True
-                                if len(txt) > 80:
+                                # Instruccion indentada (doble espacio)
+                                if txt.startswith('  '):
                                     return True
-                                import re
-                                if re.match(r'^\d+\.\s+', txt):
+                                # Texto muy largo = instruccion
+                                if len(txt) > 100:
                                     return True
-                                break  # solo checar la primera celda no-nula
+                                # Instruccion numerada: "1. ", "2. " etc.
+                                if _re.match(r'^\d+\.\s+', txt):
+                                    return True
+                                # Palabras clave de instrucciones
+                                if any(kw in txt_l for kw in INSTR_KEYWORDS):
+                                    return True
+                                break
                         return False
 
                     # Truncar en el primer bloque de instrucciones encontrado
@@ -959,20 +973,32 @@ class ImportDataWizard(models.TransientModel):
                     branch = self._find_m2o('planilla.branch', v('Sucursal'),
                                 extra_domain=[('company_id', '=', self.company_id.id)])
 
+                    dtype = _map(DISABILITY_TYPE, v('Tipo de Incapacidad', 'Tipo')) or 'ccss'
                     vals = {
                         'employee_id':          emp.id,
-                        'disability_type':      _map(DISABILITY_TYPE, v('Tipo de Incapacidad', 'Tipo')) or 'ccss',
+                        'disability_type':      dtype,
                         'date_start':           _parse_date(v('Fecha Inicio')) or date.today(),
                         'date_end':             _parse_date(v('Fecha Fin')) or date.today(),
                         'subsidy_percentage':   _parse_float(v('% Subsidiado', 'Subsidiado CCSS')),
                         'employer_percentage':  _parse_float(v('% Patrono', 'Cargo Patrono')) or 0.0,
-                        # FIX-A2: default 0.0 -- el complemento patronal NO es obligatorio
-                        # (Art. 79 Regl. CCSS). El valor anterior 40.0 era fiscalmente incorrecto.
                         'certificate_number':   str(v('Numero Certificado', 'Certificado') or '').strip() or False,
                         'diagnosis':            str(v('Diagnostico', 'Diagnostico') or '').strip() or False,
                         'note':                 str(v('Observaciones') or '').strip() or False,
                         'state':                'confirmed',
                     }
+                    # Campos especiales maternidad
+                    if dtype == 'maternity':
+                        fecha_parto = _parse_date(v('Fecha de Parto', 'Parto', 'Fecha Parto'))
+                        if fecha_parto:
+                            vals['fecha_parto'] = fecha_parto
+                        # Check 1: CCSS 50% + Patrono 50%
+                        split_raw = v('Maternidad 50/50', 'Maternidad 50', 'Split 50')
+                        if split_raw is not None:
+                            vals['maternity_split_50'] = _parse_bool(split_raw)
+                        # Check 2: Cobrar CCSS sobre parte patronal
+                        ccss_raw = v('Cobrar CCSS', 'CCSS s/patronal', 'CCSS obrera')
+                        if ccss_raw is not None:
+                            vals['maternity_ccss_on_employer'] = _parse_bool(ccss_raw)
                     daily = _parse_float(v('Salario Diario', 'Daily Salary'))
                     if daily:
                         vals['daily_salary'] = daily

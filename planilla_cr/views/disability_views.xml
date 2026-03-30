@@ -88,16 +88,40 @@
                             <field name="prenatal_days" readonly="1"/>
                             <field name="postnatal_days" readonly="1"/>
                         </group>
-                        <div class="alert alert-info col-12" role="alert">
-                            <strong>Art. 94 CT -- Licencia de Maternidad:</strong>
-                            Un solo registro cubre todo el periodo (prenatal + postnatal).
-                            <br/>• <strong>Fecha Inicio:</strong> Inicio de licencia prenatal (max 30 dias antes del parto).
-                            <br/>• <strong>Fecha Parto:</strong> Fecha real o estimada del parto.
-                            <br/>• <strong>Fecha Fin:</strong> Fin de licencia postnatal = Fecha Parto + 90 dias.
-                            <br/>• <strong>Total maximo:</strong> 120 dias naturales.
-                            <br/>La CCSS subsidia el 100% desde el dia 1. El patrono NO paga salario durante este periodo.
-                            <br/>Si el Salario Diario Base muestra 0, presione <strong>Recalcular Montos</strong>.
-                        </div>
+                    </group>
+
+                    <!-- Modalidad de pago maternidad -->
+                    <group string="Modalidad de Subsidio"
+                           invisible="disability_type != 'maternity'">
+                        <group>
+                            <field name="maternity_split_50" widget="boolean_toggle"/>
+                            <field name="maternity_ccss_on_employer"
+                                   widget="boolean_toggle"
+                                   invisible="not maternity_split_50"/>
+                        </group>
+                        <group>
+                            <!-- Descripcion dinamica segun seleccion -->
+                            <div class="alert alert-success col-12" role="alert"
+                                 invisible="maternity_split_50">
+                                <strong>Modalidad estandar (Art. 94 CT):</strong>
+                                La CCSS paga el <strong>100%</strong> del salario.
+                                El patrono NO tiene costo de salario durante la licencia.
+                            </div>
+                            <div class="alert alert-warning col-12" role="alert"
+                                 invisible="not maternity_split_50 or maternity_ccss_on_employer">
+                                <strong>Modalidad 50/50 — Costo compartido:</strong>
+                                El patrono paga el <strong>50%</strong> del salario y la CCSS paga el otro <strong>50%</strong>.
+                                El <strong>costo neto del patrono es el 50%</strong>.
+                                Use esta opcion si la empresa tiene politica de mantener el salario completo.
+                            </div>
+                            <div class="alert alert-info col-12" role="alert"
+                                 invisible="not maternity_split_50 or not maternity_ccss_on_employer">
+                                <strong>Modalidad 50/50 — Recuperacion via CCSS:</strong>
+                                El patrono adelanta el <strong>50%</strong>, pero lo recupera descontandolo
+                                del subsidio que paga la CCSS. La CCSS cubre el 100% total.
+                                El <strong>costo neto del patrono es CRC 0</strong>.
+                            </div>
+                        </group>
                     </group>
 
                     <!-- Seccion CCSS / INS (no maternidad) -->
@@ -115,11 +139,15 @@
 
                     <!-- Montos maternidad -->
                     <group invisible="disability_type != 'maternity'">
-                        <group string="Montos (100% CCSS)">
+                        <group string="Montos">
                             <field name="employer_cost" readonly="1"
-                                   string="Costo Patrono (debe ser 0)"/>
+                                   string="Costo Patrono"/>
                             <field name="ccss_subsidy" readonly="1"
-                                   string="Subsidio CCSS (100%)"/>
+                                   string="Subsidio CCSS"/>
+                            <field name="maternity_ccss_deduction" readonly="1"
+                                   invisible="not maternity_split_50 or not maternity_ccss_on_employer"
+                                   string="CCSS obrera sobre subsidio patronal (10.83%)"
+                                   decoration-warning="maternity_ccss_deduction > 0"/>
                         </group>
                     </group>
 

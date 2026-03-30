@@ -27,6 +27,9 @@ class ImportTemplateWizard(models.TransientModel):
     include_overtime     = fields.Boolean('  Horas Extras (historico)',   default=True)
     include_embargos     = fields.Boolean('  Embargos Judiciales',        default=True)
     include_bonos        = fields.Boolean('  Bonos y Beneficios',          default=True)
+    include_cobros       = fields.Boolean('  Cobros a Empleados',             default=True)
+    include_acumulados   = fields.Boolean('Acumulados Provisiones (aguinaldo/cesantia/vacaciones)', default=True)
+    include_config       = fields.Boolean('Configuracion inicial (tramos renta, calendarizacion)', default=True)
     include_sample_data  = fields.Boolean(
         '  Incluir fila de prueba (EMPLEADO PRUEBA)',
         default=False,
@@ -735,7 +738,7 @@ class ImportTemplateWizard(models.TransientModel):
 
         ws.merge_cells('A1:H1')
         c = ws['A1']
-        c.value     = (f'MACHOTE DE IMPORTACION -- SISTEMA PLANILLA v5.4  '
+        c.value     = (f'MACHOTE DE IMPORTACION -- SISTEMA PLANILLA v5.28.58  '
                        f'|  {self.company_id.name}  |  Legislacion CR 2026')
         c.font      = self._font(bold=True, color=C['white'], size=13)
         c.fill      = self._fill(C['dark'])
@@ -1094,25 +1097,35 @@ class ImportTemplateWizard(models.TransientModel):
 
     def _build_disabilities(self, wb, sample=False):
         cols = [
-            ('Cedula Empleado',      True,  18, '1-2345-6789',    ''),
-            ('Tipo de Incapacidad',  True,  22, 'Enfermedad Comun (CCSS)', 'Ver CATALOGOS -> disability_type'),
-            ('Fecha Inicio',         True,  14, '01/02/2026',     'DD/MM/AAAA'),
-            ('Fecha Fin',            True,  14, '10/02/2026',     'DD/MM/AAAA'),
-            ('% Subsidiado CCSS',    False, 14, '60',             'Porcentaje que paga la CCSS'),
-            ('% a Cargo Patrono',    False, 14, '40',             'Porcentaje que asume el patrono'),
-            ('Numero Certificado',   False, 20, 'CCSS-2026-123',  'Numero del certificado CCSS'),
-            ('Diagnostico',          False, 28, 'Gripa severa',   'Descripcion del diagnostico'),
-            ('Salario Diario (CRC)',   False, 16, '25000',          'Salario mensual / 30'),
-            ('Observaciones',        False, 28, '',               ''),
+            ('Cedula Empleado',           True,  18, '1-2345-6789',         ''),
+            ('Tipo de Incapacidad',       True,  22, 'Enfermedad Comun (CCSS)', 'Ver CATALOGOS -> disability_type'),
+            ('Fecha Inicio',              True,  14, '01/02/2026',           'DD/MM/AAAA'),
+            ('Fecha Fin',                 True,  14, '10/02/2026',           'DD/MM/AAAA'),
+            ('% Subsidiado CCSS',         False, 14, '60',                   'Porcentaje que paga la CCSS (60%% en enfermedad, 100%% en maternidad)'),
+            ('% a Cargo Patrono',         False, 14, '0',                    'Porcentaje que asume el patrono (0 por defecto salvo convenio)'),
+            ('Numero Certificado',        False, 20, 'CCSS-2026-123',        'Numero del certificado CCSS o INS'),
+            ('Diagnostico',               False, 28, 'Gripa severa',         'Descripcion del diagnostico'),
+            ('Salario Diario (CRC)',       False, 16, '25000',                'Salario mensual / 30'),
+            # -- Campos especiales Maternidad ----------------------------
+            ('Fecha de Parto',            False, 14, '',                     'Solo maternidad: DD/MM/AAAA'),
+            ('Maternidad 50/50 (Si/No)',  False, 14, 'Si',                   'Maternidad: Si=Patrono 50%% + CCSS 50%%  |  No=CCSS 100%% (Art. 94 CT)'),
+            ('Cobrar CCSS obrera 10.83%% s/patronal (Si/No)', False, 14, 'No', 'Maternidad 50/50: Si=aplica 10.83%% CCSS obrera sobre el 50%% que paga el patrono'),
+            ('Observaciones',             False, 28, '',                     ''),
         ]
-        sv = [self._SAMPLE_CEDULA, 'Enfermedad Comun (CCSS)', '01/01/2024', '05/01/2024',
-              '60', '40', 'PRUEBA-0000', 'Diagnostico prueba', '16667',
-              'WARN PRUEBA'] if sample else None
+        sv = [self._SAMPLE_CEDULA, 'Maternidad / Paternidad', '16/03/2026', '13/07/2026',
+              '100', '0', 'CCSS-MAT-001', 'Licencia maternidad', '18333',
+              '15/04/2026', 'Si', 'No', 'WARN PRUEBA'] if sample else None
+        # Nota: date_start = parto(15/04) - 30 dias = 16/03 (prenatal valido)
+        #       date_end  = parto(15/04) + 90 dias = 13/07 (postnatal valido)
+        #       Total: 120 dias exactos (maximo legal Art. 94 CT)
         ws = wb.create_sheet(' INCAPACIDADES')
         self._sheet_title(ws, 'INCAPACIDADES -- Solo las activas o dentro del periodo de carga', len(cols))
         self._build_rows(ws, cols, sample_values=sv)
         # col 2: Tipo de Incapacidad
         self._dv(ws, 2, 'disability', 4, title='Tipo de Incapacidad')
+        # col 11: Maternidad 50/50, col 12: Cobrar CCSS
+        self._dv(ws, 11, 'si_no', 4, title='Maternidad 50/50')
+        self._dv(ws, 12, 'si_no', 4, title='Cobrar CCSS sobre patronal')
 
     def _build_vacations(self, wb, sample=False):
         cols = [
@@ -1262,6 +1275,245 @@ class ImportTemplateWizard(models.TransientModel):
     # ==========================================================================
     # HOJA CATALOGOS
     # ==========================================================================
+    # ==========================================================================
+    # HOJA ACUMULADOS DE PROVISIONES (aguinaldo, cesantia, vacaciones)
+    # ==========================================================================
+    def _build_acumulados(self, wb, sample=False):
+        """
+        Hoja para cargar los acumulados de provisiones de empleados pre-existentes.
+        Necesario para instalaciones nuevas donde la empresa ya tiene empleados
+        con tiempo laborado y provisiones acumuladas historicas.
+        """
+        cols = [
+            # -- Identificacion -----------------------------------------------
+            ('Cedula Empleado',              True,  18, '1-2345-6789',
+             'Cedula del empleado (llave con hoja EMPLEADOS)'),
+            ('Nombre Empleado (ref)',         False, 28, 'Juan Perez Rodriguez',
+             'Referencia -- no se importa'),
+            ('Fecha de Corte',               True,  16, '31/12/2025',
+             'Fecha hasta la cual estan calculados los acumulados.\n'
+             'Debe ser el dia anterior al inicio del sistema.\n'
+             'Formato: DD/MM/AAAA'),
+            # -- Aguinaldo ----------------------------------------------------
+            ('Aguinaldo Acumulado (CRC)',     True,  20, '125000',
+             'Monto en colones acumulado de aguinaldo hasta la fecha de corte.\n'
+             'Calculo manual: (Salario_Mensual / 12) * meses_trabajados_en_el_anho.\n'
+             'Ejemplo: empleado con 8 meses laborados en 2025 y salario 600,000:\n'
+             '  600,000 / 12 * 8 = CRC 400,000'),
+            ('Meses Laborados 2025 (ref)',    False, 18, '8',
+             'Referencia: meses trabajados en el ano actual para calcular aguinaldo.\n'
+             'No se importa.'),
+            # -- Cesantia -----------------------------------------------------
+            ('Cesantia Acumulada (CRC)',      True,  20, '98500',
+             'Provision de cesantia acumulada hasta la fecha de corte.\n'
+             'Calculo segun tabla Art. 29 CT por anos de servicio:\n'
+             '  < 1 ano: 5.4167%% | 1 ano: 5.5556%% | ... | 7+ anos: 6.3889%%\n'
+             'Aplica sobre cada salario pagado desde el ingreso.\n'
+             'Use: Salario_Mensual * tasa_cesantia * meses_totales'),
+            ('Anos de Servicio (ref)',        False, 14, '2.5',
+             'Referencia: anos laborados a la fecha de corte. No se importa.\n'
+             'Sirve para calcular la tasa de cesantia correcta.'),
+            # -- Vacaciones ---------------------------------------------------
+            ('Vacaciones Acumuladas (dias)',  True,  22, '8.5',
+             'Dias de vacaciones disponibles a la fecha de corte.\n'
+             'Ver tambien la hoja VACACIONES para mas detalle.\n'
+             'Ejemplo: 8.5 dias pendientes de disfrutar.'),
+            ('Valor Dia Vacacion (CRC)',      False, 18, '20000',
+             'Referencia: valor de cada dia de vacaciones (Salario_Mensual / 30).\n'
+             'No se importa.'),
+            ('Vacaciones en Colones (ref)',   False, 18, '170000',
+             'Referencia: dias * valor_dia. No se importa.'),
+            # -- Provision total ----------------------------------------------
+            ('Total Provisiones (CRC)',       False, 20, '393500',
+             'Suma: Aguinaldo + Cesantia + (Vacaciones en colones).\n'
+             'Solo referencia contable -- no se importa.'),
+            ('Observaciones',                False, 36, 'Calculado por RRHH a dic-2025',
+             'Quien calculo los acumulados, fuente del dato, etc.'),
+        ]
+        sv = [
+            self._SAMPLE_CEDULA, 'Empleado Prueba', '31/12/2025',
+            '400000', '8',
+            '98500', '2.5',
+            '8.5', '20000', '170000',
+            '668500', 'WARN PRUEBA'
+        ] if sample else None
+
+        ws = wb.create_sheet(' ACUMULADOS')
+        self._sheet_title(
+            ws,
+            'ACUMULADOS DE PROVISIONES -- Para instalaciones nuevas con empleados pre-existentes',
+            len(cols)
+        )
+        self._build_rows(ws, cols, sample_values=sv)
+
+        # Instrucciones al pie
+        last_row = ws.max_row + 2
+        inst_fill = PatternFill('solid', fgColor='EBF5FB')
+        inst_font = Font(name='Calibri', size=10, italic=True, color='1A5276')
+        instructions = [
+            '  INSTRUCCIONES -- HOJA ACUMULADOS DE PROVISIONES',
+            '',
+            '  Esta hoja es para instalaciones NUEVAS donde la empresa ya tiene empleados con tiempo laborado.',
+            '  Permite cargar los acumulados historicos de aguinaldo, cesantia y vacaciones',
+            '  para que el sistema refleje el pasivo real desde el dia 1.',
+            '',
+            '  AGUINALDO (Art. 228 CT):',
+            '    Calculo: Salario_Mensual / 12 * meses_laborados_en_el_anho_actual',
+            '    Ejemplo: salario CRC 600,000, 8 meses en 2025 -> 600,000/12*8 = CRC 400,000',
+            '',
+            '  CESANTIA (Art. 29 CT -- tabla por anos de servicio):',
+            '    < 1 ano:  5.4167%%  | 1 ano: 5.5556%%  | 2 anos: 5.6944%%',
+            '    3 anos:  5.8333%%  | 4 anos: 5.9722%%  | 5 anos: 6.1111%%',
+            '    6 anos:  6.2500%%  | 7+ anos: 6.3889%% (maximo legal)',
+            '    Calculo: Salario_Mensual * tasa * meses_totales',
+            '',
+            '  VACACIONES (Art. 153 CT):',
+            '    4.1667%% del salario mensual por cada mes trabajado = 0.5 dias por mes laborado',
+            '    Saldo = dias_acumulados - dias_disfrutados',
+            '',
+            '  NOTA: Esta hoja es de referencia -- el sistema usa las hojas VACACIONES para',
+            '  el saldo de dias. Los acumulados en colones son para informacion contable.',
+        ]
+        for i, line in enumerate(instructions):
+            cell = ws.cell(row=last_row + i, column=1, value=line)
+            cell.fill = inst_fill
+            cell.font = inst_font
+            ws.merge_cells(
+                start_row=last_row + i, start_column=1,
+                end_row=last_row + i,   end_column=len(cols)
+            )
+
+    # ==========================================================================
+    # HOJA CONFIGURACION INICIAL
+    # ==========================================================================
+    def _build_config_inicial(self, wb):
+        """
+        Hoja de configuracion que recuerda al administrador los pasos clave
+        para dejar el sistema listo: tramos de renta, calendarizacion por defecto,
+        configuracion de CCSS, etc.
+        """
+        ws = wb.create_sheet(' CONFIGURACION')
+        ws.title = ' CONFIGURACION'
+
+        # Titulo principal
+        titulo_fill = PatternFill('solid', fgColor='1B2631')
+        titulo_font = Font(name='Calibri', size=14, bold=True, color='FFFFFF')
+        ws.merge_cells('A1:F1')
+        c = ws['A1']
+        c.value = 'LISTA DE VERIFICACION -- Configuracion Inicial del Sistema Planilla CR'
+        c.fill = titulo_fill; c.font = titulo_font
+        c.alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[1].height = 30
+
+        rows = [
+            # (seccion, item, descripcion, ruta en odoo, estado)
+            ('PASO 1 -- TRAMOS DE RENTA', '', '', '', ''),
+            ('', 'Tramos DGT-R-016-2026 activos',
+             'Verificar que haya 5 tramos activos para 2026',
+             'Planilla -> Configuracion -> Tramos de Renta',
+             'PENDIENTE'),
+            ('', 'Tramo exento correcto',
+             'El tramo exento debe ser CRC 918,000 (no 941,000)',
+             'Editar el tramo exento y verificar el limite',
+             'PENDIENTE'),
+            ('', 'Tramos sin empresa asignada (globales)',
+             'Para multi-empresa: dejar company_id en blanco para compartir tramos',
+             'Editar cada tramo -> campo Empresa -> borrar',
+             'PENDIENTE'),
+            ('', '', '', '', ''),
+            ('PASO 2 -- CALENDARIZACION POR DEFECTO', '', '', '', ''),
+            ('', 'Configurar calendarizacion por defecto',
+             'Seleccionar la calendarizacion que mas se usa (ej: Quincenal)',
+             'Planilla -> Configuracion -> Config. Contable -> Calendarizacion por Defecto',
+             'PENDIENTE'),
+            ('', 'Crear calendarizaciones necesarias',
+             'Crear las calendarizaciones de pago de su empresa',
+             'Planilla -> Configuracion -> Calendarizaciones',
+             'PENDIENTE'),
+            ('', '', '', '', ''),
+            ('PASO 3 -- CONFIGURACION CCSS', '', '', '', ''),
+            ('', 'Tasas CCSS 2026',
+             'CCSS obrero: 10.83%% | CCSS patronal: 26.83%%',
+             'Planilla -> Configuracion -> Codigos de Deduccion -> CCSS_OBR',
+             'PENDIENTE'),
+            ('', 'INS clase de riesgo por defecto',
+             'Verificar que los empleados tienen asignada la clase de riesgo correcta',
+             'RR.HH -> Empleados -> tab Planilla CR -> Clase de Riesgo INS',
+             'PENDIENTE'),
+            ('', '', '', '', ''),
+            ('PASO 4 -- IMPORTAR EMPLEADOS', '', '', '', ''),
+            ('', 'Importar hoja EMPLEADOS',
+             'Cargar empleados con cedula, salario, fecha ingreso, calendarizacion',
+             'Planilla -> Importar Datos -> Empleados',
+             'PENDIENTE'),
+            ('', 'Importar hoja VACACIONES',
+             'Cargar saldos de vacaciones historicos (fecha de corte)',
+             'Planilla -> Importar Datos -> Saldos Vacaciones',
+             'PENDIENTE'),
+            ('', 'Importar hoja ACUMULADOS',
+             'Registrar acumulados de aguinaldo, cesantia y vacaciones en colones',
+             'Referencia contable -- cargar manualmente si aplica',
+             'PENDIENTE'),
+            ('', '', '', '', ''),
+            ('PASO 5 -- PRIMERA PLANILLA', '', '', '', ''),
+            ('', 'Crear planilla prueba',
+             'Crear planilla en borrador para verificar calculos antes de confirmar',
+             'Planilla -> Planillas -> Nuevo',
+             'PENDIENTE'),
+            ('', 'Verificar tramos de renta',
+             'Confirmar que la renta se calcula con los tramos 2026 (exento 918k)',
+             'Abrir una boleta -> verificar Resumen Completo -> Impuesto de Renta',
+             'PENDIENTE'),
+            ('', 'Verificar cesantia por anos de servicio',
+             'Empleado con 5 anos debe usar tasa 5.9722%% (no 5.33%% fijo)',
+             'Abrir una boleta -> Cargas Patronales -> Provision Cesantia',
+             'PENDIENTE'),
+        ]
+
+        # Headers de columnas
+        headers = ['Seccion / Paso', 'Item de Verificacion', 'Descripcion',
+                   'Ruta en Odoo', 'Estado']
+        widths   = [32, 42, 55, 55, 14]
+        hdr_fill = PatternFill('solid', fgColor='1A5276')
+        hdr_font = Font(name='Calibri', size=10, bold=True, color='FFFFFF')
+        for col, (h, w) in enumerate(zip(headers, widths), 1):
+            c = ws.cell(row=2, column=col, value=h)
+            c.fill = hdr_fill; c.font = hdr_font
+            c.alignment = Alignment(horizontal='center')
+            ws.column_dimensions[get_column_letter(col)].width = w
+        ws.row_dimensions[2].height = 18
+
+        # Colores por tipo de fila
+        seccion_fill = PatternFill('solid', fgColor='2E4053')
+        seccion_font = Font(name='Calibri', size=10, bold=True, color='F9E79F')
+        item_font    = Font(name='Calibri', size=10)
+        alt_fill     = PatternFill('solid', fgColor='EBF5FB')
+        status_fill  = {
+            'PENDIENTE': PatternFill('solid', fgColor='FDEBD0'),
+            'LISTO':     PatternFill('solid', fgColor='D5F5E3'),
+        }
+
+        for i, row_data in enumerate(rows, 3):
+            seccion, item, desc, ruta, estado = row_data
+            is_seccion = bool(seccion and not item)
+            for col, val in enumerate([seccion or item, item if seccion else '', desc, ruta, estado], 1):
+                c = ws.cell(row=i, column=col, value=val)
+                if is_seccion:
+                    c.fill = seccion_fill; c.font = seccion_font
+                else:
+                    c.font = item_font
+                    if i % 2 == 0: c.fill = alt_fill
+                c.alignment = Alignment(wrap_text=True, vertical='center')
+            # Status cell dropdown
+            if estado in ('PENDIENTE', 'LISTO'):
+                dv = DataValidation(type='list', formula1='"PENDIENTE,LISTO,NO APLICA"', showDropDown=False)
+                ws.add_data_validation(dv)
+                dv.add(ws.cell(row=i, column=5))
+                st_cell = ws.cell(row=i, column=5)
+                st_cell.fill = status_fill.get(estado, PatternFill())
+            ws.row_dimensions[i].height = 30
+
+
     def _build_catalogs(self, wb):
         C = self._C
         ws = wb.create_sheet(' CATALOGOS')
@@ -1483,6 +1735,56 @@ class ImportTemplateWizard(models.TransientModel):
         ws.protection.sheet    = True
         ws.protection.password = 'planillacr2026'
 
+
+    # ==========================================================================
+    # HOJA COBROS A EMPLEADOS
+    # ==========================================================================
+    def _build_cobros_empleados(self, wb, sample=False):
+        """
+        Hoja para cargar cobros a empleados (almuerzos, productos, uniformes,
+        multas, etc.) que se descuentan automaticamente en la boleta.
+        """
+        cols = [
+            ('Cedula Empleado',         True,  18, '1-2345-6789',
+             'Cedula del empleado (llave con hoja EMPLEADOS)'),
+            ('Tipo de Cobro',           True,  28, 'Almuerzo',
+             'Descripcion del tipo de cobro (ej: Almuerzo, Uniforme, Multa)'),
+            ('Descripcion / Detalle',   False, 32, 'Almuerzo enero 2026',
+             'Detalle adicional del cobro'),
+            ('Precio Unitario (CRC)',    True,  18, '3500',
+             'Monto por unidad o monto total si cantidad=1'),
+            ('Cantidad',                True,  12, '1',
+             'Numero de unidades. Para monto fijo usar 1'),
+            ('Subsidio Patronal (%%)',   False, 18, '0',
+             'Porcentaje que subsidia el patrono (0 si el empleado paga todo)'),
+            ('Cobro Recurrente (Si/No)',True,  18, 'No',
+             'Si=aplica cada periodo automaticamente | No=cobro de una sola vez'),
+            ('Vigente Desde',           True,  14, '01/03/2026',
+             'Fecha a partir de la cual aplica el cobro. Formato: DD/MM/AAAA'),
+            ('Vigente Hasta',           False, 14, '',
+             'Fecha de vencimiento. Dejar vacio si es indefinido o cobro unico.'),
+            ('Afecta Base CCSS (Si/No)',False, 18, 'No',
+             'Si=suma al salario cotizable CCSS | No=no afecta base (default)'),
+            ('Estado',                  True,  14, 'Aprobado',
+             'Borrador / Aprobado -- use Aprobado para que se aplique en la proxima boleta'),
+            ('Observaciones',           False, 30, '',
+             'Notas internas del cobro'),
+        ]
+        sv = [
+            self._SAMPLE_CEDULA, 'Almuerzo', 'Almuerzo periodo prueba',
+            '3500', '1', '0', 'No', '01/01/2026', '', 'No', 'Aprobado', 'WARN PRUEBA'
+        ] if sample else None
+
+        ws = wb.create_sheet(' COBROS_EMPLEADOS')
+        self._sheet_title(
+            ws,
+            'COBROS A EMPLEADOS -- Almuerzos, uniformes, productos, multas, etc. (se descuentan en boleta)',
+            len(cols)
+        )
+        self._build_rows(ws, cols, data_rows=100, sample_values=sv)
+        self._dv(ws,  7, 'si_no', 4, title='Cobro Recurrente')
+        self._dv(ws, 10, 'si_no', 4, title='Afecta Base CCSS')
+
     # ==========================================================================
     # ACCION PRINCIPAL
     # ==========================================================================
@@ -1519,6 +1821,12 @@ class ImportTemplateWizard(models.TransientModel):
             self._build_embargos(wb, sample=s)
         if self.include_bonos:
             self._build_bonos(wb, sample=s)
+        if self.include_cobros:
+            self._build_cobros_empleados(wb, sample=s)
+        if self.include_acumulados:
+            self._build_acumulados(wb, sample=s)
+        if self.include_config:
+            self._build_config_inicial(wb)
 
         self._build_catalogs(wb)
 
@@ -1530,7 +1838,7 @@ class ImportTemplateWizard(models.TransientModel):
 
         # Guardar como attachment y devolver descarga
         company_slug = self.company_id.name.replace(' ', '_')[:20]
-        filename     = f'Machote_Planilla_{company_slug}_v54.xlsx'
+        filename     = f'Machote_Planilla_{company_slug}_v52858.xlsx'
 
         att = self.env['ir.attachment'].create({
             'name':     filename,
@@ -1543,6 +1851,6 @@ class ImportTemplateWizard(models.TransientModel):
 
         return {
             'type':   'ir.actions.act_url',
-            'url':    f'/web/content/{att.id}download=true',
+            'url':    f'/web/content/{att.id}?download=true',
             'target': 'self',
         }

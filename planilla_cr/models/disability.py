@@ -54,6 +54,29 @@ class Disability(models.Model):
              'Active solo si su empresa tiene politica voluntaria de complemento.'
     )
 
+    # ── Opciones especiales maternidad ──────────────────────────────────────
+    maternity_split_50 = fields.Boolean(
+        string='CCSS 50% + Patrono 50%',
+        default=True,
+        help='Modalidad especial: el patrono paga el 50%% del salario y la CCSS '
+             'paga el otro 50%%. Aplica cuando la empresa tiene convenio o politica '
+             'de mantener el salario completo durante la licencia de maternidad. '
+             'Si no esta activo: CCSS paga el 100%% (Art. 94 CT estandar).'
+    )
+    maternity_ccss_on_employer = fields.Boolean(
+        string='Cobrar CCSS obrera (10.83%%) sobre subsidio patronal',
+        default=False,
+        help='Al monto que paga el patrono (50%% del salario) se descuenta el '
+             '10.83%% de CCSS obrera, igual que cualquier salario ordinario. '
+             'El empleado recibe el 50%% patronal menos la cota de caja.'
+    )
+    maternity_ccss_deduction = fields.Monetary(
+        string='CCSS obrera sobre subsidio patronal (10.83%%)',
+        currency_field='currency_id',
+        compute='_compute_costs', store=True,
+        help='Monto de CCSS obrera descontado sobre el 50%% patronal en modalidad 50/50.'
+    )
+
     daily_salary = fields.Monetary(
         string='Salario Diario', currency_field='currency_id',
         compute='_compute_daily_salary', store=True
@@ -204,14 +227,35 @@ class Disability(models.Model):
 
     @api.depends('days', 'daily_salary', 'maternity_avg_salary',
                  'subsidy_percentage', 'employer_percentage',
-                 'disability_type', 'is_prorroga')
+                 'disability_type', 'is_prorroga',
+                 'maternity_split_50', 'maternity_ccss_on_employer')
     def _compute_costs(self):
         for rec in self:
             if rec.disability_type == 'maternity':
-                # Art. 94 CT: 100% CCSS desde dia 1, patrono NO paga salario
                 daily = rec.maternity_avg_salary or rec.daily_salary
-                rec.employer_cost = 0.0
-                rec.ccss_subsidy = round(rec.days * daily, 2)
+                total = round(rec.days * daily, 2)
+                rec.maternity_ccss_deduction = 0.0  # default
+
+                if rec.maternity_split_50:
+                    # Modalidad 50/50: patrono paga 50%, CCSS paga 50%
+                    mitad = round(total * 0.50, 2)
+                    if rec.maternity_ccss_on_employer:
+                        # Al 50% del patrono se le aplica CCSS obrera (10.83%%)
+                        # igual que cualquier pago de salario ordinario.
+                        # El empleado recibe: 50%% patronal - 10.83%% CCSS
+                        ccss_sobre_patrono = round(mitad * 0.1083, 2)
+                        rec.maternity_ccss_deduction = ccss_sobre_patrono
+                        rec.employer_cost = mitad          # patrono paga el 50%%
+                        rec.ccss_subsidy  = round(total * 0.50, 2)  # CCSS paga su 50%%
+                    else:
+                        # CCSS paga su 50%%, patrono absorbe su 50%% sin deduccion
+                        rec.employer_cost = mitad
+                        rec.ccss_subsidy  = mitad
+                        rec.maternity_ccss_deduction = 0.0
+                else:
+                    # Art. 94 CT estandar: 100%% CCSS, patrono NO paga salario
+                    rec.employer_cost = 0.0
+                    rec.ccss_subsidy  = total
             elif rec.disability_type == 'ins':
                 # INS - Riesgo Laboral (Art. 218 CT / Regl. Seguro Riesgos del Trabajo):
                 #  El INS cubre desde el DIA 1 (sin periodo de carencia patronal).
