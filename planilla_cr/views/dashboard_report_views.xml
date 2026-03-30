@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Vista Wizard Reportes ── -->
+    <record id="view_planilla_report_wizard_form" model="ir.ui.view">
+        <field name="name">planilla.report.wizard.form</field>
+        <field name="model">planilla.report.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Generar Reporte de Planilla">
+                <sheet>
+                    <div class="oe_title">
+                        <h2>Reportes de Planilla CR</h2>
+                    </div>
+                    <group>
+                        <group string="Tipo de Reporte">
+                            <field name="report_type" widget="radio"/>
+                        </group>
+                        <group string="Filtros">
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                            <field name="branch_id"/>
+                            <field name="company_id"/>
+                            <field name="currency_id"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_generate_report" type="object"
+                            string="Generar PDF" class="btn-primary"/>
+                    <button name="action_export_excel" type="object"
+                            string="Exportar Excel" class="btn-success"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Acción Reportes ── -->
+    <record id="action_planilla_report_wizard" model="ir.actions.act_window">
+        <field name="name">Reportes de Planilla</field>
+        <field name="res_model">planilla.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════
+         DASHBOARD
+    ══════════════════════════════════════════════════════════ -->
+    <record id="view_planilla_dashboard_form" model="ir.ui.view">
+        <field name="name">planilla.dashboard.form</field>
+        <field name="model">planilla.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Dashboard Planilla CR">
+                <sheet>
+                    <!-- Título + Filtro de fechas -->
+                    <div class="row mb-3" style="align-items:center;">
+                        <div class="col-6">
+                            <h2 style="color:#1F4E79; margin:0;">
+                                <i class="fa fa-tachometer" title="Tachometer"/> Dashboard — Planilla CR
+                            </h2>
+                            <p class="text-muted mb-0">Resumen por período seleccionado</p>
+                        </div>
+                        <div class="col-6">
+                            <div style="background:#F8F9FA; border:1px solid #dee2e6; border-radius:8px; padding:12px;">
+                                <div class="row" style="align-items:center;">
+                                    <div class="col-4">
+                                        <div style="font-size:12px; color:#6c757d;">DESDE</div>
+                                        <field name="date_from" nolabel="1"/>
+                                    </div>
+                                    <div class="col-4">
+                                        <div style="font-size:12px; color:#6c757d;">HASTA</div>
+                                        <field name="date_to" nolabel="1"/>
+                                    </div>
+                                    <div class="col-4" style="padding-top:18px;">
+                                        <field name="show_comparison" widget="boolean_toggle"/>
+                        <label for="show_comparison" string="Comparar períodos"/>
+                        <button name="action_refresh" type="object"
+                                                string="Actualizar" class="btn-primary btn-sm w-100"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tarjetas de métricas -->
+                    <div class="row mb-4">
+                        <div class="col-3">
+                            <div style="background:#1F4E79; color:#fff; border-radius:8px; padding:15px; text-align:center;">
+                                <div style="font-size:2em; font-weight:bold;">
+                                    <field name="active_employees" readonly="1" nolabel="1"/>
+                                </div>
+                                <div>Empleados Activos</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#2E75B6; color:#fff; border-radius:8px; padding:15px; text-align:center;">
+                                <div style="font-size:2em; font-weight:bold;">
+                                    <field name="payslips_count" readonly="1" nolabel="1"/>
+                                </div>
+                                <div>Boletas Pagadas</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#27AE60; color:#fff; border-radius:8px; padding:15px; text-align:center;">
+                                <div style="font-size:2em; font-weight:bold;">
+                                    <field name="paid_payrolls" readonly="1" nolabel="1"/>
+                                </div>
+                                <div>Planillas Pagadas</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#E74C3C; color:#fff; border-radius:8px; padding:15px; text-align:center;">
+                                <div style="font-size:2em; font-weight:bold;">
+                                    <field name="pending_payrolls" readonly="1" nolabel="1"/>
+                                </div>
+                                <div>Planillas Pendientes</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Totales financieros -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h4 style="border-bottom:2px solid #1F4E79; padding-bottom:5px;">
+                                Totales del Período
+                            </h4>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#E8F4FD; border-left:4px solid #2E75B6; padding:12px; border-radius:4px; margin-bottom:10px;">
+                                <div class="text-muted" style="font-size:11px;">SALARIO BRUTO TOTAL</div>
+                                <div style="font-size:1.4em; font-weight:bold; color:#1F4E79;">
+                                    <field name="total_gross" readonly="1" nolabel="1"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#E8F8EF; border-left:4px solid #27AE60; padding:12px; border-radius:4px; margin-bottom:10px;">
+                                <div class="text-muted" style="font-size:11px;">SALARIO NETO TOTAL</div>
+                                <div style="font-size:1.4em; font-weight:bold; color:#27AE60;">
+                                    <field name="total_net" readonly="1" nolabel="1"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#FFF3CD; border-left:4px solid #F39C12; padding:12px; border-radius:4px; margin-bottom:10px;">
+                                <div class="text-muted" style="font-size:11px;">COSTO TOTAL EMPRESA</div>
+                                <div style="font-size:1.4em; font-weight:bold; color:#E67E22;">
+                                    <field name="total_employer_cost" readonly="1" nolabel="1"/>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#FDE8E8; border-left:4px solid #E74C3C; padding:12px; border-radius:4px; margin-bottom:10px;">
+                                <div class="text-muted" style="font-size:11px;">CCSS TOTAL (OBRERO + PATRONAL)</div>
+                                <div style="font-size:1.4em; font-weight:bold; color:#C0392B;">
+                                    <field name="total_ccss" readonly="1" nolabel="1"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPIs de RRHH -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h4 style="border-bottom:2px solid #1F4E79; padding-bottom:5px;">
+                                Indicadores de RRHH
+                            </h4>
+                        </div>
+                        <!-- Aniversarios — clickable -->
+                        <div class="col-3">
+                            <button name="action_open_anniversary_employees" type="object"
+                                    style="width:100%; border:none; background:none; padding:0; text-align:left; cursor:pointer;">
+                                <div style="background:#E8F4FD; border-left:4px solid #8E44AD; padding:12px; border-radius:4px; margin-bottom:10px;">
+                                    <div class="text-muted" style="font-size:11px;"><i class="fa fa-birthday-cake" title="Birthday Cake"/> ANIVERSARIOS ESTE MES</div>
+                                    <div style="font-size:1.6em; font-weight:bold; color:#8E44AD;">
+                                        <field name="employees_anniversary" readonly="1" nolabel="1"/>
+                                    </div>
+                                    <div style="font-size:11px; color:#8E44AD;">ver empleados</div>
+                                </div>
+                            </button>
+                        </div>
+                        <!-- Vacaciones negativas — clickable -->
+                        <div class="col-3">
+                            <button name="action_open_negative_vacation_employees" type="object"
+                                    style="width:100%; border:none; background:none; padding:0; text-align:left; cursor:pointer;">
+                                <div style="background:#FDE8E8; border-left:4px solid #E74C3C; padding:12px; border-radius:4px; margin-bottom:10px;">
+                                    <div class="text-muted" style="font-size:11px;"><i class="fa fa-exclamation-triangle" title="Exclamation Triangle"/> VACACIONES NEGATIVAS</div>
+                                    <div style="font-size:1.6em; font-weight:bold; color:#C0392B;">
+                                        <field name="employees_negative_vacation" readonly="1" nolabel="1"/>
+                                    </div>
+                                    <div style="font-size:11px; color:#C0392B;">ver empleados</div>
+                                </div>
+                            </button>
+                        </div>
+                        <!-- Préstamos activos — clickable -->
+                        <div class="col-3">
+                            <button name="action_open_active_loans" type="object"
+                                    style="width:100%; border:none; background:none; padding:0; text-align:left; cursor:pointer;">
+                                <div style="background:#FFF3CD; border-left:4px solid #F39C12; padding:12px; border-radius:4px; margin-bottom:10px;">
+                                    <div class="text-muted" style="font-size:11px;"><i class="fa fa-credit-card" title="Credit Card"/> PRÉSTAMOS ACTIVOS</div>
+                                    <div style="font-size:1.6em; font-weight:bold; color:#E67E22;">
+                                        <field name="active_loans_count" readonly="1" nolabel="1"/>
+                                    </div>
+                                    <div style="font-size:11px; color:#E67E22;">
+                                        Saldo: <field name="active_loans_amount" readonly="1" nolabel="1"/>
+                                        <br/>▶ ver préstamos
+                                    </div>
+                                </div>
+                            </button>
+                        </div>
+                        <!-- Comparativo mes anterior — solo informativo -->
+                        <div class="col-3">
+                            <div style="background:#E8F8EF; border-left:4px solid #27AE60; padding:12px; border-radius:4px; margin-bottom:10px;">
+                                <div class="text-muted" style="font-size:11px;"><i class="fa fa-line-chart" title="Line Chart"/> VARIACIÓN VS MES ANTERIOR</div>
+                                <div style="font-size:1.6em; font-weight:bold; color:#27AE60;">
+                                    <field name="variation_pct" readonly="1" nolabel="1"/>%
+                                </div>
+                                <div style="font-size:11px; color:#666;">
+                                    Mes ant.: <field name="prev_total_gross" readonly="1" nolabel="1"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- <i class="fa fa-bar-chart" title="Bar Chart"/> Comparación de Períodos -->
+                    <div class="row mt-3" invisible="not show_comparison">
+                        <div class="col-12">
+                            <h4 style="border-bottom:2px solid #27AE60;padding-bottom:5px;color:#27AE60;">
+                                Comparación vs Período Anterior
+                            </h4>
+                        </div>
+                        <div class="col-12" style="margin-bottom:8px;">
+                            <span style="font-size:10px;color:#666;">
+                                Período anterior: <strong><field name="compare_date_from" readonly="0" nolabel="1" style="display:inline"/></strong>
+                                al <strong><field name="compare_date_to" readonly="0" nolabel="1" style="display:inline"/></strong>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="row" invisible="not show_comparison">
+                        <div class="col-3">
+                            <div style="background:#F0FBF4;border:1px solid #27AE60;border-radius:6px;padding:10px;">
+                                <div style="font-size:10px;color:#666;text-transform:uppercase;font-weight:bold;">Δ Salario Bruto</div>
+                                <div style="font-size:22px;font-weight:bold;color:#27AE60;">
+                                    <field name="delta_gross" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:9px;color:#888;">Ant.: <field name="compare_gross" readonly="1" nolabel="1"/></div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#F0FBF4;border:1px solid #2980B9;border-radius:6px;padding:10px;">
+                                <div style="font-size:10px;color:#666;text-transform:uppercase;font-weight:bold;">Δ Salario Neto</div>
+                                <div style="font-size:22px;font-weight:bold;color:#2980B9;">
+                                    <field name="delta_net" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:9px;color:#888;">Ant.: <field name="compare_net" readonly="1" nolabel="1"/></div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#FDE8E8;border:1px solid #E74C3C;border-radius:6px;padding:10px;">
+                                <div style="font-size:10px;color:#666;text-transform:uppercase;font-weight:bold;">Δ Costo Empresa</div>
+                                <div style="font-size:22px;font-weight:bold;color:#C0392B;">
+                                    <field name="delta_cost" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:9px;color:#888;">Ant.: <field name="compare_cost" readonly="1" nolabel="1"/></div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div style="background:#FFF3E0;border:1px solid #F39C12;border-radius:6px;padding:10px;">
+                                <div style="font-size:10px;color:#666;text-transform:uppercase;font-weight:bold;">Δ Empleados</div>
+                                <div style="font-size:22px;font-weight:bold;color:#E67E22;">
+                                    <field name="delta_emp" readonly="1" nolabel="1"/>
+                                </div>
+                                <div style="font-size:9px;color:#888;">
+                                    <field name="new_employees" readonly="1" nolabel="1"/>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Acciones Urgentes -->
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h4 style="border-bottom:2px solid #E67E22; padding-bottom:5px; color:#E67E22;">
+                                Acciones Urgentes
+                            </h4>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-4">
+                            <div style="background:#FFF3E0;border:1px solid #F39C12;border-radius:6px;padding:12px;">
+                                <div style="font-size:11px;text-transform:uppercase;color:#888;font-weight:bold;">
+                                    Cuotas Préstamo Vencidas
+                                </div>
+                                <div style="font-size:28px;font-weight:bold;color:#E67E22;">
+                                    <field name="urgent_overdue_loans" readonly="1" nolabel="1"/>
+                                </div>
+                                <button name="action_open_overdue_loans" type="object"
+                                        string="ver cuotas" class="btn-link p-0"
+                                        style="font-size:11px;color:#E67E22;"/>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="background:#FDE8E8;border:1px solid #E74C3C;border-radius:6px;padding:12px;">
+                                <div style="font-size:11px;text-transform:uppercase;color:#888;font-weight:bold;">
+                                    Vacaciones por Prescribir (Art. 156 CT)
+                                </div>
+                                <div style="font-size:28px;font-weight:bold;color:#C0392B;">
+                                    <field name="urgent_expiring_vacations" readonly="1" nolabel="1"/>
+                                </div>
+                                <button name="action_open_expiring_vacations" type="object"
+                                        string="ver empleados" class="btn-link p-0"
+                                        style="font-size:11px;color:#C0392B;"/>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="background:#EBF5FB;border:1px solid #3498DB;border-radius:6px;padding:12px;">
+                                <div style="font-size:11px;text-transform:uppercase;color:#888;font-weight:bold;">
+                                    Incapacidades Activas
+                                </div>
+                                <div style="font-size:28px;font-weight:bold;color:#2980B9;">
+                                    <field name="urgent_active_disabilities" readonly="1" nolabel="1"/>
+                                </div>
+                                <button name="action_open_active_disabilities" type="object"
+                                        string="ver incapacidades" class="btn-link p-0"
+                                        style="font-size:11px;color:#2980B9;"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Accesos rápidos -->
+                    <div class="row">
+                        <div class="col-12">
+                            <h4 style="border-bottom:2px solid #1F4E79; padding-bottom:5px;">
+                                Accesos Rápidos
+                            </h4>
+                        </div>
+                        <div class="col-12">
+                            <button name="action_open_payrolls" type="object"
+                                    string="Ver Planillas" class="btn-primary me-2"/>
+                            <button name="action_open_payslips" type="object"
+                                    string="Ver Boletas" class="btn-secondary me-2"/>
+                            <button name="action_open_reports" type="object"
+                                    string="Generar Reportes" class="btn-success"/>
+                        </div>
+                    </div>
+
+                    <field name="company_id" invisible="1"/>
+                    <field name="currency_id" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Acción Dashboard ── -->
+    <record id="action_planilla_dashboard" model="ir.actions.act_window">
+        <field name="name">Dashboard — Planilla CR</field>
+        <field name="res_model">planilla.dashboard</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_vacation_list" model="ir.ui.view">
+        <field name="name">planilla.vacation.payment.list</field>
+        <field name="model">planilla.vacation.payment</field>
+        <field name="arch" type="xml">
+            <list string="Vacaciones" decoration-success="state=='approved'"
+                  decoration-muted="state=='paid'">
+                <field name="employee_id"/>
+                <field name="branch_id"/>
+                <field name="vacation_type"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="days"/>
+                <field name="days_accrued"/>
+                <field name="total_amount"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_vacation_form" model="ir.ui.view">
+        <field name="name">planilla.vacation.payment.form</field>
+        <field name="model">planilla.vacation.payment</field>
+        <field name="arch" type="xml">
+            <form string="Vacaciones">
+                <header>
+                    <button name="action_approve_and_pay"
+                           string="Aprobar y Pagar"
+                           type="object"
+                           class="btn-primary"
+                           invisible="state != 'draft'"/>
+                    <button name="action_approve" type="object" string="Aprobar"
+                            invisible="state != 'draft'" class="btn-primary"/>
+                    <button name="action_cancel" type="object" string="Cancelar"
+                            invisible="state not in ('draft', 'approved')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved,paid"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group string="Empleado">
+                            <field name="employee_id"/>
+                            <field name="vacation_type"/>
+                            <field name="days_accrued" readonly="1"/>
+                        </group>
+                        <group string="Periodo">
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="days" readonly="1"/>
+                            <field name="daily_salary" readonly="1"/>
+                            <field name="total_amount" readonly="1"/>
+                        </group>
+                    </group>
+                    <!-- Metodo de pago Art. 153-156 CT -->
+                    <group string="Metodo de Pago (Art. 153-156 CT)">
+                        <field name="payment_method"/>
+
+                        <!-- Alerta: empleado con salario variable y use_average desactivado -->
+                        <div class="alert alert-warning col-12" role="alert"
+                             invisible="use_average or not employee_id">
+                            <i class="fa fa-exclamation-triangle" title="Advertencia"/> <strong>Art. 153 CT:</strong>
+                            Si el empleado recibe comisiones, horas extras recurrentes u otros
+                            ingresos variables, debe usar el <strong>Promedio de las ultimas 4 semanas</strong>
+                            para calcular el pago de vacaciones. Active la opcion abajo.
+                        </div>
+
+                        <field name="use_average" string="Usar Promedio 4 Semanas (Art. 153 CT)"/>
+
+                        <!-- Bloque de promedio visible cuando use_average esta activo -->
+                        <div class="col-12" invisible="not use_average">
+                            <group col="2">
+                                <field name="avg_last_4_weeks" string="Salario Diario Promedio (CRC)"/>
+                                <field name="avg_vs_base_diff_pct"
+                                       string="Diferencia vs Salario Base (%)"
+                                       readonly="1"/>
+                            </group>
+                            <div class="alert alert-info" role="alert"
+                                 invisible="avg_vs_base_diff_pct &lt; 5">
+                                <i class="fa fa-info-circle" title="Informacion"/>
+                                El promedio difiere en <strong><field name="avg_vs_base_diff_pct" nolabel="1" readonly="1"/>%</strong>
+                                del salario base diario. Esto es normal si el empleado tiene
+                                comisiones o horas extras variables. Verifique que el historial
+                                salarial incluya las boletas con comisiones.
+                            </div>
+                            <div class="alert alert-warning" role="alert"
+                                 invisible="avg_last_4_weeks &gt; 0">
+                                <i class="fa fa-exclamation-triangle" title="Advertencia"/>
+                                No hay historial salarial disponible. El sistema usara el salario
+                                base diario como aproximacion. Para mayor precision, asegurese de
+                                que las boletas anteriores esten pagadas y en el historial.
+                            </div>
+                        </div>
+
+                        <field name="days_in_money"
+                               invisible="payment_method != 'mixto'"/>
+                        <field name="payslip_id"
+                               invisible="payment_method == 'disfrutadas'"/>
+                        <field name="vacation_income_payslip"
+                               invisible="payment_method == 'disfrutadas'"/>
+                    </group>
+                    <field name="note" placeholder="Observaciones..."/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_vacation_payment" model="ir.actions.act_window">
+        <field name="name">Vacaciones</field>
+        <field name="res_model">planilla.vacation.payment</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

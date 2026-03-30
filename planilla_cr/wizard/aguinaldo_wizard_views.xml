@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_aguinaldo_wizard_form" model="ir.ui.view">
+        <field name="name">planilla.aguinaldo.wizard.form</field>
+        <field name="model">planilla.aguinaldo.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reporte Decimo Mes (Aguinaldo)">
+                <sheet>
+                    <div style="background:#1F4E79; color:white; border-radius:6px; padding:12px; margin-bottom:16px;">
+                        <h3 style="margin:0; color:white;"><i class="fa fa-star" title="Star"/> Calculo de Aguinaldo -- Art. 228 Codigo de Trabajo CR</h3>
+                        <small>Calcula el aguinaldo real de cada empleado basado en los salarios
+                        ordinarios recibidos en el periodo junio-noviembre.</small>
+                    </div>
+
+                    <group>
+                        <group>
+                            <field name="year"/>
+                            <field name="branch_id"/>
+                            <field name="salary_basis"/>
+                        </group>
+                        <group invisible="not computed">
+                            <field name="total_aguinaldo"/>
+                        </group>
+                    </group>
+                    <div invisible="salary_basis == 'base'"
+                         style="background:#d4edda; border-radius:4px; padding:8px; font-size:12px; color:#155724; margin-bottom:8px;">
+                        <i class="fa fa-check" title="Check"/> <strong>Salario Bruto recomendado</strong> -- Art. 228 CT incluye horas extras
+                        y vacaciones pagadas en el periodo junio-noviembre como parte del salario ordinario.
+                    </div>
+                    <div invisible="salary_basis == 'gross'"
+                         style="background:#fff3cd; border-radius:4px; padding:8px; font-size:12px; color:#856404; margin-bottom:8px;">
+                        <i class="fa fa-exclamation-triangle" title="Exclamation Triangle"/> <strong>Solo Salario Base</strong> -- No incluye horas extras ni vacaciones.
+                        Uselo solo si los componentes adicionales no son parte del salario ordinario en su empresa.
+                    </div>
+
+                    <div class="o_form_buttons_view" style="margin-bottom:12px;">
+                        <button name="action_compute" type="object"
+                                string="Calcular Aguinaldo" class="btn-primary"/>
+                        <button name="action_export_excel" type="object"
+                                string="Exportar Excel" class="btn-success"
+                                invisible="not computed"/>
+                    </div>
+
+                    <!-- Tabla de resultados -->
+                    <field name="result_ids" invisible="not computed">
+                        <list string="Aguinaldo por Empleado" >
+                            <field name="employee_id" string="Empleado"/>
+                            <field name="branch" string="Sucursal"/>
+                            <field name="slip_count" string="Boletas"/>
+                            <field name="months_worked" string="Meses"/>
+                            <field name="total_ordinary" string="Salarios Ordinarios (CRC)"
+                                   sum="Total"/>
+                            <field name="aguinaldo_amount" string="Aguinaldo (CRC)"
+                                   sum="Total Aguinaldo"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aguinaldo_wizard" model="ir.actions.act_window">
+        <field name="name">Decimo Mes (Aguinaldo)</field>
+        <field name="res_model">planilla.aguinaldo.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

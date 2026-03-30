@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_send_payslip_wizard_form" model="ir.ui.view">
+        <field name="name">planilla.send.payslip.wizard.form</field>
+        <field name="model">planilla.send.payslip.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Enviar Boletas de Pago">
+                <group>
+                    <field name="payslip_ids" widget="many2many_tags"/>
+                    <field name="email_subject"/>
+                </group>
+                <group>
+                    <field name="email_body" widget="html"/>
+                </group>
+                <footer>
+                    <button name="action_send" type="object"
+                            string="Enviar Correos" class="btn-primary"/>
+                    <button special="cancel" string="Cancelar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

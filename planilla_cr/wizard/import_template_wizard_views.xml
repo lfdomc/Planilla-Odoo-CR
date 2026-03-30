@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ======================================================================
+         WIZARD: Machote de Importacion de Empleados
+         ====================================================================== -->
+
+    <record id="view_import_template_wizard_form" model="ir.ui.view">
+        <field name="name">planilla.import.template.wizard.form</field>
+        <field name="model">planilla.import.template.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Generar Machote de Importacion">
+
+                <!-- Encabezado informativo -->
+                <div class="alert alert-info" role="alert">
+                    <i class="fa fa-file-excel-o me-2" title="Excel"/>
+                    <strong>Machote de carga masiva de empleados</strong><br/>
+                    Descargue este archivo Excel, compartalo con su cliente y
+                    devuelvalo completo para realizar la importacion inicial
+                    al sistema. <br/>
+                    <small>
+                        Incluye hojas para empleados, prestamos, pensiones
+                        alimentarias, beneficios recurrentes, incapacidades
+                        y saldo de vacaciones.
+                    </small>
+                </div>
+
+                <group string="Empresa">
+                    <field name="company_id"/>
+                </group>
+
+                <group string="Hojas a incluir en el machote">
+                    <group>
+                        <field name="include_employees"
+                               widget="boolean_toggle"
+                               string="  Empleados (datos principales)"/>
+                        <field name="include_loans"
+                               widget="boolean_toggle"
+                               string="$  Prestamos y Adelantos"/>
+                        <field name="include_pension"
+                               widget="boolean_toggle"
+                               string="‍  Pensiones Alimentarias"/>
+                    </group>
+                    <group>
+                        <field name="include_benefits"
+                               widget="boolean_toggle"
+                               string="➕  Otros Descuentos (Sindical, Coop, Ahorro…)"/>
+                        <field name="include_disabilities"
+                               widget="boolean_toggle"
+                               string="  Incapacidades"/>
+                        <field name="include_overtime"
+                               widget="boolean_toggle"
+                               string="⏱  Horas Extras (historico)"/>
+                        <field name="include_vacations"
+                               widget="boolean_toggle"
+                               string="  Saldo de Vacaciones"/>
+                        <field name="include_embargos"
+                               widget="boolean_toggle"
+                               string="⚖  Embargos Judiciales"/>
+                        <field name="include_bonos"
+                               widget="boolean_toggle"
+                               string="  Bonos y Beneficios"/>
+                        <field name="include_acumulados"
+                               widget="boolean_toggle"
+                               string="  Acumulados Provisiones (aguinaldo/cesantia/vacaciones)"/>
+                        <field name="include_config"
+                               widget="boolean_toggle"
+                               string="  Lista de verificacion configuracion inicial"/>
+                    </group>
+                </group>
+
+                <div class="text-muted small mt-2">
+                    <i class="fa fa-info-circle me-1" title="Informacion"/>
+                    La hoja <strong>INSTRUCCIONES</strong> y la hoja
+                    <strong>CATALOGOS</strong> siempre se incluyen automaticamente.
+                </div>
+
+                <group string=" Datos de Prueba">
+                    <field name="include_sample_data"
+                           widget="boolean_toggle"
+                           string="  Incluir fila de prueba (cedula 1-0000-0001)"/>
+                    <div class="text-muted small" colspan="2">
+                        La fila naranja (EMPLEADO PRUEBA) permite verificar que la importacion
+                        funciona correctamente. Importe, verifique y luego elimine ese empleado.
+                    </div>
+                </group>
+
+                <footer>
+                    <button name="action_generate"
+                            type="object"
+                            string="⬇ Descargar Machote Excel"
+                            class="btn-primary"
+                            icon="fa-download"/>
+                    <button string="Cancelar"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+
+            </form>
+        </field>
+    </record>
+
+    <!-- Accion del wizard -->
+    <record id="action_import_template_wizard" model="ir.actions.act_window">
+        <field name="name">Machote de Importacion de Empleados</field>
+        <field name="res_model">planilla.import.template.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_import_template_wizard_form"/>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_public_holiday_list" model="ir.ui.view">
+        <field name="name">planilla.public.holiday.list</field>
+        <field name="model">planilla.public.holiday</field>
+        <field name="arch" type="xml">
+            <list string="Feriados Nacionales CR" editable="top">
+                <field name="date"/>
+                <field name="name"/>
+                <field name="type"/>
+                <field name="company_id"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_public_holiday" model="ir.actions.act_window">
+        <field name="name">Feriados Nacionales CR</field>
+        <field name="res_model">planilla.public.holiday</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

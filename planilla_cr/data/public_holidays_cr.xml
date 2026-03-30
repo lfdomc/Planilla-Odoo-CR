@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Feriados nacionales CR 2026 — Art. 148 CT + Ley 8442 -->
+    <record id="holiday_cr_2026_01" model="planilla.public.holiday">
+        <field name="name">Año Nuevo</field>
+        <field name="date">2026-01-01</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_04_09" model="planilla.public.holiday">
+        <field name="name">Jueves Santo</field>
+        <field name="date">2026-04-02</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_04_10" model="planilla.public.holiday">
+        <field name="name">Viernes Santo</field>
+        <field name="date">2026-04-03</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_04_11" model="planilla.public.holiday">
+        <field name="name">Batalla de Rivas (Juan Santamaría)</field>
+        <field name="date">2026-04-11</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_05_01" model="planilla.public.holiday">
+        <field name="name">Día del Trabajador</field>
+        <field name="date">2026-05-01</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_07_25" model="planilla.public.holiday">
+        <field name="name">Anexión del Partido de Nicoya</field>
+        <field name="date">2026-07-25</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_08_02" model="planilla.public.holiday">
+        <field name="name">Virgen de los Ángeles</field>
+        <field name="date">2026-08-02</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_08_15" model="planilla.public.holiday">
+        <field name="name">Madre y Día del Soldado (no laborable)</field>
+        <field name="date">2026-08-15</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_09_15" model="planilla.public.holiday">
+        <field name="name">Independencia de Centroamérica</field>
+        <field name="date">2026-09-15</field>
+        <field name="type">national</field>
+    </record>
+    <!-- FIX-K14: 8 de diciembre — Inmaculada Concepción (Virgen de los Ángeles)
+         Art. 148 CT: feriado de pago obligatorio. Faltaba en la lista original. -->
+    <record id="holiday_cr_2026_12_08" model="planilla.public.holiday">
+        <field name="name">Virgen de los Ángeles (Inmaculada Concepción)</field>
+        <field name="date">2026-12-08</field>
+        <field name="type">national</field>
+        <field name="is_paid">True</field>
+    </record>
+    <record id="holiday_cr_2026_12_25" model="planilla.public.holiday">
+        <field name="name">Navidad</field>
+        <field name="date">2026-12-25</field>
+        <field name="type">national</field>
+    </record>
+
+    <!-- FIX BUG-N06 v52: Feriados faltantes 2026 -->
+
+    <!-- 1 de octubre: Día de la Cultura — PAGO OBLIGATORIO -->
+    <!-- Art. 148 CT + Ley 8442 Art. 1: feriado de pago obligatorio. -->
+    <!-- Trabajar este día devenga doble salario sin excepción. -->
+    <record id="holiday_cr_2026_10_01" model="planilla.public.holiday">
+        <field name="name">Día de la Cultura</field>
+        <field name="date">2026-10-12</field>
+        <field name="type">national</field>
+        <field name="is_paid">True</field>
+        <field name="note">Art. 148 CT + Ley 8442: feriado de pago OBLIGATORIO. Trabajar este día devuelve doble salario.</field>
+    </record>
+
+    <!-- 2 de diciembre: Abolición del Ejército — NO OBLIGATORIO (trasladable) -->
+    <!-- Ley 8886: declarado feriado pero clasificado como NO obligatorio. -->
+    <!-- El patrono puede: a) darlo como libre sin pago extra, -->
+    <!--                   b) trasladarlo al lunes siguiente, -->
+    <!--                   c) pactarlo con el trabajador. -->
+    <!-- Si el empleado trabaja este día NO aplica pago doble automático. -->
+    <record id="holiday_cr_2026_12_02" model="planilla.public.holiday">
+        <field name="name">Abolición del Ejército</field>
+        <field name="date">2026-12-02</field>
+        <field name="type">optional</field>
+        <field name="is_paid">False</field>
+        <field name="note">Ley 8886: feriado NO obligatorio (trasladable). No genera pago doble. Consultar con su contador el tratamiento aplicable.</field>
+    </record>
+</odoo>

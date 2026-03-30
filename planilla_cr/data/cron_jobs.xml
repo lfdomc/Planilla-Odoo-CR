@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- Cron 1: Aniversarios laborales — diario 7am -->
+    <record id="cron_check_anniversaries" model="ir.cron">
+        <field name="name">Planilla CR — Aniversarios Laborales</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_check_anniversaries()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="priority">20</field>
+    </record>
+
+    <!-- Cron 2: Cerrar préstamos completados — diario -->
+    <record id="cron_close_completed_loans" model="ir.cron">
+        <field name="name">Planilla CR — Cerrar Préstamos Completados</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_close_completed_loans()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="priority">30</field>
+    </record>
+
+    <!-- Cron 3: Alerta vacaciones negativas — semanal (lunes) -->
+    <record id="cron_alert_negative_vacations" model="ir.cron">
+        <field name="name">Planilla CR — Alerta Vacaciones Negativas</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_alert_negative_vacations()</field>
+        <field name="interval_number">7</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="priority">40</field>
+    </record>
+
+    <!-- Cron 4: Alerta prescripción vacaciones — mensual -->
+    <record id="cron_alert_prescribing_vacations" model="ir.cron">
+        <field name="name">Planilla CR — Alerta Prescripción de Vacaciones</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_alert_prescribing_vacations()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">months</field>
+        <field name="active">True</field>
+        <field name="priority">50</field>
+    </record>
+
+
+    <!-- Cron 5: Alerta embargos judiciales por vencer — diario -->
+    <record id="cron_alert_embargo_expiry" model="ir.cron">
+        <field name="name">Planilla CR — Alerta Embargos por Vencer</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_alert_embargo_expiry()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="priority">25</field>
+    </record>
+
+
+    <!-- Cron 6: Bono de Antigüedad Automático — diario -->
+    <record id="cron_bono_antiguedad" model="ir.cron">
+        <field name="name">Planilla CR — Bono de Antigüedad Automático</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_bono_antiguedad()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="priority">22</field>
+    </record>
+
+</odoo>

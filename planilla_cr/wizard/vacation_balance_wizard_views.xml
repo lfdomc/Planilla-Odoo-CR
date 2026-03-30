@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_vacation_balance_wizard_form" model="ir.ui.view">
+        <field name="name">planilla.vacation.balance.wizard.form</field>
+        <field name="model">planilla.vacation.balance.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reporte de Saldo de Vacaciones">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        <strong><i class="fa fa-calendar" title="Calendar"/> Reporte de Vacaciones:</strong>
+                        Muestra dias acumulados, tomados y disponibles por empleado.
+                        Filas rojas indican saldo negativo. Base legal: Art. 153 CT CR.
+                    </div>
+                    <group>
+                        <group string="Filtros">
+                            <field name="company_id"/>
+                            <field name="branch_id"/>
+                            <field name="include_inactive"/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_generate_pdf" type="object"
+                            string="Generar PDF" class="btn-primary"/>
+                    <button name="action_export_excel" type="object"
+                            string="Exportar Excel" class="btn-success"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_vacation_balance_wizard" model="ir.actions.act_window">
+        <field name="name">Saldo de Vacaciones</field>
+        <field name="res_model">planilla.vacation.balance.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

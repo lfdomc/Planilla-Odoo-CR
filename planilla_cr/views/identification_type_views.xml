@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tipos de Identificacion -->
+    <record id="view_identification_type_list" model="ir.ui.view">
+        <field name="name">planilla.identification.type.list</field>
+        <field name="model">planilla.identification.type</field>
+        <field name="arch" type="xml">
+            <list string="Tipos de Identificacion" editable="top">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="description"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_identification_type" model="ir.actions.act_window">
+        <field name="name">Tipos de Identificacion</field>
+        <field name="res_model">planilla.identification.type</field>
+        <field name="view_mode">list</field>
+    </record>
+</odoo>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_salary_history_list" model="ir.ui.view">
+        <field name="name">planilla.salary.history.list</field>
+        <field name="model">planilla.salary.history</field>
+        <field name="arch" type="xml">
+            <list string="Historial de Salarios">
+                <field name="effective_date"/>
+                <field name="employee_id"/>
+                <field name="branch_id"/>
+                <field name="reason"/>
+                <field name="gross_salary"/>
+                <field name="salary"/>
+                <field name="payslip_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_salary_history_form" model="ir.ui.view">
+        <field name="name">planilla.salary.history.form</field>
+        <field name="model">planilla.salary.history</field>
+        <field name="arch" type="xml">
+            <form string="Historial de Salario">
+                <header>
+                    <button name="action_print_history" type="object"
+                            string="Imprimir Historial del Empleado"
+                            class="btn-primary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="employee_id"/>
+                            <field name="branch_id" readonly="1"/>
+                            <field name="effective_date"/>
+                        </group>
+                        <group>
+                            <field name="reason"/>
+                            <field name="gross_salary"/>
+                            <field name="salary"/>
+                            <field name="payslip_id"/>
+                        </group>
+                    </group>
+                    <field name="note" placeholder="Notas..."/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_salary_history" model="ir.actions.act_window">
+        <field name="name">Historial de Salarios</field>
+        <field name="res_model">planilla.salary.history</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

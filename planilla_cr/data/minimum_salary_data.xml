@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Salarios minimos MTSS vigentes enero 2026 (Decreto 44567-MTSS) -->
+    <record id="min_salary_no_calificado" model="planilla.minimum.salary">
+        <field name="category">Trabajador no calificado generico</field>
+        <field name="amount">384300</field>
+        <field name="valid_from">2026-01-01</field>
+        <field name="decree_ref">Decreto N.° MTSS vigente enero 2026</field>
+    </record>
+    <record id="min_salary_semicalificado" model="planilla.minimum.salary">
+        <field name="category">Trabajador semicalificado</field>
+        <field name="amount">399400</field>
+        <field name="valid_from">2026-01-01</field>
+        <field name="decree_ref">Decreto N.° MTSS vigente enero 2026</field>
+    </record>
+    <record id="min_salary_calificado" model="planilla.minimum.salary">
+        <field name="category">Trabajador calificado</field>
+        <field name="amount">430500</field>
+        <field name="valid_from">2026-01-01</field>
+        <field name="decree_ref">Decreto N.° MTSS vigente enero 2026</field>
+    </record>
+    <record id="min_salary_tecnico" model="planilla.minimum.salary">
+        <field name="category">Tecnico de nivel medio</field>
+        <field name="amount">521600</field>
+        <field name="valid_from">2026-01-01</field>
+        <field name="decree_ref">Decreto N.° MTSS vigente enero 2026</field>
+    </record>
+    <record id="min_salary_universitario" model="planilla.minimum.salary">
+        <field name="category">Universitario con titulo</field>
+        <field name="amount">736900</field>
+        <field name="valid_from">2026-01-01</field>
+        <field name="decree_ref">Decreto N.° MTSS vigente enero 2026</field>
+    </record>
+</odoo>

@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── MENÚ PRINCIPAL ──────────────────────────────────────────── -->
+    <menuitem id="menu_planilla_cr_root"
+              name="Sistema Planilla"
+              sequence="85"
+              action="action_payroll_run_cr"
+              web_icon="planilla_cr,static/description/icon.png"/>
+
+    <!-- ── PLANILLAS ──────────────────────────────────────────────── -->
+    <menuitem id="menu_planilla_cr_payroll"
+              name="Planillas"
+              parent="menu_planilla_cr_root"
+              sequence="10"/>
+
+    <menuitem id="menu_payroll_run"
+              name="Planillas"
+              parent="menu_planilla_cr_payroll"
+              action="action_payroll_run_cr"
+              sequence="10"/>
+
+    <menuitem id="menu_payslip_cr"
+              name="Boletas de Pago"
+              parent="menu_planilla_cr_payroll"
+              action="action_payslip_cr"
+              sequence="20"/>
+
+    <menuitem id="menu_planilla_dashboard"
+              name="Dashboard"
+              parent="menu_planilla_cr_payroll"
+              action="action_planilla_dashboard"
+              sequence="30"/>
+
+    <menuitem id="menu_salary_increase_wizard"
+              name="Incremento Salarial Masivo"
+              parent="menu_planilla_cr_payroll"
+              action="action_salary_increase_wizard"
+              sequence="25"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <!-- ── NOVEDADES ──────────────────────────────────────────────── -->
+    <menuitem id="menu_planilla_cr_novedades"
+              name="Acción de Personal"
+              parent="menu_planilla_cr_root"
+              sequence="20"/>
+
+    <menuitem id="menu_overtime"
+              name="Horas Extras"
+              parent="menu_planilla_cr_novedades"
+              action="action_overtime"
+              sequence="10"/>
+
+    <menuitem id="menu_disability"
+              name="Incapacidades"
+              parent="menu_planilla_cr_novedades"
+              action="action_disability"
+              sequence="20"/>
+
+    <menuitem id="menu_leave_cr"
+              name="Licencias Especiales"
+              parent="menu_planilla_cr_novedades"
+              action="planilla_cr.action_leave_cr"
+              sequence="25"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <menuitem id="menu_vacation_payment"
+              name="Vacaciones"
+              parent="menu_planilla_cr_novedades"
+              action="action_vacation_payment"
+              sequence="30"/>
+
+    <menuitem id="menu_employee_loan"
+              name="Préstamos y Adelantos"
+              parent="menu_planilla_cr_novedades"
+              action="action_employee_loan"
+              sequence="35"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <menuitem id="menu_import_overtime_wizard"
+              name="Importar Horas Extras"
+              parent="menu_planilla_cr_novedades"
+              action="action_import_overtime_wizard"
+              sequence="40"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <menuitem id="menu_termination"
+              name="Liquidaciones / Finiquitos"
+              parent="menu_planilla_cr_novedades"
+              action="action_termination"
+              sequence="45"/>
+
+    <menuitem id="menu_termination_simulator"
+              name="Simulador de Liquidación"
+              parent="menu_planilla_cr_novedades"
+              action="planilla_cr.action_termination_simulator"
+              sequence="50"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <menuitem id="menu_employee_charge"
+              name="Cobros a Empleados"
+              parent="menu_planilla_cr_novedades"
+              action="planilla_cr.action_employee_charge"
+              sequence="55"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <!-- ── REPORTES ───────────────────────────────────────────────── -->
+    <menuitem id="menu_planilla_cr_reports"
+              name="Reportes"
+              parent="menu_planilla_cr_root"
+              sequence="30"/>
+
+    <menuitem id="menu_planilla_reportes_wizard"
+              name="Generar Reportes PDF"
+              parent="menu_planilla_cr_reports"
+              action="action_planilla_report_wizard"
+              sequence="5"/>
+
+    <menuitem id="menu_ins_report"
+              name="Planilla INS (Riesgos del Trabajo)"
+              parent="menu_planilla_cr_reports"
+              action="action_ins_report_wizard"
+              sequence="6"/>
+
+    <menuitem id="menu_ccss_report"
+              name="Planilla CCSS (Patrono)"
+              parent="menu_planilla_cr_reports"
+              action="action_ccss_report_wizard"
+              sequence="7"/>
+
+    <menuitem id="menu_eddi7_export"
+              name=" Declaración EDDI-7 CCSS"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_eddi7_export"
+              sequence="8"/>
+
+    <menuitem id="menu_bank_payment"
+              name="Exportar para Banco (BCR / BNCR)"
+              parent="menu_planilla_cr_reports"
+              action="action_bank_payment_wizard"
+              sequence="8"/>
+
+    <menuitem id="menu_salary_history"
+              name="Historial de Salarios"
+              parent="menu_planilla_cr_reports"
+              action="action_salary_history"
+              sequence="10"/>
+
+    <menuitem id="menu_vacation_balance_report"
+              name="Saldo de Vacaciones"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_vacation_balance_wizard"
+              sequence="72"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <menuitem id="menu_employer_cost_report"
+              name="Costos Patronales Consolidado"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_employer_cost_report_wizard"
+              sequence="73"
+              groups="planilla_cr.group_planilla_aprobador"/>
+
+    <menuitem id="menu_overtime_consolidated_report"
+              name="Horas Extras Consolidado"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_overtime_consolidated_wizard"
+              sequence="74"
+              groups="planilla_cr.group_planilla_aprobador"/>
+
+    <menuitem id="menu_mtss_export"
+              name="Exportación MTSS"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_mtss_export_wizard"
+              sequence="75"
+              groups="planilla_cr.group_planilla_aprobador"/>
+
+    <menuitem id="menu_audit_zip"
+              name="Paquete Auditoría (ZIP)"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_audit_zip_wizard"
+              sequence="90"
+              groups="planilla_cr.group_planilla_aprobador"/>
+
+    <menuitem id="menu_aguinaldo_wizard"
+              name="Décimo Mes (Aguinaldo)"
+              parent="menu_planilla_cr_reports"
+              action="action_aguinaldo_wizard"
+              sequence="45"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <menuitem id="menu_import_data_wizard"
+              name="Importar Empleados desde Excel"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_import_data_wizard"
+              sequence="94"
+              groups="planilla_cr.group_planilla_admin"/>
+
+        <menuitem id="menu_import_template_wizard"
+              name="Machote de Importación (Excel)"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_import_template_wizard"
+              sequence="95"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <!-- ── CONFIGURACIÓN ─────────────────────────────────────────── -->
+    <menuitem id="menu_planilla_cr_config"
+              name="Configuración"
+              parent="menu_planilla_cr_root"
+              sequence="90"/>
+
+    <menuitem id="menu_branch"
+              name="Sucursales"
+              parent="menu_planilla_cr_config"
+              action="action_branch"
+              sequence="10"/>
+
+    <menuitem id="menu_payroll_calendar"
+              name="Calendarizaciones"
+              parent="menu_planilla_cr_config"
+              action="action_payroll_calendar"
+              sequence="20"/>
+
+    <menuitem id="menu_deduction_code"
+              name="Códigos de Deducción (Tasas CCSS / INS)"
+              parent="menu_planilla_cr_config"
+              action="action_deduction_code"
+              sequence="30"/>
+
+    <menuitem id="menu_employee_status"
+              name=" Estados de Empleado"
+              parent="menu_planilla_cr_config"
+              action="action_employee_status"
+              sequence="40"/>
+
+    <menuitem id="menu_employee_type"
+              name="Tipos de Empleado"
+              parent="menu_planilla_cr_config"
+              action="action_employee_type"
+              sequence="50"/>
+
+    <menuitem id="menu_schedule_type"
+              name="Tipos de Horario"
+              parent="menu_planilla_cr_config"
+              action="action_schedule_type"
+              sequence="60"/>
+
+    <menuitem id="menu_identification_type"
+              name="Tipos de Identificación"
+              parent="menu_planilla_cr_config"
+              action="action_identification_type"
+              sequence="70"/>
+
+    <menuitem id="menu_planilla_accounting_config"
+              name="Cuentas Contables"
+              parent="menu_planilla_cr_config"
+              action="action_planilla_accounting_config_server"
+              sequence="80"/>
+
+    <menuitem id="menu_income_tax_bracket"
+              name="Tramos Impuesto de Renta"
+              parent="menu_planilla_cr_config"
+              action="action_income_tax_bracket"
+              sequence="82"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <menuitem id="menu_minimum_salary"
+              name="Salarios Mínimos MTSS"
+              parent="menu_planilla_cr_config"
+              action="action_minimum_salary"
+              sequence="83"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <menuitem id="menu_public_holiday"
+              name="Feriados Nacionales CR"
+              parent="menu_planilla_cr_config"
+              action="planilla_cr.action_public_holiday"
+              sequence="84"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <menuitem id="menu_closed_period"
+              name="Periodos Cerrados"
+              parent="menu_planilla_cr_config"
+              action="action_closed_period"
+              sequence="85"
+              groups="planilla_cr.group_planilla_aprobador"/>
+
+    <menuitem id="menu_charge_type"
+              name="Tipos de Cobro al Empleado"
+              parent="menu_planilla_cr_config"
+              action="planilla_cr.action_charge_type"
+              sequence="86"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <!-- ── Menús movidos desde views individuales (fix instalación fresca) ── -->
+    <menuitem id="menu_pension_alimentaria"
+              name="Pensiones Alimentarias"
+              action="action_pension_alimentaria"
+              parent="menu_planilla_cr_novedades"
+              sequence="56"/>
+
+    <menuitem id="menu_embargo"
+              name="Embargos Judiciales"
+              action="action_embargo"
+              parent="menu_planilla_cr_novedades"
+              sequence="58"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <menuitem id="menu_bono"
+              name="Bonos y Beneficios"
+              action="action_bono"
+              parent="menu_planilla_cr_novedades"
+              sequence="59"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <menuitem id="menu_bono_antiguedad_config"
+              name="Bono de Antigüedad (Tabla)"
+              action="action_bono_antiguedad_config"
+              parent="menu_planilla_cr_config"
+              sequence="65"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <!-- Herramienta de saneamiento de cobros huerfanos -->
+    <record id="action_sanear_cobros_menu" model="ir.actions.server">
+        <field name="name">Sanear Cobros Huerfanos</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_employee_charge"/>
+        <field name="state">code</field>
+        <field name="code">
+action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
+        </field>
+    </record>
+
+    <menuitem id="menu_sanear_cobros_huerfanos"
+              name="Sanear Cobros Huerfanos"
+              action="action_sanear_cobros_menu"
+              parent="menu_planilla_cr_config"
+              sequence="70"
+              groups="planilla_cr.group_planilla_aprobador"/>
+
+</odoo>

@@ -1,0 +1,406 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ==========================================================
+         REPORTE: RESUMEN MENSUAL
+    ========================================================== -->
+    <template id="report_monthly_summary_template">
+        <t t-call="web.html_container">
+            <meta charset="UTF-8"/>
+            <t t-foreach="docs" t-as="o">
+                <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-set="sym" t-value="data['currency'].symbol if data.get('currency') else '$'"/>
+                <t t-call="web.external_layout">
+                    <main>
+                        <div class="page">
+                            <!-- Encabezado -->
+                            <div class="row mb-4">
+                                <div class="col-12 text-center">
+                                    <h2 style="color:#1F4E79;">RESUMEN MENSUAL DE PLANILLA</h2>
+                                    <h4><t t-out="data['wizard'].company_id.name"/></h4>
+                                    <p class="text-muted">
+                                        Periodo: <strong><t t-out="str(data['wizard'].date_from)"/></strong>
+                                        al <strong><t t-out="str(data['wizard'].date_to)"/></strong>
+                                        | Moneda: <strong><t t-out="data['currency'].name if data.get('currency') else ''"/></strong>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Resumen General -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h5 style="background:#1F4E79; color:#fff; padding:8px;">RESUMEN GENERAL</h5>
+                                    <table class="table table-bordered table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>Total Empleados Pagados</strong></td>
+                                                <td class="text-end"><t t-out="data['employee_count']"/></td>
+                                            </tr>
+                                            <tr style="background:#e8f4fd;">
+                                                <td><strong>Total Salario Bruto</strong></td>
+                                                <td class="text-end fw-bold">
+                                                    <t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_gross'])"/>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Deduccion CCSS Obrero (10.83%)</td>
+                                                <td class="text-end text-danger">
+                                                    (<t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_ccss_employee'])"/>)
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Retencion Impuesto de Renta</td>
+                                                <td class="text-end text-danger">
+                                                    (<t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_income_tax'])"/>)
+                                                </td>
+                                            </tr>
+                                            <tr style="background:#e8f4fd;">
+                                                <td><strong>Total Salario Neto a Pagar</strong></td>
+                                                <td class="text-end fw-bold text-success">
+                                                    <t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_net'])"/>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Cargas Patronales -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h5 style="background:#1F4E79; color:#fff; padding:8px;">CARGAS PATRONALES Y PROVISIONES</h5>
+                                    <table class="table table-bordered table-sm">
+                                        <tbody>
+                                            <tr>
+                                                <td>CCSS Patronal (26.83%)</td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_ccss_employer'])"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td>INS / Riesgos Laborales (1%)</td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_ins'])"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td>Provision Aguinaldo (8.33%)</td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_aguinaldo'])"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td>Provision Cesantia (5.33%)</td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_cesantia'])"/></td>
+                                            </tr>
+                                            <tr>
+                                                <td>Provision Vacaciones (4.16%)</td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_vacation'])"/></td>
+                                            </tr>
+                                            <tr style="background:#fff3cd;">
+                                                <td><strong>COSTO TOTAL EMPRESA</strong></td>
+                                                <td class="text-end fw-bold">
+                                                    <t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_employer_cost'])"/>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Detalle por Empleado -->
+                            <div class="row">
+                                <div class="col-12">
+                                    <h5 style="background:#1F4E79; color:#fff; padding:8px;">DETALLE POR EMPLEADO</h5>
+                                    <table class="table table-bordered table-sm" style="font-size:11px;">
+                                        <thead style="background:#2E75B6; color:#fff;">
+                                            <tr>
+                                                <th>Empleado</th>
+                                                <th class="text-end">Bruto</th>
+                                                <th class="text-end">CCSS Obrero</th>
+                                                <th class="text-end">Renta</th>
+                                                <th class="text-end">Neto</th>
+                                                <th class="text-end">Costo Patronal</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <t t-foreach="data['payslips']" t-as="p">
+                                                <tr>
+                                                    <td><t t-out="p.employee_id.name"/></td>
+                                                    <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(o._convert_amount(p.gross_salary, p))"/></td>
+                                                    <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(o._convert_amount(p.ccss_employee, p))"/></td>
+                                                    <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(o._convert_amount(p.income_tax, p))"/></td>
+                                                    <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(o._convert_amount(p.net_salary, p))"/></td>
+                                                    <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(o._convert_amount(p.total_employer_cost, p))"/></td>
+                                                </tr>
+                                            </t>
+                                        </tbody>
+                                        <tfoot style="background:#f0f4f8; font-weight:bold;">
+                                            <tr>
+                                                <td>TOTALES</td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_gross'])"/></td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_ccss_employee'])"/></td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_income_tax'])"/></td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_net'])"/></td>
+                                                <td class="text-end"><t t-out="sym"/> <t t-out="'{:,.2f}'.format(data['total_employer_cost'])"/></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Pie -->
+                            <div class="row mt-4">
+                                <div class="col-6">
+                                    <p>Preparado por: ____________________________</p>
+                                    <p>Firma: ___________________________________</p>
+                                </div>
+                                <div class="col-6">
+                                    <p>Aprobado por: ____________________________</p>
+                                    <p>Firma: ___________________________________</p>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_monthly_summary" model="ir.actions.report">
+        <field name="name">Resumen Mensual de Planilla</field>
+        <field name="model">planilla.report.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_monthly_summary_template</field>
+        <field name="report_file">planilla_cr.report_monthly_summary_template</field>
+        <field name="print_report_name">'Resumen_Planilla_%s' % (object.date_from)</field>
+        <field name="binding_model_id" ref="model_planilla_report_wizard"/>
+    </record>
+
+    <!-- ==========================================================
+         REPORTE: PLANILLA CCSS
+    ========================================================== -->
+    <template id="report_ccss_template">
+        <t t-call="web.html_container">
+            <meta charset="UTF-8"/>
+            <t t-foreach="docs" t-as="o">
+                <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-call="web.external_layout">
+                    <main>
+                        <div class="page">
+                            <div class="row mb-4">
+                                <div class="col-12 text-center">
+                                    <h2 style="color:#1F4E79;">PLANILLA DE PATRONO -- CCSS</h2>
+                                    <h4><t t-out="data['wizard'].company_id.name"/></h4>
+                                    <p class="text-muted">
+                                        Periodo: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <table class="table table-bordered table-sm" style="font-size:11px;">
+                                <thead style="background:#1F4E79; color:#fff;">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Empleado</th>
+                                        <th>N° CCSS</th>
+                                        <th class="text-end">Salario Bruto</th>
+                                        <th class="text-end">Cuota Obrera 10.83%</th>
+                                        <th class="text-end">Cuota Patronal 26.83%</th>
+                                        <th class="text-end">INS 1%</th>
+                                        <th class="text-end">Total CCSS</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t t-foreach="data['payslips']" t-as="p">
+                                        <tr>
+                                            <td><t t-out="p_index + 1"/></td>
+                                            <td><t t-out="p.employee_id.name"/></td>
+                                            <td><t t-out="p.employee_id.ccss_number or ''"/></td>
+                                            <td class="text-end"><t t-out="'{:,.2f}'.format(p.gross_salary)"/></td>
+                                            <td class="text-end"><t t-out="'{:,.2f}'.format(p.ccss_employee)"/></td>
+                                            <td class="text-end"><t t-out="'{:,.2f}'.format(p.ccss_employer)"/></td>
+                                            <td class="text-end"><t t-out="'{:,.2f}'.format(p.ins_employer)"/></td>
+                                            <td class="text-end fw-bold">
+                                                <t t-out="'{:,.2f}'.format(p.ccss_employee + p.ccss_employer + p.ins_employer)"/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                                <tfoot style="background:#f0f4f8; font-weight:bold;">
+                                    <tr>
+                                        <td colspan="3">TOTALES</td>
+                                        <td class="text-end"><t t-out="'{:,.2f}'.format(data['total_gross'])"/></td>
+                                        <td class="text-end"><t t-out="'{:,.2f}'.format(data['total_ccss_employee'])"/></td>
+                                        <td class="text-end"><t t-out="'{:,.2f}'.format(data['total_ccss_employer'])"/></td>
+                                        <td class="text-end"><t t-out="'{:,.2f}'.format(data['total_ins'])"/></td>
+                                        <td class="text-end">
+                                            <t t-out="'{:,.2f}'.format(data['total_ccss_employee'] + data['total_ccss_employer'] + data['total_ins'])"/>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+
+                            <div class="row mt-4">
+                                <div class="col-6">
+                                    <p><strong>Representante Legal:</strong> ________________________</p>
+                                    <p><strong>Firma y Sello:</strong> ____________________________</p>
+                                </div>
+                                <div class="col-6 text-end">
+                                    <p><strong>Fecha de presentacion:</strong> ___________________</p>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_ccss" model="ir.actions.report">
+        <field name="name">Planilla CCSS</field>
+        <field name="model">planilla.report.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_ccss_template</field>
+        <field name="report_file">planilla_cr.report_ccss_template</field>
+        <field name="print_report_name">'Planilla_CCSS_%s' % (object.date_from)</field>
+        <field name="binding_model_id" ref="model_planilla_report_wizard"/>
+    </record>
+
+    <!-- ==========================================================
+         REPORTE: COSTO POR SUCURSAL
+    ========================================================== -->
+    <template id="report_cost_branch_template">
+        <t t-call="web.html_container">
+            <meta charset="UTF-8"/>
+            <t t-foreach="docs" t-as="o">
+                <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-call="web.external_layout">
+                    <main>
+                        <div class="page">
+                            <div class="row mb-4">
+                                <div class="col-12 text-center">
+                                    <h2 style="color:#1F4E79;">COSTO DE PLANILLA POR SUCURSAL</h2>
+                                    <h4><t t-out="data['wizard'].company_id.name"/></h4>
+                                    <p class="text-muted">
+                                        Periodo: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <t t-set="branches" t-value="data['payslips'].mapped('branch_id')"/>
+                            <t t-foreach="branches" t-as="branch">
+                                <t t-set="branch_payslips" t-value="data['payslips'].filtered(lambda p: p.branch_id == branch)"/>
+                                <h5 style="background:#2E75B6; color:#fff; padding:6px;">
+                                    Sucursal: <t t-out="branch.name"/>
+                                </h5>
+                                <table class="table table-bordered table-sm mb-4" style="font-size:11px;">
+                                    <thead style="background:#f0f4f8;">
+                                        <tr>
+                                            <th>Empleado</th>
+                                            <th class="text-end">Bruto</th>
+                                            <th class="text-end">Cargas Sociales</th>
+                                            <th class="text-end">Provisiones</th>
+                                            <th class="text-end">Costo Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <t t-foreach="branch_payslips" t-as="p">
+                                            <tr>
+                                                <td><t t-out="p.employee_id.name"/></td>
+                                                <td class="text-end"><t t-out="'{:,.2f}'.format(p.gross_salary)"/></td>
+                                                <td class="text-end"><t t-out="'{:,.2f}'.format(p.ccss_employer + p.ins_employer)"/></td>
+                                                <td class="text-end"><t t-out="'{:,.2f}'.format(p.aguinaldo_provision + p.cesantia_provision + p.vacation_provision)"/></td>
+                                                <td class="text-end fw-bold"><t t-out="'{:,.2f}'.format(p.total_employer_cost)"/></td>
+                                            </tr>
+                                        </t>
+                                    </tbody>
+                                    <tfoot style="font-weight:bold; background:#fff3cd;">
+                                        <tr>
+                                            <td>Subtotal <t t-out="branch.name"/></td>
+                                            <td class="text-end"><t t-out="'{:,.2f}'.format(sum(branch_payslips.mapped('gross_salary')))"/></td>
+                                            <td class="text-end"><t t-out="'{:,.2f}'.format(sum(branch_payslips.mapped('ccss_employer')) + sum(branch_payslips.mapped('ins_employer')))"/></td>
+                                            <td class="text-end"><t t-out="'{:,.2f}'.format(sum(branch_payslips.mapped('aguinaldo_provision')) + sum(branch_payslips.mapped('cesantia_provision')) + sum(branch_payslips.mapped('vacation_provision')))"/></td>
+                                            <td class="text-end"><t t-out="'{:,.2f}'.format(sum(branch_payslips.mapped('total_employer_cost')))"/></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </t>
+                        </div>
+                    </main>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_cost_branch" model="ir.actions.report">
+        <field name="name">Costo por Sucursal</field>
+        <field name="model">planilla.report.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_cost_branch_template</field>
+        <field name="report_file">planilla_cr.report_cost_branch_template</field>
+        <field name="binding_model_id" ref="model_planilla_report_wizard"/>
+    </record>
+
+    <!-- ==========================================================
+         REPORTE: DETALLE POR EMPLEADO
+    ========================================================== -->
+    <template id="report_employee_detail_template">
+        <t t-call="web.html_container">
+            <meta charset="UTF-8"/>
+            <t t-foreach="docs" t-as="o">
+                <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-call="web.external_layout">
+                    <main>
+                        <div class="page">
+                            <div class="row mb-4">
+                                <div class="col-12 text-center">
+                                    <h2 style="color:#1F4E79;">DETALLE DE PLANILLA POR EMPLEADO</h2>
+                                    <h4><t t-out="data['wizard'].company_id.name"/></h4>
+                                    <p class="text-muted">
+                                        Periodo: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <t t-foreach="data['payslips']" t-as="p">
+                                <div class="row mb-3" style="border:1px solid #dee2e6; padding:10px; border-radius:5px;">
+                                    <div class="col-6">
+                                        <strong><t t-out="p.employee_id.name"/></strong><br/>
+                                        <small>Cedula: <t t-out="p.employee_id.identification_id or ''"/></small><br/>
+                                        <small>CCSS: <t t-out="p.employee_id.ccss_number or ''"/></small>
+                                    </div>
+                                    <div class="col-6 text-end">
+                                        <small>Periodo: <t t-out="str(p.date_from)"/> - <t t-out="str(p.date_to)"/></small>
+                                    </div>
+                                    <div class="col-6 mt-2">
+                                        <table class="table table-sm table-bordered" style="font-size:10px;">
+                                            <thead style="background:#e8f4fd;"><tr><th colspan="2">INGRESOS</th></tr></thead>
+                                            <tbody>
+                                                <tr><td>Salario Bruto</td><td class="text-end"><t t-out="'{:,.2f}'.format(p.gross_salary)"/></td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="col-6 mt-2">
+                                        <table class="table table-sm table-bordered" style="font-size:10px;">
+                                            <thead style="background:#fde8e8;"><tr><th colspan="2">DEDUCCIONES</th></tr></thead>
+                                            <tbody>
+                                                <tr><td>CCSS Obrero</td><td class="text-end"><t t-out="'{:,.2f}'.format(p.ccss_employee)"/></td></tr>
+                                                <tr><td>Impuesto Renta</td><td class="text-end"><t t-out="'{:,.2f}'.format(p.income_tax)"/></td></tr>
+                                                <tr style="font-weight:bold;"><td>NETO A PAGAR</td><td class="text-end text-success"><t t-out="'{:,.2f}'.format(p.net_salary)"/></td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </t>
+                        </div>
+                    </main>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_employee_detail" model="ir.actions.report">
+        <field name="name">Detalle por Empleado</field>
+        <field name="model">planilla.report.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_employee_detail_template</field>
+        <field name="report_file">planilla_cr.report_employee_detail_template</field>
+        <field name="binding_model_id" ref="model_planilla_report_wizard"/>
+    </record>
+
+</odoo>

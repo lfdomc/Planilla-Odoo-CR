@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_minimum_salary_list" model="ir.ui.view">
+        <field name="name">planilla.minimum.salary.list</field>
+        <field name="model">planilla.minimum.salary</field>
+        <field name="arch" type="xml">
+            <list string="Salarios Minimos MTSS" editable="bottom">
+                <field name="category" string="Categoria Ocupacional"/>
+                <field name="amount" string="Minimo Mensual (CRC)"/>
+                <field name="valid_from" string="Vigente desde"/>
+                <field name="decree_ref" string="Decreto"/>
+                <field name="active"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_minimum_salary_form" model="ir.ui.view">
+        <field name="name">planilla.minimum.salary.form</field>
+        <field name="model">planilla.minimum.salary</field>
+        <field name="arch" type="xml">
+            <form string="Salario Minimo MTSS">
+                <sheet>
+                    <div style="background:#d1ecf1; border-radius:6px; padding:10px; margin-bottom:12px; font-size:12px; color:#0c5460;">
+                        <strong>i Salarios Minimos MTSS</strong> -- El sistema advertira si un empleado
+                        tiene un salario por debajo del minimo vigente. Actualice esta tabla cada vez que
+                        el Ministerio de Trabajo publique nuevos decretos (generalmente enero y julio).
+                    </div>
+                    <group>
+                        <group>
+                            <field name="category" placeholder="Ej: Trabajador no calificado generico"/>
+                            <field name="amount"/>
+                        </group>
+                        <group>
+                            <field name="valid_from"/>
+                            <field name="decree_ref" placeholder="Ej: Decreto N.° 44567-MTSS"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_minimum_salary" model="ir.actions.act_window">
+        <field name="name">Salarios Minimos MTSS</field>
+        <field name="res_model">planilla.minimum.salary</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Configure los salarios minimos del MTSS</p>
+            <p>Agregue una entrada por cada categoria ocupacional con el decreto vigente.
+            El sistema alertara si un salario esta por debajo del minimo configurado.</p>
+        </field>
+    </record>
+</odoo>

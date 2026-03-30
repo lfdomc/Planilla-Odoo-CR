@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_salary_history_document">
+        <t t-call="web.external_layout">
+            <main>
+            <t t-foreach="docs" t-as="doc">
+                <div class="page" style="font-family: Arial, sans-serif; font-size: 12px;">
+                    <h2 style="color:#1F4E79;">Historial de Salarios</h2>
+                    <div class="row mb-3 p-2" style="background:#f0f4f8; border-radius:5px;">
+                        <div class="col-6">
+                            <p class="mb-1"><strong>Colaborador:</strong> <t t-out="doc.name"/></p>
+                            <t t-if="doc.branch_id">
+                                <p class="mb-1"><strong>Sucursal:</strong> <t t-out="doc.branch_id.name"/></p>
+                            </t>
+                        </div>
+                        <div class="col-6">
+                            <p class="mb-1"><strong>Puesto:</strong> <t t-out="doc.job_id.name or 'N/D'"/></p>
+                            <p class="mb-1"><strong>Fecha de Ingreso:</strong> <t t-out="doc.entry_date or 'N/D'"/></p>
+                        </div>
+                    </div>
+
+                    <table class="table table-bordered table-sm mt-3">
+                        <thead style="background-color:#1F4E79; color:#fff;">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Motivo</th>
+                                <th class="text-end">Salario Bruto (&#8353;)</th>
+                                <th class="text-end">Salario Neto (&#8353;)</th>
+                                <th>Boleta</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="doc.salary_history_ids" t-as="hist">
+                                <tr>
+                                    <td><t t-out="hist.effective_date"/></td>
+                                    <td><t t-out="hist.reason or ''"/></td>
+                                    <td class="text-end"><t t-out="'{:,.2f}'.format(hist.gross_salary or 0)"/></td>
+                                    <td class="text-end fw-bold"><t t-out="'{:,.2f}'.format(hist.salary)"/></td>
+                                    <td><t t-out="hist.payslip_id.name or ''"/></td>
+                                </tr>
+                            </t>
+                        </tbody>
+                    </table>
+                    <p class="text-center mt-4" style="font-size:10px; color:#888;">
+                        Desarrollado por Ing. Luis Fernando Morua Calderon | Planilla CR para Odoo 19
+                    </p>
+                </div>
+            </t>
+            </main>
+        </t>
+    </template>
+
+    <record id="action_report_salary_history" model="ir.actions.report">
+        <field name="name">Historial de Salarios</field>
+        <field name="model">hr.employee</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_salary_history_document</field>
+        <field name="report_file">planilla_cr.report_salary_history_document</field>
+        <field name="binding_model_id" ref="hr.model_hr_employee"/>
+        <field name="binding_type">report</field>
+    </record>
+</odoo>
