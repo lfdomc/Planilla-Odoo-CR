@@ -4,6 +4,7 @@ from odoo import api, SUPERUSER_ID
 def post_init_hook(env):
     _create_email_templates(env)
     _setup_accounting_config(env)
+    _ensure_schedule_types(env)
 
 
 def post_migrate_hook(env):
@@ -15,6 +16,59 @@ def post_migrate_hook(env):
     """
     _setup_accounting_config(env)
     _ensure_deduction_codes(env)
+    _ensure_schedule_types(env)
+
+
+def _ensure_schedule_types(env):
+    """
+    Garantiza que los horarios de medio tiempo existan para cada empresa.
+    Se ejecuta en instalacion y en cada migracion (-u planilla_cr).
+    Los horarios de tiempo parcial requieren is_part_time=True para que
+    la validacion de salario minimo MTSS los exima correctamente.
+    """
+    companies = env['res.company'].search([])
+    ScheduleType = env['planilla.schedule.type']
+
+    PART_TIME_SCHEDULES = [
+        {
+            'code':           'MEDI',
+            'name':           'Medio Tiempo (4 horas)',
+            'hours_per_day':  4.0,
+            'hours_per_week': 20.0,
+            'days_per_week':  5,
+            'overtime_factor': 1.5,
+            'is_part_time':   True,
+            'description':    'Jornada a tiempo parcial. Art. 136 CT. '
+                              'Proporcional en salario, vacaciones y prestaciones.',
+        },
+        {
+            'code':           'TRCR',
+            'name':           'Tres Cuartos (6 horas)',
+            'hours_per_day':  6.0,
+            'hours_per_week': 30.0,
+            'days_per_week':  5,
+            'overtime_factor': 1.5,
+            'is_part_time':   True,
+            'description':    'Jornada parcial de 6 horas diurnas. '
+                              'Proporcional en salario, vacaciones y prestaciones segun CT.',
+        },
+    ]
+
+    for company in companies:
+        for sched_vals in PART_TIME_SCHEDULES:
+            existing = ScheduleType.search([
+                ('code', '=', sched_vals['code']),
+                ('company_id', '=', company.id),
+            ], limit=1)
+            if existing:
+                # Actualizar is_part_time si no estaba activado
+                if not existing.is_part_time:
+                    existing.with_company(company).write({'is_part_time': True})
+            else:
+                ScheduleType.with_company(company).create({
+                    **sched_vals,
+                    'company_id': company.id,
+                })
 
 
 def _ensure_deduction_codes(env):

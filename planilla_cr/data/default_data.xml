@@ -207,6 +207,7 @@
         <field name="hours_per_week">20.0</field>
         <field name="days_per_week">5</field>
         <field name="overtime_factor">1.5</field>
+        <field name="is_part_time">True</field>
         <field name="description">Jornada a tiempo parcial. Art. 136 CT: menos del 50% de la jornada ordinaria. Proporcional en salario, vacaciones y prestaciones.</field>
         <field name="active">True</field>
     </record>
@@ -218,6 +219,7 @@
         <field name="hours_per_week">30.0</field>
         <field name="days_per_week">5</field>
         <field name="overtime_factor">1.5</field>
+        <field name="is_part_time">True</field>
         <field name="description">Jornada parcial de 6 horas diurnas. Proporcional en salario, vacaciones y prestaciones según CT.</field>
         <field name="active">True</field>
     </record>
