@@ -96,8 +96,11 @@
                             invisible="state != 'confirmed'" class="btn-success"/>
                     <button name="action_send_payslip" type="object" string="Enviar por Correo"
                             invisible="state != 'done'"/>
+                    <button name="action_preview_payslip" type="object" string="Ver Boleta"
+                            invisible="state == 'draft'" class="btn-secondary"
+                            icon="fa-eye"/>
                     <button name="action_print_payslip" type="object" string="Imprimir"
-                            invisible="state == 'draft'"/>
+                            invisible="state == 'draft'" icon="fa-print"/>
                     <button name="action_cancel" type="object" string="Cancelar"
                             invisible="state in ('done', 'cancelled')"/>
                     <field name="state" widget="statusbar"

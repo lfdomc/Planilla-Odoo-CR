@@ -316,3 +316,13 @@ class PayslipActionMixin(models.AbstractModel):
 
     def action_print_payslip(self):
         return self.env.ref('planilla_cr.action_report_payslip_cr').report_action(self)
+
+    def action_preview_payslip(self):
+        report = self.env.ref('planilla_cr.action_report_payslip_cr')
+        return {
+            'type': 'ir.actions.report',
+            'report_name': report.report_name,
+            'report_type': 'qweb-html',
+            'res_model': self._name,
+            'res_id': self.id,
+        }
