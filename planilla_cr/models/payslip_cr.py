@@ -362,6 +362,17 @@ class PayslipCR(models.Model):
              'Base legal: Arts. 31 y 79 CT / Circular CCSS DSA-1183.'
     )
     overtime_ids   = fields.One2many('planilla.overtime', 'payslip_id', string='Horas Extras')
+    pending_overtime_from_attendance = fields.Boolean(
+        string='HE Pendientes de Asistencias',
+        compute='_compute_pending_overtime',
+        store=False,
+        help='True cuando hay HE auto-generadas desde asistencias pendientes de aprobacion.'
+    )
+    pending_overtime_count = fields.Integer(
+        string='HE por Aprobar',
+        compute='_compute_pending_overtime',
+        store=False,
+    )
     vacation_ids   = fields.One2many('planilla.vacation.payment', 'payslip_id', string='Vacaciones')
     leave_cr_ids   = fields.One2many('planilla.leave.cr', 'payslip_id', string='Licencias Especiales CR')
     deduction_line_ids = fields.One2many(
@@ -472,6 +483,21 @@ class PayslipCR(models.Model):
             to_cancel.action_cancel()
 
         return super().unlink()
+
+
+    @api.depends('overtime_ids.state', 'overtime_ids.source',
+                 'employee_id.payroll_calculation_method')
+    def _compute_pending_overtime(self):
+        for rec in self:
+            if rec.employee_id.payroll_calculation_method != 'attendance':
+                rec.pending_overtime_from_attendance = False
+                rec.pending_overtime_count = 0
+                continue
+            pending = rec.overtime_ids.filtered(
+                lambda o: o.state == 'draft' and o.source == 'attendance'
+            )
+            rec.pending_overtime_count = len(pending)
+            rec.pending_overtime_from_attendance = bool(pending)
 
 
     @api.constrains('date_from', 'date_to')

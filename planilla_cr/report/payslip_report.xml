@@ -139,39 +139,7 @@
                             </table>
                         </div>
                     </div>
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <h6 style="color:#1F4E79;">CARGAS PATRONALES (Referencia)</h6>
-                            <table class="table table-sm table-bordered">
-                                <thead style="background-color:#f0f4f8;">
-                                    <tr>
-                                        <th>Concepto</th><th class="text-end">Monto</th>
-                                        <th>Concepto</th><th class="text-end">Monto</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>CCSS Patronal (26.83%)</td>
-                                        <td class="text-end"><t t-out="'{:,.2f}'.format(doc.ccss_employer)"/></td>
-                                        <td>INS Riesgos (~1%)</td>
-                                        <td class="text-end"><t t-out="'{:,.2f}'.format(doc.ins_employer)"/></td>
-                                    </tr>
-                                    <tr>
-                                        <td>Provision Aguinaldo (8.33%)</td>
-                                        <td class="text-end"><t t-out="'{:,.2f}'.format(doc.aguinaldo_provision)"/></td>
-                                        <td>Provision Cesantia (5.33%)</td>
-                                        <td class="text-end"><t t-out="'{:,.2f}'.format(doc.cesantia_provision)"/></td>
-                                    </tr>
-                                    <tr>
-                                        <td>Provision Vacaciones (4.16%)</td>
-                                        <td class="text-end"><t t-out="'{:,.2f}'.format(doc.vacation_provision)"/></td>
-                                        <td><strong>COSTO TOTAL EMPRESA</strong></td>
-                                        <td class="text-end fw-bold"><t t-out="'{:,.2f}'.format(doc.total_employer_cost)"/></td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+
                     <div class="row mt-5">
                         <div class="col-5 text-center">
                             <div style="border-top:1px solid #000; margin-top:50px; padding-top:5px;">

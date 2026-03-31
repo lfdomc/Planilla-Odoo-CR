@@ -12,6 +12,14 @@
                         class="oe_stat_button" icon="fa-money">
                     <field name="salary_history_count" widget="statinfo" string="Historial Salarial"/>
                 </button>
+                <button name="action_print_constancia_laboral" type="object"
+                        class="oe_stat_button" icon="fa-file-text-o"
+                        title="Generar Constancia Laboral en PDF">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Constancia</span>
+                        <span class="o_stat_text">Laboral</span>
+                    </div>
+                </button>
             </xpath>
 
             <!-- Nueva pestana: Planilla CR -->

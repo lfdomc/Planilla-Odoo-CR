@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ================================================================
+         CONSTANCIA LABORAL
+         Base legal CR:
+           - Art. 29 Reglamento Interior de Trabajo
+           - Practica estandar MTSS / Poder Judicial
+           Contenido requerido: nombre, cedula, cargo, salario, fecha ingreso,
+           estado (activo), nombre empresa, cedula juridica, firma patronal.
+    ================================================================ -->
+    <template id="report_constancia_laboral_document">
+        <t t-call="web.external_layout">
+            <main>
+            <t t-foreach="docs" t-as="doc">
+                <t t-set="doc" t-value="doc.sudo()"/>
+                <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 20px;">
+
+                    <!-- Encabezado empresa -->
+                    <div class="row mb-4">
+                        <div class="col-12 text-center">
+                            <h2 style="color:#1F4E79; letter-spacing:2px;">CONSTANCIA LABORAL</h2>
+                            <p style="font-size:11px; color:#666;">
+                                Emitida el <strong><t t-out="datetime.date.today().strftime('%d/%m/%Y')"/></strong>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Cuerpo -->
+                    <div class="row" style="margin-top:20px;">
+                        <div class="col-12" style="text-align:justify; line-height:1.9; font-size:12px;">
+                            <p>
+                                La empresa <strong><t t-out="doc.company_id.name"/></strong>
+                                <t t-if="doc.company_id.vat">,
+                                    cedula juridica numero <strong><t t-out="doc.company_id.vat"/></strong>,
+                                </t>
+                                hace constar que:
+                            </p>
+
+                            <p>
+                                El (la) senor(a) <strong><t t-out="doc.name"/></strong>,
+                                portador(a) de la cedula de identidad numero
+                                <strong><t t-out="doc.identification_id or 'No registrada'"/></strong>,
+                                labora para esta empresa
+                                <t t-if="doc.entry_date">
+                                    desde el dia <strong><t t-out="doc.entry_date.strftime('%d/%m/%Y')"/></strong>
+                                </t>
+                                hasta la presente fecha,
+                                <t t-if="doc.job_id">
+                                    desempenanose en el puesto de <strong><t t-out="doc.job_id.name"/></strong>
+                                </t>
+                                <t t-if="doc.department_id">
+                                    , en el departamento de <strong><t t-out="doc.department_id.name"/></strong>
+                                </t>
+                                .
+                            </p>
+
+                            <p>
+                                Actualmente devenga un salario mensual de
+                                <strong>
+                                    <t t-out="doc.currency_id.symbol or 'CRC'"/>
+                                    <t t-out="'{:,.2f}'.format(doc.base_salary or 0)"/>
+                                </strong>
+                                <t t-if="doc.payroll_calendar_id">
+                                    , pagadero en forma
+                                    <t t-if="doc.payroll_calendar_id.frequency == 'biweekly'">quincenal
+                                        (<t t-out="doc.currency_id.symbol or 'CRC'"/>
+                                        <t t-out="'{:,.2f}'.format((doc.base_salary or 0) / 2)"/> por quincena)
+                                    </t>
+                                    <t t-elif="doc.payroll_calendar_id.frequency == 'weekly'">semanal
+                                        (<t t-out="doc.currency_id.symbol or 'CRC'"/>
+                                        <t t-out="'{:,.2f}'.format((doc.base_salary or 0) / 4)"/> por semana)
+                                    </t>
+                                    <t t-elif="doc.payroll_calendar_id.frequency == 'bimonthly'">bimensual
+                                        (<t t-out="doc.currency_id.symbol or 'CRC'"/>
+                                        <t t-out="'{:,.2f}'.format((doc.base_salary or 0) * 2)"/> cada dos meses)
+                                    </t>
+                                    <t t-else="">mensual</t>
+                                </t>
+                                .
+                            </p>
+
+                            <p>
+                                Se extiende la presente constancia a solicitud de la parte interesada,
+                                para los fines que estime convenientes.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Firma -->
+                    <div class="row mt-5 pt-4">
+                        <div class="col-6 offset-3 text-center">
+                            <div style="border-top: 1px solid #000; padding-top: 8px; margin-top: 60px;">
+                                <p style="margin:0;"><strong><t t-out="doc.company_id.name"/></strong></p>
+                                <p style="margin:0; font-size:11px; color:#555;">Representante Legal / Patrono</p>
+                                <t t-if="doc.company_id.vat">
+                                    <p style="margin:0; font-size:11px; color:#555;">Cedula Juridica: <t t-out="doc.company_id.vat"/></p>
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="text-center mt-4" style="font-size:9px; color:#aaa;">
+                        Planilla CR v5.28 | Odoo 19 | Legislacion Costa Rica
+                    </p>
+                    <div class="page_break"/>
+                </div>
+            </t>
+            </main>
+        </t>
+    </template>
+
+    <record id="action_report_constancia_laboral" model="ir.actions.report">
+        <field name="name">Constancia Laboral</field>
+        <field name="model">hr.employee</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_constancia_laboral_document</field>
+        <field name="report_file">planilla_cr.report_constancia_laboral_document</field>
+        <field name="binding_model_id" ref="hr.model_hr_employee"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="base.paperformat_euro"/>
+        <field name="print_report_name">'Constancia_Laboral_%s' % (object.name or '').replace(' ', '_')</field>
+    </record>
+
+
+    <!-- ================================================================
+         CARTA DE PREAVISO / DESPIDO
+         Base legal CR:
+           - Art. 28 CT: preaviso segun tiempo laborado
+           - Art. 29 CT: cesantia (solo despido injustificado)
+           - Art. 81 CT: causas justas de despido
+           - Art. 83 CT: renuncia voluntaria
+         Tipos: despido_justif | despido_injust | renuncia | mutuo_acuerdo
+    ================================================================ -->
+    <template id="report_carta_despido_document">
+        <t t-call="web.external_layout">
+            <main>
+            <t t-foreach="docs" t-as="doc">
+                <t t-set="doc" t-value="doc.sudo()"/>
+                <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 20px;">
+
+                    <!-- Encabezado -->
+                    <div class="row mb-4">
+                        <div class="col-12 text-end" style="font-size:11px; color:#555;">
+                            <p><t t-out="doc.company_id.name"/></p>
+                            <t t-if="doc.company_id.vat">
+                                <p>Cedula Juridica: <t t-out="doc.company_id.vat"/></p>
+                            </t>
+                            <p><t t-out="datetime.date.today().strftime('%d/%m/%Y')"/></p>
+                        </div>
+                    </div>
+
+                    <!-- Tipo de carta -->
+                    <div class="row mb-3">
+                        <div class="col-12 text-center">
+                            <t t-if="doc.termination_reason == 'despido_justif'">
+                                <h3 style="color:#C00000;">COMUNICADO DE DESPIDO CON JUSTA CAUSA</h3>
+                                <p style="font-size:10px; color:#888;">(Art. 81 Codigo de Trabajo)</p>
+                            </t>
+                            <t t-elif="doc.termination_reason == 'despido_injust'">
+                                <h3 style="color:#1F4E79;">COMUNICADO DE PREAVISO DE DESPIDO</h3>
+                                <p style="font-size:10px; color:#888;">(Art. 28 Codigo de Trabajo)</p>
+                            </t>
+                            <t t-elif="doc.termination_reason == 'renuncia'">
+                                <h3 style="color:#375623;">CARTA DE RENUNCIA VOLUNTARIA</h3>
+                                <p style="font-size:10px; color:#888;">(Art. 83 Codigo de Trabajo)</p>
+                            </t>
+                            <t t-else="">
+                                <h3 style="color:#1F4E79;">COMUNICADO DE TERMINACION DE RELACION LABORAL</h3>
+                                <p style="font-size:10px; color:#888;">(Codigo de Trabajo Costa Rica)</p>
+                            </t>
+                        </div>
+                    </div>
+
+                    <!-- Datos empleado -->
+                    <div class="row mb-4 p-2" style="background:#f8f9fa; border-radius:5px; border-left:4px solid #1F4E79;">
+                        <div class="col-6">
+                            <p class="mb-1"><strong>Colaborador:</strong> <t t-out="doc.employee_id.name"/></p>
+                            <p class="mb-1"><strong>Identificacion:</strong> <t t-out="doc.employee_id.identification_id or ''"/></p>
+                            <p class="mb-1"><strong>Puesto:</strong> <t t-out="doc.employee_id.job_id.name or ''"/></p>
+                        </div>
+                        <div class="col-6">
+                            <p class="mb-1"><strong>Fecha Ingreso:</strong>
+                                <t t-out="doc.employee_id.entry_date.strftime('%d/%m/%Y') if doc.employee_id.entry_date else 'N/D'"/>
+                            </p>
+                            <p class="mb-1"><strong>Fecha Efectiva:</strong>
+                                <t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/>
+                            </p>
+                            <p class="mb-1"><strong>Salario:</strong>
+                                <t t-out="doc.employee_id.currency_id.symbol or 'CRC'"/>
+                                <t t-out="'{:,.2f}'.format(doc.employee_id.base_salary or 0)"/>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Cuerpo segun tipo -->
+                    <div class="row" style="text-align:justify; line-height:1.9; font-size:12px;">
+                        <div class="col-12">
+
+                            <!-- DESPIDO CON JUSTA CAUSA -->
+                            <t t-if="doc.termination_reason == 'despido_justif'">
+                                <p>
+                                    Por medio de la presente, la empresa
+                                    <strong><t t-out="doc.company_id.name"/></strong>
+                                    le comunica que, con fundamento en el
+                                    <strong>Articulo 81 del Codigo de Trabajo de Costa Rica</strong>,
+                                    se da por terminada su relacion laboral con justa causa,
+                                    a partir del dia
+                                    <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
+                                </p>
+                                <t t-if="doc.note">
+                                    <p><strong>Causa(s) que motivan el despido:</strong></p>
+                                    <p style="border:1px solid #ddd; padding:10px; border-radius:4px; background:#fff8f8;">
+                                        <t t-out="doc.note"/>
+                                    </p>
+                                </t>
+                                <p>
+                                    En virtud de que el despido se realiza con justa causa,
+                                    <strong>no corresponde el pago de preaviso ni de cesantia</strong>
+                                    (Art. 82 C.T.).
+                                </p>
+                                <p>
+                                    Se hace entrega de la presente comunicacion en dos tantos, uno para cada parte.
+                                    El trabajador tiene derecho a dejar constancia escrita de su disconformidad con el despido.
+                                </p>
+                            </t>
+
+                            <!-- DESPIDO SIN JUSTA CAUSA (PREAVISO) -->
+                            <t t-elif="doc.termination_reason == 'despido_injust'">
+                                <p>
+                                    Por medio de la presente, la empresa
+                                    <strong><t t-out="doc.company_id.name"/></strong>
+                                    le comunica que, con fundamento en el
+                                    <strong>Articulo 28 del Codigo de Trabajo de Costa Rica</strong>,
+                                    se da por terminada su relacion laboral
+                                    <strong>sin justa causa</strong>,
+                                    a partir del dia
+                                    <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
+                                </p>
+                                <p><strong>Terminos del preaviso (Art. 28 C.T.):</strong></p>
+                                <table class="table table-bordered table-sm" style="font-size:11px;">
+                                    <thead style="background:#f0f4f8;">
+                                        <tr>
+                                            <th>Tiempo laborado</th>
+                                            <th>Preaviso</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>Menos de 3 meses</td><td>1 semana</td></tr>
+                                        <tr><td>De 3 a 6 meses</td><td>2 semanas</td></tr>
+                                        <tr><td>De 6 meses a 1 ano</td><td>1 mes</td></tr>
+                                        <tr><td>Mas de 1 ano</td><td>1 mes</td></tr>
+                                    </tbody>
+                                </table>
+                                <p>
+                                    Corresponde ademas el pago de
+                                    <strong>auxilio de cesantia</strong>
+                                    conforme al Articulo 29 del Codigo de Trabajo,
+                                    calculado segun los anos de servicio.
+                                </p>
+                                <t t-if="doc.note">
+                                    <p><strong>Observaciones:</strong></p>
+                                    <p style="border:1px solid #ddd; padding:10px; border-radius:4px;">
+                                        <t t-out="doc.note"/>
+                                    </p>
+                                </t>
+                                <p>
+                                    Se le informa ademas que tiene derecho a solicitar audiencia ante
+                                    el Ministerio de Trabajo y Seguridad Social (MTSS) si considera que
+                                    el despido no se ajusta a las disposiciones legales.
+                                </p>
+                            </t>
+
+                            <!-- RENUNCIA VOLUNTARIA -->
+                            <t t-elif="doc.termination_reason == 'renuncia'">
+                                <p>
+                                    Por medio de la presente, el (la) senor(a)
+                                    <strong><t t-out="doc.employee_id.name"/></strong>
+                                    comunica formalmente su renuncia voluntaria al puesto de
+                                    <strong><t t-out="doc.employee_id.job_id.name or 'colaborador(a)'"/></strong>
+                                    en la empresa
+                                    <strong><t t-out="doc.company_id.name"/></strong>,
+                                    con fundamento en el <strong>Articulo 83 del Codigo de Trabajo</strong>.
+                                </p>
+                                <p>
+                                    La fecha efectiva de la renuncia es el dia
+                                    <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
+                                </p>
+                                <p>
+                                    En la renuncia voluntaria <strong>no corresponde el pago de cesantia</strong>.
+                                    Si el trabajador no otorga el preaviso correspondiente segun Art. 28 C.T.,
+                                    el patrono podra deducir el equivalente de su liquidacion.
+                                </p>
+                                <t t-if="doc.note">
+                                    <p><strong>Motivo de la renuncia (opcional):</strong></p>
+                                    <p style="border:1px solid #ddd; padding:10px; border-radius:4px;">
+                                        <t t-out="doc.note"/>
+                                    </p>
+                                </t>
+                            </t>
+
+                            <!-- OTRO / MUTUO ACUERDO -->
+                            <t t-else="">
+                                <p>
+                                    Por medio de la presente, la empresa
+                                    <strong><t t-out="doc.company_id.name"/></strong>
+                                    y el (la) colaborador(a)
+                                    <strong><t t-out="doc.employee_id.name"/></strong>
+                                    dan por terminada la relacion laboral de mutuo acuerdo,
+                                    conforme al Codigo de Trabajo de Costa Rica,
+                                    a partir del dia
+                                    <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
+                                </p>
+                                <t t-if="doc.note">
+                                    <p><strong>Terminos del acuerdo:</strong></p>
+                                    <p style="border:1px solid #ddd; padding:10px; border-radius:4px;">
+                                        <t t-out="doc.note"/>
+                                    </p>
+                                </t>
+                            </t>
+
+                        </div>
+                    </div>
+
+                    <!-- Firmas -->
+                    <div class="row mt-5">
+                        <div class="col-5 text-center">
+                            <div style="border-top:1px solid #000; margin-top:60px; padding-top:8px;">
+                                <p style="margin:0;"><strong><t t-out="doc.company_id.name"/></strong></p>
+                                <p style="margin:0; font-size:11px; color:#555;">Representante Legal / Patrono</p>
+                            </div>
+                        </div>
+                        <div class="col-5 offset-2 text-center">
+                            <div style="border-top:1px solid #000; margin-top:60px; padding-top:8px;">
+                                <p style="margin:0;"><strong><t t-out="doc.employee_id.name"/></strong></p>
+                                <p style="margin:0; font-size:11px; color:#555;">Colaborador(a)</p>
+                                <p style="margin:0; font-size:11px; color:#555;">
+                                    Ced. <t t-out="doc.employee_id.identification_id or ''"/>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="text-center mt-4" style="font-size:9px; color:#aaa;">
+                        Se extiende en dos tantos del mismo tenor y para un solo efecto legal.
+                        Planilla CR v5.28 | Odoo 19
+                    </p>
+                    <div class="page_break"/>
+                </div>
+            </t>
+            </main>
+        </t>
+    </template>
+
+    <record id="action_report_carta_despido" model="ir.actions.report">
+        <field name="name">Carta de Despido / Renuncia</field>
+        <field name="model">planilla.termination</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">planilla_cr.report_carta_despido_document</field>
+        <field name="report_file">planilla_cr.report_carta_despido_document</field>
+        <field name="binding_model_id" ref="model_planilla_termination"/>
+        <field name="binding_type">report</field>
+        <field name="paperformat_id" ref="base.paperformat_euro"/>
+        <field name="print_report_name">'Carta_%s' % (object.name or 'Despido').replace(' ', '_')</field>
+    </record>
+
+</odoo>

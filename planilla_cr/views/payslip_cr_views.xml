@@ -670,8 +670,11 @@
                                        invisible="calculation_method != 'attendance'"/>
                             <group invisible="calculation_method != 'attendance'">
                                 <field name="attendance_hours" readonly="1"/>
+                                <field name="pending_overtime_count" readonly="1"
+                                       string="HE pendientes por aprobar"
+                                       invisible="pending_overtime_from_attendance == False"/>
                                 <field name="attendance_details" readonly="1"
-                                       string="Detalle por día"/>
+                                       string="Detalle por dia"/>
                             </group>
 
                             <!-- Contabilidad -->
@@ -758,13 +761,22 @@
 
                         <!-- ══ HORAS EXTRAS ═════════════════════════════════════ -->
                         <page string="Horas Extras" name="overtime">
+                            <div class="alert alert-warning mb-2" role="alert"
+                                 invisible="not pending_overtime_from_attendance">
+                                <strong>Horas Extras por Aprobar: </strong>
+                                <field name="pending_overtime_count" readonly="1" nolabel="1" class="fw-bold"/>
+                                registro(s) detectados automaticamente desde asistencias. Revise, ajuste y apruebe antes de confirmar la boleta.
+                            </div>
                             <field name="overtime_ids">
-                                <list>
+                                <list decoration-warning="state == 'draft' and source == 'attendance'"
+                                      decoration-success="state == 'approved'">
                                     <field name="date"/>
                                     <field name="overtime_type"/>
                                     <field name="hours"/>
+                                    <field name="source"/>
                                     <field name="amount"/>
                                     <field name="state"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                         </page>

@@ -77,6 +77,7 @@
         'report/ins_report.xml',
         'report/ccss_report.xml',
         'report/employee_charge_report.xml',
+        'report/constancia_despido_report.xml',
         'views/ins_report_views.xml',
         'views/bank_payment_views.xml',
         'views/ccss_report_views.xml',

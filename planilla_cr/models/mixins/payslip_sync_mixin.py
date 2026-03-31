@@ -199,6 +199,9 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
         vacations.write({'payslip_id': self.id})
 
+        # -- HE automaticas desde asistencias (solo metodo 'attendance') ------
+        self._sync_overtime_from_attendance()
+
         # -- Pensiones Alimentarias -----------------------------------------
         self._sync_pension_alimentaria()
 
@@ -207,6 +210,126 @@ class PayslipSyncMixin(models.AbstractModel):
 
         # -- Ausencias aprobadas (hr_holidays) -----------------------------
         self._sync_ausencias()
+
+
+    def _sync_overtime_from_attendance(self) -> None:
+        """
+        Genera automaticamente registros de planilla.overtime en estado 'draft'
+        basados en las marcas de hr.attendance para empleados con metodo
+        payroll_calculation_method = 'attendance'.
+
+        Logica (Art. 139 CT):
+          1. Por cada dia del periodo, suma horas trabajadas desde hr.attendance.
+          2. Compara contra la jornada ordinaria diaria del empleado.
+          3. El excedente se clasifica:
+               - 'holiday' : feriado de pago obligatorio (Art. 148 CT)
+               - 'double'  : domingo o HE nocturnas (> jornada mixta/nocturna)
+               - 'simple'  : cualquier otro excedente diurno
+          4. Crea planilla.overtime en draft con source='attendance'.
+          5. No duplica: si ya existe un registro auto-generado para ese
+             dia+tipo, lo actualiza. Si el usuario lo modifico manualmente
+             (source='manual'), no lo toca.
+
+        Se llama desde _sync_novedades() solo si metodo == 'attendance'.
+        El aprobador debe revisar y aprobar los registros antes de confirmar
+        la boleta (igual que las HE manuales).
+        """
+        self.ensure_one()
+        emp = self.employee_id
+        if not emp or not self.date_from or not self.date_to:
+            return
+        if (emp.payroll_calculation_method or 'fixed') != 'attendance':
+            return
+
+        import datetime as dt
+
+        # -- Jornada ordinaria del empleado -----------------------------------
+        schedule = emp.schedule_type_id
+        hours_per_day = schedule.hours_per_day if schedule else 8.0
+        # Jornada: diurna=8h, mixta=7h, nocturna=6h. El excedente es HE.
+        # Usamos hours_per_day del tipo de horario como umbral de HE simple.
+        # Horas sobre el doble de la jornada = HE doble (improbable pero posible).
+
+        # -- Feriados del periodo ---------------------------------------------
+        PublicHoliday = self.env['planilla.public.holiday']
+        paid_holidays = PublicHoliday.get_paid_holidays_in_range(
+            self.date_from, self.date_to,
+            company_id=emp.company_id.id if emp.company_id else None,
+        )
+
+        # -- Leer asistencias del periodo dia a dia --------------------------
+        # Timezone CR = UTC-6. Ampliar ventana para capturar turnos nocturnos.
+        tz_offset = dt.timedelta(hours=6)
+        dt_from = dt.datetime.combine(self.date_from, dt.time.min) - tz_offset
+        dt_to   = dt.datetime.combine(self.date_to,   dt.time.max) + tz_offset
+
+        all_att = self.env['hr.attendance'].search([
+            ('employee_id', '=', emp.id),
+            ('check_in',    '>=', dt_from),
+            ('check_in',    '<=', dt_to),
+            ('check_out',   '!=', False),   # solo registros completos
+        ])
+
+        # Agrupar horas por fecha local (CR = UTC-6)
+        hours_by_day = {}
+        for att in all_att:
+            local_date = (att.check_in - tz_offset).date()
+            if local_date < self.date_from or local_date > self.date_to:
+                continue
+            hours_by_day.setdefault(local_date, 0.0)
+            hours_by_day[local_date] += att.worked_hours
+
+        if not hours_by_day:
+            return
+
+        Overtime = self.env['planilla.overtime']
+
+        for work_date, total_hours in hours_by_day.items():
+            extra_hours = round(total_hours - hours_per_day, 2)
+            if extra_hours <= 0.05:   # tolerancia de 3 minutos
+                continue
+
+            # Clasificar tipo de HE
+            is_sunday  = work_date.weekday() == 6
+            is_holiday = work_date in paid_holidays
+
+            if is_holiday:
+                ot_type = 'holiday'
+            elif is_sunday:
+                ot_type = 'double'
+            else:
+                ot_type = 'simple'
+
+            # Buscar registro existente AUTO-generado para no duplicar
+            existing = Overtime.search([
+                ('employee_id', '=', emp.id),
+                ('date',        '=', work_date),
+                ('overtime_type', '=', ot_type),
+                ('source',      '=', 'attendance'),
+            ], limit=1)
+
+            note_text = (
+                f'Generado automaticamente desde asistencias. '
+                f'Jornada ordinaria: {hours_per_day}h. '
+                f'Horas registradas: {round(total_hours, 2)}h. '
+                f'Excedente: {extra_hours}h.'
+            )
+
+            if existing:
+                # Actualizar si cambiaron las horas (ej: el empleado corrigio su marca)
+                if existing.state == 'draft' and abs(existing.hours - extra_hours) > 0.01:
+                    existing.write({'hours': extra_hours, 'note': note_text})
+            else:
+                Overtime.create({
+                    'employee_id':   emp.id,
+                    'date':          work_date,
+                    'hours':         extra_hours,
+                    'overtime_type': ot_type,
+                    'source':        'attendance',
+                    'state':         'draft',
+                    'payslip_id':    self.id,
+                    'note':          note_text,
+                })
 
     def _sync_licencias(self) -> None:
         """

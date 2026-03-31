@@ -861,6 +861,9 @@ class HrEmployeeExtension(models.Model):
     def action_print_salary_history(self):
         return self.env.ref('planilla_cr.action_report_salary_history').report_action(self)
 
+    def action_print_constancia_laboral(self):
+        return self.env.ref('planilla_cr.action_report_constancia_laboral').report_action(self)
+
     @api.model_create_multi
     def create(self, vals_list):
         employees = super().create(vals_list)

@@ -217,6 +217,26 @@ class PlanillaScheduledActions(models.AbstractModel):
 
         _logger.info('Planilla CR: cron_bono_antiguedad -- %d bonos creados.', created)
 
+
+    @api.model
+    def cron_recompute_vacation_balances(self):
+        """
+        Recomputa el saldo de vacaciones de todos los empleados activos.
+        Necesario porque _compute_vacation_balance usa date.today() que
+        cambia diariamente pero no es un campo de Odoo que dispare @api.depends.
+        Corre: diariamente para que el saldo sea correcto cada dia laboral.
+        Art. 153 CT: 12 dias habiles por cada 50 semanas laboradas.
+        """
+        employees = self.env['hr.employee'].search([('active', '=', True)])
+        if not employees:
+            return
+        employees.invalidate_recordset(['vacation_days_accrued',
+                                        'vacation_days_taken',
+                                        'vacation_days_available',
+                                        'vacation_balance_alert'])
+        _ = employees.mapped('vacation_days_available')
+        _logger.info('Planilla CR: cron_recompute_vacation_balances -- %d empleados actualizados.', len(employees))
+
     @api.model
     def cron_alert_negative_vacations(self):
         """

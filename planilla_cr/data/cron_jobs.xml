@@ -75,4 +75,18 @@
         <field name="priority">22</field>
     </record>
 
+
+    <!-- Cron 7: Recompute saldo vacaciones - diario -->
+    <record id="cron_recompute_vacation_balances" model="ir.cron">
+        <field name="name">Planilla CR - Acumulacion Diaria de Vacaciones</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_recompute_vacation_balances()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="priority">10</field>
+    </record>
+
 </odoo>
+

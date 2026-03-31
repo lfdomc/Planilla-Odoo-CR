@@ -201,7 +201,16 @@
               sequence="95"
               groups="planilla_cr.group_planilla_admin"/>
 
-    <!-- ── CONFIGURACIÓN ─────────────────────────────────────────── -->
+
+    <!-- Constancia Laboral - acceso rapido desde menu -->
+    <menuitem id="menu_constancia_laboral"
+              name="Constancia Laboral"
+              parent="menu_planilla_cr_novedades"
+              action="planilla_cr.action_report_constancia_laboral"
+              sequence="91"
+              groups="planilla_cr.group_planilla_operador"/>
+
+    <!-- CONFIGURACION -->
     <menuitem id="menu_planilla_cr_config"
               name="Configuración"
               parent="menu_planilla_cr_root"
