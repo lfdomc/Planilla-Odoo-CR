@@ -37,6 +37,50 @@
                         </group>
                     </group>
 
+
+                    <!-- Beneficios Especiales de la Empresa -->
+                    <group string="Beneficios Especiales">
+                        <group string="Vacaciones Adicionales por Anio (1 de enero)">
+                            <field name="extra_vacation_days_enabled" widget="boolean_toggle"/>
+                            <field name="extra_vacation_days_mode"
+                                   invisible="not extra_vacation_days_enabled"
+                                   widget="radio" string="Modalidad"/>
+                            <field name="extra_vacation_days_amount"
+                                   invisible="not extra_vacation_days_enabled"
+                                   string="Dias base"/>
+                            <field name="extra_vacation_last_applied_year"
+                                   readonly="1"
+                                   invisible="not extra_vacation_days_enabled"
+                                   string="Ultimo anio aplicado"/>
+
+                            <!-- Ayuda modalidad fija -->
+                            <div class="alert alert-info" role="alert" colspan="2"
+                                 invisible="not extra_vacation_days_enabled or extra_vacation_days_mode != 'fixed'">
+                                <i class="fa fa-info-circle" title="Informacion"/>
+                                <strong>Modalidad fija:</strong>
+                                El 1 de enero de cada anio se acreditan
+                                <strong><field name="extra_vacation_days_amount" nolabel="1" readonly="1"/> dias</strong>
+                                a <strong>todos</strong> los empleados activos por igual,
+                                sin importar su antiguedad.
+                                Art. 58 CT: beneficio superior al minimo legal.
+                            </div>
+
+                            <!-- Ayuda modalidad por anio laborado -->
+                            <div class="alert alert-success" role="alert" colspan="2"
+                                 invisible="not extra_vacation_days_enabled or extra_vacation_days_mode != 'per_year'">
+                                <i class="fa fa-info-circle" title="Informacion"/>
+                                <strong>Modalidad por anio laborado:</strong>
+                                El 1 de enero cada empleado recibe
+                                <strong><field name="extra_vacation_days_amount" nolabel="1" readonly="1"/> dias</strong>
+                                por cada <strong>anio completo</strong> de servicio.
+                                Ejemplo: empleado con 3 anos de antiguedad recibe
+                                3 x dias base = total de dias acreditados.
+                                Empleados con menos de 1 anio completo no reciben dias.
+                                Art. 58 CT: beneficio superior al minimo legal.
+                            </div>
+                        </group>
+                    </group>
+
                     <notebook>
                         <page string="Cuentas de Gasto (Débitos)" name="expense_accounts">
                             <div class="alert alert-info" role="alert">

@@ -39,6 +39,36 @@ class PayrollAccountingConfig(models.Model):
              'expresamente por la DGT -- el patrono asume la responsabilidad fiscal.\n\n'
              'El sistema aplica la opcion seleccionada sin validar cual es la correcta.'
     )
+    # -- Beneficio extra de vacaciones por aniversario de empresa ------
+    extra_vacation_days_enabled = fields.Boolean(
+        string='Dias Extra de Vacaciones por Anio',
+        default=False,
+        help='Si esta activo, el 1 de enero de cada anio se acreditan dias '
+             'adicionales de vacaciones a los empleados activos. '
+             'Art. 58 CT: el patrono puede otorgar beneficios superiores al minimo legal.'
+    )
+    extra_vacation_days_mode = fields.Selection([
+        ('fixed',    'Dias fijos para todos (ej: 2 dias a todos)'),
+        ('per_year', 'Dias por anio laborado (ej: 2 dias x anio de servicio)'),
+    ], string='Modalidad del beneficio',
+        default='fixed', required=True,
+        help='DIAS FIJOS: todos los empleados reciben la misma cantidad de dias. '
+             'DIAS POR ANO LABORADO: cada empleado recibe N dias multiplicados '
+             'por sus anos completos de servicio. Ej: 2 dias/anio x 3 anos = 6 dias.'
+    )
+    extra_vacation_days_amount = fields.Float(
+        string='Dias base',
+        default=2.0,
+        help='Modalidad FIJA: dias a acreditar a cada empleado. '
+             'Modalidad POR ANO: dias por cada anio completo de servicio.'
+    )
+    extra_vacation_last_applied_year = fields.Integer(
+        string='Ultimo anio aplicado',
+        default=0,
+        help='Anio en que se aplico por ultima vez el beneficio. '
+             'Evita aplicarlo dos veces en el mismo anio.'
+    )
+
 
     default_payroll_calendar_id = fields.Many2one(
         'planilla.calendar', string='Calendarizacion por Defecto',

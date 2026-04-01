@@ -88,5 +88,17 @@
         <field name="priority">10</field>
     </record>
 
+    <!-- Cron 8: Dias extra de vacaciones cada 1 de enero -->
+    <record id="cron_extra_vacation_days_new_year" model="ir.cron">
+        <field name="name">Planilla CR - Dias Extra Vacaciones Nuevo Anio</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_extra_vacation_days_new_year()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="priority">5</field>
+    </record>
+
 </odoo>
 

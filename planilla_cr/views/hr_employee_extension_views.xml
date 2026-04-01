@@ -78,7 +78,7 @@
                             </div>
                             <div class="alert alert-info col-12" role="alert"
                                  invisible="pensioner_type != 'ivm'">
-                                <i class="fa fa-info-circle"/> Pensionado IVM activo: cotiza CCSS completa 10.83% (Art. 7 Regl. IVM). ROP desactivado automaticamente.
+                                <i class="fa fa-info-circle" title="Informacion"/> Pensionado IVM activo: cotiza CCSS completa 10.83% (Art. 7 Regl. IVM). ROP desactivado automaticamente.
                             </div>
                         </group>
                         <group string="Datos Bancarios">

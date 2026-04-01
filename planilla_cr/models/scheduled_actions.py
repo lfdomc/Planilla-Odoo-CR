@@ -237,6 +237,93 @@ class PlanillaScheduledActions(models.AbstractModel):
         _ = employees.mapped('vacation_days_available')
         _logger.info('Planilla CR: cron_recompute_vacation_balances -- %d empleados actualizados.', len(employees))
 
+
+    @api.model
+    def cron_extra_vacation_days_new_year(self):
+        """
+        Acredita dias adicionales de vacaciones el 1 de enero de cada anio.
+        Soporta dos modalidades (Art. 58 CT):
+
+        MODALIDAD FIJA ('fixed'):
+          Todos los empleados activos reciben la misma cantidad de dias.
+          Ej: 2 dias para todos -> Maria 2 dias, Juan 2 dias.
+
+        MODALIDAD POR ANO LABORADO ('per_year'):
+          Cada empleado recibe N dias x sus anos COMPLETOS de servicio.
+          Ej: 2 dias/anio, Juan tiene 3 anos -> Juan recibe 6 dias.
+               Si Juan tiene 0 anos completos (menos de 1 anio) -> 0 dias.
+
+        El campo extra_vacation_last_applied_year garantiza que el beneficio
+        se aplique una sola vez por anio aunque el cron corra diariamente.
+        """
+        from datetime import date as _date
+        today = _date.today()
+
+        # Solo actua en enero
+        if today.month != 1:
+            return
+
+        configs = self.env['planilla.accounting.config'].search([
+            ('extra_vacation_days_enabled', '=', True),
+        ])
+
+        for config in configs:
+            # Proteccion contra doble aplicacion en el mismo anio
+            if config.extra_vacation_last_applied_year >= today.year:
+                _logger.info(
+                    'Planilla CR: dias extra vacaciones ya aplicado para %s en %s.',
+                    config.company_id.name, today.year
+                )
+                continue
+
+            base_days = config.extra_vacation_days_amount
+            mode      = config.extra_vacation_days_mode or 'fixed'
+            if base_days <= 0:
+                continue
+
+            employees = self.env['hr.employee'].search([
+                ('company_id', '=', config.company_id.id),
+                ('active',     '=', True),
+            ])
+
+            applied = 0
+            details = []
+
+            for emp in employees:
+                if mode == 'per_year':
+                    # Anos completos de servicio al 1 de enero
+                    if not emp.entry_date:
+                        continue
+                    jan1 = _date(today.year, 1, 1)
+                    years_served = (jan1 - emp.entry_date).days // 365
+                    if years_served <= 0:
+                        # Menos de 1 anio completo: no aplica
+                        continue
+                    days_to_add = round(base_days * years_served, 2)
+                else:
+                    # Modalidad fija: mismo monto para todos
+                    days_to_add = base_days
+
+                current = emp.vacation_initial_balance or 0.0
+                emp.write({
+                    'vacation_initial_balance': round(current + days_to_add, 2),
+                    'vacation_initial_balance_date': (
+                        emp.vacation_initial_balance_date
+                        if emp.vacation_initial_balance_date
+                        else _date(today.year, 1, 1)
+                    ),
+                })
+                applied += 1
+                details.append(f'{emp.name}: +{days_to_add}d')
+
+            config.write({'extra_vacation_last_applied_year': today.year})
+
+            _logger.info(
+                'Planilla CR: cron_extra_vacation_days_new_year -- %s [%s]: %d empleados. %s',
+                config.company_id.name, mode, applied,
+                ' | '.join(details[:10]) + ('...' if len(details) > 10 else '')
+            )
+
     @api.model
     def cron_alert_negative_vacations(self):
         """

@@ -10,10 +10,11 @@
            estado (activo), nombre empresa, cedula juridica, firma patronal.
     ================================================================ -->
     <template id="report_constancia_laboral_document">
+        <t t-foreach="docs" t-as="doc">
+        <t t-set="doc" t-value="doc.sudo()"/>
         <t t-call="web.external_layout">
+            <t t-set="company" t-value="doc.company_id"/>
             <main>
-            <t t-foreach="docs" t-as="doc">
-                <t t-set="doc" t-value="doc.sudo()"/>
                 <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 20px;">
 
                     <!-- Encabezado empresa -->
@@ -105,8 +106,8 @@
                     </p>
                     <div class="page_break"/>
                 </div>
-            </t>
             </main>
+        </t>
         </t>
     </template>
 
@@ -133,10 +134,11 @@
          Tipos: despido_justif | despido_injust | renuncia | mutuo_acuerdo
     ================================================================ -->
     <template id="report_carta_despido_document">
+        <t t-foreach="docs" t-as="doc">
+        <t t-set="doc" t-value="doc.sudo()"/>
         <t t-call="web.external_layout">
+            <t t-set="company" t-value="doc.company_id"/>
             <main>
-            <t t-foreach="docs" t-as="doc">
-                <t t-set="doc" t-value="doc.sudo()"/>
                 <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 20px;">
 
                     <!-- Encabezado -->
@@ -347,8 +349,8 @@
                     </p>
                     <div class="page_break"/>
                 </div>
-            </t>
             </main>
+        </t>
         </t>
     </template>
 
