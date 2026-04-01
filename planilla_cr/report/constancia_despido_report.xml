@@ -10,39 +10,22 @@
            estado (activo), nombre empresa, cedula juridica, firma patronal.
     ================================================================ -->
     <template id="report_constancia_laboral_document">
-        <t t-call="web.html_container">
         <t t-foreach="docs" t-as="doc">
         <t t-set="doc" t-value="doc.sudo()"/>
         <t t-set="company" t-value="doc.company_id.sudo()"/>
-        <div class="article o_report_layout_standard" style="font-family: Arial, sans-serif; font-size: 12px; padding: 40px 50px; min-height: 297mm;">
+        <t t-call="web.external_layout">
+            <main>
+            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 20px;">
 
-            <!-- Logo y datos empresa (esquina superior derecha como Odoo estandar) -->
-            <div style="display:table; width:100%; margin-bottom: 30px;">
-                <div style="display:table-cell; vertical-align:top;">
-                </div>
-                <div style="display:table-cell; text-align:right; vertical-align:top;">
-                    <t t-if="company.logo">
-                        <img t-att-src="'data:image/png;base64,' + company.logo.decode('utf-8')"
-                             style="max-height:60px; max-width:150px; object-fit:contain;"/>
-                    </t>
-                    <div style="font-size:11px; font-weight:bold; margin-top:4px;">
-                        <t t-out="company.name"/>
-                    </div>
-                    <t t-if="company.country_id">
-                        <div style="font-size:10px; color:#666;">
-                            <t t-out="company.country_id.name"/>
+                    <!-- Encabezado documento -->
+                    <div class="row mb-4">
+                        <div class="col-12 text-center">
+                            <h2 style="color:#1F4E79; letter-spacing:2px;">CONSTANCIA LABORAL</h2>
+                            <p style="font-size:11px; color:#666;">
+                                Emitida el <strong><t t-out="datetime.date.today().strftime('%d/%m/%Y')"/></strong>
+                            </p>
                         </div>
-                    </t>
-                </div>
-            </div>
-
-            <!-- Encabezado documento -->
-            <div style="text-align:center; margin-bottom: 20px;">
-                <h2 style="color:#1F4E79; letter-spacing:2px; font-size:22px;">CONSTANCIA LABORAL</h2>
-                <p style="font-size:11px; color:#666;">
-                    Emitida el <strong><t t-out="datetime.date.today().strftime('%d/%m/%Y')"/></strong>
-                </p>
-            </div>
+                    </div>
 
                     <!-- Cuerpo -->
                     <div class="row" style="margin-top:20px;">
@@ -122,7 +105,8 @@
                         Planilla CR v5.28 | Odoo 19 | Legislacion Costa Rica
                     </p>
                     <div class="page_break"/>
-        </div>
+                </div>
+            </main>
         </t>
         </t>
     </template>
@@ -150,22 +134,15 @@
          Tipos: despido_justif | despido_injust | renuncia | mutuo_acuerdo
     ================================================================ -->
     <template id="report_carta_despido_document">
-        <t t-call="web.html_container">
         <t t-foreach="docs" t-as="doc">
         <t t-set="doc" t-value="doc.sudo()"/>
         <t t-set="company" t-value="doc.company_id.sudo()"/>
-        <div class="article o_report_layout_standard" style="font-family: Arial, sans-serif; font-size: 12px; padding: 40px 50px; min-height: 297mm;">
+        <t t-call="web.external_layout">
+            <main>
+            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 20px;">
 
                     <!-- Encabezado -->
                     <div class="row mb-4">
-                        <div style="float:right; text-align:right; margin-bottom:10px;">
-                            <t t-if="company.logo">
-                                <img t-att-src="'data:image/png;base64,' + company.logo.decode('utf-8')"
-                                     style="max-height:55px; max-width:140px; object-fit:contain; display:block; margin-left:auto;"/>
-                            </t>
-                            <div style="font-size:11px; font-weight:bold;"><t t-out="company.name"/></div>
-                            <t t-if="company.country_id"><div style="font-size:10px; color:#666;"><t t-out="company.country_id.name"/></div></t>
-                        </div>
                         <div class="col-12 text-end" style="font-size:11px; color:#555;">
                             <p><t t-out="company.name"/></p>
                             <t t-if="doc.company_id.vat">
@@ -371,7 +348,8 @@
                         Planilla CR v5.28 | Odoo 19
                     </p>
                     <div class="page_break"/>
-        </div>
+                </div>
+            </main>
         </t>
         </t>
     </template>
