@@ -173,14 +173,46 @@ class PayslipValidationMixin(models.AbstractModel):
             ccss_sub = rec.ccss_subsidy_total or 0.0
             ins_sub  = rec.ins_subsidy_total  or 0.0
             if rec.disability_days_in_period:
-                rec.neto_por_patrono = round(
-                    (rec.gross_salary or 0.0) - rec.total_employee_deductions +
-                    (rec.paternity_amount or 0.0) +
-                    extra_income, 2
+                # Detectar maternidad con CCSS obrera sobre subsidio patronal
+                active_dis_all = rec.disability_ids.filtered(
+                    lambda d: d.state in ('confirmed', 'paid')
+                    and d.date_start and d.date_end
                 )
-                # Para INS: el subsidio es informativo (paga fuera de planilla)
-                # Para CCSS/Maternidad: subsidio pasa por planilla
-                rec.neto_por_ccss = ccss_sub + ins_sub  # total subsidiado (CCSS + INS)
+                mat_dis_now = []
+                if rec.date_from and rec.date_to:
+                    mat_dis_now = [
+                        d for d in active_dis_all
+                        if d.disability_type == 'maternity'
+                        and max(rec.date_from, d.date_start) <= min(rec.date_to, d.date_end)
+                    ]
+                has_ccss_on_emp = any(getattr(d, 'maternity_ccss_on_employer', False) for d in mat_dis_now)
+                has_split_50    = any(getattr(d, 'maternity_split_50', False) for d in mat_dis_now)
+
+                if mat_dis_now and has_ccss_on_emp and has_split_50:
+                    # Modalidad 50/50 + CCSS obrera sobre subsidio completo:
+                    # - Base cotizable = subsidio total (ya en salario_cotizable)
+                    # - CCSS obrera = 10.83%% sobre el total
+                    # - Neto real = total - CCSS obrera
+                    # - Patrono y CCSS pagan cada uno el 50%% del neto real
+                    total_sub = ccss_sub  # = total del subsidio (toda la maternidad)
+                    ccss_obrera = rec.ccss_employee or 0.0
+                    neto_real   = round(total_sub - ccss_obrera, 2)
+                    rec.neto_por_patrono = round(neto_real / 2.0, 2)
+                    rec.neto_por_ccss    = round(neto_real / 2.0, 2)
+                elif mat_dis_now and has_split_50 and not has_ccss_on_emp:
+                    # Modalidad 50/50 sin CCSS obrera:
+                    # Patrono paga 50%%, CCSS paga 50%%, empleado no pierde nada
+                    mitad = round(ccss_sub / 2.0, 2) if ccss_sub else 0.0
+                    rec.neto_por_patrono = mitad
+                    rec.neto_por_ccss    = mitad
+                else:
+                    # Incapacidad normal: patrono = dias 1-3, CCSS = dias 4+
+                    rec.neto_por_patrono = round(
+                        (rec.gross_salary or 0.0) - rec.total_employee_deductions +
+                        (rec.paternity_amount or 0.0) +
+                        extra_income, 2
+                    )
+                    rec.neto_por_ccss = ccss_sub + ins_sub
             else:
                 rec.neto_por_patrono = 0.0
                 rec.neto_por_ccss    = 0.0

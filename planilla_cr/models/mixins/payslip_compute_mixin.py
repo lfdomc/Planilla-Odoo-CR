@@ -305,8 +305,18 @@ class PayslipComputeMixin(models.AbstractModel):
                 )
 
                 if es_maternidad_total:
-                    # Maternidad: patrono no paga salario
-                    rec.salario_cotizable = 0.0
+                    # Maternidad Art. 94 CT
+                    # Si maternity_ccss_on_employer=True: el subsidio COMPLETO es
+                    # la base cotizable porque el empleado lo recibe como salario-
+                    # equivalente y debe pagar CCSS obrera sobre el (10.83%%).
+                    # Si es False: base = 0 (patrono no paga, CCSS paga directo).
+                    mat_dis_in_per = [d for d in dis_in_per if d.disability_type == 'maternity']
+                    has_ccss_on_emp = any(getattr(d, 'maternity_ccss_on_employer', False) for d in mat_dis_in_per)
+                    if has_ccss_on_emp:
+                        # Base cotizable = subsidio total (CCSS pasa por planilla)
+                        rec.salario_cotizable = rec.ccss_subsidy_total or 0.0
+                    else:
+                        rec.salario_cotizable = 0.0
                 elif es_ins_total:
                     # INS total: el INS paga fuera de planilla.
                     # Base cotizable CCSS = CRC0 (no hay salario que reportar).
