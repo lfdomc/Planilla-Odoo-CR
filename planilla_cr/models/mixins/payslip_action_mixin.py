@@ -116,7 +116,7 @@ class PayslipActionMixin(models.AbstractModel):
             )
         for rec in self:
             if rec.state != 'draft':
-                raise UserError(f'La boleta {rec.name} no esta en borrador.')
+                raise UserError('La boleta %s no esta en borrador.' % rec.name)
         self._validate_before_confirm()
         self.write({'state': 'confirmed'})
         _logger.info(
@@ -132,7 +132,7 @@ class PayslipActionMixin(models.AbstractModel):
             )
         for rec in self:
             if rec.state != 'confirmed':
-                raise UserError(f'La boleta {rec.name} debe estar confirmada para pagar.')
+                raise UserError('La boleta %s debe estar confirmada para pagar.' % rec.name)
             with rec.env.cr.savepoint():
                 rec.state = 'done'
                 if not skip_accounting:

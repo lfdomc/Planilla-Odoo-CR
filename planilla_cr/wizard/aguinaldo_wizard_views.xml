@@ -7,9 +7,9 @@
             <form string="Reporte Decimo Mes (Aguinaldo)">
                 <sheet>
                     <div style="background:#1F4E79; color:white; border-radius:6px; padding:12px; margin-bottom:16px;">
-                        <h3 style="margin:0; color:white;"><i class="fa fa-star" title="Star"/> Calculo de Aguinaldo -- Art. 228 Codigo de Trabajo CR</h3>
+                        <h3 style="margin:0; color:white;"><i class="fa fa-star" title="Star"/> Cálculo de Aguinaldo -- Art. 228 Código de Trabajo CR</h3>
                         <small>Calcula el aguinaldo real de cada empleado basado en los salarios
-                        ordinarios recibidos en el periodo junio-noviembre.</small>
+                        ordinarios recibidos en el período junio-noviembre.</small>
                     </div>
 
                     <group>
@@ -25,7 +25,7 @@
                     <div invisible="salary_basis == 'base'"
                          style="background:#d4edda; border-radius:4px; padding:8px; font-size:12px; color:#155724; margin-bottom:8px;">
                         <i class="fa fa-check" title="Check"/> <strong>Salario Bruto recomendado</strong> -- Art. 228 CT incluye horas extras
-                        y vacaciones pagadas en el periodo junio-noviembre como parte del salario ordinario.
+                        y vacaciones pagadas en el período junio-noviembre como parte del salario ordinario.
                     </div>
                     <div invisible="salary_basis == 'gross'"
                          style="background:#fff3cd; border-radius:4px; padding:8px; font-size:12px; color:#856404; margin-bottom:8px;">

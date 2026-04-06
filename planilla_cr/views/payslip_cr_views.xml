@@ -44,13 +44,13 @@
                 <field name="amount_sindical" string="Cuota Sindical" optional="hide"/>
                 <field name="amount_cooperativa" string="Cuota Cooperativa" optional="hide"/>
                 <field name="amount_licencias_sin_goce" string="Lic. Sin Goce / Ausencias" optional="hide"/>
-                <field name="other_deductions" string="Otras Deducciones" optional="hide"/>
-                <field name="total_employee_deductions" string="Total Deducciones"/>
+                <field name="other_deductions" string="Otras Deducciónes" optional="hide"/>
+                <field name="total_employee_deductions" string="Total Deducciónes"/>
 
                 <!-- ── RESULTADO OBRERO ── -->
                 <field name="net_salary" string="Salario Neto"/>
                 <field name="salary_payable" string="A Pagar" optional="show"
-                       help="Neto menos préstamos y deducciones adicionales — lo que se deposita"/>
+                       help="Neto menos préstamos y deducciónes adicionales — lo que se deposita"/>
 
                 <!-- ── CARGAS PATRONALES ── -->
                 <field name="ccss_employer" string="CCSS Patronal" optional="hide"/>
@@ -88,7 +88,7 @@
                             string="Recalcular"
                             invisible="state != 'draft'"
                             class="btn-secondary"
-                            help="Fuerza el recálculo completo de salario, deducciones e impuesto de renta. Útil cuando se modifican tramos de renta u otras tasas en la configuración."/>
+                            help="Fuerza el recálculo completo de salario, deducciónes e impuesto de renta. Útil cuando se modifican tramos de renta u otras tasas en la configuración."/>
                     <button name="action_reset_to_draft" type="object" string="Volver a Borrador"
                             invisible="state not in ('cancelled', 'confirmed')"
                             class="btn-warning"/>
@@ -323,7 +323,7 @@
                                             <td style="text-align:right;color:var(--color-text-secondary);"><field name="ccss_subsidy_total" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr style="border-top:1px solid var(--color-border-warning);font-weight:500;">
-                                            <td style="padding:6px 0;">Base cotizable real (CCSS, Renta, provisiones)</td>
+                                            <td style="padding:6px 0;">Base cotizable real (CCSS, Renta, provisiónes)</td>
                                             <td style="text-align:right;"><field name="salario_cotizable" readonly="1" nolabel="1"/></td>
                                         </tr>
                                     </table>
@@ -346,7 +346,7 @@
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_licencias_sin_goce" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr style="border-top:1px solid var(--color-border-warning);font-weight:500;">
-                                            <td style="padding:6px 0;">Base cotizable real (CCSS, Renta, provisiones)</td>
+                                            <td style="padding:6px 0;">Base cotizable real (CCSS, Renta, provisiónes)</td>
                                             <td style="text-align:right;"><field name="base_cotizable_final" readonly="1" nolabel="1"/></td>
                                         </tr>
                                     </table>
@@ -357,7 +357,7 @@
 
                                 <!-- ─── DEDUCCIONES LEGALES ────────────────────── -->
                                 <div style="padding:0 4px;">
-                                    <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 8px;margin:24px 0 12px;border-bottom:2px solid #dee2e6;">Deducciones Legales</div>
+                                    <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 8px;margin:24px 0 12px;border-bottom:2px solid #dee2e6;">Deducciónes Legales</div>
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
                                             <!-- CCSS Obrero — etiqueta dinámica por tipo pensionado + frecuencia -->
@@ -412,7 +412,7 @@
                                 <!-- ─── DEDUCCIONES ADICIONALES (orden legal) ──── -->
                                 <div invisible="total_employee_deductions == ccss_employee + income_tax"
                                      style="padding:0 4px;">
-                                    <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 8px;margin:24px 0 12px;border-bottom:2px solid #dee2e6;">Deducciones Adicionales</div>
+                                    <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 8px;margin:24px 0 12px;border-bottom:2px solid #dee2e6;">Deducciónes Adicionales</div>
 
                                     <!-- Sub-totales por categoría legal (referencia rápida) -->
                                     <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:8px;">
@@ -445,7 +445,7 @@
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="amount_licencias_sin_goce" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr invisible="other_deductions == 0">
-                                            <td style="padding:3px 0;color:var(--color-text-secondary);">Otras Deducciones</td>
+                                            <td style="padding:3px 0;color:var(--color-text-secondary);">Otras Deducciónes</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="other_deductions" readonly="1" nolabel="1"/></td>
                                         </tr>
                                     </table>
@@ -457,7 +457,7 @@
                                 <div style="padding:0 4px;">
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
-                                            <td style="padding:6px 0;color:var(--color-text-secondary);">Total Deducciones Obrero</td>
+                                            <td style="padding:6px 0;color:var(--color-text-secondary);">Total Deducciónes Obrero</td>
                                             <td style="text-align:right;color:var(--color-text-danger);"><field name="total_employee_deductions" readonly="1" nolabel="1"/></td>
                                         </tr>
 
@@ -514,7 +514,7 @@
                                         </tr>
 
                                         <tr invisible="salary_payable == net_salary" style="font-size:15px;font-weight:500;">
-                                            <td style="padding:6px 0;color:var(--color-text-secondary);">Monto a Depositar (neto − otras deducciones)</td>
+                                            <td style="padding:6px 0;color:var(--color-text-secondary);">Monto a Depositar (neto − otras deducciónes)</td>
                                             <td style="text-align:right;color:var(--color-text-info);"><field name="salary_payable" readonly="1" nolabel="1"/></td>
                                         </tr>
                                     </table>
@@ -527,10 +527,10 @@
                                     <div style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 8px;margin:24px 0 12px;border-bottom:2px solid #dee2e6;">Cargas Patronales</div>
                                     <table style="width:100%;font-size:14px;border-collapse:collapse;">
                                         <tr>
-                                            <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">Base cotizable Mensual (cargas CCSS, provisiones)</td>
-                                            <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'biweekly'">Base cotizable Quincenal (cargas CCSS, provisiones)</td>
-                                            <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'weekly'">Base cotizable Semanal (cargas CCSS, provisiones)</td>
-                                            <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'bimonthly'">Base cotizable Bimensual (cargas CCSS, provisiones)</td>
+                                            <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'monthly'">Base cotizable Mensual (cargas CCSS, provisiónes)</td>
+                                            <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'biweekly'">Base cotizable Quincenal (cargas CCSS, provisiónes)</td>
+                                            <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'weekly'">Base cotizable Semanal (cargas CCSS, provisiónes)</td>
+                                            <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'bimonthly'">Base cotizable Bimensual (cargas CCSS, provisiónes)</td>
                                             <td style="text-align:right;"><field name="base_cotizable_final" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr>
@@ -688,9 +688,9 @@
                         </page>
 
                         <!-- ══ ABONOS Y DEDUCCIONES ═══════════════════════════════ -->
-                        <page string="Abonos y Deducciones" name="employee_deductions">
+                        <page string="Abonos y Deducciónes" name="employee_deductions">
                             <group>
-                                <group string="Deducciones Legales">
+                                <group string="Deducciónes Legales">
                                     <field name="salario_cotizable" readonly="1"
                                            invisible="disability_days_in_period == 0"
                                            string="Base cotizable (incapacidad)"/>
@@ -728,8 +728,8 @@
                                 </list>
                             </field>
 
-                            <!-- ── Deducciones Adicionales (embargo, préstamo, sindicato, etc.) ── -->
-                            <separator string="➖ Deducciones Adicionales (restan del neto)"/>
+                            <!-- ── Deducciónes Adicionales (embargo, préstamo, sindicato, etc.) ── -->
+                            <separator string="➖ Deducciónes Adicionales (restan del neto)"/>
                             <field name="deduction_only_line_ids"
                                    context="{'default_line_type': 'deduction'}">
                                 <list editable="bottom" decoration-danger="True">
@@ -768,7 +768,7 @@
                                  invisible="not pending_overtime_from_attendance">
                                 <strong>Horas Extras por Aprobar: </strong>
                                 <field name="pending_overtime_count" readonly="1" nolabel="1" class="fw-bold"/>
-                                registro(s) detectados automaticamente desde asistencias. Revise, ajuste y apruebe antes de confirmar la boleta.
+                                registro(s) detectados automáticamente desde asistencias. Revise, ajuste y apruebe antes de confirmar la boleta.
                             </div>
                             <field name="overtime_ids">
                                 <list decoration-warning="state == 'draft' and source == 'attendance'"

@@ -55,8 +55,8 @@
                         </tr>
                     </table>
 
-                    <!-- Desglose liquidacion -->
-                    <h4 style="color:#1F4E79; border-bottom:1px solid #1F4E79; padding-bottom:4px;">Desglose de Liquidacion</h4>
+                    <!-- Desglose liquidación -->
+                    <h4 style="color:#1F4E79; border-bottom:1px solid #1F4E79; padding-bottom:4px;">Desglose de Liquidación</h4>
                     <table width="100%" style="border-collapse:collapse; font-size:11px;">
                         <thead>
                             <tr style="background:#2E75B6; color:#fff;">
@@ -69,20 +69,20 @@
                             <t t-if="doc.preaviso_applies and doc.preaviso_amount">
                                 <tr>
                                     <td style="padding:5px; border:1px solid #ddd;">Preaviso</td>
-                                    <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="doc.preaviso_days"/> dias (Art. 28 CT)</td>
+                                    <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="doc.preaviso_days"/> días (Art. 28 CT)</td>
                                     <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'CRC {:,.2f}'.format(doc.preaviso_amount)"/></td>
                                 </tr>
                             </t>
                             <t t-if="doc.cesantia_applies and doc.cesantia_amount">
                                 <tr style="background:#f9f9f9;">
-                                    <td style="padding:5px; border:1px solid #ddd;">Cesantia</td>
+                                    <td style="padding:5px; border:1px solid #ddd;">Cesantía</td>
                                     <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="'%.1f' % doc.years_service"/> anos (Art. 29 CT)</td>
                                     <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'CRC {:,.2f}'.format(doc.cesantia_amount)"/></td>
                                 </tr>
                             </t>
                             <tr>
                                 <td style="padding:5px; border:1px solid #ddd;">Vacaciones Proporcionales</td>
-                                <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="'%.2f' % doc.vacation_days_accrued"/> dias (Art. 153 CT)</td>
+                                <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="'%.2f' % doc.vacation_days_accrued"/> días (Art. 153 CT)</td>
                                 <td style="padding:5px; border:1px solid #ddd; text-align:right;"><t t-esc="'CRC {:,.2f}'.format(doc.vacation_amount)"/></td>
                             </tr>
                             <t t-if="doc.aguinaldo_amount">
@@ -101,7 +101,7 @@
                             </t>
                             <t t-if="doc.deductions">
                                 <tr style="background:#fff3f3;">
-                                    <td style="padding:5px; border:1px solid #ddd;">(-) Deducciones</td>
+                                    <td style="padding:5px; border:1px solid #ddd;">(-) Deducciónes</td>
                                     <td style="padding:5px; border:1px solid #ddd; text-align:center;"><t t-esc="doc.deductions_note or ''"/></td>
                                     <td style="padding:5px; border:1px solid #ddd; text-align:right; color:#c00;">(<t t-esc="'CRC {:,.2f}'.format(doc.deductions)"/>)</td>
                                 </tr>
@@ -134,8 +134,8 @@
                     </div>
 
                     <div style="margin-top:20px; font-size:8px; color:#888; text-align:center; border-top:1px solid #ddd; padding-top:6px;">
-                        Liquidacion emitida el <t t-esc="doc.termination_date"/> |
-                        Montos calculados conforme al Codigo de Trabajo de Costa Rica
+                        Liquidación emitida el <t t-esc="doc.termination_date"/> |
+                        Montos calculados conforme al Código de Trabajo de Costa Rica
                     </div>
                 </div>
             </t>
@@ -143,12 +143,12 @@
     </template>
 
     <record id="action_report_termination" model="ir.actions.report">
-        <field name="name">Liquidacion / Finiquito</field>
+        <field name="name">Liquidación / Finiquito</field>
         <field name="model">planilla.termination</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">planilla_cr.report_termination_template</field>
         <field name="report_file">planilla_cr.report_termination_template</field>
-        <field name="print_report_name">'Liquidacion_%s' % (object.employee_id.name)</field>
+        <field name="print_report_name">'Liquidación_%s' % (object.employee_id.name)</field>
         <field name="binding_model_id" ref="model_planilla_termination"/>
         <field name="binding_type">report</field>
         <field name="paperformat_id" ref="base.paperformat_euro"/>

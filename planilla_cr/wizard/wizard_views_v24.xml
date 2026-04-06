@@ -35,7 +35,7 @@
             <form string="Exportación MTSS">
                 <sheet>
                     <div class="alert alert-warning" role="alert">
-                        <strong><i class="fa fa-clipboard" title="Clipboard"/> Planilla MTSS:</strong> Formato para inspecciones del Ministerio de Trabajo.
+                        <strong><i class="fa fa-clipboard" title="Clipboard"/> Planilla MTSS:</strong> Formato para inspecciónes del Ministerio de Trabajo.
                         Incluye empleados activos con cédula, jornada, salario y datos CCSS.
                     </div>
                     <group>

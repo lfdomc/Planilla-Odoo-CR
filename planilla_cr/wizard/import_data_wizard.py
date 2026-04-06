@@ -476,6 +476,15 @@ class ImportDataWizard(models.TransientModel):
         domain = [(field, 'ilike', name_str)]
         if extra_domain:
             domain += extra_domain
+        # FIX PEND-04: agregar filtro de empresa para evitar cross-company
+        # en entornos multi-empresa. Solo aplica si el modelo tiene company_id.
+        try:
+            if 'company_id' in self.env[model]._fields:
+                domain += ['|',
+                    ('company_id', '=', self.company_id.id),
+                    ('company_id', '=', False)]
+        except Exception:
+            pass
         result = self.env[model].sudo().with_context(active_test=False).search(
             domain, limit=1)
         return result or None
@@ -1223,7 +1232,7 @@ class ImportDataWizard(models.TransientModel):
                     if calc_type == 'fixed' and monto <= 0:
                         raise ValueError('El Monto Fijo debe ser mayor a CRC0')
                     if calc_type == 'percentage' and not (0 < pct <= 25):
-                        raise ValueError(f'El porcentaje ({pct}%) debe estar entre 0 y 25% (Art. 172 CT)')
+                        raise ValueError('El porcentaje (%s%%) debe estar entre 0 y 25%% (Art. 172 CT)' % pct)
 
                     vals = {
                         'employee_id':        emp.id,

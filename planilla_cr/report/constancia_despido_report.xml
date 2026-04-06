@@ -6,112 +6,181 @@
          Base legal CR:
            - Art. 29 Reglamento Interior de Trabajo
            - Practica estandar MTSS / Poder Judicial
-           Contenido requerido: nombre, cedula, cargo, salario, fecha ingreso,
-           estado (activo), nombre empresa, cedula juridica, firma patronal.
+           Contenido requerido: nombre, cédula, cargo, salario, fecha ingreso,
+           estado (activo), nombre empresa, cédula jurídica, firma patronal.
     ================================================================ -->
-    <template id="report_constancia_laboral_document">
+        <template id="report_constancia_laboral_document">
         <t t-foreach="docs" t-as="doc">
         <t t-set="doc" t-value="doc.sudo()"/>
         <t t-set="company" t-value="doc.company_id.sudo()"/>
+
+        <!-- Cargar config RRHH de la empresa -->
+        <t t-set="cfg" t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',company.id)], limit=1)"/>
+        <t t-set="rep_name"     t-value="cfg.hr_rep_name if cfg and cfg.hr_rep_name else '[CONFIGURAR: Planilla - Config. Contable - Nombre Representante RRHH]'"/>
+        <t t-set="rep_title"    t-value="cfg.hr_rep_title if cfg and cfg.hr_rep_title else 'Representante Legal'"/>
+        <t t-set="rep_phone"    t-value="cfg.hr_rep_phone if cfg and cfg.hr_rep_phone else ''"/>
+        <t t-set="rep_email"    t-value="cfg.hr_rep_email if cfg and cfg.hr_rep_email else ''"/>
+        <t t-set="rep_location" t-value="cfg.hr_rep_location if cfg and cfg.hr_rep_location else (company.city or 'Costa Rica')"/>
+
+        <!-- Salario bruto mensual (base_salary es siempre mensual) -->
+        <t t-set="sal_bruto" t-value="doc.base_salary or 0.0"/>
+        <!-- Salario neto estimado: bruto - CCSS obrero 10.83% -->
+        <t t-set="sal_neto"  t-value="round(sal_bruto * (1 - 0.1083), 2)"/>
+
+        <!-- Calendarización para texto de frecuencia -->
+        <t t-set="frec_texto" t-value="
+            'quincenal' if doc.payroll_calendar_id and doc.payroll_calendar_id.frequency == 'biweekly' else
+            'semanal'   if doc.payroll_calendar_id and doc.payroll_calendar_id.frequency == 'weekly'   else
+            'mensual'
+        "/>
+        <!-- Fecha en palabras (dia, mes, año) en espanol -->
+        <t t-set="hoy" t-value="datetime.date.today()"/>
+        <t t-set="meses_es" t-value="{
+            1:'enero', 2:'febrero', 3:'marzo', 4:'abril', 5:'mayo', 6:'junio',
+            7:'julio', 8:'agosto', 9:'septiembre', 10:'octubre', 11:'noviembre', 12:'diciembre'
+        }"/>
+        <t t-set="mes_texto" t-value="meses_es.get(hoy.month, hoy.strftime('%B'))"/>
+
         <t t-call="web.external_layout">
             <main>
-            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 20px;">
+            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 20px; line-height: 1.8;">
 
-                    <!-- Encabezado documento -->
-                    <div class="row mb-4">
-                        <div class="col-12 text-center">
-                            <h2 style="color:#1F4E79; letter-spacing:2px;">CONSTANCIA LABORAL</h2>
-                            <p style="font-size:11px; color:#666;">
-                                Emitida el <strong><t t-out="datetime.date.today().strftime('%d/%m/%Y')"/></strong>
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Cuerpo -->
-                    <div class="row" style="margin-top:20px;">
-                        <div class="col-12" style="text-align:justify; line-height:1.9; font-size:12px;">
-                            <p>
-                                La empresa <strong><t t-out="doc.company_id.name"/></strong>
-                                <t t-if="doc.company_id.vat">,
-                                    cedula juridica numero <strong><t t-out="doc.company_id.vat"/></strong>,
-                                </t>
-                                hace constar que:
-                            </p>
-
-                            <p>
-                                El (la) senor(a) <strong><t t-out="doc.name"/></strong>,
-                                portador(a) de la cedula de identidad numero
-                                <strong><t t-out="doc.identification_id or 'No registrada'"/></strong>,
-                                labora para esta empresa
-                                <t t-if="doc.entry_date">
-                                    desde el dia <strong><t t-out="doc.entry_date.strftime('%d/%m/%Y')"/></strong>
-                                </t>
-                                hasta la presente fecha,
-                                <t t-if="doc.job_id">
-                                    desempenanose en el puesto de <strong><t t-out="doc.job_id.name"/></strong>
-                                </t>
-                                <t t-if="doc.department_id">
-                                    , en el departamento de <strong><t t-out="doc.department_id.name"/></strong>
-                                </t>
-                                .
-                            </p>
-
-                            <p>
-                                Actualmente devenga un salario mensual de
-                                <strong>
-                                    <t t-out="doc.currency_id.symbol or 'CRC'"/>
-                                    <t t-out="'{:,.2f}'.format(doc.base_salary or 0)"/>
-                                </strong>
-                                <t t-if="doc.payroll_calendar_id">
-                                    , pagadero en forma
-                                    <t t-if="doc.payroll_calendar_id.frequency == 'biweekly'">quincenal
-                                        (<t t-out="doc.currency_id.symbol or 'CRC'"/>
-                                        <t t-out="'{:,.2f}'.format((doc.base_salary or 0) / 2)"/> por quincena)
-                                    </t>
-                                    <t t-elif="doc.payroll_calendar_id.frequency == 'weekly'">semanal
-                                        (<t t-out="doc.currency_id.symbol or 'CRC'"/>
-                                        <t t-out="'{:,.2f}'.format((doc.base_salary or 0) / 4)"/> por semana)
-                                    </t>
-                                    <t t-elif="doc.payroll_calendar_id.frequency == 'bimonthly'">bimensual
-                                        (<t t-out="doc.currency_id.symbol or 'CRC'"/>
-                                        <t t-out="'{:,.2f}'.format((doc.base_salary or 0) * 2)"/> cada dos meses)
-                                    </t>
-                                    <t t-else="">mensual</t>
-                                </t>
-                                .
-                            </p>
-
-                            <p>
-                                Se extiende la presente constancia a solicitud de la parte interesada,
-                                para los fines que estime convenientes.
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Firma -->
-                    <div class="row mt-5 pt-4">
-                        <div class="col-6 offset-3 text-center">
-                            <div style="border-top: 1px solid #000; padding-top: 8px; margin-top: 60px;">
-                                <p style="margin:0;"><strong><t t-out="doc.company_id.name"/></strong></p>
-                                <p style="margin:0; font-size:11px; color:#555;">Representante Legal / Patrono</p>
-                                <t t-if="doc.company_id.vat">
-                                    <p style="margin:0; font-size:11px; color:#555;">Cedula Juridica: <t t-out="doc.company_id.vat"/></p>
-                                </t>
-                            </div>
-                        </div>
-                    </div>
-
-                    <p class="text-center mt-4" style="font-size:9px; color:#aaa;">
-                        Planilla CR v5.28 | Odoo 19 | Legislacion Costa Rica
-                    </p>
-                    <div class="page_break"/>
+                <!-- A QUIÉN INTERESE -->
+                <div style="margin-bottom: 30px;">
+                    <p style="font-weight:bold; font-size:13px;">A QUIÉN INTERESE</p>
                 </div>
+
+                <!-- Cuerpo principal -->
+                <div style="text-align:justify; font-size:12px; line-height:2.0;">
+                    <p>
+                        El suscrito <strong><t t-out="rep_name"/></strong>
+                        en su calidad de <t t-out="rep_title"/>
+                        de la firma <strong><t t-out="company.name"/></strong>
+                        <t t-if="company.vat">
+                            con cédula jurídica número <strong><t t-out="company.vat"/></strong>
+                        </t>
+                        hace constar que el (la) señor(a)
+                        <strong><t t-out="doc.name"/></strong>
+                        portador(a) de la cédula de identidad número
+                        <strong><t t-out="doc.identification_id or 'No registrada'"/></strong>,
+                        presta servicios a esta empresa
+                        <t t-if="doc.entry_date">
+                            desde el
+                            <strong><t t-out="doc.entry_date.strftime('%d/%m/%Y')"/></strong>
+                        </t>
+                        <t t-if="doc.job_id">
+                            , como <strong><t t-out="doc.job_id.name"/></strong>
+                        </t>
+                        , devengando un ingreso bruto mensual de
+                        <strong>
+                            <t t-out="doc.currency_id.symbol or 'CRC'"/>
+                            <t t-out="'{:,.2f}'.format(sal_bruto)"/>
+                        </strong>
+                        y un salario neto (deducción de cargas sociales) aproximado de
+                        <strong>
+                            <t t-out="doc.currency_id.symbol or 'CRC'"/>
+                            <t t-out="'{:,.2f}'.format(sal_neto)"/>
+                        </strong>
+                        <t t-if="frec_texto == 'quincenal'">
+                            , pagadero en forma quincenal
+                            (<t t-out="doc.currency_id.symbol or 'CRC'"/>
+                            <t t-out="'{:,.2f}'.format(sal_bruto / 2)"/> por quincena)
+                        </t>
+                        <t t-set="pensiones_activas" t-value="doc.env['planilla.pension.alimentaria'].sudo().search([('employee_id','=',doc.id),('state','=','active')])"/>
+                        <t t-set="embargos_activos" t-value="doc.env['planilla.embargo'].sudo().search([('employee_id','=',doc.id),('state','=','active')])"/>
+
+                        <t t-if="not pensiones_activas and not embargos_activos">
+                            , el cual se encuentra libre de todo embargo.
+                        </t>
+                        <t t-else="">
+                            .
+                        </t>
+                    </p>
+
+                    <!-- Detalle de pensiónes alimentarias activas -->
+                    <t t-if="pensiones_activas">
+                    <p>
+                        Tiene registrada(s) <strong><t t-out="len(pensiones_activas)"/></strong>
+                        pensión(es) alimentaria(s) activa(s):
+                    </p>
+                    <t t-foreach="pensiones_activas" t-as="pen">
+                    <p style="margin-left:20px;">
+                        - Expediente No. <strong><t t-out="pen.numero_expediente or 'N/D'"/></strong>:
+                        <t t-if="pen.calculation_type == 'percentage'">
+                            <strong><t t-out="'{:.1f}'.format(pen.percentage)"/>%</strong> del salario bruto
+                            (aprox. <t t-out="doc.currency_id.symbol or 'CRC'"/>
+                            <t t-out="'{:,.2f}'.format(round((doc.base_salary or 0) * pen.percentage / 100, 2))"/>
+                            mensual)
+                        </t>
+                        <t t-else="">
+                            <strong><t t-out="doc.currency_id.symbol or 'CRC'"/>
+                            <t t-out="'{:,.2f}'.format(pen.fixed_amount or 0)"/></strong> fijos
+                        </t>
+                    </p>
+                    </t>
+                    </t>
+
+                    <!-- Detalle de embargos judiciales activos -->
+                    <t t-if="embargos_activos">
+                    <p>
+                        Tiene registrado(s) <strong><t t-out="len(embargos_activos)"/></strong>
+                        embargo(s) judicial(es) activo(s):
+                    </p>
+                    <t t-foreach="embargos_activos" t-as="emb">
+                    <p style="margin-left:20px;">
+                        - Embargo judicial:
+                        <t t-if="emb.calculation_type == 'percentage'">
+                            <strong><t t-out="'{:.1f}'.format(emb.percentage)"/>%</strong> del salario neto disponible
+                            (máximo 25% según Art. 172 CT)
+                        </t>
+                        <t t-else="">
+                            <strong><t t-out="doc.currency_id.symbol or 'CRC'"/>
+                            <t t-out="'{:,.2f}'.format(emb.fixed_amount or 0)"/></strong> fijos
+                        </t>
+                    </p>
+                    </t>
+                    </t>
+
+                    <p style="margin-top: 24px;">
+                        Dada en
+                        <t t-if="rep_location">
+                            <t t-out="rep_location"/>
+                        </t>
+                        <t t-else="">
+                            <t t-out="company.city or 'Costa Rica'"/>
+                        </t>
+                        ; a los <strong><t t-out="hoy.strftime('%d')"/></strong> días
+                        del mes de <strong><t t-out="mes_texto"/></strong>
+                        del <strong><t t-out="hoy.strftime('%Y')"/></strong>,
+                        a solicitud del interesado.
+                    </p>
+                </div>
+
+                <!-- Firma -->
+                <div style="margin-top: 60px;">
+                    <div style="border-top: 1px solid #000; width: 300px; padding-top: 8px; margin-top: 50px;">
+                        <p style="margin:0; font-weight:bold;"><t t-out="rep_name"/></p>
+                        <p style="margin:0;"><t t-out="rep_title"/></p>
+                        <t t-if="rep_phone">
+                            <p style="margin:0;">Tel: <t t-out="rep_phone"/></p>
+                        </t>
+                        <t t-if="rep_email">
+                            <p style="margin:0;">Email: <t t-out="rep_email"/></p>
+                        </t>
+                    </div>
+                </div>
+
+                <p style="font-size:9px; color:#aaa; margin-top: 30px;">
+                    Planilla CR v5.28 | Odoo 19 | Legislación Costa Rica
+                </p>
+                <div class="page_break"/>
+            </div>
             </main>
         </t>
         </t>
     </template>
 
-    <record id="action_report_constancia_laboral" model="ir.actions.report">
+<record id="action_report_constancia_laboral" model="ir.actions.report">
         <field name="name">Constancia Laboral</field>
         <field name="model">hr.employee</field>
         <field name="report_type">qweb-pdf</field>
@@ -127,8 +196,8 @@
     <!-- ================================================================
          CARTA DE PREAVISO / DESPIDO
          Base legal CR:
-           - Art. 28 CT: preaviso segun tiempo laborado
-           - Art. 29 CT: cesantia (solo despido injustificado)
+           - Art. 28 CT: preaviso según tiempo laborado
+           - Art. 29 CT: cesantía (solo despido injustificado)
            - Art. 81 CT: causas justas de despido
            - Art. 83 CT: renuncia voluntaria
          Tipos: despido_justif | despido_injust | renuncia | mutuo_acuerdo
@@ -146,7 +215,7 @@
                         <div class="col-12 text-end" style="font-size:11px; color:#555;">
                             <p><t t-out="company.name"/></p>
                             <t t-if="doc.company_id.vat">
-                                <p>Cedula Juridica: <t t-out="doc.company_id.vat"/></p>
+                                <p>Cédula Jurídica: <t t-out="doc.company_id.vat"/></p>
                             </t>
                             <p><t t-out="datetime.date.today().strftime('%d/%m/%Y')"/></p>
                         </div>
@@ -157,19 +226,19 @@
                         <div class="col-12 text-center">
                             <t t-if="doc.termination_reason == 'despido_justif'">
                                 <h3 style="color:#C00000;">COMUNICADO DE DESPIDO CON JUSTA CAUSA</h3>
-                                <p style="font-size:10px; color:#888;">(Art. 81 Codigo de Trabajo)</p>
+                                <p style="font-size:10px; color:#888;">(Art. 81 Código de Trabajo)</p>
                             </t>
                             <t t-elif="doc.termination_reason == 'despido_injust'">
                                 <h3 style="color:#1F4E79;">COMUNICADO DE PREAVISO DE DESPIDO</h3>
-                                <p style="font-size:10px; color:#888;">(Art. 28 Codigo de Trabajo)</p>
+                                <p style="font-size:10px; color:#888;">(Art. 28 Código de Trabajo)</p>
                             </t>
                             <t t-elif="doc.termination_reason == 'renuncia'">
                                 <h3 style="color:#375623;">CARTA DE RENUNCIA VOLUNTARIA</h3>
-                                <p style="font-size:10px; color:#888;">(Art. 83 Codigo de Trabajo)</p>
+                                <p style="font-size:10px; color:#888;">(Art. 83 Código de Trabajo)</p>
                             </t>
                             <t t-else="">
                                 <h3 style="color:#1F4E79;">COMUNICADO DE TERMINACION DE RELACION LABORAL</h3>
-                                <p style="font-size:10px; color:#888;">(Codigo de Trabajo Costa Rica)</p>
+                                <p style="font-size:10px; color:#888;">(Código de Trabajo Costa Rica)</p>
                             </t>
                         </div>
                     </div>
@@ -195,7 +264,7 @@
                         </div>
                     </div>
 
-                    <!-- Cuerpo segun tipo -->
+                    <!-- Cuerpo según tipo -->
                     <div class="row" style="text-align:justify; line-height:1.9; font-size:12px;">
                         <div class="col-12">
 
@@ -205,8 +274,8 @@
                                     Por medio de la presente, la empresa
                                     <strong><t t-out="doc.company_id.name"/></strong>
                                     le comunica que, con fundamento en el
-                                    <strong>Articulo 81 del Codigo de Trabajo de Costa Rica</strong>,
-                                    se da por terminada su relacion laboral con justa causa,
+                                    <strong>Articulo 81 del Código de Trabajo de Costa Rica</strong>,
+                                    se da por terminada su relación laboral con justa causa,
                                     a partir del dia
                                     <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
                                 </p>
@@ -218,11 +287,11 @@
                                 </t>
                                 <p>
                                     En virtud de que el despido se realiza con justa causa,
-                                    <strong>no corresponde el pago de preaviso ni de cesantia</strong>
+                                    <strong>no corresponde el pago de preaviso ni de cesantía</strong>
                                     (Art. 82 C.T.).
                                 </p>
                                 <p>
-                                    Se hace entrega de la presente comunicacion en dos tantos, uno para cada parte.
+                                    Se hace entrega de la presente comunicación en dos tantos, uno para cada parte.
                                     El trabajador tiene derecho a dejar constancia escrita de su disconformidad con el despido.
                                 </p>
                             </t>
@@ -233,8 +302,8 @@
                                     Por medio de la presente, la empresa
                                     <strong><t t-out="doc.company_id.name"/></strong>
                                     le comunica que, con fundamento en el
-                                    <strong>Articulo 28 del Codigo de Trabajo de Costa Rica</strong>,
-                                    se da por terminada su relacion laboral
+                                    <strong>Articulo 28 del Código de Trabajo de Costa Rica</strong>,
+                                    se da por terminada su relación laboral
                                     <strong>sin justa causa</strong>,
                                     a partir del dia
                                     <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
@@ -256,9 +325,9 @@
                                 </table>
                                 <p>
                                     Corresponde ademas el pago de
-                                    <strong>auxilio de cesantia</strong>
-                                    conforme al Articulo 29 del Codigo de Trabajo,
-                                    calculado segun los anos de servicio.
+                                    <strong>auxilio de cesantía</strong>
+                                    conforme al Articulo 29 del Código de Trabajo,
+                                    calculado según los anos de servicio.
                                 </p>
                                 <t t-if="doc.note">
                                     <p><strong>Observaciones:</strong></p>
@@ -276,22 +345,22 @@
                             <!-- RENUNCIA VOLUNTARIA -->
                             <t t-elif="doc.termination_reason == 'renuncia'">
                                 <p>
-                                    Por medio de la presente, el (la) senor(a)
+                                    Por medio de la presente, el (la) señor(a)
                                     <strong><t t-out="doc.employee_id.name"/></strong>
                                     comunica formalmente su renuncia voluntaria al puesto de
                                     <strong><t t-out="doc.employee_id.job_id.name or 'colaborador(a)'"/></strong>
                                     en la empresa
                                     <strong><t t-out="doc.company_id.name"/></strong>,
-                                    con fundamento en el <strong>Articulo 83 del Codigo de Trabajo</strong>.
+                                    con fundamento en el <strong>Articulo 83 del Código de Trabajo</strong>.
                                 </p>
                                 <p>
                                     La fecha efectiva de la renuncia es el dia
                                     <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
                                 </p>
                                 <p>
-                                    En la renuncia voluntaria <strong>no corresponde el pago de cesantia</strong>.
-                                    Si el trabajador no otorga el preaviso correspondiente segun Art. 28 C.T.,
-                                    el patrono podra deducir el equivalente de su liquidacion.
+                                    En la renuncia voluntaria <strong>no corresponde el pago de cesantía</strong>.
+                                    Si el trabajador no otorga el preaviso correspondiente según Art. 28 C.T.,
+                                    el patrono podra deducir el equivalente de su liquidación.
                                 </p>
                                 <t t-if="doc.note">
                                     <p><strong>Motivo de la renuncia (opcional):</strong></p>
@@ -308,8 +377,8 @@
                                     <strong><t t-out="doc.company_id.name"/></strong>
                                     y el (la) colaborador(a)
                                     <strong><t t-out="doc.employee_id.name"/></strong>
-                                    dan por terminada la relacion laboral de mutuo acuerdo,
-                                    conforme al Codigo de Trabajo de Costa Rica,
+                                    dan por terminada la relación laboral de mutuo acuerdo,
+                                    conforme al Código de Trabajo de Costa Rica,
                                     a partir del dia
                                     <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
                                 </p>

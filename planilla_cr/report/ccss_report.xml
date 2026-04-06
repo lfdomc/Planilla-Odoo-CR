@@ -13,7 +13,7 @@
                         <h2 style="color:#1A5276; margin:0;">PLANILLA CCSS - CUOTAS DE PATRONO</h2>
                         <h3 style="margin:4px 0;"><t t-esc="data['company'].name"/></h3>
                         <p style="margin:2px 0; font-size:12px;">
-                            Periodo: <t t-esc="data['date_from']"/> al <t t-esc="data['date_to']"/>
+                            Período: <t t-esc="data['date_from']"/> al <t t-esc="data['date_to']"/>
                         </p>
                         <p style="margin:2px 0; font-size:11px; color:#555;">
                             Tasa Obrero: <t t-esc="'%.2f' % data['tasa_obrero']"/>% |
@@ -25,7 +25,7 @@
                         <thead style="background-color:#2E86C1; color:white;">
                             <tr>
                                 <th style="width:4%;">#</th>
-                                <th style="width:12%;">Cedula</th>
+                                <th style="width:12%;">Cédula</th>
                                 <th style="width:30%;">Nombre</th>
                                 <th style="width:14%; text-align:right;">Salario Bruto</th>
                                 <th style="width:14%; text-align:right;">Cuota Obrero 10.83%</th>

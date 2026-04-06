@@ -38,45 +38,64 @@
                     </group>
 
 
+                    <!-- Representante RRHH para Constancias -->
+                    <group string="Datos del Firmante (Constancias Laborales)">
+                        <group>
+                            <field name="hr_rep_name" placeholder="Lic. Juan Perez Garcia"/>
+                            <field name="hr_rep_title" placeholder="Encargado de Recursos Humanos"/>
+                        </group>
+                        <group>
+                            <field name="hr_rep_phone" placeholder="2222-3333"/>
+                            <field name="hr_rep_email" placeholder="rrhh@empresa.cr"/>
+                        </group>
+                        <group>
+                            <field name="hr_rep_location" placeholder="San Jose, Costa Rica" colspan="2"/>
+                        </group>
+                        <div class="alert alert-info" role="alert" colspan="2">
+                            <i class="fa fa-info-circle" title="Información"/> Estos datos aparecen al pie de cada Constancia Laboral generada.
+                            Si no se configuran, se usara el nombre y datos de la empresa.
+                        </div>
+                    </group>
+
                     <!-- Beneficios Especiales de la Empresa -->
                     <group string="Beneficios Especiales">
-                        <group string="Vacaciones Adicionales por Anio (1 de enero)">
+                        <group string="Vacaciones Adicionales por Año (1 de enero)">
                             <field name="extra_vacation_days_enabled" widget="boolean_toggle"/>
                             <field name="extra_vacation_days_mode"
                                    invisible="not extra_vacation_days_enabled"
                                    widget="radio" string="Modalidad"/>
                             <field name="extra_vacation_days_amount"
                                    invisible="not extra_vacation_days_enabled"
-                                   string="Dias base"/>
+                                   string="Días base"/>
                             <field name="extra_vacation_last_applied_year"
                                    readonly="1"
                                    invisible="not extra_vacation_days_enabled"
-                                   string="Ultimo anio aplicado"/>
+                                   string="Último año aplicado"/>
 
                             <!-- Ayuda modalidad fija -->
                             <div class="alert alert-info" role="alert" colspan="2"
                                  invisible="not extra_vacation_days_enabled or extra_vacation_days_mode != 'fixed'">
-                                <i class="fa fa-info-circle" title="Informacion"/>
+                                <i class="fa fa-info-circle" title="Información"/>
                                 <strong>Modalidad fija:</strong>
-                                El 1 de enero de cada anio se acreditan
-                                <strong><field name="extra_vacation_days_amount" nolabel="1" readonly="1"/> dias</strong>
+                                El 1 de enero de cada año se acreditan
+                                <strong><field name="extra_vacation_days_amount" nolabel="1" readonly="1"/> días</strong>
                                 a <strong>todos</strong> los empleados activos por igual,
                                 sin importar su antiguedad.
-                                Art. 58 CT: beneficio superior al minimo legal.
+                                Art. 58 CT: beneficio superior al mínimo legal.
                             </div>
 
-                            <!-- Ayuda modalidad por anio laborado -->
+                            <!-- Ayuda modalidad por año laborado -->
                             <div class="alert alert-success" role="alert" colspan="2"
                                  invisible="not extra_vacation_days_enabled or extra_vacation_days_mode != 'per_year'">
-                                <i class="fa fa-info-circle" title="Informacion"/>
-                                <strong>Modalidad por anio laborado:</strong>
+                                <i class="fa fa-info-circle" title="Información"/>
+                                <strong>Modalidad por año laborado:</strong>
                                 El 1 de enero cada empleado recibe
-                                <strong><field name="extra_vacation_days_amount" nolabel="1" readonly="1"/> dias</strong>
-                                por cada <strong>anio completo</strong> de servicio.
+                                <strong><field name="extra_vacation_days_amount" nolabel="1" readonly="1"/> días</strong>
+                                por cada <strong>año completo</strong> de servicio.
                                 Ejemplo: empleado con 3 anos de antiguedad recibe
-                                3 x dias base = total de dias acreditados.
-                                Empleados con menos de 1 anio completo no reciben dias.
-                                Art. 58 CT: beneficio superior al minimo legal.
+                                3 x días base = total de días acreditados.
+                                Empleados con menos de 1 año completo no reciben días.
+                                Art. 58 CT: beneficio superior al mínimo legal.
                             </div>
                         </group>
                     </group>
@@ -132,7 +151,7 @@
                                            options="{'no_create': True}"
                                            help="Cuenta activo corriente para el derecho de cobro del patrono ante la CCSS por subsidios de incapacidad (días 4+). Si no se configura, el sistema usa CCSS por Pagar como fallback."/>
                                 </group>
-                                <group string="Provisiones y Salarios">
+                                <group string="Provisiónes y Salarios">
                                     <field name="account_aguinaldo_provision"
                                            options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_cesantia_provision"
@@ -150,7 +169,7 @@
                                            options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"/>
                                     <field name="account_pension_alimentaria_payable"
                                            options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
-                                           help="Pensiones alimentarias retenidas pendientes de girar al Juzgado (Ley 8590). Cuenta separada para control judicial. Ej: 230950"/>
+                                           help="Pensiónes alimentarias retenidas pendientes de girar al Juzgado (Ley 8590). Cuenta separada para control judicial. Ej: 230950"/>
                                     <field name="account_embargo_payable"
                                            options="{'no_create': True}" domain="[('company_ids', 'in', company_id)]"
                                            help="Embargos judiciales retenidos pendientes de girar al Juzgado (Art. 172 CT). Cuenta separada para control judicial. Ej: 230960"/>
@@ -187,17 +206,17 @@
                                         </tr>
                                         <tr>
                                             <td>Vacaciones (4.16%)</td>
-                                            <td class="text-end">vacation_provision</td>
+                                            <td class="text-end">vacation_provisión</td>
                                             <td></td>
                                         </tr>
                                         <tr>
                                             <td>Aguinaldo (8.33%)</td>
-                                            <td class="text-end">aguinaldo_provision</td>
+                                            <td class="text-end">aguinaldo_provisión</td>
                                             <td></td>
                                         </tr>
                                         <tr>
                                             <td>Cesantía (5.33%)</td>
-                                            <td class="text-end">cesantia_provision</td>
+                                            <td class="text-end">cesantía_provisión</td>
                                             <td></td>
                                         </tr>
                                         <tr>
@@ -214,7 +233,7 @@
                                             <td colspan="3"><strong>Pasivos por Planilla</strong></td>
                                         </tr>
                                         <tr>
-                                            <td>Deducciones CCSS por Pagar (Obrera 10.83% + Patronal 26.83%)</td>
+                                            <td>Deducciónes CCSS por Pagar (Obrera 10.83% + Patronal 26.83%)</td>
                                             <td></td>
                                             <td class="text-end">ccss_obrero + ccss_patronal</td>
                                         </tr>
@@ -231,17 +250,17 @@
                                         <tr>
                                             <td>Provisión Aguinaldo</td>
                                             <td></td>
-                                            <td class="text-end">aguinaldo_provision</td>
+                                            <td class="text-end">aguinaldo_provisión</td>
                                         </tr>
                                         <tr>
                                             <td>Provisión Cesantía</td>
                                             <td></td>
-                                            <td class="text-end">cesantia_provision</td>
+                                            <td class="text-end">cesantía_provisión</td>
                                         </tr>
                                         <tr>
                                             <td>Provisión Vacaciones</td>
                                             <td></td>
-                                            <td class="text-end">vacation_provision</td>
+                                            <td class="text-end">vacation_provisión</td>
                                         </tr>
                                         <tr>
                                             <td>Pensión Alimentaria Retenida ← 230950</td>

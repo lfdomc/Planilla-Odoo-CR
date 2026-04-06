@@ -44,7 +44,7 @@
                     <div class="alert alert-warning" role="alert"
                          invisible="active == True">
                         <i class="fa fa-exclamation-triangle"/>
-                        Este tramo esta <strong>inactivo</strong> y NO se usa en el calculo de renta.
+                        Este tramo esta <strong>inactivo</strong> y NO se usa en el cálculo de renta.
                     </div>
                 </sheet>
             </form>
@@ -65,7 +65,7 @@
                 Para actualizar la tabla anual: desactive todos los tramos del ano anterior
                 y active los del ano nuevo. El sistema valida que no haya mezclas de anos.
             </p>
-            <p>Fuente: Resolucion DGT del Ministerio de Hacienda (publicada cada enero).</p>
+            <p>Fuente: Resolución DGT del Ministerio de Hacienda (públicada cada enero).</p>
         </field>
     </record>
 </odoo>

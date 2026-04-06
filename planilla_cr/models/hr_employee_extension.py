@@ -861,6 +861,30 @@ class HrEmployeeExtension(models.Model):
     def action_print_salary_history(self):
         return self.env.ref('planilla_cr.action_report_salary_history').report_action(self)
 
+    amonestacion_ids = fields.One2many(
+        'planilla.amonestacion', 'employee_id', string='Amonestaciones'
+    )
+    amonestacion_count = fields.Integer(
+        string='Amonestaciones', compute='_compute_amonestacion_count', store=False
+    )
+
+    def _compute_amonestacion_count(self):
+        for emp in self:
+            emp.amonestacion_count = self.env['planilla.amonestacion'].search_count([
+                ('employee_id', '=', emp.id),
+                ('state', 'in', ('issued', 'acknowledged')),
+            ])
+
+    def action_view_amonestaciones(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Amonestaciones',
+            'res_model': 'planilla.amonestacion',
+            'view_mode': 'list,form',
+            'domain': [('employee_id', '=', self.id)],
+            'context': {'default_employee_id': self.id},
+        }
+
     def action_print_constancia_laboral(self):
         return self.env.ref('planilla_cr.action_report_constancia_laboral').report_action(self)
 

@@ -8,7 +8,7 @@
                 <sheet>
                     <div class="alert alert-info" role="alert">
                         <strong><i class="fa fa-bar-chart" title="Bar Chart"/> Costos Patronales:</strong>
-                        Muestra CCSS patronal, INS, aguinaldo, cesantia y vacaciones provision.
+                        Muestra CCSS patronal, INS, aguinaldo, cesantía y vacaciones provisión.
                         Solo boletas en estado <strong>PAGADO</strong>.
                     </div>
                     <group>
@@ -16,7 +16,7 @@
                             <field name="company_id"/>
                             <field name="branch_id"/>
                         </group>
-                        <group string="Periodo">
+                        <group string="Período">
                             <field name="date_from"/>
                             <field name="date_to"/>
                             <field name="group_by"/>

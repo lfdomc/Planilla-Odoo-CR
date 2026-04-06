@@ -129,9 +129,20 @@ class Bono(models.Model):
         for rec in self:
             monto = rec._get_monto_base()
             exento = rec.tope_exento or 0.0
-            excedente = max(0.0, monto - exento)
-            rec.monto_gravable_ccss  = excedente if not rec.afecto_ccss  else monto
-            rec.monto_gravable_renta = excedente if not rec.afecto_renta else monto
+            # FIX CALC-02: bono totalmente exento (afecto=False, tope=0) -> gravable=0
+            # Antes: excedente = monto-0 = monto -> incorrecto para bonos sin tope
+            if rec.afecto_ccss:
+                rec.monto_gravable_ccss = monto
+            elif exento > 0:
+                rec.monto_gravable_ccss = max(0.0, monto - exento)
+            else:
+                rec.monto_gravable_ccss = 0.0  # Totalmente exento CCSS
+            if rec.afecto_renta:
+                rec.monto_gravable_renta = monto
+            elif exento > 0:
+                rec.monto_gravable_renta = max(0.0, monto - exento)
+            else:
+                rec.monto_gravable_renta = 0.0  # Totalmente exento Renta
 
     # -- Defaults automaticos segun tipo ------------------------------------
     @api.onchange('bono_type')
@@ -198,15 +209,20 @@ class Bono(models.Model):
         monto = self._get_monto_base()
         exento = self.tope_exento or 0.0
 
+        # FIX CALC-02: bono totalmente exento (afecto=False, tope=0) -> gravable=0
         if self.afecto_ccss:
             grav_ccss = monto
-        else:
+        elif exento > 0:
             grav_ccss = max(0.0, monto - exento)
+        else:
+            grav_ccss = 0.0  # Totalmente exento CCSS
 
         if self.afecto_renta:
             grav_renta = monto
-        else:
+        elif exento > 0:
             grav_renta = max(0.0, monto - exento)
+        else:
+            grav_renta = 0.0  # Totalmente exento Renta
 
         return monto, grav_ccss, grav_renta
 

@@ -4,7 +4,7 @@
         <field name="name">planilla.calendar.list</field>
         <field name="model">planilla.calendar</field>
         <field name="arch" type="xml">
-            <list string="Calendarizaciones">
+            <list string="Calendarizaciónes">
                 <field name="name"/>
                 <field name="frequency"/>
                 <field name="payment_day"/>
@@ -18,7 +18,7 @@
         <field name="name">planilla.calendar.form</field>
         <field name="model">planilla.calendar</field>
         <field name="arch" type="xml">
-            <form string="Calendarizacion de Planilla">
+            <form string="Calendarización de Planilla">
                 <sheet>
                     <group>
                         <group string="General">
@@ -26,14 +26,14 @@
                             <field name="company_id" groups="base.group_multi_company"/>
                             <field name="branch_id"/>
                         </group>
-                        <group string="Configuracion de Pago">
+                        <group string="Configuración de Pago">
                             <field name="frequency"/>
                             <field name="payment_day"/>
                             <field name="second_payment_day"
                                    invisible="frequency != 'biweekly'"/>
                         </group>
                     </group>
-                    <group string="Deducciones Aplicables">
+                    <group string="Deducciónes Aplicables">
                         <field name="deduction_code_ids" widget="many2many_tags"/>
                     </group>
                     <field name="note" placeholder="Notas adicionales..."/>
@@ -43,7 +43,7 @@
     </record>
 
     <record id="action_payroll_calendar" model="ir.actions.act_window">
-        <field name="name">Calendarizaciones</field>
+        <field name="name">Calendarizaciónes</field>
         <field name="res_model">planilla.calendar</field>
         <field name="view_mode">list,form</field>
     </record>

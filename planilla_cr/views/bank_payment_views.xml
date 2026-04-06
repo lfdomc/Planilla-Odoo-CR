@@ -23,7 +23,7 @@
                     </group>
 
                     <!-- BCR DAV -->
-                    <group string="Configuracion BCR - Archivo DAV"
+                    <group string="Configuración BCR - Archivo DAV"
                            invisible="bank_format != 'bcr_dav'">
                         <group>
                             <field name="bcr_concept"
@@ -39,14 +39,14 @@
                     </group>
 
                     <!-- BNCR SIN -->
-                    <group string="Configuracion BNCR - Archivo SINPE"
+                    <group string="Configuración BNCR - Archivo SINPE"
                            invisible="bank_format != 'bncr_sin'">
                         <group string="Datos de la Empresa">
                             <field name="bncr_client_id"
                                    placeholder="15 caracteres - ID asignado por BNCR"/>
                             <field name="bncr_client_id_type"/>
                             <field name="bncr_company_id_number"
-                                   placeholder="Cedula juridica sin guiones"/>
+                                   placeholder="Cédula jurídica sin guiones"/>
                             <field name="bncr_debit_iban"
                                    placeholder="CR + 20 digitos - cuenta empresa en BNCR"/>
                         </group>
@@ -61,14 +61,14 @@
                             <div class="alert alert-warning" role="alert">
                                 <strong>Formato BNCR SINPE (.SIN):</strong> Archivo posicional de longitud fija.
                                 Requiere que los empleados tengan IBAN registrado.
-                                Creditos a cuentas BNCR se procesan en T+0, otros bancos en T+1.
+                                Créditos a cuentas BNCR se procesan en T+0, otros bancos en T+1.
                             </div>
                         </group>
                     </group>
 
-                    <!-- Seccion SINPE Movil -->
+                    <!-- Sección SINPE Movil -->
                     <group invisible="bank_format != 'sinpe_movil'">
-                        <group string="Configuracion SINPE Movil">
+                        <group string="Configuración SINPE Movil">
                             <field name="sinpe_concept"
                                    placeholder="Pago de Planilla -- max 60 caracteres"/>
                         </group>

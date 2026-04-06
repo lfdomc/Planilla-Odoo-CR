@@ -5,7 +5,7 @@
         <field name="name">planilla.closed.period.tree</field>
         <field name="model">planilla.closed.period</field>
         <field name="arch" type="xml">
-            <list string="Periodos Cerrados" decoration-danger="True">
+            <list string="Períodos Cerrados" decoration-danger="True">
                 <field name="name"/>
                 <field name="company_id"/>
                 <field name="branch_id"/>
@@ -21,7 +21,7 @@
         <field name="name">planilla.closed.period.form</field>
         <field name="model">planilla.closed.period</field>
         <field name="arch" type="xml">
-            <form string="Periodo Cerrado">
+            <form string="Período Cerrado">
                 <sheet>
                     <div class="oe_title">
                         <h1><field name="name" placeholder="Ej: Cierre Planilla Marzo 2026"/></h1>
@@ -33,7 +33,7 @@
                             <field name="date_from"/>
                             <field name="date_to"/>
                         </group>
-                        <group string="Informacion de Cierre">
+                        <group string="Información de Cierre">
                             <field name="closed_by" readonly="1"/>
                             <field name="closed_date" readonly="1"/>
                         </group>
@@ -42,9 +42,9 @@
                         <field name="notes" placeholder="Notas opcionales sobre este cierre..."/>
                     </group>
                     <div class="alert alert-warning" role="alert">
-                        <strong>Atencion:</strong> Una vez creado un periodo cerrado,
+                        <strong>Atencion:</strong> Una vez creado un período cerrado,
                         no se podran confirmar ni crear boletas en ese rango de fechas.
-                        Solo el Administrador puede eliminar periodos cerrados.
+                        Solo el Administrador puede eliminar períodos cerrados.
                     </div>
                 </sheet>
                 <chatter/>
@@ -53,7 +53,7 @@
     </record>
 
     <record id="action_closed_period" model="ir.actions.act_window">
-        <field name="name">Periodos Cerrados</field>
+        <field name="name">Períodos Cerrados</field>
         <field name="res_model">planilla.closed.period</field>
         <field name="view_mode">list,form</field>
     </record>

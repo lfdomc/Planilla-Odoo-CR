@@ -63,7 +63,7 @@ class ImportProcessorBonosEmbargos(models.AbstractModel):
                     if calc_type == 'fixed' and monto <= 0:
                         raise ValueError('El Monto Fijo debe ser mayor a CRC0')
                     if calc_type == 'percentage' and not (0 < pct <= 25):
-                        raise ValueError(f'El porcentaje ({pct}%) debe estar entre 0 y 25% (Art. 172 CT)')
+                        raise ValueError('El porcentaje (%s%%) debe estar entre 0 y 25%% (Art. 172 CT)' % pct)
 
                     vals = {
                         'employee_id':        emp.id,

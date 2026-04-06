@@ -172,7 +172,7 @@
         </t>
     </template>
 
-    <!-- Acciones de reporte -->
+    <!-- Acciónes de reporte -->
     <record id="action_report_employee_charge" model="ir.actions.report">
         <field name="name">Cobro al Empleado</field>
         <field name="model">planilla.employee.charge</field>

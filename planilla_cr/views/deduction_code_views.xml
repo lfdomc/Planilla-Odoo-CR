@@ -4,7 +4,7 @@
         <field name="name">planilla.deduction.code.list</field>
         <field name="model">planilla.deduction.code</field>
         <field name="arch" type="xml">
-            <list string="Codigos de Deduccion">
+            <list string="Códigos de Deducción">
                 <field name="code"/>
                 <field name="name"/>
                 <field name="deduction_type"/>
@@ -21,7 +21,7 @@
         <field name="name">planilla.deduction.code.form</field>
         <field name="model">planilla.deduction.code</field>
         <field name="arch" type="xml">
-            <form string="Codigo de Deduccion">
+            <form string="Código de Deducción">
                 <sheet>
                     <group>
                         <group string="Identificacion">
@@ -66,7 +66,7 @@
                             <field name="ins_rate_v" string="Clase V -- Alto riesgo (%)"/>
                         </group>
                         <div style="background:#fff3cd; border-radius:4px; padding:8px; font-size:12px; color:#856404;">
-                            Estas tasas se usan automaticamente en boletas e informe INS.
+                            Estas tasas se usan automáticamente en boletas e informe INS.
                             Actualicelas cuando el INS emita nuevas tarifas.
                         </div>
                     </group>
@@ -85,7 +85,7 @@
     </record>
 
     <record id="action_deduction_code" model="ir.actions.act_window">
-        <field name="name">Codigos de Deduccion</field>
+        <field name="name">Códigos de Deducción</field>
         <field name="res_model">planilla.deduction.code</field>
         <field name="view_mode">list,form</field>
     </record>

@@ -49,7 +49,7 @@
                         <t t-if="doc.calculation_method == 'attendance'">
                         <tr>
                             <td colspan="2" style="padding:2px 8px; border-bottom:1px solid #ddd; font-size:11px; color:#555;">
-                                Horas trabajadas en el periodo: <strong><t t-out="doc.attendance_hours"/> h</strong>
+                                Horas trabajadas en el período: <strong><t t-out="doc.attendance_hours"/> h</strong>
                             </td>
                         </tr>
                         </t>
@@ -180,7 +180,7 @@
                         </tr>
 
                         <!-- Incapacidades: NO mostrar como egreso del empleado.
-                             El costo patronal es informacion del patrono, no del colaborador. -->
+                             El costo patronal es información del patrono, no del colaborador. -->
 
                         <!-- Permisos sin goce -->
                         <t t-set="sin_goce_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category in ('ausencia', 'licencia_sin_goce'))"/>
@@ -219,11 +219,11 @@
                             </td>
                         </tr>
 
-                        <!-- Pension alimentaria -->
+                        <!-- Pensión alimentaria -->
                         <t t-set="pension_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category == 'pension_alimentaria')"/>
                         <t t-set="pension_total" t-value="sum(pension_lines.mapped('amount'))"/>
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Pension Alimentaria:</td>
+                            <td style="padding:2px 8px 2px 20px;">Pensión Alimentaria:</td>
                             <td style="padding:2px 8px; text-align:right;">
                                 <t t-if="pension_total &gt; 0">
                                     &#8353; <t t-out="'{:,.0f}'.format(pension_total)"/>
@@ -244,11 +244,11 @@
                         </tr>
                         </t>
 
-                        <!-- Prestamos -->
+                        <!-- Préstamos -->
                         <t t-set="loan_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category == 'loan')"/>
                         <t t-set="loan_total" t-value="sum(loan_lines.mapped('amount'))"/>
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Prestamos:</td>
+                            <td style="padding:2px 8px 2px 20px;">Préstamos:</td>
                             <td style="padding:2px 8px; text-align:right;">
                                 <t t-if="loan_total &gt; 0">
                                     &#8353; <t t-out="'{:,.0f}'.format(loan_total)"/>
@@ -270,12 +270,12 @@
                             </td>
                         </tr>
 
-                        <!-- Dias / Horas sin goce -->
+                        <!-- Días / Horas sin goce -->
                         <t t-set="ausencia_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category in ('ausencia','licencia_sin_goce'))"/>
                         <t t-set="ausencia_total" t-value="sum(ausencia_lines.mapped('amount'))"/>
                         <t t-if="ausencia_total &gt; 0">
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Dias / Horas sin goce:</td>
+                            <td style="padding:2px 8px 2px 20px;">Días / Horas sin goce:</td>
                             <td style="padding:2px 8px; text-align:right;">
                                 &#8353; <t t-out="'{:,.0f}'.format(ausencia_total)"/>
                             </td>

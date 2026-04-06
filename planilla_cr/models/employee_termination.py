@@ -236,10 +236,9 @@ class EmployeeTermination(models.Model):
             # Ano 1: 19.5 dias, Ano 2: 20 dias, Ano 3: 20.5 dias...
             # Maximo 8 anos = 22 dias/ano
             if rec.cesantia_applies:
-                cesantia_days_table = {
-                    1: 19.5, 2: 20.0, 3: 20.5, 4: 21.0,
-                    5: 21.24, 6: 21.5, 7: 22.0, 8: 22.0,
-                }
+                # FIX CALC-01: usar tabla centralizada K.CESANTIA_TABLA (Art. 29 CT)
+                # Eliminada tabla local duplicada e inconsistente
+                cesantia_days_table = K.CESANTIA_TABLA
                 years = min(int(rec.years_service), 8)
                 fraction = rec.years_service - int(rec.years_service)
                 cesantia_days = 0

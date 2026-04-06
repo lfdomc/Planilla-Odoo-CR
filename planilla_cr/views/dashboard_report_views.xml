@@ -58,7 +58,7 @@
                             <h2 style="color:#1F4E79; margin:0;">
                                 <i class="fa fa-tachometer" title="Tachometer"/> Dashboard — Planilla CR
                             </h2>
-                            <p class="text-muted mb-0">Resumen por período seleccionado</p>
+                            <p class="text-muted mb-0">Resumen por período selecciónado</p>
                         </div>
                         <div class="col-6">
                             <div style="background:#F8F9FA; border:1px solid #dee2e6; border-radius:8px; padding:12px;">
@@ -277,11 +277,11 @@
                         </div>
                     </div>
 
-                    <!-- Acciones Urgentes -->
+                    <!-- Acciónes Urgentes -->
                     <div class="row mt-3">
                         <div class="col-12">
                             <h4 style="border-bottom:2px solid #E67E22; padding-bottom:5px; color:#E67E22;">
-                                Acciones Urgentes
+                                Acciónes Urgentes
                             </h4>
                         </div>
                     </div>

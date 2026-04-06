@@ -44,7 +44,7 @@
                             <field name="vacation_type"/>
                             <field name="days_accrued" readonly="1"/>
                         </group>
-                        <group string="Periodo">
+                        <group string="Período">
                             <field name="date_start"/>
                             <field name="date_end"/>
                             <field name="days" readonly="1"/>
@@ -52,8 +52,8 @@
                             <field name="total_amount" readonly="1"/>
                         </group>
                     </group>
-                    <!-- Metodo de pago Art. 153-156 CT -->
-                    <group string="Metodo de Pago (Art. 153-156 CT)">
+                    <!-- Método de pago Art. 153-156 CT -->
+                    <group string="Método de Pago (Art. 153-156 CT)">
                         <field name="payment_method"/>
 
                         <!-- Alerta: empleado con salario variable y use_average desactivado -->
@@ -77,7 +77,7 @@
                             </group>
                             <div class="alert alert-info" role="alert"
                                  invisible="avg_vs_base_diff_pct &lt; 5">
-                                <i class="fa fa-info-circle" title="Informacion"/>
+                                <i class="fa fa-info-circle" title="Información"/>
                                 El promedio difiere en <strong><field name="avg_vs_base_diff_pct" nolabel="1" readonly="1"/>%</strong>
                                 del salario base diario. Esto es normal si el empleado tiene
                                 comisiones o horas extras variables. Verifique que el historial
@@ -87,7 +87,7 @@
                                  invisible="avg_last_4_weeks &gt; 0">
                                 <i class="fa fa-exclamation-triangle" title="Advertencia"/>
                                 No hay historial salarial disponible. El sistema usara el salario
-                                base diario como aproximacion. Para mayor precision, asegurese de
+                                base diario como aproximacion. Para mayor precisión, asegurese de
                                 que las boletas anteriores esten pagadas y en el historial.
                             </div>
                         </div>

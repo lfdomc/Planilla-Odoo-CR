@@ -696,3 +696,74 @@ class TestConstantesLegalesCR(TestCoverageBase):
         self.assertLess(K.RENTA_TASA_3, K.RENTA_TASA_4)
         self.assertEqual(K.RENTA_TASA_4, 0.25,
             msg='Tasa maxima renta 2026 = 25% (DGT-R-016-2026)')
+
+
+class TestCalc01Cesantia(common.TransactionCase):
+    """Tests para CALC-01: tabla de cesantia Art. 29 CT."""
+
+    def test_cesantia_tabla_valores_oficiales(self):
+        """Tabla K.CESANTIA_TABLA debe coincidir exactamente con Art. 29 CT."""
+        from odoo.addons.planilla_cr.models import planilla_const as K
+        tabla = K.CESANTIA_TABLA
+        self.assertEqual(tabla[1], 19.5,  'Ano 1: 19.5 dias (Art. 29 CT)')
+        self.assertEqual(tabla[2], 20.0,  'Ano 2: 20.0 dias (Art. 29 CT)')
+        self.assertEqual(tabla[3], 20.0,  'Ano 3: 20.0 dias (Art. 29 CT) - no 20.5')
+        self.assertEqual(tabla[4], 21.0,  'Ano 4: 21.0 dias (Art. 29 CT)')
+        self.assertEqual(tabla[5], 21.24, 'Ano 5: 21.24 dias (Art. 29 CT) - no 21.5')
+        self.assertEqual(tabla[6], 21.5,  'Ano 6: 21.5 dias (Art. 29 CT) - no 22.0')
+        self.assertEqual(tabla[7], 22.0,  'Ano 7: 22.0 dias (Art. 29 CT) - no 22.5')
+        self.assertEqual(tabla[8], 22.0,  'Ano 8: 22.0 dias maximo (Art. 29 CT) - no 23.0')
+
+
+class TestCalc02BonoExento(common.TransactionCase):
+    """Tests para CALC-02: bonos exentos de CCSS retornan gravable=0."""
+
+    def setUp(self):
+        super().setUp()
+        self.employee = self.env['hr.employee'].create({
+            'name': 'Test Bono Exento',
+            'base_salary': 500000,
+            'identification_id': '9-9999-9901',
+            'work_contact_id': self.env.company.partner_id.id,
+        })
+
+    def _create_bono(self, afecto_ccss, tope_exento, amount=50000):
+        return self.env['planilla.bono'].create({
+            'employee_id': self.employee.id,
+            'name': 'Bono Test',
+            'bono_type': 'otro',
+            'amount_type': 'fixed',
+            'amount': amount,
+            'afecto_ccss': afecto_ccss,
+            'afecto_renta': False,
+            'tope_exento': tope_exento,
+            'date_start': '2026-01-01',
+            'state': 'active',
+        })
+
+    def test_bono_afecto_ccss_gravable_total(self):
+        """Bono afecto CCSS: gravable = monto total."""
+        bono = self._create_bono(afecto_ccss=True, tope_exento=0, amount=50000)
+        _, grav, _ = bono.get_amount_for_payslip()
+        self.assertEqual(grav, 50000, 'Bono afecto CCSS debe ser 100% gravable')
+
+    def test_bono_exento_sin_tope_gravable_cero(self):
+        """Bono exento CCSS sin tope (educacion, salud): gravable = 0."""
+        bono = self._create_bono(afecto_ccss=False, tope_exento=0, amount=50000)
+        _, grav, _ = bono.get_amount_for_payslip()
+        self.assertEqual(grav, 0.0,
+            'Bono exento CCSS con tope=0 debe retornar gravable=0 (CALC-02 fix)')
+
+    def test_bono_exento_con_tope_gravable_excedente(self):
+        """Bono exento CCSS con tope (transporte): gravable = excedente sobre tope."""
+        bono = self._create_bono(afecto_ccss=False, tope_exento=74000, amount=100000)
+        _, grav, _ = bono.get_amount_for_payslip()
+        self.assertEqual(grav, 26000,
+            'Bono con tope 74000 y monto 100000: excedente gravable = 26000')
+
+    def test_bono_exento_bajo_tope_gravable_cero(self):
+        """Bono exento CCSS bajo el tope: gravable = 0."""
+        bono = self._create_bono(afecto_ccss=False, tope_exento=74000, amount=50000)
+        _, grav, _ = bono.get_amount_for_payslip()
+        self.assertEqual(grav, 0.0,
+            'Bono 50000 bajo tope 74000: excedente = 0, gravable = 0')

@@ -70,6 +70,29 @@ class PayrollAccountingConfig(models.Model):
     )
 
 
+    # -- Representante RRHH para Constancias Laborales ---------------
+    hr_rep_name = fields.Char(
+        string='Nombre Representante RRHH',
+        help='Nombre completo del encargado de RRHH que firma las constancias laborales.'
+    )
+    hr_rep_title = fields.Char(
+        string='Titulo / Cargo',
+        default='Encargado de Recursos Humanos',
+        help='Titulo o cargo del representante que firma las constancias.'
+    )
+    hr_rep_phone = fields.Char(
+        string='Telefono RRHH',
+        help='Telefono del departamento de RRHH para las constancias laborales.'
+    )
+    hr_rep_email = fields.Char(
+        string='Email RRHH',
+        help='Correo electronico del departamento de RRHH para las constancias laborales.'
+    )
+    hr_rep_location = fields.Char(
+        string='Lugar de emision',
+        help='Ciudad o lugar donde se emiten las constancias. Ej: "INVU Las Canas, Alajuela".'
+    )
+
     default_payroll_calendar_id = fields.Many2one(
         'planilla.calendar', string='Calendarizacion por Defecto',
         help='Al crear una nueva planilla, esta calendarizacion se seleccionara '

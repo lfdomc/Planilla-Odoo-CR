@@ -24,7 +24,7 @@
                                    placeholder="Ej: 2-01-0123456"/>
                             <div class="alert alert-info" role="alert"
                                  invisible="report_format != 'sicere'">
-                                <strong>Archivo SICERE:</strong> Formato electronico
+                                <strong>Archivo SICERE:</strong> Formato electrónico
                                 para subir directamente al portal
                                 sicere.ccss.sa.cr antes del dia 15.
                             </div>

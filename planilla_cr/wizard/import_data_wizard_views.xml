@@ -5,7 +5,7 @@
         <field name="name">planilla.import.data.wizard.form</field>
         <field name="model">planilla.import.data.wizard</field>
         <field name="arch" type="xml">
-            <form string="Importacion Masiva de Empleados">
+            <form string="Importación Masiva de Empleados">
 
                 <!-- == PASO 1: CARGA ====================================== -->
                 <group invisible="state == 'done'">
@@ -13,11 +13,11 @@
                     <div class="alert alert-info" role="alert">
                         <i class="fa fa-upload me-2" title="Importar"/>
                         <strong>Carga masiva desde el machote Excel</strong><br/>
-                        Los empleados que ya existan en Odoo (por cedula) seran <strong>omitidos</strong>.
-                        Los nuevos se crearan junto con todos sus datos relacionados.
+                        Los empleados que ya existan en Odoo (por cédula) seran <strong>omitidos</strong>.
+                        Los nuevos se crearan junto con todos sus datos relaciónados.
                     </div>
 
-                    <group string="Configuracion">
+                    <group string="Configuración">
                         <group>
                             <field name="company_id"/>
                         </group>
@@ -37,10 +37,10 @@
                                    string="  Empleados (datos principales)"/>
                             <field name="import_loans"
                                    widget="boolean_toggle"
-                                   string="$  Prestamos y Adelantos"/>
+                                   string="$  Préstamos y Adelantos"/>
                             <field name="import_pension"
                                    widget="boolean_toggle"
-                                   string="‍  Pensiones Alimentarias"/>
+                                   string="‍  Pensiónes Alimentarias"/>
                             <field name="import_overtime"
                                    widget="boolean_toggle"
                                    string="⏱  Horas Extras"/>
@@ -48,7 +48,7 @@
                         <group>
                             <field name="import_benefits"
                                    widget="boolean_toggle"
-                                   string="➕  Beneficios / Deducciones Recurrentes"/>
+                                   string="➕  Beneficios / Deducciónes Recurrentes"/>
                             <field name="import_disabilities"
                                    widget="boolean_toggle"
                                    string="  Incapacidades"/>
@@ -67,9 +67,9 @@
                     <group string=" Datos de Prueba">
                         <field name="import_sample_data"
                                widget="boolean_toggle"
-                               string="  Importar fila de prueba (cedula 1-0000-0001)"/>
+                               string="  Importar fila de prueba (cédula 1-0000-0001)"/>
                         <div class="text-muted small" colspan="2">
-                            Desactivado por defecto. Active solo para verificar que la importacion funciona,
+                            Desactivado por defecto. Active solo para verificar que la importación funcióna,
                             luego use el boton para eliminar el empleado de prueba.
                         </div>
                         <div colspan="2" invisible="not sample_exists">
@@ -84,14 +84,14 @@
                     <div class="alert alert-warning mt-2" role="alert">
                         <i class="fa fa-exclamation-triangle me-1" title="Advertencia"/>
                         <strong>Importante:</strong> Importe primero los empleados antes de importar
-                        prestamos, pensiones u otras hojas. Todas las hojas relacionadas
-                        buscan al empleado por numero de cedula.
+                        préstamos, pensiónes u otras hojas. Todas las hojas relaciónadas
+                        buscan al empleado por número de cédula.
                     </div>
 
                     <footer>
                         <button name="action_import"
                                 type="object"
-                                string="▶ Iniciar Importacion"
+                                string="▶ Iniciar Importación"
                                 class="btn-primary"
                                 confirm="¿Confirma que desea iniciar la importacion? Esta accion creara registros en Odoo."/>
                         <button name="action_delete_sample"
@@ -113,13 +113,13 @@
                     <div class="alert alert-success" role="alert"
                          invisible="total_errors > 0">
                         <i class="fa fa-check-circle me-2" title="Exito"/>
-                        <strong>OK Importacion completada sin errores.</strong>
+                        <strong>OK Importación completada sin errores.</strong>
                     </div>
 
                     <div class="alert alert-warning" role="alert"
                          invisible="total_errors == 0">
                         <i class="fa fa-exclamation-triangle me-2" title="Advertencia"/>
-                        <strong>! Importacion completada con errores.</strong>
+                        <strong>! Importación completada con errores.</strong>
                         Descargue el reporte Excel para ver el detalle y corrija los registros fallidos.
                     </div>
 
@@ -130,8 +130,8 @@
                             <field name="total_errors" string="X Total errores"                   readonly="1"/>
                         </group>
                         <group>
-                            <field name="loan_created" string="$ Prestamos creados"    readonly="1"/>
-                            <field name="pen_created"  string="‍ Pensiones creadas"    readonly="1"/>
+                            <field name="loan_created" string="$ Préstamos creados"    readonly="1"/>
+                            <field name="pen_created"  string="‍ Pensiónes creadas"    readonly="1"/>
                             <field name="ben_created"  string="➕ Otros Descuentos creados"    readonly="1"/>
                         </group>
                         <group>

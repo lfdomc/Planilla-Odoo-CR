@@ -14,7 +14,7 @@
                         </p>
                     </div>
                     <group>
-                        <group string="Periodo">
+                        <group string="Período">
                             <field name="date_from"/>
                             <field name="date_to"/>
                             <field name="frequency"/>

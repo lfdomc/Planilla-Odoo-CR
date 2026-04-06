@@ -34,7 +34,7 @@
                             invisible="state != 'draft'" class="btn-primary"/>
                     <button name="action_recompute" type="object" string="Recalcular Montos"
                             invisible="state != 'draft'" class="btn-secondary"
-                            help="Fuerza el recalculo del salario diario y subsidio CCSS"/>
+                            help="Fuerza el recálculo del salario diario y subsidio CCSS"/>
                     <button name="action_cancel" type="object" string="Cancelar"
                             invisible="state not in ('draft', 'confirmed')"/>
                     <field name="state" widget="statusbar"
@@ -48,21 +48,21 @@
                             <field name="disability_type"/>
                         </group>
 
-                        <!-- Nota: maternidad se gestiona aqui (subsidio CCSS) -->
+                        <!-- Nota: maternidad se gestióna aqui (subsidio CCSS) -->
                         <div class="alert alert-info col-12" role="alert"
                              invisible="disability_type != 'maternity'">
                             <strong>i ¿Por que la maternidad esta en Incapacidades?</strong><br/>
-                            La licencia de maternidad se gestiona aqui porque involucra
+                            La licencia de maternidad se gestióna aqui porque involucra
                             un <strong>subsidio economico de la CCSS</strong> (Art. 94 CT):
                             la CCSS paga el 100% del salario promedio directamente.
                             El sistema calcula el monto del subsidio y registra el costo patronal (CRC0).<br/>
                             <strong>Licencias sin subsidio</strong> (paternidad, duelo, matrimonio, etc.)
-                            se gestionan en
+                            se gestiónan en
                             <a href="/odoo/planilla-cr/licencias" target="_blank">
                                 <strong>Novedades -> Licencias Especiales</strong>
                             </a>.
                         </div>
-                        <group string="Periodo">
+                        <group string="Período">
                             <field name="date_start"
                                    string="Fecha Inicio (Prenatal)"
                                    invisible="disability_type != 'maternity'"/>
@@ -77,7 +77,7 @@
                         </group>
                     </group>
 
-                    <!-- Seccion Maternidad (Art. 94 CT) -->
+                    <!-- Sección Maternidad (Art. 94 CT) -->
                     <group string="Datos de Maternidad (Art. 94 CT)"
                            invisible="disability_type != 'maternity'">
                         <group>
@@ -100,7 +100,7 @@
                                    invisible="not maternity_split_50"/>
                         </group>
                         <group>
-                            <!-- Descripcion dinamica segun seleccion -->
+                            <!-- Descripción dinamica según selección -->
                             <div class="alert alert-success col-12" role="alert"
                                  invisible="maternity_split_50">
                                 <strong>Modalidad estandar (Art. 94 CT):</strong>
@@ -124,21 +124,21 @@
                         </group>
                     </group>
 
-                    <!-- Seccion CCSS / INS (no maternidad) -->
+                    <!-- Sección CCSS / INS (no maternidad) -->
                     <group invisible="disability_type == 'maternity'">
-                        <group string="Subsidio CCSS (aplica dias 4+)">
-                            <!-- subsidy_percentage: visible a todos (para que onchange funcione),
+                        <group string="Subsidio CCSS (aplica días 4+)">
+                            <!-- subsidy_percentage: visible a todos (para que onchange funcióne),
                                  editable solo por administradores. Sin esta visibilidad el
                                  operador no recibe el valor del onchange y el campo queda
                                  en un valor incorrecto que dispara el constrains. -->
                             <!-- Readonly visible to all: onchange fires correctly for operators -->
                             <field name="subsidy_percentage"
-                                   string="% Subsidio CCSS (dias 4+)"
+                                   string="% Subsidio CCSS (días 4+)"
                                    readonly="1"
                                    groups="planilla_cr.group_planilla_operador"/>
                             <!-- Editable only for admins -->
                             <field name="subsidy_percentage"
-                                   string="% Subsidio CCSS (dias 4+)"
+                                   string="% Subsidio CCSS (días 4+)"
                                    groups="planilla_cr.group_planilla_admin"/>
                             <field name="employer_percentage"
                                    groups="planilla_cr.group_planilla_admin"/>
@@ -173,8 +173,8 @@
                     </group>
                     <div class="alert alert-warning" role="alert"
                          invisible="not is_prorroga">
-                        <i class="fa fa-info-circle" title="Informacion sobre prorroga"/> <strong>Prorroga del mismo evento:</strong>
-                        Los 3 dias del tramo patronal (Art. 79 CT) ya se agotaron en el certificado original.
+                        <i class="fa fa-info-circle" title="Información sobre prorroga"/> <strong>Prorroga del mismo evento:</strong>
+                        Los 3 días del tramo patronal (Art. 79 CT) ya se agotaron en el certificado original.
                         El patrono NO paga subsidio en esta incapacidad -- todo el costo es a cargo de la CCSS (60%).
                     </div>
                     <field name="note" placeholder="Observaciones..."/>

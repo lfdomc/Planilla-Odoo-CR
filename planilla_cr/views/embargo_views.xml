@@ -28,9 +28,9 @@
                     </div>
 
                     <div class="alert alert-danger" role="alert">
-                        <strong>⚖ Art. 172 Codigo de Trabajo:</strong>
+                        <strong>⚖ Art. 172 Código de Trabajo:</strong>
                         El embargo judicial no puede superar el <strong>25 % del salario neto disponible</strong>
-                        (despues de CCSS obrera, renta y pensiones alimentarias).
+                        (despues de CCSS obrera, renta y pensiónes alimentarias).
                         El patrono tiene <strong>responsabilidad solidaria</strong> si no aplica el descuento.
                     </div>
 
@@ -70,13 +70,13 @@
                                    invisible="calculation_type != 'fixed'"/>
                             <field name="percentage"
                                    invisible="calculation_type != 'percentage'"
-                                   help="Maximo legal: 25 % del neto disponible (Art. 172 CT)."/>
+                                   help="Máximo legal: 25 % del neto disponible (Art. 172 CT)."/>
                         </group>
                         <group>
                             <div class="alert alert-info" role="alert"
                                  invisible="calculation_type != 'percentage'">
                                 El porcentaje se aplica sobre el neto disponible
-                                (bruto − CCSS obrera − renta − pensiones alimentarias).
+                                (bruto − CCSS obrera − renta − pensiónes alimentarias).
                                 Si varios embargos suman mas del 25 %, se prorratean.
                             </div>
                         </group>
@@ -103,7 +103,7 @@
                 <field name="numero_expediente"/>
                 <field name="juzgado" optional="show"/>
                 <field name="beneficiario_nombre"/>
-                <field name="calculation_type" string="Calculo"/>
+                <field name="calculation_type" string="Cálculo"/>
                 <field name="fixed_amount" string="Monto (CRC)" optional="show"/>
                 <field name="percentage" string="%" optional="show"/>
                 <field name="date_start"/>
@@ -158,7 +158,7 @@
             </p>
             <p>
                 Registre aqui los embargos judiciales ordenados por el juzgado.
-                Se descontaran automaticamente en cada boleta respetando el
+                Se descontaran automáticamente en cada boleta respetando el
                 limite del <strong>25 % del salario neto</strong> (Art. 172 CT).
             </p>
         </field>

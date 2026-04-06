@@ -29,11 +29,11 @@
 
                     <!-- Encabezado -->
                     <div class="header-box">
-                        <h4>Tabla de Amortizacion -- Prestamo / Adelanto Salarial</h4>
+                        <h4>Tabla de Amortizacion -- Préstamo / Adelanto Salarial</h4>
                         <p><t t-out="doc.employee_id.company_id.name"/> | Generado: <t t-out="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/></p>
                     </div>
 
-                    <!-- Info del prestamo -->
+                    <!-- Info del préstamo -->
                     <div class="info-grid">
                         <div class="info-block">
                             <div class="info-label">Empleado</div>
@@ -68,7 +68,7 @@
 
                     <t t-if="doc.description">
                         <div style="background:#FFF3CD; padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:11px;">
-                            <strong>Descripcion:</strong> <t t-out="doc.description"/>
+                            <strong>Descripción:</strong> <t t-out="doc.description"/>
                         </div>
                     </t>
 

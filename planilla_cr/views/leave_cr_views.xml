@@ -64,7 +64,7 @@
                         <strong>Base Legal: </strong>
                         <field name="legal_basis" readonly="1" nolabel="1"/>
                         <span invisible="max_days_info == 0">
-                            -- Maximo <field name="max_days_info" readonly="1" nolabel="1"/> dias habiles.
+                            -- Máximo <field name="max_days_info" readonly="1" nolabel="1"/> días habiles.
                         </span>
                     </div>
 
@@ -96,8 +96,8 @@
                     </group>
 
                     <group>
-                        <!-- Periodo por DIAS -->
-                        <group string="Periodo"
+                        <!-- Período por DIAS -->
+                        <group string="Período"
                                invisible="leave_unit == 'hour'">
                             <field name="date_start"
                                    readonly="state != 'draft'"/>
@@ -106,10 +106,10 @@
                             <field name="days" readonly="1"/>
                             <field name="working_days"
                                    readonly="state != 'draft'"
-                                   help="Si la ley habla de dias HABILES (duelo, paternidad, matrimonio), ingrese aqui los dias habiles. El sistema calculara el monto sobre este valor. Si queda en 0 se usan los dias calendario."/>
+                                   help="Si la ley habla de días HABILES (duelo, paternidad, matrimonio), ingrese aqui los días habiles. El sistema calculara el monto sobre este valor. Si queda en 0 se usan los días calendario."/>
                         </group>
-                        <!-- Periodo por HORAS -->
-                        <group string="Periodo"
+                        <!-- Período por HORAS -->
+                        <group string="Período"
                                invisible="leave_unit == 'day'">
                             <field name="date_start"
                                    string="Fecha del Permiso"
@@ -126,7 +126,7 @@
                         </group>
                     </group>
 
-                    <!-- Seccion Duelo -->
+                    <!-- Sección Duelo -->
                     <group string="Datos del Fallecido (Ley 8698 / Art. 37 bis CT)"
                            invisible="leave_type not in ('duelo_primer_grado', 'duelo_otro')">
                         <group>
@@ -139,10 +139,10 @@
                         <div class="alert alert-warning col-12" role="alert"
                              invisible="leave_type != 'duelo_primer_grado'">
                             <strong>Art. 37 bis CT (Ley 8698):</strong>
-                            El trabajador tiene derecho a <strong>3 dias habiles</strong>
-                            con goce de sueldo por fallecimiento de conyuge, companero(a),
+                            El trabajador tiene derecho a <strong>3 días habiles</strong>
+                            con goce de sueldo por fallecimiento de conyuge, compañero(a),
                             hijo(a), padre, madre o hermano(a).<br/>
-                            Se requiere presentar el <strong>acta de defuncion</strong>
+                            Se requiere presentar el <strong>acta de defunción</strong>
                             y documento que acredite el parentesco.
                         </div>
                         <div class="alert alert-info col-12" role="alert"
@@ -155,46 +155,46 @@
                         </div>
                     </group>
 
-                    <!-- Seccion Paternidad -->
+                    <!-- Sección Paternidad -->
                     <div class="alert alert-info col-12" role="alert"
                          invisible="leave_type not in ('paternidad', 'paternidad_adopcion')">
                         <strong>Ley 8107 / Art. 95 CT:</strong>
-                        El padre tiene derecho a <strong>8 dias habiles</strong>
+                        El padre tiene derecho a <strong>8 días habiles</strong>
                         con goce de sueldo al 100%, a cargo del patrono.<br/>
                         Debe presentar el <strong>acta de nacimiento o de adopcion</strong>
-                        dentro de los 8 dias habiles del parto o de la resolucion de adopcion.
+                        dentro de los 8 días habiles del parto o de la resolución de adopcion.
                     </div>
 
-                    <!-- Seccion Adopcion -->
+                    <!-- Sección Adopcion -->
                     <div class="alert alert-warning col-12" role="alert"
                          invisible="leave_type != 'adopcion'">
                         <strong>Ley 9406 -- Licencia por Adopcion:</strong>
                         La persona adoptante primaria tiene derecho a
-                        <strong>3 meses (90 dias)</strong> con goce de sueldo.<br/>
+                        <strong>3 meses (90 días)</strong> con goce de sueldo.<br/>
                         Si el trabajador cotiza a la CCSS, el subsidio lo cubre la CCSS
                         (igual que maternidad). En ese caso, registrelo tambien en
                         <strong>Novedades -> Incapacidades</strong> con tipo <em>Maternidad</em>
                         para que el sistema calcule el subsidio CCSS correctamente.<br/>
-                        Si la empresa lo paga directamente (sin tramite CCSS), mantengalo
+                        Si la empresa lo paga directamente (sin trámite CCSS), mantengalo
                         aqui y el monto se registrara como gasto patronal (cuenta 630800).
                     </div>
 
-                    <!-- Seccion Lactancia -->
+                    <!-- Sección Lactancia -->
                     <div class="alert alert-info col-12" role="alert"
                          invisible="leave_type != 'lactancia'">
-                        <strong>Art. 95 CT -- Periodo de Lactancia:</strong>
-                        La madre tiene derecho a <strong>dos periodos de 15 minutos</strong>
-                        cada uno durante la jornada laboral, por un minimo de 1 ano
+                        <strong>Art. 95 CT -- Período de Lactancia:</strong>
+                        La madre tiene derecho a <strong>dos períodos de 15 minutos</strong>
+                        cada uno durante la jornada laboral, por un mínimo de 1 ano
                         desde el parto.<br/>
-                        Este registro documenta el periodo de lactancia activo.
-                        No genera deduccion salarial.
+                        Este registro documenta el período de lactancia activo.
+                        No genera deducción salarial.
                     </div>
 
-                    <!-- Seccion Matrimonio -->
+                    <!-- Sección Matrimonio -->
                     <div class="alert alert-info col-12" role="alert"
                          invisible="leave_type != 'matrimonio'">
                         <strong>Art. 37 CT -- Licencia por Matrimonio:</strong>
-                        El trabajador tiene derecho a <strong>2 dias</strong>
+                        El trabajador tiene derecho a <strong>2 días</strong>
                         con goce de sueldo por su matrimonio.<br/>
                         Se requiere presentar el <strong>acta de matrimonio</strong>.
                     </div>

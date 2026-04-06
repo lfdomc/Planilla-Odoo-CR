@@ -8,7 +8,7 @@
                 <sheet>
                     <div class="alert alert-info" role="alert">
                         <strong><i class="fa fa-calendar" title="Calendar"/> Reporte de Vacaciones:</strong>
-                        Muestra dias acumulados, tomados y disponibles por empleado.
+                        Muestra días acumulados, tomados y disponibles por empleado.
                         Filas rojas indican saldo negativo. Base legal: Art. 153 CT CR.
                     </div>
                     <group>

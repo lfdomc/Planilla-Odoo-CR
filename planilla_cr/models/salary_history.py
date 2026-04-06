@@ -84,7 +84,7 @@ class SalaryHistory(models.Model):
             if not self.env.user.has_group('planilla_cr.group_planilla_aprobador'):
                 raise UserError('Solo un aprobador de planilla puede autorizar cambios salariales.')
             if rec.state != 'draft':
-                raise UserError(f'El registro ya fue procesado (estado: {rec.state}).')
+                raise UserError('El registro ya fue procesado (estado: %s).' % rec.state)
             rec.write({
                 'state':           'authorized',
                 'authorized_by':   self.env.user.id,

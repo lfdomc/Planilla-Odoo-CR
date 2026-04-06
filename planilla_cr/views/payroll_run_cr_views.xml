@@ -45,14 +45,14 @@
                 <field name="total_loans" string="Préstamos / Adelantos" optional="hide"/>
                 <field name="total_cobros_empleado" string="Cobros Empleado" optional="hide"/>
                 <field name="total_licencias_sin_goce" string="Lic. Sin Goce / Ausencias" optional="hide"/>
-                <field name="total_deductions" string="Total Deducciones"
+                <field name="total_deductions" string="Total Deducciónes"
                        help="CCSS Obrero + Impuesto de Renta"/>
 
                 <!-- ── RESULTADO OBRERO ── -->
                 <field name="total_net" string="Total Neto"
                        help="Bruto menos CCSS Obrero y Renta"/>
                 <field name="total_salary_payable" string="A Pagar" optional="show"
-                       help="Lo que realmente se deposita: neto menos préstamos y deducciones adicionales"/>
+                       help="Lo que realmente se deposita: neto menos préstamos y deducciónes adicionales"/>
 
                 <!-- ── CARGAS PATRONALES ── -->
                 <field name="total_ccss_employer" string="CCSS Patronal" optional="hide"/>
@@ -151,7 +151,7 @@
                             <field name="date_end"/>
                             <div colspan="2" style="margin-top:4px">
                                 <button name="action_suggest_dates" type="object"
-                                        string="Sugerir Fechas del Periodo Actual"
+                                        string="Sugerir Fechas del Período Actual"
                                         class="btn btn-sm btn-secondary"
                                         icon="fa-calendar"
                                         invisible="state != 'draft' or not payroll_calendar_id"/>

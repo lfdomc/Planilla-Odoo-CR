@@ -145,7 +145,7 @@
         </field>
     </record>
 
-    <!-- Server Action: Sanear cobros huerfanos - aparece en menu Accion de la lista -->
+    <!-- Server Action: Sanear cobros huerfanos - aparece en menu Acción de la lista -->
     <record id="action_sanear_cobros_huerfanos" model="ir.actions.server">
         <field name="name">Sanear Cobros Huerfanos</field>
         <field name="model_id" ref="model_planilla_employee_charge"/>
@@ -173,7 +173,7 @@ else:
                     <button name="action_cancel" type="object" string="Cancelar"
                             invisible="state in ('applied', 'cancelled')"
                             groups="planilla_cr.group_planilla_aprobador"
-                            confirm="¿Está seguro de cancelar este cobro?"/>
+                            confirm="¿Esta seguro de cancelar este cobro?"/>
                     <button name="action_reset_to_draft" type="object"
                             string="Reactivar a Borrador"
                             invisible="state != 'cancelled'"
@@ -183,7 +183,7 @@ else:
                             class="btn-warning"
                             invisible="not applied_periods or state == 'cancelled'"
                             groups="planilla_cr.group_planilla_aprobador"
-                            confirm="Esto eliminará períodos aplicados que ya no tienen boleta activa. ¿Continuar?"/>
+                            confirm="Esto eliminara periodos aplicados que ya no tienen boleta activa. ¿Continuar?"/>
                     <button name="action_print_charge" type="object"
                             string=" Imprimir" class="btn-secondary"
                             invisible="state == 'draft'"/>

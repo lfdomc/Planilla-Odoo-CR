@@ -63,15 +63,27 @@ PROV_CESANTIA: float = 0.0533  # fallback ano 1 aprox.
 #: Tabla Art. 29 CT -- dias de cesantia por ano de servicio
 #: (ano_completo: dias). Maximo 8 anos (Art. 29 CT).
 #: Formula provision: dias / 360 -> se aplica sobre el salario bruto del periodo.
+# Tabla oficial Art. 29 Codigo de Trabajo CR (dias por ano completo trabajado)
+# Fuente: texto literal del Art. 29 CT y jurisprudencia Sala Segunda
+#
+# NOTA DE MIGRACION v5.28.69 (2026-04-06):
+#   Tabla corregida. Valores anteriores incorrectos: ano3=20.5, ano5=21.5,
+#   ano6=22.0, ano7=22.5, ano8=23.0.
+#   DECISION CONTABLE: se aplica la tabla correcta desde esta version en adelante.
+#   Las boletas ya pagadas (state=paid) NO se recalculan -- son inmutables por diseno.
+#   Las provisiones acumuladas anteriores quedan como estan.
+#   Impacto maximo por empleado senior (8+ anos, salario CRC800k):
+#     Provision anterior: CRC51,111/mes  |  Provision correcta: CRC48,889/mes
+#   El ajuste contable, si se requiere, debe realizarlo el contador del cliente.
 CESANTIA_TABLA: dict = {
     1: 19.5,
     2: 20.0,
-    3: 20.5,
+    3: 20.0,   # Art. 29 CT: ano 3 = 20 dias (corregido)
     4: 21.0,
-    5: 21.5,
-    6: 22.0,
-    7: 22.5,
-    8: 23.0,   # maximo legal -- mas de 8 anos usa esta tasa
+    5: 21.24,  # Art. 29 CT: ano 5 = 21.24 dias (corregido)
+    6: 21.5,   # Art. 29 CT: ano 6 = 21.5 dias (corregido)
+    7: 22.0,   # Art. 29 CT: ano 7 = 22 dias (corregido)
+    8: 22.0,   # maximo legal -- mas de 8 anos usa esta tasa (corregido)
 }
 #: Ano maximo de cesantia (Art. 29 CT)
 CESANTIA_MAX_ANOS: int = 8

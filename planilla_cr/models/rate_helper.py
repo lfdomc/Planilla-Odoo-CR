@@ -77,7 +77,7 @@ class RateHelper(models.AbstractModel):
           Ano 1: 19.5 dias -> 5.4167%
           Ano 2: 20.0 dias -> 5.5556%
           ...
-          Ano 8+: 23.0 dias -> 6.3889% (maximo legal)
+          Ano 8+: 22.0 dias -> 6.1111% (maximo legal Art. 29 CT)
 
         Si hay un codigo CESANTIA configurado en BD, se usa ese valor
         (permite override manual por empresa).

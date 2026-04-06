@@ -112,9 +112,9 @@ class Embargo(models.Model):
                     )
                 if rec.percentage > 25:
                     raise ValidationError(
-                        f'El porcentaje del embargo ({rec.percentage:.2f} %) '
-                        f'no puede superar el 25 % del salario neto disponible '
-                        f'(Art. 172 Codigo de Trabajo CR).'
+                        'El porcentaje del embargo (%.2f %%) '
+                        'no puede superar el 25 %% del salario neto disponible '
+                        '(Art. 172 Codigo de Trabajo CR).' % rec.percentage
                     )
 
     @api.constrains('fixed_amount', 'calculation_type')

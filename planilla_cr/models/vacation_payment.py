@@ -1,6 +1,10 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
 from datetime import date
+import logging
+from . import planilla_const as K
+
+_logger = logging.getLogger(__name__)
 
 
 class VacationPayment(models.Model):
@@ -173,21 +177,47 @@ class VacationPayment(models.Model):
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('Solo se pueden aprobar vacaciones en borrador.')
+            # PEND-01: Advertencia de prescripcion (Art. 156 CT: 22 meses)
+            if rec.employee_id and rec.date_start:
+                emp = rec.employee_id
+                entry = emp.entry_date or emp.create_date.date()
+                import dateutil.relativedelta as rdelta
+                rd = rdelta.relativedelta(rec.date_start, entry)
+                meses_servicio = rd.years * 12 + rd.months
+                if meses_servicio > K.MESES_PRESCRIPCION_VACACIONES:
+                    _logger.warning(
+                        'planilla_cr: Vacaciones empleado %s con %s meses de servicio '
+                        '(limite prescripcion Art. 156 CT: %s meses)',
+                        emp.name, meses_servicio, K.MESES_PRESCRIPCION_VACACIONES
+                    )
+                    rec.message_post(
+                        body=(
+                            'Advertencia Art. 156 CT: Este empleado tiene '
+                            + str(meses_servicio) + ' meses de servicio. '
+                            'Verifique que las vacaciones no esten prescritas '
+                            '(limite: ' + str(K.MESES_PRESCRIPCION_VACACIONES) + ' meses). '
+                            'Consulte con el abogado laboralista si hay dudas.'
+                        ),
+                        message_type='comment',
+                        subtype_xmlid='mail.mt_note',
+                    )
             # Validar dias disponibles segun tipo
             if rec.vacation_type in ('disfrutadas', 'proporcionales'):
                 if rec.days > rec.days_accrued:
                     raise ValidationError(
-                        f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} dias '
-                        f'disponibles pero solicita {rec.days} dias.'
+                        'El empleado %s tiene %.1f dias '
+                        'disponibles pero solicita %s dias.' % (
+                            rec.employee_id.name, rec.days_accrued, rec.days)
                     )
             elif rec.vacation_type == 'adelanto':
                 # FIX A-01 v59: Adelanto maximo = dias anuales (Art. 153 CT: 12 dias/50 semanas)
                 MAX_ADELANTO = 12
                 if rec.days > MAX_ADELANTO:
                     raise ValidationError(
-                        f'El adelanto de vacaciones ({rec.days} dias) supera el maximo '
-                        f'permitido de {MAX_ADELANTO} dias anuales (Art. 153 CT). '
-                        f'Consulte con RRHH si requiere una excepcion documentada.'
+                        'El adelanto de vacaciones (%s dias) supera el maximo '
+                        'permitido de %s dias anuales (Art. 153 CT). '
+                        'Consulte con RRHH si requiere una excepcion documentada.' % (
+                            rec.days, MAX_ADELANTO)
                     )
 
             rec.state = 'approved'
@@ -214,8 +244,9 @@ class VacationPayment(models.Model):
             # (campo calculado en hr_employee que descuenta vacaciones ya tomadas)
             if rec.days > rec.days_accrued:
                 raise ValidationError(
-                    f'El empleado {rec.employee_id.name} tiene {rec.days_accrued:.1f} dias '
-                    f'disponibles pero solicita {rec.days} dias.'
+                    'El empleado %s tiene %.1f dias '
+                    'disponibles pero solicita %s dias.' % (
+                        rec.employee_id.name, rec.days_accrued, rec.days)
                 )
 
             rec.state = 'approved'

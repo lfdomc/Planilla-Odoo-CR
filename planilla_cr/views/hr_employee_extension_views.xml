@@ -12,6 +12,11 @@
                         class="oe_stat_button" icon="fa-money">
                     <field name="salary_history_count" widget="statinfo" string="Historial Salarial"/>
                 </button>
+                <button name="action_view_amonestaciones" type="object"
+                        class="oe_stat_button" icon="fa-warning"
+                        title="Amonestaciones emitidas">
+                    <field name="amonestacion_count" widget="statinfo" string="Amonestaciones"/>
+                </button>
                 <button name="action_print_constancia_laboral" type="object"
                         class="oe_stat_button" icon="fa-file-text-o"
                         title="Generar Constancia Laboral en PDF">
@@ -25,7 +30,7 @@
             <!-- Nueva pestana: Planilla CR -->
             <xpath expr="//page[@name='hr_settings']" position="after">
                 <page name="planilla_cr" string="Planilla CR">
-                    <group string="Metodo de Calculo">
+                    <group string="Método de Cálculo">
                         <field name="payroll_calculation_method" widget="radio"/>
                     </group>
                     <group>
@@ -43,13 +48,13 @@
                             <field name="payroll_calendar_id"/>
                         <field name="rop_applies"
                                widget="boolean_toggle"
-                               help="DESACTIVADO por defecto. Activar solo si el contador confirma que el ROP se procesara desde este modulo. Por defecto los contadores lo manejan con su propio proceso."/>
+                               help="DESACTIVADO por defecto. Activar solo si el contador confirma que el ROP se procesara desde este módulo. Por defecto los contadores lo manejan con su propio proceso."/>
                             <field name="base_salary"/>
                             <field name="salary_effective_date"/>
                             <field name="has_variable_income"
                                    widget="boolean_toggle"
                                    string="Salario Variable (comisiones / HE recurrentes)"
-                                   help="Active si el empleado recibe comisiones, horas extras recurrentes u otros ingresos variables. El sistema usara automaticamente el promedio de las ultimas 4 semanas (Art. 153 CT) al calcular vacaciones y liquidaciones, en lugar del salario base fijo."/>
+                                   help="Active si el empleado recibe comisiones, horas extras recurrentes u otros ingresos variables. El sistema usara automáticamente el promedio de las ultimas 4 semanas (Art. 153 CT) al calcular vacaciones y liquidaciónes, en lugar del salario base fijo."/>
                         </group>
                     </group>
                     <group>
@@ -57,13 +62,13 @@
                             <field name="ccss_number"/>
                             <field name="ccss_insured"/>
                         </group>
-                        <group string="Creditos Fiscales (Art. 34 LIR)">
+                        <group string="Créditos Fiscales (Art. 34 LIR)">
                             <field name="income_tax_children"
-                                   string="Hijos con credito fiscal"
-                                   help="Cantidad de hijos menores o dependientes. Credito 2026: CRC1,710/hijo/mes (Art. 34 LIR)."/>
+                                   string="Hijos con crédito fiscal"
+                                   help="Cantidad de hijos menores o dependientes. Crédito 2026: CRC1,710/hijo/mes (Art. 34 LIR)."/>
                             <field name="income_tax_spouse_credit"
                                    widget="boolean_toggle"
-                                   string="Credito por conyuge (CRC2,590/mes)"
+                                   string="Crédito por conyuge (CRC2,590/mes)"
                                    help="Solo uno de los dos conyuges puede aplicarlo. Requiere constancia de matrimonio vigente."/>
                         </group>
                         <group string="Clasificacion de pensionado">
@@ -74,11 +79,11 @@
                                    placeholder="Ej: CCSS-2024-00123 / JP-2023-00456"/>
                             <div class="alert alert-warning col-12" role="alert"
                                  invisible="pensioner_type != 'estado'">
-                                <i class="fa fa-exclamation-triangle"/> Pensionado sector publico: CCSS obrero 6.50% (exonerado IVM). ROP desactivado. N° resolucion obligatorio para auditoria CCSS.
+                                <i class="fa fa-exclamation-triangle"/> Pensionado sector público: CCSS obrero 6.50% (exonerado IVM). ROP desactivado. N° resolución obligatorio para auditoría CCSS.
                             </div>
                             <div class="alert alert-info col-12" role="alert"
                                  invisible="pensioner_type != 'ivm'">
-                                <i class="fa fa-info-circle" title="Informacion"/> Pensionado IVM activo: cotiza CCSS completa 10.83% (Art. 7 Regl. IVM). ROP desactivado automaticamente.
+                                <i class="fa fa-info-circle" title="Información"/> Pensionado IVM activo: cotiza CCSS completa 10.83% (Art. 7 Regl. IVM). ROP desactivado automáticamente.
                             </div>
                         </group>
                         <group string="Datos Bancarios">
@@ -103,31 +108,31 @@
 
                     <!-- Saldo de Vacaciones -->
                     <group string="Saldo de Vacaciones (Art. 153 CT)">
-                        <!-- Saldo inicial pre-implementacion -->
-                        <group string="Saldo Inicial (Pre-Implementacion)"
+                        <!-- Saldo inicial pre-implementación -->
+                        <group string="Saldo Inicial (Pre-Implementación)"
                                col="2">
                             <field name="vacation_initial_balance"
-                                   string="Saldo Inicial (dias)"
-                                   help="Dias disponibles al momento de arrancar el sistema. Use este campo para empleados pre-existentes cuyo saldo real difiere del calculado desde la fecha de ingreso."/>
+                                   string="Saldo Inicial (días)"
+                                   help="Días disponibles al momento de arrancar el sistema. Use este campo para empleados pre-existentes cuyo saldo real difiere del calculado desde la fecha de ingreso."/>
                             <field name="vacation_initial_balance_date"
                                    string="Fecha de Corte del Saldo"
-                                   help="Fecha hasta la cual se calculo el saldo inicial. El sistema acumulara dias adicionales solo a partir de esta fecha."/>
+                                   help="Fecha hasta la cual se cálculo el saldo inicial. El sistema acumulara días adicionales solo a partir de esta fecha."/>
                         </group>
                         <div class="alert alert-info col-12" role="alert"
                              invisible="vacation_initial_balance == 0">
-                            <i class="fa fa-info-circle" title="Informacion"/> El saldo disponible se calcula como:
-                            <strong>Saldo Inicial + dias acumulados desde la fecha de corte − dias tomados en el sistema.</strong>
+                            <i class="fa fa-info-circle" title="Información"/> El saldo disponible se calcula como:
+                            <strong>Saldo Inicial + días acumulados desde la fecha de corte − días tomados en el sistema.</strong>
                         </div>
                         <group string="Saldo Calculado" col="2">
                             <field name="vacation_days_accrued" string="Total Acumulado (incluye inicial)" readonly="1"/>
-                            <field name="vacation_days_taken" string="Dias Tomados en Sistema" readonly="1"/>
-                            <field name="vacation_days_available" string="Dias Disponibles" readonly="1"/>
+                            <field name="vacation_days_taken" string="Días Tomados en Sistema" readonly="1"/>
+                            <field name="vacation_days_available" string="Días Disponibles" readonly="1"/>
                             <field name="vacation_balance_alert" invisible="1"/>
                         </group>
                         <div invisible="not vacation_balance_alert"
                              style="background:#f8d7da; border-radius:4px; padding:8px; color:#721c24; font-size:12px;">
                             <i class="fa fa-exclamation-triangle" title="Exclamacion"/> Este empleado tiene saldo negativo de vacaciones.
-                            Ha tomado mas dias de los disponibles.
+                            Ha tomado mas días de los disponibles.
                         </div>
                     </group>
                 </page>
@@ -138,10 +143,10 @@
                         <strong>Referencias normativas:</strong>
                         Ocupaciones: <em>Clasificacion de Ocupaciones de Costa Rica COCR-2023 (INEC), basada en CIUO-08 OIT.</em>
                         Clase de Riesgo: <em>Manual de Clasificacion de Riesgos del Trabajo, INS Costa Rica.</em>
-                        Jornadas y tipos de identificacion: <em>Codigo de Trabajo de Costa Rica y formularios oficiales INS.</em>
+                        Jornadas y tipos de identificacion: <em>Código de Trabajo de Costa Rica y formularios oficiales INS.</em>
                     </div>
                     <group>
-                        <group string="Configuracion INS">
+                        <group string="Configuración INS">
                             <field name="ins_include"/>
                             <field name="ins_policy_number"
                                    invisible="not ins_include"/>
@@ -171,16 +176,16 @@
                     </group>
                     <group invisible="not ins_include">
                         <field name="medical_notes"
-                               placeholder="Diagnosticos, alergias, condiciones cronicas, medicamentos, notas de emergencia..."/>
+                               placeholder="Diagnosticos, alergias, condiciónes cronicas, medicamentos, notas de emergencia..."/>
                     </group>
                 </page>
 
-                <!-- Pestana prestamos y adelantos -->
-                <page name="loans" string="Prestamos y Adelantos">
+                <!-- Pestana préstamos y adelantos -->
+                <page name="loans" string="Préstamos y Adelantos">
                     <!-- Resumen rapido -->
                     <group>
                         <group string="Resumen">
-                            <field name="loan_active_count" string="Prestamos Activos"/>
+                            <field name="loan_active_count" string="Préstamos Activos"/>
                             <field name="loan_pending_amount" string="Saldo Total Pendiente (CRC)"/>
                         </group>
                     </group>
@@ -224,7 +229,7 @@
                 <page name="embargos" string="⚖ Embargos Judiciales">
                     <div class="alert alert-warning" role="alert">
                         <strong>Art. 172 CT:</strong> El embargo no puede superar el
-                        <strong>25 % del neto disponible</strong> (despues de CCSS, renta y pensiones alimentarias).
+                        <strong>25 % del neto disponible</strong> (despues de CCSS, renta y pensiónes alimentarias).
                     </div>
                     <field name="embargo_ids">
                         <list decoration-success="state=='active'"
@@ -233,7 +238,7 @@
                             <field name="numero_expediente"/>
                             <field name="juzgado"/>
                             <field name="beneficiario_nombre"/>
-                            <field name="calculation_type" string="Calculo"/>
+                            <field name="calculation_type" string="Cálculo"/>
                             <field name="fixed_amount" string="Monto (CRC)" optional="show"/>
                             <field name="percentage" string="%" optional="show"/>
                             <field name="date_start"/>
@@ -249,7 +254,7 @@
                 <!-- Pestana bonos e incentivos -->
                 <page name="bonos" string=" Bonos y Beneficios">
                     <div class="alert alert-info" role="alert">
-                        Los bonos se aplican automaticamente en cada boleta.
+                        Los bonos se aplican automáticamente en cada boleta.
                         Los <strong>bonos recurrentes activos</strong> se sincronizan al generar la planilla.
                     </div>
                     <field name="bono_ids">
@@ -258,7 +263,7 @@
                               decoration-muted="state=='ended'">
                             <field name="name" string="Concepto"/>
                             <field name="bono_type" string="Tipo"/>
-                            <field name="amount_type" string="Calculo"/>
+                            <field name="amount_type" string="Cálculo"/>
                             <field name="amount" string="Monto (CRC)" optional="show"/>
                             <field name="percentage" string="%" optional="show"/>
                             <field name="afecto_ccss" string="CCSS"/>
@@ -277,8 +282,8 @@
                 <!-- Pestana cobros al empleado -->
                 <page name="cobros_empleado" string=" Cobros al Empleado">
                     <div class="alert alert-info" role="alert">
-                        Los cobros aprobados se descuentan automaticamente en cada boleta.
-                        Los <strong>cobros recurrentes</strong> se aplican cada periodo
+                        Los cobros aprobados se descuentan automáticamente en cada boleta.
+                        Los <strong>cobros recurrentes</strong> se aplican cada período
                         mientras esten vigentes sin intervencion manual.
                     </div>
                     <field name="employee_charge_ids">

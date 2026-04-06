@@ -29,7 +29,7 @@
                         <h4>Reporte de Costos Patronales Consolidado</h4>
                         <p>
                             <t t-out="wizard.company_id.name"/> |
-                            Periodo: <t t-out="str(wizard.date_from)"/> al <t t-out="str(wizard.date_to)"/> |
+                            Período: <t t-out="str(wizard.date_from)"/> al <t t-out="str(wizard.date_to)"/> |
                             Sucursal: <t t-out="wizard.branch_id.name if wizard.branch_id else 'Todas'"/> |
                             Agrupado por: <t t-out="dict(wizard._fields['group_by'].selection).get(wizard.group_by, '')"/>
                         </p>
@@ -46,7 +46,7 @@
                             <div class="kpi-v">CRC <t t-out="'{:,.0f}'.format(data['totals']['ccss_patronal'] + data['totals']['ins'])"/></div>
                         </div>
                         <div class="kpi">
-                            <div class="kpi-l">Provisiones (Agu+Ces+Vac)</div>
+                            <div class="kpi-l">Provisiónes (Agu+Ces+Vac)</div>
                             <div class="kpi-v">CRC <t t-out="'{:,.0f}'.format(data['totals']['aguinaldo'] + data['totals']['cesantia'] + data['totals']['vacaciones'])"/></div>
                         </div>
                         <div class="kpi" style="background:#FDE8E8">
@@ -63,7 +63,7 @@
                                 <th>CCSS Pat.</th>
                                 <th>INS</th>
                                 <th>Aguinaldo</th>
-                                <th>Cesantia</th>
+                                <th>Cesantía</th>
                                 <th>Vacaciones</th>
                                 <th style="background:#C0392B">COSTO TOTAL (CRC)</th>
                             </tr>
@@ -108,7 +108,7 @@
                         </tbody>
                     </table>
                     <div class="footer">
-                        Costos patronales: CCSS patronal + INS + provisiones de aguinaldo, cesantia y vacaciones.
+                        Costos patronales: CCSS patronal + INS + provisiónes de aguinaldo, cesantía y vacaciones.
                         Solo boletas en estado PAGADO. Generado por Planilla CR -- Odoo 19.
                     </div>
                 </div>

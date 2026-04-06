@@ -23,7 +23,7 @@
                     </style>
                     <div class="hdr">
                         <h4>Reporte Consolidado de Horas Extras</h4>
-                        <p><t t-out="wizard.company_id.name"/> | Periodo: <t t-out="str(wizard.date_from)"/> al <t t-out="str(wizard.date_to)"/></p>
+                        <p><t t-out="wizard.company_id.name"/> | Período: <t t-out="str(wizard.date_from)"/> al <t t-out="str(wizard.date_to)"/></p>
                     </div>
                     <div class="kpi-grid">
                         <div class="kpi">
