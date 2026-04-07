@@ -274,26 +274,37 @@ class EmployeeTermination(models.Model):
             rec.vacation_days_accrued = round(vacation_days_net, 2)
             rec.vacation_amount = round(daily_salary * vacation_days_net, 2)
 
-            # -- Aguinaldo proporcional (Art. 228 - periodo jun-nov) -
-            # El aguinaldo es el salario del mes de diciembre
-            # = promedio de salarios jun-nov / 12 * meses trabajados en el periodo
+            # -- Aguinaldo proporcional (Art. 228 CT) ----------------------
+            # Periodo: 1 diciembre (ano anterior) al 30 noviembre (ano actual)
             exit_month = rec.termination_date.month
-            exit_year = rec.termination_date.year
-            # Determinar cuantos meses del periodo jun-nov estan incluidos
+            exit_year  = rec.termination_date.year
+            from datetime import date as _date
             if exit_month >= 12:
-                # Ya cobro aguinaldo de diciembre
-                rec.aguinaldo_months = 0
-                rec.aguinaldo_amount = 0
+                period_start = _date(exit_year, 12, 1)
+                total_months = 0  # ya cobro aguinaldo de diciembre
             elif exit_month >= 6:
-                # Meses desde junio hasta mes de salida
-                months_in_period = exit_month - 5  # jun=1, jul=2... nov=6
-                rec.aguinaldo_months = months_in_period
-                rec.aguinaldo_amount = round(monthly_salary / 12 * months_in_period, 2)
+                period_start = _date(exit_year - 1, 12, 1)
+                total_months = exit_month - 5   # jun=1 ... nov=6
             else:
-                # Enero-Mayo: periodo diciembre-mayo del ano anterior
-                months_in_period = exit_month  # ene=1... may=5
-                rec.aguinaldo_months = months_in_period
-                rec.aguinaldo_amount = round(monthly_salary / 12 * months_in_period, 2)
+                period_start = _date(exit_year - 1, 12, 1)
+                total_months = exit_month       # ene=1 ... may=5
+
+            # FIX: Si hay acumulado inicial, descontar los meses ya cubiertos
+            ag_init_amount = rec.employee_id.aguinaldo_initial_amount or 0.0
+            ag_init_date   = rec.employee_id.aguinaldo_initial_date
+            if ag_init_amount and ag_init_date and ag_init_date >= period_start:
+                # Meses cubiertos por el acumulado inicial (incluye el mes del corte)
+                months_covered = (
+                    (ag_init_date.year * 12 + ag_init_date.month) -
+                    (period_start.year * 12 + period_start.month) + 1
+                )
+                months_from_system = max(0, total_months - months_covered)
+                aguinaldo_system   = round(monthly_salary / 12 * months_from_system, 2)
+                rec.aguinaldo_months = total_months
+                rec.aguinaldo_amount = round(ag_init_amount + aguinaldo_system, 2)
+            else:
+                rec.aguinaldo_months = total_months
+                rec.aguinaldo_amount = round(monthly_salary / 12 * total_months, 2)
 
     def _calc_income_tax(self, gross):
         """FIX NEW-02 v54: calcula renta sobre el total bruto de la liquidacion.

@@ -136,10 +136,8 @@ class TerminationSimulator(models.TransientModel):
             # Art. 29 CT establece una tabla de DIAS POR ANO (no un factor del salario mensual).
             # Formula correcta: daily_salary x suma_de_dias_tabla, igual que employee_termination.py.
             # Error anterior: para 4 anos con CRC1M de salario daba CRC800k en vez de CRC2.7M (3.4x menos).
-            cesantia_days_table = {
-                1: 19.5, 2: 20.0, 3: 20.5, 4: 21.0,
-                5: 21.24, 6: 21.5, 7: 22.0, 8: 22.0,
-            }
+            # FIX CALC-01: usar tabla centralizada K.CESANTIA_TABLA (Art. 29 CT oficial)
+            cesantia_days_table = K.CESANTIA_TABLA
             years_int = min(int(years), 8)
             fraction = years - int(years)
             cesantia_days = 0.0
@@ -164,14 +162,39 @@ class TerminationSimulator(models.TransientModel):
         vac_amount = round(daily * vac_days, 2)
         notes_lines.append(f'Vacaciones Art.153 CT: {vac_days:.1f} dias disponibles x CRC{daily:,.2f}/dia')
 
-        # -- Aguinaldo proporcional (Art. 42 CT -- dic 1 a nov 30) ------------
+        # -- Aguinaldo proporcional (Art. 228 CT) ----------------------------
+        # FIX: incluir acumulado pre-implementacion si existe
         if exit_date.month >= 12:
-            ref_dec = datetime.date(exit_date.year, 12, 1)
+            period_start = datetime.date(exit_date.year, 12, 1)
+            total_months = 0
+        elif exit_date.month >= 6:
+            period_start = datetime.date(exit_date.year - 1, 12, 1)
+            total_months = exit_date.month - 5
         else:
-            ref_dec = datetime.date(exit_date.year - 1, 12, 1)
-        months_worked = min(round((exit_date - ref_dec).days / 30), 12)
-        aguinaldo = round(salary * months_worked / 12.0, 2)
-        notes_lines.append(f'Aguinaldo Art.42 CT: {months_worked} meses desde 1-dic')
+            period_start = datetime.date(exit_date.year - 1, 12, 1)
+            total_months = exit_date.month
+
+        ag_init_amount = emp.aguinaldo_initial_amount or 0.0
+        ag_init_date   = emp.aguinaldo_initial_date
+        if ag_init_amount and ag_init_date and ag_init_date >= period_start:
+            months_covered = (
+                (ag_init_date.year * 12 + ag_init_date.month) -
+                (period_start.year * 12 + period_start.month) + 1
+            )
+            months_from_system = max(0, total_months - months_covered)
+            aguinaldo_system   = round(salary * months_from_system / 12.0, 2)
+            months_worked      = total_months
+            aguinaldo          = round(ag_init_amount + aguinaldo_system, 2)
+            notes_lines.append(
+                'Aguinaldo Art.228 CT: acumulado inicial CRC%s + %s meses sistema' % (
+                    '{:,.2f}'.format(ag_init_amount), months_from_system)
+            )
+        else:
+            months_worked = total_months
+            aguinaldo = round(salary * months_worked / 12.0, 2)
+            notes_lines.append(
+                'Aguinaldo Art.228 CT: %s meses desde 1-dic' % months_worked
+            )
 
         # -- Totales ----------------------------------------------------------
         total_gross = preaviso_amount + cesantia_amount + vac_amount + aguinaldo
