@@ -79,10 +79,15 @@ class AguinaldoWizard(models.TransientModel):
         slips = self.env['planilla.payslip.cr'].search(domain)
 
         if not slips:
-            raise UserError(
-                f'No se encontraron boletas pagadas en el periodo '
-                f'junio-noviembre {self.year}.'
-            )
+            emp_check = self.env['hr.employee'].search([
+                ('company_id', '=', self.company_id.id),
+                ('aguinaldo_initial_amount', '>', 0),
+            ], limit=1)
+            if not emp_check:
+                raise UserError(
+                    'No se encontraron boletas pagadas en el periodo '
+                    'junio-noviembre %s ni empleados con acumulado inicial.' % self.year
+                )
 
         # Agrupar por empleado
         employee_data = {}
@@ -97,6 +102,8 @@ class AguinaldoWizard(models.TransientModel):
                     'total_ordinary': 0.0,
                     'months_count': 0,
                     'slip_count': 0,
+                    'aguinaldo_initial': slip.employee_id.aguinaldo_initial_amount or 0.0,
+                    'aguinaldo_initial_date': slip.employee_id.aguinaldo_initial_date,
                 }
             # Art. 228 CT: usar salario bruto (incluye horas extras, vacaciones)
             # o solo base segun la seleccion del usuario
@@ -105,6 +112,31 @@ class AguinaldoWizard(models.TransientModel):
             else:
                 employee_data[eid]['total_ordinary'] += slip.base_salary or 0.0
             employee_data[eid]['slip_count'] += 1
+
+        # Agregar empleados con acumulado inicial aunque no tengan boletas en el sistema todavia
+        # (empleados que solo tienen datos pre-implementacion)
+        period_start = date(self.year, 6, 1)  # ya definido arriba pero repetimos para el nuevo bloque
+        emp_domain = [
+            ('company_id', '=', self.company_id.id),
+            ('aguinaldo_initial_amount', '>', 0),
+            ('aguinaldo_initial_date', '!=', False),
+        ]
+        if self.branch_id:
+            emp_domain.append(('branch_id', '=', self.branch_id.id))
+        emps_with_initial = self.env['hr.employee'].search(emp_domain)
+        for emp in emps_with_initial:
+            if emp.id not in employee_data:
+                employee_data[emp.id] = {
+                    'employee_id': emp.id,
+                    'employee_name': emp.name,
+                    'branch': emp.branch_id.name or '',
+                    'entry_date': emp.entry_date,
+                    'total_ordinary': 0.0,
+                    'months_count': 0,
+                    'slip_count': 0,
+                    'aguinaldo_initial': emp.aguinaldo_initial_amount or 0.0,
+                    'aguinaldo_initial_date': emp.aguinaldo_initial_date,
+                }
 
         # Calcular aguinaldo por empleado (result_ids ya se limpio al inicio del metodo)
         lines = []
@@ -122,6 +154,17 @@ class AguinaldoWizard(models.TransientModel):
 
             # Aguinaldo = total_ordinario / 12
             aguinaldo = round(data['total_ordinary'] / 12.0, 2)
+
+            # Sumar acumulado pre-implementacion si existe y corresponde al mismo ano
+            initial = data.get('aguinaldo_initial', 0.0)
+            initial_date = data.get('aguinaldo_initial_date')
+            if initial and initial_date:
+                # Verificar que el corte sea del mismo ano de aguinaldo
+                # (aguinaldo de diciembre YEAR usa periodo dic(YEAR-1) - nov(YEAR))
+                aguinaldo_year_start = date(self.year - 1, 12, 1)
+                aguinaldo_year_end   = date(self.year, 11, 30)
+                if aguinaldo_year_start <= initial_date <= aguinaldo_year_end:
+                    aguinaldo = round(aguinaldo + initial, 2)
 
             lines.append({
                 'wizard_id':          self.id,

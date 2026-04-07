@@ -106,6 +106,24 @@
                         </group>
                     </group>
 
+                    <!-- Aguinaldo pre-implementacion (Art. 228 CT) -->
+                    <group string="Aguinaldo Acumulado Inicial (Art. 228 CT)">
+                        <group string="Pre-Implementación" col="2">
+                            <field name="aguinaldo_initial_amount"
+                                   string="Acumulado a la Fecha (CRC)"
+                                   help="Monto de aguinaldo acumulado antes de usar el sistema. Se suma al aguinaldo calculado con las boletas del sistema."/>
+                            <field name="aguinaldo_initial_date"
+                                   string="Fecha de Corte"
+                                   help="Fecha hasta la cual fue calculado el acumulado. Ej: 31/03/2026 si arrancaron en abril 2026."/>
+                        </group>
+                        <div class="alert alert-info col-12" role="alert"
+                             invisible="aguinaldo_initial_amount == 0">
+                            <i class="fa fa-info-circle" title="Información"/>
+                            El aguinaldo de diciembre incluirá este acumulado más
+                            lo calculado por el sistema a partir de la fecha de corte.
+                        </div>
+                    </group>
+
                     <!-- Saldo de Vacaciones -->
                     <group string="Saldo de Vacaciones (Art. 153 CT)">
                         <!-- Saldo inicial pre-implementación -->

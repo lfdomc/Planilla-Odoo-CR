@@ -759,6 +759,22 @@ class HrEmployeeExtension(models.Model):
     # estos tienen un saldo de vacaciones real que difiere del calculado
     # desde la fecha de ingreso (porque ya tomaron dias antes del sistema).
     # Estos dos campos permiten "arrancar" desde el saldo correcto.
+    # -- Aguinaldo inicial pre-implementacion (Art. 228 CT) --------
+    aguinaldo_initial_amount = fields.Float(
+        string='Acumulado Aguinaldo Inicial (CRC)',
+        default=0.0,
+        help='Monto de aguinaldo acumulado ANTES de implementar el sistema. '
+             'Ejemplo: si la empresa arranco en abril 2026, '
+             'colocar aqui el acumulado diciembre 2025 - marzo 2026. '
+             'El sistema sumara este monto al aguinaldo calculado con las boletas del sistema.'
+    )
+    aguinaldo_initial_date = fields.Date(
+        string='Fecha de Corte Aguinaldo',
+        help='Fecha hasta la cual fue calculado el acumulado inicial. '
+             'El sistema usara este campo para saber a partir de cuando '
+             'las boletas del sistema ya cubren el aguinaldo (evita doble conteo).'
+    )
+
     vacation_initial_balance = fields.Float(
         string='Saldo Inicial de Vacaciones (dias)',
         default=0.0,
