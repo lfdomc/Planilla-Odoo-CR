@@ -987,10 +987,11 @@ class HrEmployeeExtension(models.Model):
                 disability_days_excluded += max(dis.days - 90, 0)
 
             # -- Determinar desde cuando acumular -----------------------------
-            has_initial = (
-                emp.vacation_initial_balance > 0
-                and emp.vacation_initial_balance_date
-            )
+            # FIX: usar logica con saldo inicial si se configuro una fecha de corte,
+            # independientemente del valor del saldo (puede ser 0 o negativo).
+            # Antes: solo activaba si vacation_initial_balance > 0, ignorando
+            # empleados con saldo 0 o negativo que igual tienen fecha de corte.
+            has_initial = bool(emp.vacation_initial_balance_date)
 
             if has_initial:
                 # Acumular solo desde la fecha de corte del saldo inicial
@@ -1010,15 +1011,15 @@ class HrEmployeeExtension(models.Model):
                     dis_after = sum(max(d.days - 90, 0) for d in long_dis_after_cutoff)
                     effective_days = max(days_since_cutoff - dis_after, 0)
                     weeks_since_cutoff = effective_days / 7.0
-                    accrued_since_cutoff = round((weeks_since_cutoff / 50.0) * 12.0, 2)
+                    accrued_since_cutoff = round((weeks_since_cutoff / 50.0) * 12.0)
 
-                accrued = round(emp.vacation_initial_balance + accrued_since_cutoff, 2)
+                accrued = round(emp.vacation_initial_balance + accrued_since_cutoff)
             else:
                 # Calculo normal desde fecha de ingreso
                 total_days = (cutoff - emp.entry_date).days
                 effective_days = max(total_days - disability_days_excluded, 0)
                 weeks_worked = effective_days / 7.0
-                accrued = round((weeks_worked / 50.0) * 12.0, 2)
+                accrued = round((weeks_worked / 50.0) * 12.0)
 
             # Dias tomados en el sistema (solo registros creados en el sistema)
             taken_recs = self.env['planilla.vacation.payment'].search([
@@ -1026,9 +1027,9 @@ class HrEmployeeExtension(models.Model):
                 ('state', 'in', ['approved', 'paid']),
                 ('vacation_type', 'in', ['disfrutadas', 'adelanto']),
             ])
-            taken = round(sum(taken_recs.mapped('days')), 2)
+            taken = round(sum(taken_recs.mapped('days')))
 
-            available = round(accrued - taken, 2)
+            available = round(accrued - taken)
             emp.vacation_days_accrued   = accrued
             emp.vacation_days_taken     = taken
             emp.vacation_days_available = available
