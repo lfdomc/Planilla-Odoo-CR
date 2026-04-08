@@ -322,17 +322,51 @@
                                             </td>
                                             <td style="text-align:right;color:var(--color-text-secondary);"><field name="ccss_subsidy_total" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                        <!-- Base cotizable: sin bono salarial (caso normal) -->
-                                        <tr invisible="bono_salarial_amount != 0" style="border-top:1px solid var(--color-border-warning);font-weight:500;">
+                                        <!-- Base cotizable real — 4 casos:
+                                             A) sin bono, sin HE  → salario_cotizable
+                                             B) sin bono, con HE  → salario_cotizable + overtime = gross
+                                             C) con bono, sin HE  → salario_cotizable + bono = gross
+                                             D) con bono, con HE  → salario_cotizable + bono + HE = gross
+                                        -->
+                                        <!-- Caso A: sin bono, sin HE -->
+                                        <tr invisible="bono_salarial_amount != 0 or overtime_amount != 0"
+                                            style="border-top:1px solid var(--color-border-warning);font-weight:500;">
                                             <td style="padding:6px 0;">Base cotizable real (CCSS, Renta, provisiónes)</td>
                                             <td style="text-align:right;"><field name="salario_cotizable" readonly="1" nolabel="1"/></td>
                                         </tr>
-                                        <!-- Base cotizable: con bono salarial afecto CCSS -->
-                                        <tr invisible="bono_salarial_amount == 0" style="border-top:1px solid var(--color-border-warning);font-weight:500;">
+                                        <!-- Caso B: sin bono pero con HE -->
+                                        <tr invisible="bono_salarial_amount != 0 or overtime_amount == 0"
+                                            style="border-top:1px solid var(--color-border-warning);font-weight:500;">
+                                            <td style="padding:6px 0;">
+                                                Base cotizable real (CCSS, Renta, provisiónes)
+                                                <div style="font-size:11px;font-weight:400;color:var(--color-text-secondary);">
+                                                    Salario días laborados <field name="salario_cotizable" readonly="1" nolabel="1" style="display:inline;"/> + horas extras <field name="overtime_amount" readonly="1" nolabel="1" style="display:inline;"/>
+                                                </div>
+                                            </td>
+                                            <td style="text-align:right;vertical-align:top;padding-top:6px;">
+                                                <field name="gross_salary" readonly="1" nolabel="1"/>
+                                            </td>
+                                        </tr>
+                                        <!-- Caso C: con bono, sin HE -->
+                                        <tr invisible="bono_salarial_amount == 0 or overtime_amount != 0"
+                                            style="border-top:1px solid var(--color-border-warning);font-weight:500;">
                                             <td style="padding:6px 0;">
                                                 Base cotizable real (CCSS, Renta, provisiónes)
                                                 <div style="font-size:11px;font-weight:400;color:var(--color-text-secondary);">
                                                     Salario días laborados <field name="salario_cotizable" readonly="1" nolabel="1" style="display:inline;"/> + bono afecto CCSS <field name="bono_salarial_amount" readonly="1" nolabel="1" style="display:inline;"/>
+                                                </div>
+                                            </td>
+                                            <td style="text-align:right;vertical-align:top;padding-top:6px;">
+                                                <field name="gross_salary" readonly="1" nolabel="1"/>
+                                            </td>
+                                        </tr>
+                                        <!-- Caso D: con bono y con HE -->
+                                        <tr invisible="bono_salarial_amount == 0 or overtime_amount == 0"
+                                            style="border-top:1px solid var(--color-border-warning);font-weight:500;">
+                                            <td style="padding:6px 0;">
+                                                Base cotizable real (CCSS, Renta, provisiónes)
+                                                <div style="font-size:11px;font-weight:400;color:var(--color-text-secondary);">
+                                                    Salario días <field name="salario_cotizable" readonly="1" nolabel="1" style="display:inline;"/> + HE <field name="overtime_amount" readonly="1" nolabel="1" style="display:inline;"/> + bono <field name="bono_salarial_amount" readonly="1" nolabel="1" style="display:inline;"/>
                                                 </div>
                                             </td>
                                             <td style="text-align:right;vertical-align:top;padding-top:6px;">

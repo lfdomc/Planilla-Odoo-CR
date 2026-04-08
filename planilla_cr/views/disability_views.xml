@@ -90,6 +90,17 @@
                         </group>
                     </group>
 
+                    <!-- Alerta dias extra maternidad (Art. 94 CT) -->
+                    <div invisible="disability_type != 'maternity' or days &lt;= 120"
+                         style="margin:4px 0 8px;padding:10px 14px;background:#FFF8E1;border-left:4px solid #F59E0B;border-radius:4px;font-size:13px;">
+                        <strong>&#9888; Advertencia Art. 94 CT:</strong>
+                        Esta licencia supera los 120 dias naturales estandar
+                        (<field name="days" readonly="1" nolabel="1" style="display:inline;font-weight:bold;"/> dias).
+                        Asegurese de contar con la autorizacion de la CCSS
+                        (prorroga por complicaciones, cesarea, parto multiple, etc.)
+                        y adjunte el numero de certificado en Documentacion.
+                    </div>
+
                     <!-- Modalidad de pago maternidad -->
                     <group string="Modalidad de Subsidio"
                            invisible="disability_type != 'maternity'">

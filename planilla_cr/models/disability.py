@@ -459,23 +459,42 @@ class Disability(models.Model):
                     f'La Fecha de Parto ({rec.fecha_parto}) debe ser anterior o igual '
                     f'a la Fecha Fin ({rec.date_end}).'
                 )
+            # Los limites del Art. 94 CT (30 prenatal, 90 postnatal, 120 total)
+            # son los estandares, pero la CCSS puede autorizar dias adicionales por
+            # complicaciones, partos multiples, cesarea, prorroga medica, etc.
+            # Por eso se muestra una advertencia en lugar de bloquear el registro.
+            # El usuario debe validar con el certificado CCSS correspondiente.
             if rec.days > 120:
-                raise ValidationError(
-                    f'La licencia de maternidad no puede exceder 120 dias naturales '
-                    f'(Art. 94 CT). Dias ingresados: {rec.days}.'
+                rec._log_warning_maternidad(
+                    f'La licencia de maternidad supera los 120 dias naturales del Art. 94 CT '
+                    f'({rec.days} dias ingresados). Verifique que cuenta con la autorizacion '
+                    f'de la CCSS (prorroga por complicaciones, parto multiple, etc.).'
                 )
             if rec.prenatal_days > 30:
-                raise ValidationError(
-                    f'El prenatal no puede exceder 30 dias (Art. 94 CT). '
-                    f'Dias prenatales: {rec.prenatal_days}. '
-                    f'Ajuste la Fecha Inicio para que sea maximo 30 dias antes del parto.'
+                rec._log_warning_maternidad(
+                    f'El prenatal supera los 30 dias del Art. 94 CT '
+                    f'({rec.prenatal_days} dias). Verifique la autorizacion CCSS.'
                 )
             if rec.postnatal_days > 90:
-                raise ValidationError(
-                    f'El postnatal no puede exceder 90 dias (Art. 94 CT). '
-                    f'Dias postnatales: {rec.postnatal_days}. '
-                    f'Ajuste la Fecha Fin para que sea maximo 90 dias despues del parto.'
+                rec._log_warning_maternidad(
+                    f'El postnatal supera los 90 dias del Art. 94 CT '
+                    f'({rec.postnatal_days} dias). Verifique la autorizacion CCSS.'
                 )
+
+    def _log_warning_maternidad(self, mensaje):
+        """
+        Registra una advertencia en el chatter del registro de maternidad.
+        Se usa en lugar de ValidationError para dias que superan los limites
+        del Art. 94 CT pero que la CCSS puede autorizar (prorrogas, complicaciones,
+        partos multiples, etc.). El registro se guarda correctamente y el usuario
+        ve la advertencia en el historial para documentar la justificacion.
+        """
+        self.ensure_one()
+        self.message_post(
+            body=f'<strong>Advertencia Art. 94 CT:</strong> {mensaje}',
+            message_type='comment',
+            subtype_xmlid='mail.mt_note',
+        )
 
     def action_recompute(self):
         """

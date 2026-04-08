@@ -443,7 +443,7 @@ class PayslipComputeMixin(models.AbstractModel):
             )
             rec.gross_salary = bruto
 
-    @api.depends('gross_salary', 'salario_cotizable', 'bono_salarial_amount', 'company_id', 'paternity_days',
+    @api.depends('gross_salary', 'salario_cotizable', 'bono_salarial_amount', 'overtime_amount', 'company_id', 'paternity_days',
                  'payroll_calendar_id',
                  'deduction_line_ids.amount',
                  'deduction_line_ids.line_type',
@@ -504,14 +504,20 @@ class PayslipComputeMixin(models.AbstractModel):
             if has_disability_in_period:
                 # Hay incapacidad: respetar salario_cotizable aunque sea 0
                 # (0 es el valor correcto para maternidad completa).
-                # FIX BONO-INCAP: si hay bono salarial afecto CCSS, sumarlo a la
-                # base cotizable. En periodos con incapacidad el bono NO está incluido
-                # en salario_cotizable (que solo cubre días laborados × diario),
-                # pero sí es base imponible de CCSS, Renta y provisiones.
-                g = (rec.salario_cotizable or 0.0) + (rec.bono_salarial_amount or 0.0)
+                # FIX BONO-INCAP: sumar bono salarial afecto CCSS.
+                # FIX OVERTIME-INCAP: sumar horas extras a la base cotizable.
+                # Las horas extras son ingreso salarial gravado con CCSS, Renta y
+                # provisiones independientemente de que haya incapacidad en el periodo.
+                # Sin este fix: CCSS, provisiones y Renta se calculan solo sobre
+                # salario_cotizable (dias_laborados x diario), ignorando las HE.
+                g = (
+                    (rec.salario_cotizable  or 0.0) +
+                    (rec.bono_salarial_amount or 0.0) +
+                    (rec.overtime_amount    or 0.0)
+                )
             else:
                 # Sin incapacidad: base = salario bruto del periodo
-                # (gross_salary ya incluye bono_salarial_amount)
+                # (gross_salary ya incluye overtime + bono)
                 g = rec.gross_salary or 0.0
 
             # FIX LICENCIAS: restar licencias sin goce y ausencias de la base cotizable.
