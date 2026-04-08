@@ -54,7 +54,10 @@
                                    string="  Incapacidades"/>
                             <field name="import_vacations"
                                    widget="boolean_toggle"
-                                   string="  Saldo de Vacaciones"/>
+                                   string="  Saldo de Vacaciones (hoja VACACIONES)"/>
+                            <field name="import_acumulados"
+                                   widget="boolean_toggle"
+                                   string="  Acumulados: Aguinaldo + Vacaciones (hoja ACUMULADOS)"/>
                             <field name="import_embargos"
                                    widget="boolean_toggle"
                                    string="⚖  Embargos Judiciales"/>

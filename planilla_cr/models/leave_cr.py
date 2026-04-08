@@ -283,9 +283,16 @@ class LeaveCR(models.Model):
     # VALIDACIONES
     # =========================================================================
 
-    @api.constrains('date_start', 'date_end')
+    @api.constrains('date_start', 'date_end', 'leave_unit')
     def _check_dates(self):
         for rec in self:
+            # Para licencias por horas: fecha fin debe ser igual a fecha inicio
+            if rec.leave_unit == 'hour' and rec.date_start and rec.date_end:
+                if rec.date_end != rec.date_start:
+                    raise ValidationError(
+                        'Para licencias por horas, la Fecha Fin debe ser igual '
+                        'a la Fecha Inicio (una licencia de horas ocurre en un solo dia).'
+                    )
             if rec.date_start and rec.date_end and rec.date_end < rec.date_start:
                 raise ValidationError(
                     f'La Fecha Fin ({rec.date_end}) no puede ser anterior '
@@ -361,6 +368,13 @@ class LeaveCR(models.Model):
             if rec.state == 'paid':
                 raise ValidationError('No se puede reabrir una licencia ya procesada en planilla.')
         self.write({'state': 'draft'})
+
+    @api.onchange('leave_unit')
+    def _onchange_leave_unit(self):
+        """Para licencias por horas, la fecha fin debe ser igual a la fecha inicio.
+        Una licencia de horas ocurre en un solo dia -- no tiene rango de fechas."""
+        if self.leave_unit == 'hour' and self.date_start:
+            self.date_end = self.date_start
 
     @api.onchange('leave_type')
     def _onchange_leave_type(self):

@@ -1,6 +1,6 @@
 {
     'name': 'Sistema Planilla v5.28.51-PROD',
-    'version': '19.0.5.28.51',
+    'version': '19.0.5.28.72',
     
     'category': 'Human Resources/Payroll',
     'summary': 'Sistema de Planilla Costa Rica v5.14 - Legislacion CR 2026',
@@ -22,6 +22,7 @@
     'website': '',
     'license': 'LGPL-3',
     'depends': [
+        'base',
         'hr',
         'hr_attendance',
         'hr_holidays',
@@ -91,6 +92,7 @@
         'wizard/wizard_views_v24.xml',
         'wizard/aguinaldo_wizard_views.xml',
         'wizard/import_template_wizard_views.xml',
+        'wizard/sync_hr_wizard_views.xml',
         'wizard/import_data_wizard_views.xml',
         'data/cron_jobs.xml',
         'data/email_templates.xml',

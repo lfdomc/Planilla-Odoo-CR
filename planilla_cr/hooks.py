@@ -17,6 +17,37 @@ def post_migrate_hook(env):
     _setup_accounting_config(env)
     _ensure_deduction_codes(env)
     _ensure_schedule_types(env)
+    _fix_hour_license_date_end(env)
+
+
+def _fix_hour_license_date_end(env):
+    """
+    FIX v5.28.72: Corregir licencias por horas con date_end != date_start.
+    Una licencia de horas ocurre en un solo dia, por lo tanto
+    date_end siempre debe ser igual a date_start.
+    Se ejecuta automaticamente en cada -u planilla_cr para corregir
+    registros historicos creados antes de este fix.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    licencias_mal = env['planilla.leave.cr'].search([
+        ('leave_unit', '=', 'hour'),
+        ('date_end', '!=', False),
+    ])
+    fixed = 0
+    for lic in licencias_mal:
+        if lic.date_start and lic.date_end != lic.date_start:
+            lic.with_context(skip_salary_history=True).write({
+                'date_end': lic.date_start
+            })
+            fixed += 1
+
+    if fixed:
+        _logger.info(
+            'planilla_cr._fix_hour_license_date_end: '
+            'corregidas %s licencias por horas con date_end incorrecto.', fixed
+        )
 
 
 def _ensure_schedule_types(env):

@@ -371,14 +371,29 @@ class PayslipSyncMixin(models.AbstractModel):
 
         # -- Buscar licencias aprobadas del periodo ----------------------------
         # FIX-AUD-10: filtrar por company_id para seguridad multi-empresa.
+        # FIX: Para licencias por horas, usar date_start para ambos extremos del rango.
+        # Una licencia de horas ocurre en un solo dia (date_end = date_start).
+        # Usar date_end para el filtro causaba que licencias de dias anteriores
+        # entraran en periodos de boleta incorrectos si date_end estaba mal configurado.
         licencias = self.env['planilla.leave.cr'].search([
             ('employee_id', '=', self.employee_id.id),
             ('company_id',  '=', self.company_id.id),
             ('state', '=', 'approved'),
             ('date_start', '<=', self.date_to),
+            ('date_start', '>=', self.date_from),
+            '|', ('payslip_id', '=', False), ('payslip_id', '=', self.id),
+        ])
+        # Tambien incluir licencias por dias cuyo rango cae en este periodo
+        licencias_dias = self.env['planilla.leave.cr'].search([
+            ('employee_id', '=', self.employee_id.id),
+            ('company_id',  '=', self.company_id.id),
+            ('state', '=', 'approved'),
+            ('leave_unit', '=', 'day'),
+            ('date_start', '<=', self.date_to),
             ('date_end',   '>=', self.date_from),
             '|', ('payslip_id', '=', False), ('payslip_id', '=', self.id),
         ])
+        licencias = (licencias | licencias_dias)
 
         for lic in licencias:
             # Verificar si ya existe linea para esta licencia
@@ -1071,13 +1086,25 @@ class PayslipSyncMixin(models.AbstractModel):
 
         # -- 1 QUERY: todas las licencias aprobadas del periodo ---------------
         # FIX-AUD-10: filtro company_id para seguridad multi-empresa en modo batch
-        licencias = self.env['planilla.leave.cr'].search([
+        # Licencias por HORAS: filtrar por date_start dentro del periodo
+        licencias_horas = self.env['planilla.leave.cr'].search([
             ('employee_id', 'in', emp_ids),
             ('company_id',  '=', company_id),
             ('state', '=', 'approved'),
+            ('leave_unit', '=', 'hour'),
+            ('date_start', '<=', date_to),
+            ('date_start', '>=', date_from),
+        ])
+        # Licencias por DIAS: filtrar por rango
+        licencias_dias = self.env['planilla.leave.cr'].search([
+            ('employee_id', 'in', emp_ids),
+            ('company_id',  '=', company_id),
+            ('state', '=', 'approved'),
+            ('leave_unit', '=', 'day'),
             ('date_start', '<=', date_to),
             ('date_end',   '>=', date_from),
         ])
+        licencias = licencias_horas | licencias_dias
 
         by_emp = {}
         for lic in licencias:

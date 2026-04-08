@@ -282,6 +282,7 @@ class ImportDataWizard(models.TransientModel):
     import_vacations    = fields.Boolean('  Vacaciones',                     default=True)
     import_overtime     = fields.Boolean('  Horas Extras',                   default=True)
     import_embargos     = fields.Boolean('  Embargos Judiciales',            default=True)
+    import_acumulados   = fields.Boolean('  Acumulados (aguinaldo/vacaciones)', default=True)
     import_bonos        = fields.Boolean('  Bonos y Beneficios',             default=True)
     import_sample_data  = fields.Boolean(
         '  Importar fila de prueba (cedula 1-0000-0001)',
@@ -679,7 +680,12 @@ class ImportDataWizard(models.TransientModel):
                     # bloquear toda la importacion -- el IBAN se puede
                     # corregir manualmente despues.
                     try:
-                        self.env['hr.employee'].create(vals)
+                        new_emp = self.env['hr.employee'].create(vals)
+                        # Crear contrato nativo de HR para sincronizar con pestaa Nmina
+                        try:
+                            new_emp._get_or_create_contract()
+                        except Exception:
+                            pass  # No bloquear importacion si el contrato falla
                     except Exception as e_create:
                         if 'iban' in str(e_create).lower() or 'digito verificador' in str(e_create).lower():
                             iban_original = vals.pop('bank_iban', None)
@@ -1120,6 +1126,89 @@ class ImportDataWizard(models.TransientModel):
 
         return created, err_count
 
+
+    def _process_acumulados(self, wb, errors):
+        """
+        Procesa la hoja ACUMULADOS: carga el acumulado de aguinaldo inicial
+        y el saldo de vacaciones en dias directamente en el empleado.
+
+        Columnas esperadas:
+          - Cedula Empleado       (obligatoria)
+          - Fecha de Corte        (DD/MM/AAAA)
+          - Aguinaldo Acumulado   (CRC) -> aguinaldo_initial_amount
+          - Vacaciones Acumuladas (dias) -> vacation_initial_balance
+
+        Si el empleado ya tiene vacaciones cargadas desde la hoja VACACIONES,
+        no sobreescribe (la hoja VACACIONES tiene prioridad).
+        """
+        created = err_count = 0
+        hdrs, rows = self._sheet_rows(wb, ['ACUMULADO', 'ACUMULADOS', 'PROVISION'])
+        if not rows:
+            return 0, 0
+
+        for row_num, row in enumerate(rows, start=1):
+            v = lambda *cols: self._v(row, hdrs, *cols)
+            cedula = str(v('Cedula', 'Cedula Empleado') or '').strip()
+            if not cedula:
+                continue
+            if self._is_sample(cedula) and not self.import_sample_data:
+                continue
+
+            emp = self._find_employee(cedula)
+            if not emp:
+                err_count += 1
+                errors.append({
+                    'hoja': 'ACUMULADOS', 'fila': row_num, 'cedula': cedula,
+                    'nombre': '', 'error': 'Empleado no encontrado en Odoo',
+                })
+                continue
+
+            try:
+                with self.env.cr.savepoint():
+                    fecha_corte = _parse_date(
+                        v('Fecha de Corte', 'Fecha Corte', 'Fecha')
+                    )
+                    ag_raw  = v('Aguinaldo Acumulado', 'Aguinaldo Acumulado (CRC)',
+                                'Aguinaldo', 'Acumulado Aguinaldo')
+                    vac_raw = v('Vacaciones Acumuladas', 'Vacaciones Acumuladas (dias)',
+                                'Vacaciones', 'Dias Vacaciones')
+
+                    ag_amount = _parse_float(ag_raw)
+                    vac_dias  = _parse_float(vac_raw)
+
+                    vals_emp = {}
+
+                    # Aguinaldo inicial
+                    if ag_amount and ag_amount > 0:
+                        vals_emp['aguinaldo_initial_amount'] = round(ag_amount, 2)
+                        if fecha_corte:
+                            vals_emp['aguinaldo_initial_date'] = fecha_corte
+
+                    # Vacaciones iniciales (solo si NO tiene ya vacation_initial_balance_date)
+                    if vac_dias and not emp.vacation_initial_balance_date:
+                        vals_emp['vacation_initial_balance'] = round(vac_dias, 2)
+                        if fecha_corte:
+                            vals_emp['vacation_initial_balance_date'] = fecha_corte
+
+                    if vals_emp:
+                        emp.with_context(skip_salary_history=True).write(vals_emp)
+                        if 'vacation_initial_balance' in vals_emp:
+                            emp._compute_vacation_balance()
+                        created += 1
+
+            except Exception as e:
+                import traceback
+                err_count += 1
+                errors.append({
+                    'hoja': 'ACUMULADOS', 'fila': row_num, 'cedula': cedula,
+                    'nombre': emp.name if emp else '',
+                    'error': str(e)[:200],
+                    'traceback': traceback.format_exc(),
+                    'vals': {},
+                })
+                _logger.warning('ImportDataWizard ACUMULADOS fila %s: %s', row_num, e)
+
+        return created, err_count
 
     def _process_overtime(self, wb, errors):
         created = err_count = 0
@@ -1762,6 +1851,9 @@ class ImportDataWizard(models.TransientModel):
             dis_c, dis_e = self._process_disabilities(wb, errors)
         if self.import_vacations:
             vac_c, vac_e = self._process_vacations(wb, errors)
+        acum_c = acum_e = 0
+        if self.import_acumulados:
+            acum_c, acum_e = self._process_acumulados(wb, errors)
         if self.import_overtime:
             ot_c, ot_e = self._process_overtime(wb, errors)
         if self.import_embargos:
@@ -1769,7 +1861,7 @@ class ImportDataWizard(models.TransientModel):
         if self.import_bonos:
             bon_c, bon_e = self._process_bonos(wb, errors)
 
-        total_err = emp_e + loan_e + pen_e + ben_e + dis_e + vac_e + ot_e + emb_e + bon_e
+        total_err = emp_e + loan_e + pen_e + ben_e + dis_e + vac_e + acum_e + ot_e + emb_e + bon_e
 
         counters = {
             'emp_created': emp_c, 'emp_skipped': emp_s, 'emp_errors': emp_e,
@@ -1778,6 +1870,7 @@ class ImportDataWizard(models.TransientModel):
             'ben_created':  ben_c,  'ben_errors':  ben_e,
             'dis_created':  dis_c,  'dis_errors':  dis_e,
             'vac_created':  vac_c,  'vac_errors':  vac_e,
+            'acum_created': acum_c, 'acum_errors': acum_e,
             'ot_created':   ot_c,   'ot_errors':   ot_e,
             'emb_created':  emb_c,  'emb_errors':  emb_e,
             'bon_created':  bon_c,  'bon_errors':  bon_e,

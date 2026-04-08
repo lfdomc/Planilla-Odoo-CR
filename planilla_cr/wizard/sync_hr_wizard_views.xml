@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_sync_hr_wizard_form" model="ir.ui.view">
+        <field name="name">planilla.sync.hr.wizard.form</field>
+        <field name="model">planilla.sync.hr.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Sincronización Masiva a Nómina HR">
+                <sheet>
+                    <div class="alert alert-info" role="alert" invisible="computed">
+                        <i class="fa fa-refresh" title="Sync"/>
+                        <strong> Sincronización Masiva:</strong>
+                        Crea o actualiza los contratos en la pestaña <strong>Nómina</strong>
+                        del módulo de Empleados para todos los empleados de Planilla CR.
+                        Elimina la discrepancia de salario entre ambos módulos.
+                    </div>
+
+                    <group invisible="computed">
+                        <group string="Filtros">
+                            <field name="company_id"/>
+                            <field name="branch_id"/>
+                        </group>
+                    </group>
+
+                    <!-- Resultado -->
+                    <group invisible="not computed" string="Resultado">
+                        <field name="result_message" nolabel="1"
+                               style="font-family:monospace;font-size:12px;background:#F8F9FA;padding:10px;white-space:pre;"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_sync" type="object"
+                            string="Sincronizar Ahora"
+                            class="btn-primary"
+                            invisible="computed"/>
+                    <button name="action_sync" type="object"
+                            string="Sincronizar de Nuevo"
+                            class="btn-secondary"
+                            invisible="not computed"/>
+                    <button string="Cerrar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_sync_hr_wizard" model="ir.actions.act_window">
+        <field name="name">Sincronizar Empleados a Nómina HR</field>
+        <field name="res_model">planilla.sync.hr.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

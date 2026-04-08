@@ -25,11 +25,48 @@
                         <span class="o_stat_text">Laboral</span>
                     </div>
                 </button>
+                <button name="action_sync_to_native_hr" type="object"
+                        class="oe_stat_button" icon="fa-refresh"
+                        title="Sincronizar datos de Planilla CR al contrato nativo de HR (salario, fecha ingreso, puesto)">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Sincronizar</span>
+                        <span class="o_stat_text">a HR</span>
+                    </div>
+                </button>
             </xpath>
 
             <!-- Nueva pestana: Planilla CR -->
             <xpath expr="//page[@name='hr_settings']" position="after">
                 <page name="planilla_cr" string="Planilla CR">
+                    <!-- Panel informativo: campos clave del módulo HR nativo -->
+                    <group string="Datos Sincronizados con Módulo HR">
+                        <group>
+                            <field name="job_id" readonly="1"
+                                   help="Puesto definido en el módulo Empleados. Editar desde la pestaña Información del Trabajo."/>
+                            <field name="department_id" readonly="1"
+                                   help="Departamento definido en el módulo Empleados."/>
+                            <field name="parent_id" readonly="1" string="Jefe Directo"
+                                   help="Manager definido en el módulo Empleados."/>
+                        </group>
+                        <group>
+                            <field name="work_email" readonly="1"
+                                   help="Email de trabajo definido en el módulo Empleados."/>
+                            <field name="work_phone" readonly="1"
+                                   help="Teléfono laboral definido en el módulo Empleados."/>
+                            <field name="resource_calendar_id" readonly="1"
+                                   string="Horario de Trabajo (Nativo)"
+                                   help="Horario del módulo HR nativo. Planilla CR usa el campo Tipo de Horario más abajo."/>
+                        </group>
+                        <div class="alert alert-info" role="alert">
+                            <i class="fa fa-info-circle" title="Información"/>
+                            Los campos <strong>Puesto</strong>, <strong>Departamento</strong>
+                            y <strong>Email</strong> se leen desde las pestañas nativas de Odoo.
+                            El <strong>Salario Base</strong> oficial está en esta pestaña (Planilla CR).
+                            La pestaña Nómina mostrará Salario ₡0 — esto es normal en Odoo Community
+                            sin el módulo hr_contract instalado.
+                        </div>
+                    </group>
+
                     <group string="Método de Cálculo">
                         <field name="payroll_calculation_method" widget="radio"/>
                     </group>
@@ -328,4 +365,18 @@
             </xpath>
         </field>
     </record>
+
+    <!-- Acción masiva: Sincronizar seleccionados al contrato HR -->
+    <record id="action_mass_sync_hr" model="ir.actions.server">
+        <field name="name">Sincronizar a Nómina HR (contrato)</field>
+        <field name="model_id" ref="hr.model_hr_employee"/>
+        <field name="binding_model_id" ref="hr.model_hr_employee"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    records.action_sync_to_native_hr()
+        </field>
+    </record>
+
 </odoo>

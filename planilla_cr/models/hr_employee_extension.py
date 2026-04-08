@@ -854,6 +854,118 @@ class HrEmployeeExtension(models.Model):
     salary_history_ids = fields.One2many(
         'planilla.salary.history', 'employee_id', string='Historial de Salarios'
     )
+
+    # ------------------------------------------------------------------
+    # SYNC CON MODULO NATIVO DE EMPLEADOS (hr module)
+    # ------------------------------------------------------------------
+
+    @api.onchange('base_salary')
+    def _onchange_base_salary_sync_contract(self):
+        """Sincroniza salario al contrato HR si hr_payroll esta instalado."""
+        if not self.base_salary or 'hr.contract' not in self.env:
+            return
+        contract = self._get_or_create_contract()
+        if contract and contract.wage != self.base_salary:
+            contract.wage = self.base_salary
+
+    @api.onchange('entry_date')
+    def _onchange_entry_date_sync_contract(self):
+        """Sincroniza fecha ingreso al contrato HR si hr_payroll esta instalado."""
+        if not self.entry_date or 'hr.contract' not in self.env:
+            return
+        contract = self._get_or_create_contract()
+        if contract and contract.date_start != self.entry_date:
+            contract.date_start = self.entry_date
+
+    def _get_active_contract(self):
+        """Retorna el contrato activo/borrador del empleado si existe (sin crear).
+        Retorna None si hr.contract no esta disponible (hr_payroll no instalado)."""
+        self.ensure_one()
+        if not self.id or 'hr.contract' not in self.env:
+            return None
+        return self.env['hr.contract'].search([
+            ('employee_id', '=', self.id),
+            ('state', 'in', ('open', 'draft')),
+        ], limit=1, order='date_start desc') or None
+
+    def _get_or_create_contract(self):
+        """
+        Retorna el contrato activo del empleado.
+        Si no existe, CREA uno con salario, fecha ingreso y puesto de Planilla CR.
+        Retorna None si hr.contract no esta disponible.
+        """
+        self.ensure_one()
+        if not self.id or 'hr.contract' not in self.env:
+            return None
+        contract = self._get_active_contract()
+        if contract:
+            return contract
+        # Crear contrato si no existe
+        vals = {
+            'employee_id':  self.id,
+            'company_id':   self.company_id.id or self.env.company.id,
+            'name':         'Contrato %s' % (self.name or ''),
+            'date_start':   self.entry_date or fields.Date.context_today(self),
+            'wage':         self.base_salary or 0.0,
+            'state':        'open',
+        }
+        if self.job_id:
+            vals['job_id'] = self.job_id.id
+        if self.department_id:
+            vals['department_id'] = self.department_id.id
+        try:
+            contract = self.env['hr.contract'].with_context(
+                skip_salary_history=True
+            ).create(vals)
+            return contract
+        except Exception:
+            return None
+
+    def action_sync_to_native_hr(self):
+        """
+        Sincroniza datos de Planilla CR al contrato nativo de HR.
+        Si el empleado no tiene contrato, lo CREA automaticamente.
+        Sincroniza: salario, fecha ingreso, puesto, departamento.
+        """
+        created = 0
+        updated = 0
+        for emp in self:
+            existing = emp._get_active_contract()
+            contract = emp._get_or_create_contract()
+            if not contract:
+                continue
+            if not existing:
+                created += 1
+                continue  # ya se creo con los datos correctos
+            # Actualizar si ya existia
+            sync_vals = {}
+            if emp.base_salary and contract.wage != emp.base_salary:
+                sync_vals['wage'] = emp.base_salary
+            if emp.entry_date and contract.date_start != emp.entry_date:
+                sync_vals['date_start'] = emp.entry_date
+            if emp.job_id and contract.job_id.id != emp.job_id.id:
+                sync_vals['job_id'] = emp.job_id.id
+            if emp.department_id and contract.department_id.id != emp.department_id.id:
+                sync_vals['department_id'] = emp.department_id.id
+            if sync_vals:
+                contract.with_context(skip_salary_history=True).write(sync_vals)
+                updated += 1
+        msg_parts = []
+        if created:
+            msg_parts.append('%s contrato(s) creado(s)' % created)
+        if updated:
+            msg_parts.append('%s contrato(s) actualizado(s)' % updated)
+        msg = ', '.join(msg_parts) if msg_parts else 'Todo ya estaba sincronizado'
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Sincronizacion completada',
+                'message': msg,
+                'type': 'success',
+                'sticky': False,
+            }
+        }
     salary_history_count = fields.Integer(
         compute='_compute_salary_history_count', string='Salarios Registrados'
     )
@@ -929,6 +1041,9 @@ class HrEmployeeExtension(models.Model):
         return employees
 
     def write(self, vals):
+        # Sync a contrato nativo al guardar cambios relevantes
+        sync_fields = {'base_salary', 'entry_date', 'job_id'}
+        needs_sync = bool(sync_fields & set(vals.keys()))
         old_salaries = {emp.id: emp.base_salary for emp in self} if 'base_salary' in vals else {}
         result = super().write(vals)
         if 'base_salary' in vals:
@@ -959,6 +1074,23 @@ class HrEmployeeExtension(models.Model):
                         'authorized_date': fields.Datetime.now(),
                     })
             self._check_minimum_salary_warning()
+        # Sync campos nativos de hr.employee (Odoo 19: wage y contract_date_start
+        # son campos directos en hr.employee, no en hr.contract)
+        if needs_sync:
+            emp_fields = self[0]._fields if self else {}
+            for emp in self:
+                try:
+                    direct_sync = {}
+                    if 'base_salary' in vals and 'wage' in emp_fields:
+                        if emp.base_salary and emp.wage != emp.base_salary:
+                            direct_sync['wage'] = emp.base_salary
+                    if 'entry_date' in vals and 'contract_date_start' in emp_fields:
+                        if emp.entry_date and emp.contract_date_start != emp.entry_date:
+                            direct_sync['contract_date_start'] = emp.entry_date
+                    if direct_sync:
+                        emp.with_context(skip_salary_history=True).write(direct_sync)
+                except Exception:
+                    pass  # No bloquear el guardado
         return result
 
     @api.depends('entry_date', 'exit_date',

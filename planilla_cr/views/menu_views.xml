@@ -208,6 +208,13 @@
               action="planilla_cr.planilla_amonestacion_action"
               sequence="92"/>
 
+    <!-- Sincronizacion masiva HR -->
+    <menuitem id="menu_sync_hr_wizard"
+              name="Sincronizar Empleados a Nomina HR"
+              parent="menu_planilla_cr_config"
+              action="planilla_cr.action_sync_hr_wizard"
+              sequence="99"/>
+
     <!-- Constancia Laboral - acceso rapido desde menu -->
     <menuitem id="menu_constancia_laboral"
               name="Constancia Laboral"

@@ -253,15 +253,13 @@ class EmployeeTermination(models.Model):
                 rec.cesantia_amount = 0
 
             # -- Vacaciones proporcionales (Art. 153 CT) ---------------
-            # FIX B-01 v51: Calcular dias brutos acumulados por tiempo de servicio
-            # y descontar los dias ya tomados (disfrutadas) y pagados (dinero/proporcionales)
-            # para obtener el saldo real pendiente de pagar en la liquidacion.
-            # Sin este fix el empleado podia cobrar vacaciones que ya habia disfrutado.
-            weeks_worked = rec.days_service / 7
-            vacation_days_gross = weeks_worked * (12 / 50)
+            # FIX: Si el empleado tiene saldo inicial con fecha de corte,
+            # usar ese saldo como base y acumular solo desde la fecha de corte
+            # hasta la fecha de terminacion. Evita sobrecontar dias pre-sistema.
+            from datetime import date as _date
+            exit_d = rec.termination_date or _date.today()
 
-            # Dias ya consumidos: vacaciones disfrutadas, pagadas en dinero o proporcionales
-            # que se hayan aprobado o pagado durante la relacion laboral
+            # Dias tomados en el sistema (vacaciones aprobadas/pagadas)
             vacation_days_taken = 0.0
             if rec.employee_id:
                 taken_payments = self.env['planilla.vacation.payment'].search([
@@ -269,6 +267,23 @@ class EmployeeTermination(models.Model):
                     ('state', 'in', ('approved', 'paid')),
                 ])
                 vacation_days_taken = sum(taken_payments.mapped('days'))
+
+            vac_init    = rec.employee_id.vacation_initial_balance if rec.employee_id else 0.0
+            vac_cutoff  = rec.employee_id.vacation_initial_balance_date if rec.employee_id else False
+            has_initial = bool(vac_cutoff)
+
+            if has_initial:
+                # Acumular solo desde la fecha de corte hasta la fecha de salida
+                if vac_cutoff >= exit_d:
+                    accrued_since_cutoff = 0.0
+                else:
+                    days_since = (exit_d - vac_cutoff).days
+                    accrued_since_cutoff = round((days_since / 7.0 / 50.0) * 12.0)
+                vacation_days_gross = round(vac_init + accrued_since_cutoff)
+            else:
+                # Calculo normal desde fecha de ingreso
+                weeks_worked = rec.days_service / 7
+                vacation_days_gross = round((weeks_worked / 50.0) * 12.0)
 
             vacation_days_net = max(vacation_days_gross - vacation_days_taken, 0.0)
             rec.vacation_days_accrued = round(vacation_days_net, 2)

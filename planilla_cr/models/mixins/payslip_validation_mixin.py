@@ -25,6 +25,8 @@ class PayslipValidationMixin(models.AbstractModel):
         'deduction_line_ids.line_type',
         'deduction_line_ids.deduction_category',
         'deduction_line_ids.employee_charge_id',
+        'deduction_line_ids.description',
+        'bono_salarial_amount',          # FIX BUG-DOBLE-BONO: re-evaluar cuando cambia afecto_ccss
     )
     def _compute_deduction_summaries(self) -> None:
         """

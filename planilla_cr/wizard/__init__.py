@@ -10,3 +10,4 @@ from . import audit_zip_wizard
 from . import import_template_wizard
 from . import import_data_wizard
 from . import processors
+from . import sync_hr_wizard

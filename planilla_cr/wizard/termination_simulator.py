@@ -60,8 +60,21 @@ class TerminationSimulator(models.TransientModel):
     cesantia_applies   = fields.Boolean(string='Cesantia Aplica', readonly=True)
     vacation_days      = fields.Float(string='Dias Vacaciones Pendientes', readonly=True)
     vacation_amount    = fields.Monetary(string='Vacaciones (CRC)', currency_field='currency_id', readonly=True)
+    # Desglose vacaciones
+    vac_daily_rate     = fields.Monetary(string='Salario Diario (CRC)', currency_field='currency_id', readonly=True)
+    vac_initial_days   = fields.Float(string='Dias Saldo Inicial', readonly=True)
+    vac_accrued_since  = fields.Float(string='Dias Acumulados desde Corte', readonly=True)
+    vac_taken_system   = fields.Float(string='Dias Tomados en Sistema', readonly=True)
+    # Desglose aguinaldo
     aguinaldo_months   = fields.Integer(string='Meses Aguinaldo', readonly=True)
     aguinaldo_amount   = fields.Monetary(string='Aguinaldo Proporcional (CRC)', currency_field='currency_id', readonly=True)
+    aguinaldo_initial  = fields.Monetary(string='Aguinaldo Acumulado Inicial (CRC)', currency_field='currency_id', readonly=True)
+    aguinaldo_system   = fields.Monetary(string='Aguinaldo del Sistema (CRC)', currency_field='currency_id', readonly=True)
+    # Desglose cesantia
+    cesantia_days      = fields.Float(string='Dias de Cesantia', readonly=True)
+    cesantia_daily     = fields.Monetary(string='Salario Diario para Cesantia (CRC)', currency_field='currency_id', readonly=True)
+    # Desglose CCSS
+    ccss_rate          = fields.Float(string='Tasa CCSS Obrero (%)', readonly=True)
     total_gross        = fields.Monetary(string='Subtotal Bruto (CRC)', currency_field='currency_id', readonly=True)
     ccss_on_total      = fields.Monetary(string='CCSS Obrero (CRC)', currency_field='currency_id', readonly=True)
     total_net          = fields.Monetary(string='Neto antes de deducciones (CRC)', currency_field='currency_id', readonly=True)
@@ -237,6 +250,24 @@ class TerminationSimulator(models.TransientModel):
         # Limpiar lineas anteriores antes de escribir
         self.loan_line_ids.unlink()
 
+        # -- Calculate breakdown data for display ---------------------
+        vac_initial_days  = emp.vacation_initial_balance or 0.0
+        vac_accrued_since = round(vac_days - vac_initial_days, 2) if vac_initial_days else 0.0
+        taken_payments_sim = self.env['planilla.vacation.payment'].search([
+            ('employee_id', '=', emp.id),
+            ('state', 'in', ('approved', 'paid')),
+        ])
+        vac_taken_system = round(sum(taken_payments_sim.mapped('days')), 2)
+
+        ag_init_disp = emp.aguinaldo_initial_amount or 0.0
+        ag_sys_disp  = round(aguinaldo - ag_init_disp, 2) if ag_init_disp else aguinaldo
+
+        cesantia_days_disp = 0.0
+        if cesantia_amount and daily > 0:
+            cesantia_days_disp = round(cesantia_amount / daily, 2)
+
+        ccss_rate_pct = round(K.CCSS_EMP * 100, 2)
+
         self.write({
             'years_service':       round(years, 2),
             'last_salary':         salary,
@@ -245,10 +276,19 @@ class TerminationSimulator(models.TransientModel):
             'preaviso_applies':    preaviso_applies,
             'cesantia_amount':     cesantia_amount,
             'cesantia_applies':    cesantia_applies,
+            'cesantia_days':       cesantia_days_disp,
+            'cesantia_daily':      daily,
             'vacation_days':       vac_days,
             'vacation_amount':     vac_amount,
+            'vac_daily_rate':      daily,
+            'vac_initial_days':    vac_initial_days,
+            'vac_accrued_since':   vac_accrued_since,
+            'vac_taken_system':    vac_taken_system,
             'aguinaldo_months':    months_worked,
             'aguinaldo_amount':    aguinaldo,
+            'aguinaldo_initial':   ag_init_disp,
+            'aguinaldo_system':    ag_sys_disp,
+            'ccss_rate':           ccss_rate_pct,
             'total_gross':         total_gross,
             'ccss_on_total':       ccss,
             'total_net':           total_net,
