@@ -200,11 +200,30 @@ class LeaveCR(models.Model):
         ('cancelled', 'Cancelado'),
     ], string='Estado', default='draft', tracking=True)
 
-    # -- Vinculacion a boleta --------------------------------------------------
-    payslip_id = fields.Many2one(
-        'planilla.payslip.cr', string='Boleta de Pago',
-        readonly=True, index=True
+    # -- Vinculacion a boleta (M2M para soporte multi-periodo) -----------------
+    payslip_ids = fields.Many2many(
+        'planilla.payslip.cr',
+        'planilla_leave_cr_payslip_rel',
+        'leave_cr_id', 'payslip_id',
+        string='Boletas de Pago',
+        readonly=True,
+        help='Boletas en las que se proceso esta licencia. Puede ser mas de una '
+             'cuando la licencia cruza varios periodos (ej. adopcion 90 dias).'
     )
+    # Compatibilidad: primera boleta que proceso esta licencia.
+    payslip_id = fields.Many2one(
+        'planilla.payslip.cr',
+        string='Primera Boleta',
+        compute='_compute_payslip_id_compat',
+        store=True,
+        readonly=True, index=True,
+        help='Primera boleta que proceso esta licencia (solo lectura).'
+    )
+
+    @api.depends('payslip_ids')
+    def _compute_payslip_id_compat(self):
+        for rec in self:
+            rec.payslip_id = rec.payslip_ids[:1] if rec.payslip_ids else False
 
     # -- Base legal (informativo) ----------------------------------------------
     legal_basis = fields.Char(

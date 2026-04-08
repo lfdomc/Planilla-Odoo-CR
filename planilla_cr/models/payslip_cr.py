@@ -290,8 +290,12 @@ class PayslipCR(models.Model):
     )
 
     # -- Novedades -----------------------------------------------------
-    disability_ids = fields.One2many(
-        'planilla.disability', 'payslip_id', string='Incapacidades'
+    disability_ids = fields.Many2many(
+        'planilla.disability',
+        'planilla_disability_payslip_rel',
+        'payslip_id', 'disability_id',
+        string='Incapacidades',
+        help='Incapacidades que afectan este periodo de pago (pueden abarcar varios periodos).'
     )
     disability_days = fields.Integer(
         string='Dias Incapacidad',
@@ -374,7 +378,14 @@ class PayslipCR(models.Model):
         store=False,
     )
     vacation_ids   = fields.One2many('planilla.vacation.payment', 'payslip_id', string='Vacaciones')
-    leave_cr_ids   = fields.One2many('planilla.leave.cr', 'payslip_id', string='Licencias Especiales CR')
+    leave_cr_ids = fields.Many2many(
+        'planilla.leave.cr',
+        'planilla_leave_cr_payslip_rel',
+        'payslip_id', 'leave_cr_id',
+        string='Licencias Especiales CR',
+        help='Licencias que afectan este periodo. Una licencia larga (adopcion, sin goce) '
+             'puede aparecer en multiples boletas con monto proporcional a cada periodo.'
+    )
     deduction_line_ids = fields.One2many(
         'planilla.payslip.deduction.line', 'payslip_id', string='Deducciones Adicionales'
     )

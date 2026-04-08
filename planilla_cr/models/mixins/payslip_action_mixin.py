@@ -139,9 +139,18 @@ class PayslipActionMixin(models.AbstractModel):
                     rec._create_accounting_entry()
                 rec.overtime_ids.filtered(lambda o: o.state == 'approved').write({'state': 'paid'})
                 rec.vacation_ids.filtered(lambda v: v.state == 'approved').write({'state': 'paid'})
-                rec.disability_ids.filtered(lambda d: d.state == 'confirmed').write({'state': 'paid'})
+                # FIX MULTI-PERIODO: solo marcar 'paid' si esta es la ultima boleta
+                # que cubre esta incapacidad (date_end cae dentro o antes de date_to).
+                # Si la incapacidad continua en periodos futuros, mantener 'confirmed'.
+                for dis in rec.disability_ids.filtered(lambda d: d.state == 'confirmed'):
+                    if dis.date_end and rec.date_to and dis.date_end <= rec.date_to:
+                        dis.write({'state': 'paid'})
+                    # else: sigue activa en periodos futuros, no cambiar estado
                 # FIX-AUD-07: licencias pasan a 'paid' al pagar la boleta (no en sync)
-                rec.leave_cr_ids.filtered(lambda l: l.state == 'approved').write({'state': 'paid'})
+                # FIX MULTI-PERIODO leave_cr: solo marcar 'paid' en el ultimo periodo
+                for lic in rec.leave_cr_ids.filtered(lambda l: l.state == 'approved'):
+                    if lic.date_end and rec.date_to and lic.date_end <= rec.date_to:
+                        lic.write({'state': 'paid'})
                 loan_lines = rec.deduction_line_ids.filtered(lambda l: l.loan_installment_id)
                 for line in loan_lines:
                     line.loan_installment_id.write({'state': 'deducted', 'payslip_id': rec.id})
@@ -201,7 +210,16 @@ class PayslipActionMixin(models.AbstractModel):
                     if inst.loan_id.state == 'paid':
                         inst.loan_id.write({'state': 'active'})
             rec.vacation_ids.filtered(lambda v: v.state == 'paid').write({'state': 'approved'})
-            rec.disability_ids.filtered(lambda d: d.state == 'paid').write({'state': 'confirmed'})
+            # FIX MULTI-PERIODO: al revertir, solo volver a 'confirmed' si no hay
+            # otras boletas PAGADAS que aun referencien esta incapacidad.
+            for dis in rec.disability_ids.filtered(lambda d: d.state == 'paid'):
+                other_paid = dis.payslip_ids.filtered(
+                    lambda p: p.id != rec.id and p.state == 'done'
+                )
+                if not other_paid:
+                    dis.write({'state': 'confirmed'})
+            # Desvincular esta boleta del M2M de incapacidades
+            rec.disability_ids.write({'payslip_ids': [(3, rec.id)]})
             rec.overtime_ids.filtered(lambda o: o.state == 'paid').write({'state': 'approved'})
             # FIX-AUD-01: restaurar licencias especiales al estado aprobado
             # Si no se hace, la licencia queda en 'paid' huerfana y no se puede
@@ -263,15 +281,24 @@ class PayslipActionMixin(models.AbstractModel):
                 lambda v: v.state == 'paid'
             ).write({'state': 'approved'})
 
-            # Incapacidades: paid -> confirmed
-            rec.disability_ids.filtered(
-                lambda d: d.state == 'paid'
-            ).write({'state': 'confirmed'})
+            # Incapacidades: paid -> confirmed (solo si no hay otras boletas pagadas)
+            for dis in rec.disability_ids.filtered(lambda d: d.state == 'paid'):
+                other_paid = dis.payslip_ids.filtered(
+                    lambda p: p.id != rec.id and p.state == 'done'
+                )
+                if not other_paid:
+                    dis.write({'state': 'confirmed'})
+            rec.disability_ids.write({'payslip_ids': [(3, rec.id)]})
 
             # Licencias especiales CR: paid -> approved + limpiar payslip_id
-            rec.leave_cr_ids.filtered(
-                lambda l: l.state in ('paid', 'approved')
-            ).write({'payslip_id': False, 'state': 'approved'})
+            # FIX MULTI-PERIODO: desvincular boleta del M2M y revertir estado
+            for lic in rec.leave_cr_ids.filtered(lambda l: l.state in ('paid', 'approved')):
+                other_paid = lic.payslip_ids.filtered(
+                    lambda p: p.id != rec.id and p.state == 'done'
+                )
+                if not other_paid:
+                    lic.write({'state': 'approved'})
+            rec.leave_cr_ids.write({'payslip_ids': [(3, rec.id)]})
 
             # Cobros recurrentes: limpiar periodo de applied_periods
             charge_lines = rec.deduction_line_ids.filtered(lambda l: l.employee_charge_id)

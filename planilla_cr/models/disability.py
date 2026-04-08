@@ -152,7 +152,27 @@ class Disability(models.Model):
         ('cancelled', 'Cancelado'),
     ], string='Estado', default='draft', tracking=True)
 
-    payslip_id = fields.Many2one('planilla.payslip.cr', string='Boleta de Pago')
+    payslip_ids = fields.Many2many(
+        'planilla.payslip.cr',
+        'planilla_disability_payslip_rel',
+        'disability_id', 'payslip_id',
+        string='Boletas de Pago',
+        help='Todas las boletas en las que se proceso esta incapacidad '
+             '(puede ser mas de una cuando la incapacidad cruza varios periodos).'
+    )
+    # Compatibilidad: apunta a la primera boleta que proceso esta incapacidad.
+    payslip_id = fields.Many2one(
+        'planilla.payslip.cr',
+        string='Primera Boleta',
+        compute='_compute_payslip_id_compat',
+        store=True,
+        help='Primera boleta que proceso esta incapacidad (solo lectura).'
+    )
+
+    @api.depends('payslip_ids')
+    def _compute_payslip_id_compat(self):
+        for rec in self:
+            rec.payslip_id = rec.payslip_ids[:1] if rec.payslip_ids else False
 
 
     @api.depends('employee_id', 'date_start')

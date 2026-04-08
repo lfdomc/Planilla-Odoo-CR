@@ -18,6 +18,8 @@ def post_migrate_hook(env):
     _ensure_deduction_codes(env)
     _ensure_schedule_types(env)
     _fix_hour_license_date_end(env)
+    _migrate_disability_payslip_m2m(env)
+    _migrate_leave_cr_payslip_m2m(env)
 
 
 def _fix_hour_license_date_end(env):
@@ -55,6 +57,124 @@ def _fix_hour_license_date_end(env):
         )
         # Invalidar cache ORM para que la UI refleje el cambio sin recargar
         env['planilla.leave.cr'].browse(fixed_ids).invalidate_recordset()
+
+
+
+def _migrate_disability_payslip_m2m(env):
+    """
+    FIX v5.28.74: Migrar datos de planilla_disability.payslip_id (Many2one)
+    a la nueva tabla de relacion Many2many planilla_disability_payslip_rel.
+
+    Contexto: el campo payslip_id pasó de Many2one a Many2many (payslip_ids)
+    para soportar incapacidades que cruzan multiples periodos de pago
+    (ej. maternidad 4-dic-2025 a 26-mar-2026 afecta 3+ boletas).
+
+    La columna `payslip_id` (Many2one) sigue existiendo como campo computado
+    de compatibilidad (apunta al primero de payslip_ids), pero ya no se escribe
+    directamente. Este hook copia los datos históricos a la tabla M2M.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # Verificar si la columna payslip_id aun existe como columna real en la tabla
+    # (puede que ya se haya eliminado en una migracion anterior)
+    env.cr.execute("""
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'planilla_disability'
+          AND column_name = 'payslip_id_legacy'
+    """)
+    legacy_col_exists = bool(env.cr.fetchone())
+
+    # Verificar si hay datos en la tabla M2M
+    env.cr.execute(
+        "SELECT COUNT(*) FROM information_schema.tables "
+        "WHERE table_name = 'planilla_disability_payslip_rel'"
+    )
+    m2m_table_exists = bool(env.cr.fetchone())
+    if not m2m_table_exists:
+        _logger.warning(
+            'planilla_cr._migrate_disability_payslip_m2m: '
+            'tabla planilla_disability_payslip_rel no existe aun -- '
+            'se creara en el siguiente -u. Saltando migracion.'
+        )
+        return
+
+    # Leer incapacidades que tienen payslip_id directo en la columna de DB
+    # NOTA: como payslip_id ahora es computed/store=True basado en payslip_ids,
+    # la columna en DB se llenara automaticamente. Buscamos registros con
+    # payslip_id_legacy si existe, o usamos la columna payslip_id si aun esta.
+    env.cr.execute("""
+        SELECT id,
+               COALESCE(payslip_id, NULL) as pid
+        FROM planilla_disability
+        WHERE payslip_id IS NOT NULL
+    """)
+    rows = env.cr.fetchall()
+    migrated = 0
+    for dis_id, payslip_id in rows:
+        # Verificar si la relacion ya existe en M2M
+        env.cr.execute("""
+            SELECT 1 FROM planilla_disability_payslip_rel
+            WHERE disability_id = %s AND payslip_id = %s
+        """, (dis_id, payslip_id))
+        if not env.cr.fetchone():
+            env.cr.execute("""
+                INSERT INTO planilla_disability_payslip_rel
+                    (disability_id, payslip_id)
+                VALUES (%s, %s)
+                ON CONFLICT DO NOTHING
+            """, (dis_id, payslip_id))
+            migrated += 1
+
+    if migrated:
+        _logger.info(
+            'planilla_cr._migrate_disability_payslip_m2m: '
+            'migradas %s relaciones disability->payslip al nuevo M2M.', migrated
+        )
+    else:
+        _logger.info(
+            'planilla_cr._migrate_disability_payslip_m2m: '
+            'sin datos nuevos que migrar (ya actualizado o primera instalacion).'
+        )
+
+
+def _migrate_leave_cr_payslip_m2m(env):
+    """
+    FIX v5.28.75: Migrar planilla_leave_cr.payslip_id (Many2one)
+    a la nueva tabla M2M planilla_leave_cr_payslip_rel.
+    Mismo patron que _migrate_disability_payslip_m2m.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    env.cr.execute("""
+        SELECT COUNT(*) FROM information_schema.tables
+        WHERE table_name = 'planilla_leave_cr_payslip_rel'
+    """)
+    if not env.cr.fetchone():
+        _logger.warning('planilla_cr: tabla leave_cr M2M no existe aun — saltando.')
+        return
+
+    env.cr.execute("""
+        SELECT id, payslip_id FROM planilla_leave_cr
+        WHERE payslip_id IS NOT NULL
+    """)
+    rows = env.cr.fetchall()
+    migrated = 0
+    for leave_id, payslip_id in rows:
+        env.cr.execute("""
+            INSERT INTO planilla_leave_cr_payslip_rel (leave_cr_id, payslip_id)
+            VALUES (%s, %s)
+            ON CONFLICT DO NOTHING
+        """, (leave_id, payslip_id))
+        if env.cr.rowcount:
+            migrated += 1
+
+    if migrated:
+        _logger.info(
+            'planilla_cr._migrate_leave_cr_payslip_m2m: '
+            'migradas %s relaciones leave_cr->payslip al M2M.', migrated
+        )
 
 
 def _ensure_schedule_types(env):

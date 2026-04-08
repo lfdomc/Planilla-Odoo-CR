@@ -179,15 +179,20 @@ class PayslipSyncMixin(models.AbstractModel):
         overtimes.write({'payslip_id': self.id})
 
         # -- Incapacidades ----------------------------------------------------
-        # Solapan si date_start <= date_to AND date_end >= date_from
+        # FIX MULTI-PERIODO: una incapacidad (ej. maternidad) puede cruzar
+        # varios periodos de pago. Se usa Many2many (payslip_ids) para que
+        # cada boleta que solape con la incapacidad la incluya correctamente.
+        # La restriccion '|payslip_id=False' se elimina: buscamos POR FECHA,
+        # y la relacion M2M permite vinculos multiples sin sobrescribir.
         disabilities = self.env['planilla.disability'].search([
             ('employee_id', '=', emp_id),
             ('state', 'in', ('confirmed', 'paid')),
             ('date_start', '<=', date_to),
             ('date_end',   '>=', date_from),
-            '|', ('payslip_id', '=', False), ('payslip_id', '=', self.id),
         ])
-        disabilities.write({'payslip_id': self.id})
+        # Agregar esta boleta a payslip_ids (no sobrescribe, acumula)
+        if disabilities:
+            disabilities.write({'payslip_ids': [(4, self.id)]})
 
         # -- Vacaciones --------------------------------------------------------
         vacations = self.env['planilla.vacation.payment'].search([
@@ -370,51 +375,60 @@ class PayslipSyncMixin(models.AbstractModel):
         code_sin_goce  = _get_or_create_code('LIC-SGOCE', 'Licencia Sin Goce de Sueldo', 'employee')
 
         # -- Buscar licencias aprobadas del periodo ----------------------------
-        # FIX-AUD-10: filtrar por company_id para seguridad multi-empresa.
-        # FIX: Para licencias por horas, usar date_start para ambos extremos del rango.
-        # Una licencia de horas ocurre en un solo dia (date_end = date_start).
-        # Usar date_end para el filtro causaba que licencias de dias anteriores
-        # entraran en periodos de boleta incorrectos si date_end estaba mal configurado.
+        # FIX MULTI-PERIODO: se eliminan restricciones de payslip_id para
+        # soportar licencias que cruzan varios periodos (adopcion 90d,
+        # paternidad ~12 dias cal, sin goce de duracion libre).
+        # Busqueda unificada por rango de fechas:
         licencias = self.env['planilla.leave.cr'].search([
             ('employee_id', '=', self.employee_id.id),
             ('company_id',  '=', self.company_id.id),
             ('state', '=', 'approved'),
             ('date_start', '<=', self.date_to),
-            ('date_start', '>=', self.date_from),
-            '|', ('payslip_id', '=', False), ('payslip_id', '=', self.id),
-        ])
-        # Tambien incluir licencias por dias cuyo rango cae en este periodo
-        licencias_dias = self.env['planilla.leave.cr'].search([
-            ('employee_id', '=', self.employee_id.id),
-            ('company_id',  '=', self.company_id.id),
-            ('state', '=', 'approved'),
-            ('leave_unit', '=', 'day'),
-            ('date_start', '<=', self.date_to),
             ('date_end',   '>=', self.date_from),
-            '|', ('payslip_id', '=', False), ('payslip_id', '=', self.id),
         ])
-        licencias = (licencias | licencias_dias)
+
+        import datetime as _dt
 
         for lic in licencias:
-            # Verificar si ya existe linea para esta licencia
-            existing = self.deduction_line_ids.filtered(
-                lambda l, lid=lic.id: l.leave_cr_id.id == lid
-            )
-            if existing:
+            # -- Calcular overlap de fechas entre licencia y periodo -----------
+            overlap_start = max(self.date_from, lic.date_start)
+            overlap_end   = min(self.date_to,   lic.date_end)
+            if overlap_end < overlap_start:
                 continue
+            overlap_days = (overlap_end - overlap_start).days + 1
 
-            pays = lic.has_salary or lic.has_salary_override
-            monto = lic.leave_amount or 0.0
+            # -- Monto proporcional al periodo ---------------------------------
+            # Para licencias por horas: monto unico, no hay distribucion
+            # Para licencias por dias: distribuir diariamente
+            if lic.leave_unit == 'hour':
+                # Horas: un solo dia, no cruza periodos → monto total
+                monto = lic.leave_amount or 0.0
+                periodo_desc = f'{lic.hours}h el {lic.date_start}'
+            else:
+                # Dias: calcular monto proporcional a los dias de este periodo
+                total_days = max(lic.days or 1, 1)
+                # daily_rate basado en leave_amount total / dias calendario totales
+                daily_rate = (lic.leave_amount or 0.0) / total_days
+                monto = round(daily_rate * overlap_days, 2)
+                periodo_desc = (
+                    f'{overlap_start} al {overlap_end}, {overlap_days} dia(s)'
+                    if overlap_days < total_days
+                    else f'{lic.date_start} al {lic.date_end}, {total_days} dia(s)'
+                )
+
             if monto <= 0:
                 continue
 
+            pays = lic.has_salary or lic.has_salary_override
             tipo_label = dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)
-            # Descripcion segun unidad: dias u horas
-            if lic.leave_unit == 'hour':
-                periodo_desc = f'{lic.hours}h el {lic.date_start}'
-            else:
-                dias_efectivos = lic.working_days if lic.working_days > 0 else lic.days
-                periodo_desc = f'{lic.date_start} al {lic.date_end}, {dias_efectivos} dia(s)'
+
+            # -- Evitar duplicados: verificar si ya existe linea para este
+            #    periodo especifico (comparando fecha de overlap)
+            existing = self.deduction_line_ids.filtered(
+                lambda l, lid=lic.id: l.leave_cr_id and l.leave_cr_id.id == lid
+            )
+            if existing:
+                continue
 
             if pays:
                 # Licencia CON goce -> ingreso adicional (gasto patronal)
@@ -439,12 +453,8 @@ class PayslipSyncMixin(models.AbstractModel):
                     'leave_cr_id':         lic.id,
                 })
 
-            # Vincular licencia a la boleta para trazabilidad
-            # FIX-AUD-07: NO marcar 'paid' aqui -- la licencia pasa a 'paid' solo cuando
-            # la boleta se paga (action_pay), igual que vacation_ids/overtime_ids/disability_ids.
-            # Marcar 'paid' en sync (boleta en draft) causaba que la licencia quedara
-            # bloqueada si la boleta se cancelaba antes de pagarse.
-            lic.write({'payslip_id': self.id})
+            # Vincular licencia a esta boleta via M2M (sin sobrescribir)
+            lic.write({'payslip_ids': [(4, self.id)]})
 
     def _sync_ausencias(self) -> None:
         """
@@ -887,13 +897,12 @@ class PayslipSyncMixin(models.AbstractModel):
                     {'payslip_id': slip.id}
                 )
 
-        # -- Incapacidades -- UNA query para todos -------------------------
+        # -- Incapacidades -- UNA query para todos (FIX MULTI-PERIODO M2M) --
         disabilities = self.env['planilla.disability'].search([
             ('employee_id', 'in', emp_ids),
             ('state', 'in', ('confirmed', 'paid')),
             ('date_start', '<=', date_to),
             ('date_end',   '>=', date_from),
-            '|', ('payslip_id', '=', False), ('payslip_id', 'in', self.ids),
         ])
         by_emp = {}
         for d in disabilities:
@@ -901,9 +910,9 @@ class PayslipSyncMixin(models.AbstractModel):
         for emp_id, recs in by_emp.items():
             slip = slip_by_emp.get(emp_id)
             if slip:
-                self.env['planilla.disability'].browse([r.id for r in recs]).write(
-                    {'payslip_id': slip.id}
-                )
+                self.env['planilla.disability'].browse(
+                    [r.id for r in recs]
+                ).write({'payslip_ids': [(4, slip.id)]})
 
         # -- Vacaciones -- UNA query para todos ----------------------------
         vacations = self.env['planilla.vacation.payment'].search([
@@ -1123,23 +1132,48 @@ class PayslipSyncMixin(models.AbstractModel):
         # El estado 'paid' se asigna en action_pay igual que vacation_ids/overtime_ids.
 
     def _sync_licencias_single(self, lic, code_con_goce, code_sin_goce) -> None:
-        """Sincroniza una licencia especial individual en esta boleta (batch mode)."""
+        """Sincroniza una licencia especial individual en esta boleta (batch mode).
+        FIX MULTI-PERIODO: calcula monto proporcional al overlap de fechas y usa
+        M2M payslip_ids en lugar de sobrescribir payslip_id."""
         existing = self.deduction_line_ids.filtered(
-            lambda l, lid=lic.id: l.leave_cr_id.id == lid
+            lambda l, lid=lic.id: l.leave_cr_id and l.leave_cr_id.id == lid
         )
         if existing:
             return
-        pays = lic.has_salary or lic.has_salary_override
-        monto = lic.leave_amount or 0.0
+
+        # -- Overlap y monto proporcional ------------------------------------
+        if lic.leave_unit == 'hour':
+            monto = lic.leave_amount or 0.0
+            overlap_days = 1
+            total_days   = 1
+            overlap_start = lic.date_start
+            overlap_end   = lic.date_end
+        else:
+            overlap_start = max(self.date_from, lic.date_start)
+            overlap_end   = min(self.date_to,   lic.date_end)
+            if overlap_end < overlap_start:
+                return
+            overlap_days = (overlap_end - overlap_start).days + 1
+            total_days   = max(lic.days or 1, 1)
+            daily_rate   = (lic.leave_amount or 0.0) / total_days
+            monto        = round(daily_rate * overlap_days, 2)
+
         if monto <= 0:
             return
+
+        pays = lic.has_salary or lic.has_salary_override
         tipo_label = dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)
-        dias_efectivos = lic.working_days if lic.working_days > 0 else lic.days
+        periodo_desc = (
+            f'{overlap_start} al {overlap_end}, {overlap_days} dia(s)'
+            if overlap_days < total_days
+            else f'{lic.date_start} al {lic.date_end}, {total_days} dia(s)'
+        )
+
         vals = {
-            'payslip_id':        self.id,
-            'description':       f'{"Licencia" if pays else "Licencia sin goce"}: {tipo_label} ({lic.date_start} al {lic.date_end}, {dias_efectivos} dia(s))',
-            'amount':            monto,
-            'leave_cr_id':       lic.id,
+            'payslip_id':  self.id,
+            'description': f'{"Licencia" if pays else "Licencia sin goce"}: {tipo_label} ({periodo_desc})',
+            'amount':      monto,
+            'leave_cr_id': lic.id,
         }
         if pays:
             vals.update({
@@ -1154,7 +1188,8 @@ class PayslipSyncMixin(models.AbstractModel):
                 'deduction_category': 'licencia_sin_goce',
             })
         self.env['planilla.payslip.deduction.line'].create(vals)
-        lic.write({'payslip_id': self.id})
+        # M2M: agregar esta boleta a payslip_ids sin sobrescribir
+        lic.write({'payslip_ids': [(4, self.id)]})
 
     def _sync_recurring_benefits_batch(self) -> None:
         """Batch: carga beneficios recurrentes de TODOS los empleados en una query."""
