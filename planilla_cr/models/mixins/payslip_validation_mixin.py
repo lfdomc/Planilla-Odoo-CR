@@ -181,6 +181,7 @@ class PayslipValidationMixin(models.AbstractModel):
                     and d.date_start and d.date_end
                 )
                 mat_dis_now = []
+                dias_periodo = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else 15
                 if rec.date_from and rec.date_to:
                     mat_dis_now = [
                         d for d in active_dis_all
@@ -190,25 +191,74 @@ class PayslipValidationMixin(models.AbstractModel):
                 has_ccss_on_emp = any(getattr(d, 'maternity_ccss_on_employer', False) for d in mat_dis_now)
                 has_split_50    = any(getattr(d, 'maternity_split_50', False) for d in mat_dis_now)
 
+                # Detectar si hay dias laborados ademas de la maternidad en el periodo
+                # (maternidad parcial: la licencia no cubre todo el periodo)
+                dias_mat_en_periodo = sum(
+                    (min(rec.date_to, d.date_end) - max(rec.date_from, d.date_start)).days + 1
+                    for d in mat_dis_now
+                    if d.date_start and d.date_end
+                ) if mat_dis_now and rec.date_from and rec.date_to else 0
+                es_maternidad_parcial = mat_dis_now and (dias_mat_en_periodo < dias_periodo)
+
                 if mat_dis_now and has_ccss_on_emp and has_split_50:
-                    # Modalidad 50/50 + CCSS obrera sobre subsidio completo:
-                    # - Base cotizable = subsidio total (ya en salario_cotizable)
-                    # - CCSS obrera = 10.83%% sobre el total
-                    # - Neto real = total - CCSS obrera
-                    # - Patrono y CCSS pagan cada uno el 50%% del neto real
-                    total_sub = ccss_sub  # = total del subsidio (toda la maternidad)
-                    ccss_obrera = rec.ccss_employee or 0.0
-                    neto_real   = round(total_sub - ccss_obrera, 2)
-                    rec.neto_por_patrono = round(neto_real / 2.0, 2)
-                    rec.neto_por_ccss    = round(neto_real / 2.0, 2)
+                    # Modalidad 50/50 maternidad + CCSS obrera sobre subsidio.
+                    #
+                    # CASO 1: Maternidad TOTAL (cubre todo el periodo, 0 dias laborados):
+                    #   Base cotizable = subsidio total (=salario_cotizable cuando no hay dias laborados)
+                    #   CCSS obrera = 10.83% sobre el subsidio total
+                    #   neto_real = subsidio_total - ccss_obrera
+                    #   Patrono deposita 50% del neto_real, CCSS deposita el otro 50%.
+                    #
+                    # CASO 2: Maternidad PARCIAL (hay dias laborados ademas de dias de maternidad):
+                    #   gross_salary = salario_cotizable = salario_dias_laborados + subsidiado_patrono
+                    #   ccss_employee = 10.83% sobre gross_salary (proporcional a base cotizable total)
+                    #   El patrono paga: gross_salary (dias laborados neto de CCSS) + 50% subsidio mat neto
+                    #   La CCSS paga: 50% del subsidio maternidad neto de CCSS
+                    #
+                    # En ambos casos net_salary = gross - ccss_emp + ccss_sub (subsidio mat).
+                    # El desglose neto_por_patrono + neto_por_ccss debe sumar net_salary.
+
+                    if es_maternidad_parcial:
+                        # Caso 2: Maternidad PARCIAL — hay dias laborados + dias maternidad
+                        #
+                        # El salario de dias laborados lo paga el patrono (neto de CCSS obrero).
+                        # El subsidio de maternidad (ccss_sub) lo pagan patrono y CCSS al 50/50.
+                        # La CCSS obrera (ccss_employee) se calcula SOLO sobre el salario laborado
+                        # (gross_salary = salario_cotizable = dias_laborados x diario).
+                        # El subsidio de maternidad ya viene neto de CCSS porque la CCSS
+                        # lo descuenta directamente antes de depositar.
+                        #
+                        # Desglose correcto:
+                        #   neto_laborado   = gross_salary - ccss_employee  (salario dias trabajados neto)
+                        #   neto_por_ccss   = ccss_sub / 2                  (50% subsidio maternidad -> deposita CCSS)
+                        #   neto_por_patrono= neto_laborado + ccss_sub / 2  (dias laborados + 50% subsidio mat)
+                        #   TOTAL           = neto_por_patrono + neto_por_ccss = net_salary  ✓
+                        neto_laborado        = round((rec.gross_salary or 0.0) - (rec.ccss_employee or 0.0), 2)
+                        mitad_sub            = round(ccss_sub / 2.0, 2)
+                        rec.neto_por_ccss    = mitad_sub
+                        rec.neto_por_patrono = round(neto_laborado + mitad_sub, 2)
+                    else:
+                        # Caso 1: Maternidad TOTAL — no hay dias laborados, solo subsidio maternidad
+                        # Base cotizable = subsidio total (maternity_ccss_on_employer=True)
+                        # CCSS obrera se descuenta sobre el subsidio total antes del 50/50.
+                        total_sub   = ccss_sub
+                        ccss_obrera = rec.ccss_employee or 0.0
+                        neto_real   = round(total_sub - ccss_obrera, 2)
+                        rec.neto_por_patrono = round(neto_real / 2.0, 2)
+                        rec.neto_por_ccss    = round(neto_real / 2.0, 2)
                 elif mat_dis_now and has_split_50 and not has_ccss_on_emp:
                     # Modalidad 50/50 sin CCSS obrera:
-                    # Patrono paga 50%%, CCSS paga 50%%, empleado no pierde nada
+                    # Patrono paga 50%%, CCSS paga 50%%, empleado no pierde nada por subsidio.
+                    # Si es parcial, el patrono ademas paga el salario de los dias laborados.
                     mitad = round(ccss_sub / 2.0, 2) if ccss_sub else 0.0
-                    rec.neto_por_patrono = mitad
-                    rec.neto_por_ccss    = mitad
+                    if es_maternidad_parcial:
+                        neto_laborado = round((rec.gross_salary or 0.0) - (rec.total_employee_deductions or 0.0) + extra_income, 2)
+                        rec.neto_por_patrono = round(neto_laborado + mitad, 2)
+                    else:
+                        rec.neto_por_patrono = mitad
+                    rec.neto_por_ccss = mitad
                 else:
-                    # Incapacidad normal: patrono = dias 1-3, CCSS = dias 4+
+                    # Incapacidad normal CCSS o INS: patrono = dias 1-3 + salario laborado, CCSS = dias 4+
                     rec.neto_por_patrono = round(
                         (rec.gross_salary or 0.0) - rec.total_employee_deductions +
                         (rec.paternity_amount or 0.0) +

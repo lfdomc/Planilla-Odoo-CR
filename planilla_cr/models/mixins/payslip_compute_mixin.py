@@ -443,7 +443,7 @@ class PayslipComputeMixin(models.AbstractModel):
             )
             rec.gross_salary = bruto
 
-    @api.depends('gross_salary', 'salario_cotizable', 'company_id', 'paternity_days',
+    @api.depends('gross_salary', 'salario_cotizable', 'bono_salarial_amount', 'company_id', 'paternity_days',
                  'payroll_calendar_id',
                  'deduction_line_ids.amount',
                  'deduction_line_ids.line_type',
@@ -503,10 +503,15 @@ class PayslipComputeMixin(models.AbstractModel):
 
             if has_disability_in_period:
                 # Hay incapacidad: respetar salario_cotizable aunque sea 0
-                # (0 es el valor correcto para maternidad completa)
-                g = rec.salario_cotizable or 0.0
+                # (0 es el valor correcto para maternidad completa).
+                # FIX BONO-INCAP: si hay bono salarial afecto CCSS, sumarlo a la
+                # base cotizable. En periodos con incapacidad el bono NO está incluido
+                # en salario_cotizable (que solo cubre días laborados × diario),
+                # pero sí es base imponible de CCSS, Renta y provisiones.
+                g = (rec.salario_cotizable or 0.0) + (rec.bono_salarial_amount or 0.0)
             else:
                 # Sin incapacidad: base = salario bruto del periodo
+                # (gross_salary ya incluye bono_salarial_amount)
                 g = rec.gross_salary or 0.0
 
             # FIX LICENCIAS: restar licencias sin goce y ausencias de la base cotizable.

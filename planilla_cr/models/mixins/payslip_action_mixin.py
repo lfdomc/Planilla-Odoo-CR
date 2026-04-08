@@ -237,7 +237,11 @@ class PayslipActionMixin(models.AbstractModel):
                 charge_ids_list = [l.employee_charge_id for l in charge_lines if l.employee_charge_id]
                 if charge_ids_list:
                     # FIX BUG-COBRO-01: separar cobros unicos de recurrentes.
-                    all_charges = self.env['planilla.employee.charge'].browse(charge_ids_list)
+                    # FIX BUG-COBRO-02: usar .exists() para ignorar cobros que
+                    # fueron eliminados despues de ser procesados en planilla.
+                    # Sin .exists(), browse() lanza "Registro faltante" si el
+                    # planilla.employee.charge fue borrado desde RRHH.
+                    all_charges = self.env['planilla.employee.charge'].browse(charge_ids_list).exists()
                     # Unicos (applied) -> volver a approved
                     unique_charges = all_charges.filtered(
                         lambda c: not c.is_recurring and c.state == 'applied'
