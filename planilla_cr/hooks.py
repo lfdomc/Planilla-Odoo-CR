@@ -27,27 +27,34 @@ def _fix_hour_license_date_end(env):
     date_end siempre debe ser igual a date_start.
     Se ejecuta automaticamente en cada -u planilla_cr para corregir
     registros historicos creados antes de este fix.
+
+    NOTA TECNICA: se usa SQL directo en lugar de ORM write() porque los
+    registros aprobados/pagados pueden disparar recomputes secundarios o
+    validaciones de estado que bloqueen el write silenciosamente. El SQL
+    garantiza la correccion independientemente del estado del registro.
     """
     import logging
     _logger = logging.getLogger(__name__)
 
-    licencias_mal = env['planilla.leave.cr'].search([
-        ('leave_unit', '=', 'hour'),
-        ('date_end', '!=', False),
-    ])
-    fixed = 0
-    for lic in licencias_mal:
-        if lic.date_start and lic.date_end != lic.date_start:
-            lic.with_context(skip_salary_history=True).write({
-                'date_end': lic.date_start
-            })
-            fixed += 1
+    env.cr.execute("""
+        UPDATE planilla_leave_cr
+        SET date_end = date_start
+        WHERE leave_unit = 'hour'
+          AND date_start IS NOT NULL
+          AND date_end IS NOT NULL
+          AND date_end != date_start
+        RETURNING id
+    """)
+    fixed_ids = [r[0] for r in env.cr.fetchall()]
 
-    if fixed:
+    if fixed_ids:
         _logger.info(
             'planilla_cr._fix_hour_license_date_end: '
-            'corregidas %s licencias por horas con date_end incorrecto.', fixed
+            'corregidas %s licencias por horas con date_end incorrecto. IDs: %s',
+            len(fixed_ids), fixed_ids
         )
+        # Invalidar cache ORM para que la UI refleje el cambio sin recargar
+        env['planilla.leave.cr'].browse(fixed_ids).invalidate_recordset()
 
 
 def _ensure_schedule_types(env):

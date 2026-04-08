@@ -376,6 +376,14 @@ class LeaveCR(models.Model):
         if self.leave_unit == 'hour' and self.date_start:
             self.date_end = self.date_start
 
+    @api.onchange('date_start')
+    def _onchange_date_start_hours(self):
+        """Si la unidad ya es horas, la fecha fin debe seguir a la fecha de inicio.
+        Sin este onchange: cambiar date_start con leave_unit=hour dejaba date_end
+        desincronizada (el onchange de leave_unit no se re-dispara)."""
+        if self.leave_unit == 'hour' and self.date_start:
+            self.date_end = self.date_start
+
     @api.onchange('leave_type')
     def _onchange_leave_type(self):
         """Sugerir fecha fin segun dias maximos de ley cuando el tipo cambia."""
