@@ -389,12 +389,27 @@ class PayslipValidationMixin(models.AbstractModel):
                 errors.append(f'{prefix} No tiene calendarizacion de planilla asignada.')
 
             # -- Determinar si tiene incapacidad/maternidad activa en el periodo --
-            has_disability = bool(rec.disability_ids.filtered(
+            _active_dis = rec.disability_ids.filtered(
                 lambda d: d.state in ('confirmed', 'paid')
+            )
+            has_disability = bool(_active_dis)
+            has_maternity  = bool(_active_dis.filtered(
+                lambda d: d.disability_type == 'maternity'
             ))
-            has_maternity = bool(rec.disability_ids.filtered(
-                lambda d: d.disability_type == 'maternity' and d.state in ('confirmed', 'paid')
-            ))
+            # FALLBACK: si disability_ids esta vacio (boleta no sincronizada aun),
+            # buscar directamente en BD por rango de fechas para no bloquear
+            # erroneamente la confirmacion de boletas con maternidad/incapacidad.
+            if not has_disability and rec.date_from and rec.date_to and rec.employee_id:
+                fallback_dis = rec.env['planilla.disability'].search([
+                    ('employee_id', '=', rec.employee_id.id),
+                    ('state', 'in', ('confirmed', 'paid')),
+                    ('date_start', '<=', rec.date_to),
+                    ('date_end',   '>=', rec.date_from),
+                ], limit=1)
+                if fallback_dis:
+                    has_disability = True
+                    if fallback_dis.disability_type == 'maternity':
+                        has_maternity = True
             is_part_time = (
                 rec.employee_id.schedule_type_id and
                 rec.employee_id.schedule_type_id.is_part_time
