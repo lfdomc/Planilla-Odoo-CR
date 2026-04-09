@@ -148,6 +148,20 @@ class PayslipValidationMixin(models.AbstractModel):
                 extra_deductions, 2
             )
             # FIX-AUD-03: licencias con goce son costo patronal (igual que paternidad)
+            # FIX COST-PATRONO: para incapacidades con subsidio CCSS (maternidad, CCSS),
+            # usar neto_por_patrono en lugar de employer_disability_cost.
+            # Razon: employer_disability_cost = costo bruto proporcional del período,
+            # pero para modalidad 50/50 el patrono RECUPERA parte de ese costo de la CCSS.
+            # neto_por_patrono ya refleja el costo REAL que el patrono asume en el período.
+            # Para incapacidades sin subsidio (dias 1-3 patrono, INS fuera de planilla),
+            # el employer_disability_cost proporcional es correcto.
+            has_subsidy_in_period = (rec.ccss_subsidy_total or 0.0) > 0
+            if has_subsidy_in_period:
+                # Hay subsidio CCSS en el período: usar neto_por_patrono (costo real)
+                disability_cost_real = (rec.neto_por_patrono or 0.0)
+            else:
+                # Sin subsidio: usar employer_disability_cost proporcional del período
+                disability_cost_real = (rec.employer_disability_cost or 0.0)
             rec.total_employer_cost = round(
                 (rec.gross_salary or 0.0) +
                 (rec.ccss_employer or 0.0) +
@@ -157,7 +171,7 @@ class PayslipValidationMixin(models.AbstractModel):
                 (rec.cesantia_provision or 0.0) +
                 (rec.vacation_provision or 0.0) +
                 (rec.paternity_amount or 0.0) +
-                (rec.employer_disability_cost or 0.0) +
+                disability_cost_real +
                 licencias_con_goce, 2  # FIX-AUD-03: duelo, matrimonio, paternidad, etc.
             )
             # Salario Neto = Bruto  TODAS las deducciones del obrero

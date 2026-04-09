@@ -171,8 +171,29 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.overtime_amount  = sum(o.amount for o in rec.overtime_ids if o.state == 'approved')
             rec.vacation_amount  = sum(v.total_amount for v in rec.vacation_ids if v.state == 'approved')
             active_dis = rec.disability_ids.filtered(lambda d: d.state in ('confirmed', 'paid'))
-            rec.disability_days          = sum(d.days for d in active_dis)
-            rec.employer_disability_cost = round(sum(d.employer_cost for d in active_dis), 2)
+            rec.disability_days          = 0  # se actualiza abajo tras calcular disability_days_in_period
+            # FIX COST-PERIODO: employer_cost en el modelo disability es el costo TOTAL
+            # de toda la incapacidad (ej: maternidad 121 dias = 756,250).
+            # Para el Costo Total Patronal del periodo, solo debe contarse
+            # la porcion proporcional que cae dentro de este periodo.
+            # Se calcula como: overlap_days / total_days × employer_cost de cada incapacidad.
+            # Esto evita que el Costo Total Patronal sea absurdamente alto (el costo de
+            # 121 dias sumado en CADA una de las 8 boletas que cubre la maternidad).
+            if rec.date_from and rec.date_to:
+                cost_periodo = 0.0
+                for d in active_dis:
+                    if not d.date_start or not d.date_end:
+                        continue
+                    overlap_start = max(rec.date_from, d.date_start)
+                    overlap_end   = min(rec.date_to, d.date_end)
+                    if overlap_end < overlap_start:
+                        continue
+                    overlap_days = (overlap_end - overlap_start).days + 1
+                    total_days   = max(d.days or 1, 1)
+                    cost_periodo += (d.employer_cost or 0.0) * overlap_days / total_days
+                rec.employer_disability_cost = round(cost_periodo, 2)
+            else:
+                rec.employer_disability_cost = round(sum(d.employer_cost for d in active_dis), 2)
 
             # -- BUG FIX MATERNIDAD: calcular subsidio y cotizable por periodo --
             dias_incap_periodo    = 0
@@ -265,6 +286,7 @@ class PayslipComputeMixin(models.AbstractModel):
                             ccss_subsidy_periodo   += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
 
             rec.disability_days_in_period = dias_incap_periodo
+            rec.disability_days          = dias_incap_periodo  # FIX DISPLAY: dias del PERIODO, no total incapacidad
             dias_periodo_total = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else 15
             rec.dias_laborados_periodo = max(dias_periodo_total - dias_incap_periodo, 0)
             rec.ccss_subsidy_total  = round(ccss_subsidy_periodo, 2)

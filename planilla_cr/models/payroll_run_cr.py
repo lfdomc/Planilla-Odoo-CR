@@ -198,7 +198,10 @@ class PayrollRunCR(models.Model):
         compute='_compute_totals', store=True,
     )
     total_disability_days = fields.Integer(
-        string='Total Dias Incapacidad', compute='_compute_totals', store=True,
+        string='Total Dias Incapacidad (Periodo)',
+        compute='_compute_totals', store=True,
+        help='Suma de dias de incapacidad dentro del periodo de cada boleta. '
+             'Refleja los dias reales del periodo, no el total de cada incapacidad.'
     )
     total_ccss_subsidy = fields.Monetary(
         string='Total Subsidio CCSS', currency_field='currency_id',

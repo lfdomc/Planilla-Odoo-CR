@@ -298,8 +298,10 @@ class PayslipCR(models.Model):
         help='Incapacidades que afectan este periodo de pago (pueden abarcar varios periodos).'
     )
     disability_days = fields.Integer(
-        string='Dias Incapacidad',
-        compute='_compute_extras', store=True
+        string='Dias Incapacidad en Periodo',
+        compute='_compute_extras', store=True,
+        help='Dias de incapacidad que caen dentro del periodo de esta boleta. '
+             'Puede ser menor al total de dias de la incapacidad si esta cruza varios periodos.'
     )
     disability_days_in_period = fields.Integer(
         string='Dias incapacidad en este periodo',

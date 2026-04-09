@@ -714,8 +714,8 @@
                             <div invisible="disability_days_in_period == 0" style="font-size:12px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.06em;padding:0 0 8px;margin:24px 0 12px;border-bottom:2px solid #dee2e6;">Incapacidades del Período</div>
                             <group invisible="disability_days == 0">
                                 <group string="Resumen Incapacidades">
-                                    <field name="disability_days" readonly="1"/>
-                                    <field name="disability_days_in_period" readonly="1"/>
+                                    <field name="disability_days" readonly="1"
+                                           string="Días de Incapacidad en este Período"/>
                                     <field name="ccss_subsidy_total" readonly="1"/>
                                     <field name="employer_disability_cost" readonly="1"/>
                                 </group>
@@ -893,10 +893,13 @@
                         <!-- ══ INCAPACIDADES (detalle completo) ════════════════ -->
                         <page string="Incapacidades" name="disabilities">
                             <group>
-                                <group string="Resumen">
-                                    <field name="disability_days" readonly="1"/>
+                                <group string="Resumen del Período">
+                                    <field name="disability_days" readonly="1"
+                                           string="Días de Incapacidad en este Período"
+                                           help="Días de la incapacidad que caen dentro de este período de pago. Puede ser menor al total si la incapacidad abarca varios períodos."/>
                                     <field name="ccss_subsidy_total" readonly="1"/>
-                                    <field name="employer_disability_cost" readonly="1"/>
+                                    <field name="employer_disability_cost" readonly="1"
+                                           string="Costo Patronal del Período"/>
                                 </group>
                             </group>
                             <field name="disability_ids">
