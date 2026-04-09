@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="report_salary_history_document">
-        <t t-call="web.external_layout">
-            <main>
-            <t t-foreach="docs" t-as="doc">
+        <t t-foreach="docs" t-as="doc">
+            <t t-set="company" t-value="doc.company_id"/>
+            <t t-call="web.external_layout">
                 <div class="page" style="font-family: Arial, sans-serif; font-size: 12px;">
                     <h2 style="color:#1F4E79;">Historial de Salarios</h2>
                     <div class="row mb-3 p-2" style="background:#f0f4f8; border-radius:5px;">
@@ -46,7 +46,6 @@
                     </p>
                 </div>
             </t>
-            </main>
         </t>
     </template>
 

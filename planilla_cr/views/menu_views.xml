@@ -215,13 +215,7 @@
               action="planilla_cr.action_sync_hr_wizard"
               sequence="99"/>
 
-    <!-- Constancia Laboral - acceso rapido desde menu -->
-    <menuitem id="menu_constancia_laboral"
-              name="Constancia Laboral"
-              parent="menu_planilla_cr_novedades"
-              action="planilla_cr.action_report_constancia_laboral"
-              sequence="91"
-              groups="planilla_cr.group_planilla_operador"/>
+    <!-- Constancia Laboral: disponible desde la ficha del empleado, no desde este menu -->
 
     <!-- CONFIGURACION -->
     <menuitem id="menu_planilla_cr_config"

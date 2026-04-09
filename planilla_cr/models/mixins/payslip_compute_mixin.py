@@ -176,7 +176,7 @@ class PayslipComputeMixin(models.AbstractModel):
             # de toda la incapacidad (ej: maternidad 121 dias = 756,250).
             # Para el Costo Total Patronal del periodo, solo debe contarse
             # la porcion proporcional que cae dentro de este periodo.
-            # Se calcula como: overlap_days / total_days × employer_cost de cada incapacidad.
+            # Se calcula como: overlap_days / total_days x employer_cost de cada incapacidad.
             # Esto evita que el Costo Total Patronal sea absurdamente alto (el costo de
             # 121 dias sumado en CADA una de las 8 boletas que cubre la maternidad).
             if rec.date_from and rec.date_to:
@@ -273,7 +273,7 @@ class PayslipComputeMixin(models.AbstractModel):
                                 ccss_subsidy_periodo += round(daily * K.DIAS_MES * freq_factor_local, 2)
                             else:
                                 # Periodo parcial: algunos dias laborados + maternidad
-                                # → seguir con dias reales para consistencia con salario laborado
+                                # -> seguir con dias reales para consistencia con salario laborado
                                 ccss_subsidy_periodo += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
                         else:
                             # CCSS Enfermedad/Accidente (Art. 79 CT)
@@ -365,22 +365,22 @@ class PayslipComputeMixin(models.AbstractModel):
                 else:
                     # Incapacidad normal CCSS o mixta: calcular salario_cotizable
                     # usando el mismo modelo que el salario base (freq_factor),
-                    # NO como dias_trabajados × diario.
+                    # NO como dias_trabajados x diario.
                     #
                     # RAZON: el sistema calcula el salario normal como:
-                    #   base = mensual × freq_factor (siempre igual, sin importar
-                    #   cuantos dias calendario tiene el periodo — 15 o 16).
+                    #   base = mensual x freq_factor (siempre igual, sin importar
+                    #   cuantos dias calendario tiene el periodo -- 15 o 16).
                     # Con incapacidad, la logica debe ser:
-                    #   base_quincenal (fijo) - dias_incap × diario + costo_patrono
+                    #   base_quincenal (fijo) - dias_incap x diario + costo_patrono
                     # En lugar de:
-                    #   dias_trabajados × diario + costo_patrono  ← BUG en 16-day periods
+                    #   dias_trabajados x diario + costo_patrono  <- BUG en 16-day periods
                     #
                     # Bug especifico: en meses de 31 dias (2a quincena = 16 dias),
                     # con 1 dia incapacidad y 15 trabajados:
-                    #   15 × (monthly/30) = monthly × 0.5 = QUINCENAL COMPLETO
-                    # y al sumarle costo_patrono el empleado recibe MÁS que su
-                    # quincenal completo — incorrecto.
-                    # Con el fix: monthly×0.5 - 1×diario + costo = correcto.
+                    #   15 x (monthly/30) = monthly x 0.5 = QUINCENAL COMPLETO
+                    # y al sumarle costo_patrono el empleado recibe MAS que su
+                    # quincenal completo -- incorrecto.
+                    # Con el fix: monthlyx0.5 - 1xdiario + costo = correcto.
                     #
                     # Para 15-day periods: ambas formulas dan practicamente el mismo
                     # resultado (diferencia de <1 colon por redondeo), pero la nueva

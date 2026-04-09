@@ -401,7 +401,7 @@ class PayslipSyncMixin(models.AbstractModel):
             # Para licencias por horas: monto unico, no hay distribucion
             # Para licencias por dias: distribuir diariamente
             if lic.leave_unit == 'hour':
-                # Horas: un solo dia, no cruza periodos → monto total
+                # Horas: un solo dia, no cruza periodos -> monto total
                 monto = lic.leave_amount or 0.0
                 periodo_desc = f'{lic.hours}h el {lic.date_start}'
             else:
@@ -583,7 +583,7 @@ class PayslipSyncMixin(models.AbstractModel):
 
             # Monto: salario_diario x dias ausentes
             # FIX DIAS-16: usar monthly/DIAS_MES como diario (no base_salary/days_in_period).
-            # base_salary = monthly × freq_factor (siempre igual, 15 o 16 dias).
+            # base_salary = monthly x freq_factor (siempre igual, 15 o 16 dias).
             # Si days_in_period=16, diario = 205,000/16 = 12,812.50 MENOR que el correcto
             # 205,000/15 = 13,666.67, dando un descuento incorrecto por la misma ausencia
             # dependiendo del mes. La referencia correcta es siempre monthly/30.
@@ -1060,7 +1060,7 @@ class PayslipSyncMixin(models.AbstractModel):
             days_absent = (effective_end - effective_start).days + 1
         if days_absent <= 0:
             return
-        # FIX DIAS-16: misma corrección que _sync_ausencias individual.
+        # FIX DIAS-16: misma correccion que _sync_ausencias individual.
         # Usar monthly/DIAS_MES, no base_salary/days_in_period.
         emp_monthly2 = (
             self.employee_id.base_salary

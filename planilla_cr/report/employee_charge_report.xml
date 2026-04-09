@@ -6,6 +6,7 @@
     ════════════════════════════════════════════ -->
 
     <template id="report_employee_charge_document">
+        <t t-set="company" t-value="o.employee_id.company_id or env.company"/>
         <t t-call="web.external_layout">
             <div class="page">
                 <div class="row mb-4">
@@ -112,6 +113,7 @@
     ════════════════════════════════════════════ -->
 
     <template id="report_employee_charge_summary_document">
+        <t t-set="company" t-value="docs[0].company_id if docs else env.company"/>
         <t t-call="web.external_layout">
             <div class="page">
                 <h2>Resumen de Cobros a Empleados</h2>

@@ -20,6 +20,7 @@ def post_migrate_hook(env):
     _fix_hour_license_date_end(env)
     _migrate_disability_payslip_m2m(env)
     _migrate_leave_cr_payslip_m2m(env)
+    _remove_legacy_menu_items(env)
 
 
 def _fix_hour_license_date_end(env):
@@ -65,13 +66,13 @@ def _migrate_disability_payslip_m2m(env):
     FIX v5.28.74: Migrar datos de planilla_disability.payslip_id (Many2one)
     a la nueva tabla de relacion Many2many planilla_disability_payslip_rel.
 
-    Contexto: el campo payslip_id pasó de Many2one a Many2many (payslip_ids)
+    Contexto: el campo payslip_id paso de Many2one a Many2many (payslip_ids)
     para soportar incapacidades que cruzan multiples periodos de pago
     (ej. maternidad 4-dic-2025 a 26-mar-2026 afecta 3+ boletas).
 
     La columna `payslip_id` (Many2one) sigue existiendo como campo computado
     de compatibilidad (apunta al primero de payslip_ids), pero ya no se escribe
-    directamente. Este hook copia los datos históricos a la tabla M2M.
+    directamente. Este hook copia los datos historicos a la tabla M2M.
     """
     import logging
     _logger = logging.getLogger(__name__)
@@ -152,7 +153,7 @@ def _migrate_leave_cr_payslip_m2m(env):
         WHERE table_name = 'planilla_leave_cr_payslip_rel'
     """)
     if not env.cr.fetchone():
-        _logger.warning('planilla_cr: tabla leave_cr M2M no existe aun — saltando.')
+        _logger.warning('planilla_cr: tabla leave_cr M2M no existe aun -- saltando.')
         return
 
     env.cr.execute("""
@@ -174,6 +175,45 @@ def _migrate_leave_cr_payslip_m2m(env):
         _logger.info(
             'planilla_cr._migrate_leave_cr_payslip_m2m: '
             'migradas %s relaciones leave_cr->payslip al M2M.', migrated
+        )
+
+
+def _remove_legacy_menu_items(env):
+    """
+    Elimina items de menu obsoletos de versiones anteriores del modulo.
+    Se ejecuta en cada -u planilla_cr para limpiar menus huerfanos en la BD.
+
+    - "Constancia Laboral" en Accion de Personal: se accede desde la ficha
+      del empleado (boton imprimir), no desde el menu de acciones.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    # Nombres de menus a desactivar del menu principal de planilla
+    menus_to_remove = [
+        'Constancia Laboral',
+        'Constancia Salarial',
+    ]
+
+    removed = 0
+    for menu_name in menus_to_remove:
+        menus = env['ir.ui.menu'].search([
+            ('name', '=', menu_name),
+            ('parent_id.name', 'in', ['Accion de Personal', 'Sistema Planilla']),
+            ('active', '=', True),
+        ])
+        if menus:
+            menus.write({'active': False})
+            removed += len(menus)
+            _logger.info(
+                'planilla_cr._remove_legacy_menu_items: '
+                'desactivado menu "%s" (ids: %s)', menu_name, menus.ids
+            )
+
+    if not removed:
+        _logger.info(
+            'planilla_cr._remove_legacy_menu_items: '
+            'no se encontraron menus obsoletos activos.'
         )
 
 

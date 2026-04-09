@@ -10,6 +10,7 @@
             <t t-foreach="docs" t-as="o">
                 <t t-set="data" t-value="o._get_report_data()"/>
                 <t t-set="sym" t-value="data['currency'].symbol if data.get('currency') else '$'"/>
+                <t t-set="company" t-value="o.company_id"/>
                 <t t-call="web.external_layout">
                     <main>
                         <div class="page">
@@ -179,6 +180,7 @@
             <meta charset="UTF-8"/>
             <t t-foreach="docs" t-as="o">
                 <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-set="company" t-value="o.company_id"/>
                 <t t-call="web.external_layout">
                     <main>
                         <div class="page">
@@ -269,6 +271,7 @@
             <meta charset="UTF-8"/>
             <t t-foreach="docs" t-as="o">
                 <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-set="company" t-value="o.company_id"/>
                 <t t-call="web.external_layout">
                     <main>
                         <div class="page">
@@ -344,6 +347,7 @@
             <meta charset="UTF-8"/>
             <t t-foreach="docs" t-as="o">
                 <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-set="company" t-value="o.company_id"/>
                 <t t-call="web.external_layout">
                     <main>
                         <div class="page">
