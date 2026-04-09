@@ -7,7 +7,7 @@
             <t t-foreach="docs" t-as="doc">
                 <t t-set="company" t-value="doc.company_id"/>
                 <t t-call="web.external_layout">
-                    <div class="page">
+                    <main><div class="page">
                         <t t-set="data" t-value="doc.get_report_data()"/>
 
                     <div style="text-align:center; margin-bottom:16px;">
@@ -96,7 +96,7 @@
                     <p style="font-size:9px; color:#888; margin-top:16px; text-align:center;">
                         Presentar planilla CCSS antes del dia 15 de cada mes en SICERE (sicere.ccss.sa.cr)
                     </p>
-                </div>
+                </div></main>
                 </t>
             </t>
         </t>

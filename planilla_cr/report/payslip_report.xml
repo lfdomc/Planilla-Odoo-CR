@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="report_payslip_cr_document">
-        <t t-foreach="docs" t-as="doc">
-            <t t-set="company" t-value="doc.company_id"/>
-            <t t-call="web.external_layout">
+        <t t-set="company" t-value="docs[0].company_id if docs else env.company"/>
+        <t t-call="web.external_layout">
+            <main>
+            <t t-foreach="docs" t-as="doc">
                 <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; max-width: 520px; margin: 0 auto;">
 
                     <!-- ENCABEZADO EMPRESA -->
@@ -362,6 +363,7 @@
                     <div class="page_break"/>
                 </div>
             </t>
+            </main>
         </t>
     </template>
 
