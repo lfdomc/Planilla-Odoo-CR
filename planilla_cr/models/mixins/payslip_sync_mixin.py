@@ -409,7 +409,14 @@ class PayslipSyncMixin(models.AbstractModel):
                 total_days = max(lic.days or 1, 1)
                 # daily_rate basado en leave_amount total / dias calendario totales
                 daily_rate = (lic.leave_amount or 0.0) / total_days
-                monto = round(daily_rate * overlap_days, 2)
+                # FIX DIAS-16: usar freq_factor si la licencia cubre todo el periodo
+                dias_periodo_local = (self.date_to - self.date_from).days + 1 if (self.date_from and self.date_to) else 15
+                if overlap_days >= dias_periodo_local:
+                    from planilla_cr.models.planilla_const import FREQ_FACTORS as _FF, DIAS_MES as _DM
+                    _ff = _FF.get(self._get_effective_freq() if hasattr(self, '_get_effective_freq') else 'biweekly', 0.5)
+                    monto = round(daily_rate * _DM * _ff, 2)
+                else:
+                    monto = round(daily_rate * overlap_days, 2)
                 periodo_desc = (
                     f'{overlap_start} al {overlap_end}, {overlap_days} dia(s)'
                     if overlap_days < total_days
@@ -575,9 +582,18 @@ class PayslipSyncMixin(models.AbstractModel):
                 continue
 
             # Monto: salario_diario x dias ausentes
-            salary_daily = round(
-                (self.base_salary or 0.0) / max(self.days_in_period or 30, 1), 2
+            # FIX DIAS-16: usar monthly/DIAS_MES como diario (no base_salary/days_in_period).
+            # base_salary = monthly × freq_factor (siempre igual, 15 o 16 dias).
+            # Si days_in_period=16, diario = 205,000/16 = 12,812.50 MENOR que el correcto
+            # 205,000/15 = 13,666.67, dando un descuento incorrecto por la misma ausencia
+            # dependiendo del mes. La referencia correcta es siempre monthly/30.
+            emp_monthly = (
+                self.employee_id.base_salary
+                if self.employee_id and self.employee_id.base_salary
+                else (self.base_salary or 0.0)
             )
+            from planilla_cr.models.planilla_const import DIAS_MES as _DIAS_MES
+            salary_daily = round(emp_monthly / _DIAS_MES, 4)
             amount = round(salary_daily * days_absent, 2)
             if amount <= 0:
                 continue
@@ -1044,7 +1060,15 @@ class PayslipSyncMixin(models.AbstractModel):
             days_absent = (effective_end - effective_start).days + 1
         if days_absent <= 0:
             return
-        salary_daily = round((self.base_salary or 0.0) / max(self.days_in_period or 30, 1), 2)
+        # FIX DIAS-16: misma corrección que _sync_ausencias individual.
+        # Usar monthly/DIAS_MES, no base_salary/days_in_period.
+        emp_monthly2 = (
+            self.employee_id.base_salary
+            if self.employee_id and self.employee_id.base_salary
+            else (self.base_salary or 0.0)
+        )
+        from planilla_cr.models.planilla_const import DIAS_MES as _DIAS_MES2
+        salary_daily = round(emp_monthly2 / _DIAS_MES2, 4)
         amount = round(salary_daily * days_absent, 2)
         if amount <= 0:
             return
@@ -1156,7 +1180,14 @@ class PayslipSyncMixin(models.AbstractModel):
             overlap_days = (overlap_end - overlap_start).days + 1
             total_days   = max(lic.days or 1, 1)
             daily_rate   = (lic.leave_amount or 0.0) / total_days
-            monto        = round(daily_rate * overlap_days, 2)
+            # FIX DIAS-16: usar freq_factor si la licencia cubre todo el periodo
+            dias_periodo_s = (self.date_to - self.date_from).days + 1 if (self.date_from and self.date_to) else 15
+            if overlap_days >= dias_periodo_s:
+                from planilla_cr.models.planilla_const import FREQ_FACTORS as _FF2, DIAS_MES as _DM2
+                _ff2  = _FF2.get(self._get_effective_freq() if hasattr(self, '_get_effective_freq') else 'biweekly', 0.5)
+                monto = round(daily_rate * _DM2 * _ff2, 2)
+            else:
+                monto = round(daily_rate * overlap_days, 2)
 
         if monto <= 0:
             return

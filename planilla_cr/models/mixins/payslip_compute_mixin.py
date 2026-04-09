@@ -341,13 +341,38 @@ class PayslipComputeMixin(models.AbstractModel):
                     # Base cotizable CCSS = CRC0 (no hay salario que reportar).
                     rec.salario_cotizable = 0.0
                 else:
-                    # Incapacidad normal CCSS o mixta: usar costo_patrono_periodo
-                    # con logica de grupos (prorrogas). Este valor ya considera
-                    # correctamente si los dias 1-3 del patrono cayeron en un
-                    # periodo anterior (prorroga -> costo_patrono_periodo = 0).
+                    # Incapacidad normal CCSS o mixta: calcular salario_cotizable
+                    # usando el mismo modelo que el salario base (freq_factor),
+                    # NO como dias_trabajados × diario.
+                    #
+                    # RAZON: el sistema calcula el salario normal como:
+                    #   base = mensual × freq_factor (siempre igual, sin importar
+                    #   cuantos dias calendario tiene el periodo — 15 o 16).
+                    # Con incapacidad, la logica debe ser:
+                    #   base_quincenal (fijo) - dias_incap × diario + costo_patrono
+                    # En lugar de:
+                    #   dias_trabajados × diario + costo_patrono  ← BUG en 16-day periods
+                    #
+                    # Bug especifico: en meses de 31 dias (2a quincena = 16 dias),
+                    # con 1 dia incapacidad y 15 trabajados:
+                    #   15 × (monthly/30) = monthly × 0.5 = QUINCENAL COMPLETO
+                    # y al sumarle costo_patrono el empleado recibe MÁS que su
+                    # quincenal completo — incorrecto.
+                    # Con el fix: monthly×0.5 - 1×diario + costo = correcto.
+                    #
+                    # Para 15-day periods: ambas formulas dan practicamente el mismo
+                    # resultado (diferencia de <1 colon por redondeo), pero la nueva
+                    # es conceptualmente correcta en todos los casos.
+                    #
                     # NO usar min(dias_incap, 3) que ignora las prorrogas.
+                    freq = rec._get_effective_freq()
+                    ff = K.FREQ_FACTORS.get(freq, 1.0)
+                    prop = rec.proportional_factor if rec.is_proportional else 1.0
+                    base_quincenal = round(emp.base_salary * ff * prop, 2)
                     rec.salario_cotizable = round(
-                        (dias_trabajados * salario_diario) + costo_patrono_periodo,
+                        base_quincenal
+                        - (dias_incap_periodo * salario_diario)
+                        + costo_patrono_periodo,
                         2
                     )
             else:
