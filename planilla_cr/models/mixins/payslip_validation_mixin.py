@@ -148,20 +148,62 @@ class PayslipValidationMixin(models.AbstractModel):
                 extra_deductions, 2
             )
             # FIX-AUD-03: licencias con goce son costo patronal (igual que paternidad)
-            # FIX COST-PATRONO: para incapacidades con subsidio CCSS (maternidad, CCSS),
-            # usar neto_por_patrono en lugar de employer_disability_cost.
-            # Razon: employer_disability_cost = costo bruto proporcional del período,
-            # pero para modalidad 50/50 el patrono RECUPERA parte de ese costo de la CCSS.
-            # neto_por_patrono ya refleja el costo REAL que el patrono asume en el período.
-            # Para incapacidades sin subsidio (dias 1-3 patrono, INS fuera de planilla),
-            # el employer_disability_cost proporcional es correcto.
-            has_subsidy_in_period = (rec.ccss_subsidy_total or 0.0) > 0
-            if has_subsidy_in_period:
-                # Hay subsidio CCSS en el período: usar neto_por_patrono (costo real)
-                disability_cost_real = (rec.neto_por_patrono or 0.0)
+            # FIX COST-PATRONO v2: total_employer_cost se calcula ANTES de que neto_por_patrono
+            # esté asignado en rec (se computa más abajo en este mismo método).
+            # Solución: replicar el cálculo del costo real del patrono en línea.
+            # Para maternidad con subsidio: patrono paga gross (0 o días laborados) - CCSS + 50% subsidio.
+            # Para incapacidades sin subsidio: costo = employer_disability_cost proporcional del período.
+            ccss_sub_preview = rec.ccss_subsidy_total or 0.0
+            if ccss_sub_preview > 0 and rec.disability_days_in_period:
+                # Hay subsidio en el período — calcular en línea el costo real del patrono
+                # sin depender de rec.neto_por_patrono (que aún no está calculado).
+                # Replicamos la misma lógica del bloque neto_por_patrono de abajo:
+                active_dis_cost = rec.disability_ids.filtered(
+                    lambda d: d.state in ('confirmed', 'paid') and d.date_start and d.date_end
+                )
+                mat_now_cost = [
+                    d for d in active_dis_cost
+                    if d.disability_type == 'maternity'
+                    and rec.date_from and rec.date_to
+                    and max(rec.date_from, d.date_start) <= min(rec.date_to, d.date_end)
+                ] if rec.date_from and rec.date_to else []
+
+                has_50_cost = any(getattr(d, 'maternity_split_50', False) for d in mat_now_cost)
+
+                if mat_now_cost and has_50_cost:
+                    # Maternidad 50/50: el patrono adelanta el 50% del neto del subsidio.
+                    # neto_real = subsidio - CCSS obrera; patron paga la mitad.
+                    # Para maternidad parcial: patron paga salario_días + mitad_subsidio.
+                    ccss_emp_preview = rec.ccss_employee or 0.0
+                    dias_per = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else 15
+                    dias_mat = sum(
+                        (min(rec.date_to, d.date_end) - max(rec.date_from, d.date_start)).days + 1
+                        for d in mat_now_cost if d.date_start and d.date_end
+                    ) if mat_now_cost else 0
+                    es_parcial = bool(mat_now_cost) and (dias_mat < dias_per)
+
+                    has_ccss_on_emp_cost = any(getattr(d, 'maternity_ccss_on_employer', False) for d in mat_now_cost)
+
+                    if es_parcial:
+                        neto_lab = round((rec.gross_salary or 0.0) - ccss_emp_preview, 2)
+                        mitad = round(ccss_sub_preview / 2.0, 2)
+                        disability_cost_real = round(neto_lab + mitad, 2)
+                    elif has_ccss_on_emp_cost:
+                        neto_real_50 = round(ccss_sub_preview - ccss_emp_preview, 2)
+                        disability_cost_real = round(neto_real_50 / 2.0, 2)
+                    else:
+                        disability_cost_real = round(ccss_sub_preview / 2.0, 2)
+                else:
+                    # Incapacidad normal con subsidio (días 4+): patrono paga
+                    # gross - deducciones (neto laboral)
+                    disability_cost_real = round(
+                        (rec.gross_salary or 0.0) - rec.total_employee_deductions +
+                        (rec.paternity_amount or 0.0) + extra_income, 2
+                    )
             else:
-                # Sin subsidio: usar employer_disability_cost proporcional del período
+                # Sin subsidio CCSS: usar employer_disability_cost proporcional del período
                 disability_cost_real = (rec.employer_disability_cost or 0.0)
+
             rec.total_employer_cost = round(
                 (rec.gross_salary or 0.0) +
                 (rec.ccss_employer or 0.0) +
