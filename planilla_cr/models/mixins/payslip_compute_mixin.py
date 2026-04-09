@@ -234,7 +234,26 @@ class PayslipComputeMixin(models.AbstractModel):
                             dias_patrono_overlap     = 0
                             dias_subsidiados_overlap = dias_overlap
                             subsidy_rate = 1.0
-                            ccss_subsidy_periodo += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
+                            # FIX QUINCENAL-MAT: usar freq_factor cuando la maternidad
+                            # cubre TODO el periodo (dias_overlap == dias_periodo_total).
+                            # Razon: el salario quincenal se calcula siempre como
+                            # mensual x 0.5, NO como diario x dias_reales. Sin este fix,
+                            # quincenas de meses con 31 dias (16 dias) generan un subsidio
+                            # diferente a las quincenas de 15 dias, lo que es inconsistente
+                            # con el modelo quincenal y con la practica contable CR estandar.
+                            # Cuando la maternidad es PARCIAL (algunos dias laborados),
+                            # se mantiene el calculo por dias reales porque el salario
+                            # de los dias trabajados tambien usa dias_trabajados x diario.
+                            dias_periodo_local = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else 15
+                            es_mat_periodo_completo = (dias_overlap >= dias_periodo_local)
+                            if es_mat_periodo_completo:
+                                freq = rec._get_effective_freq()
+                                freq_factor_local = K.FREQ_FACTORS.get(freq, 1.0)
+                                ccss_subsidy_periodo += round(daily * K.DIAS_MES * freq_factor_local, 2)
+                            else:
+                                # Periodo parcial: algunos dias laborados + maternidad
+                                # → seguir con dias reales para consistencia con salario laborado
+                                ccss_subsidy_periodo += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
                         else:
                             # CCSS Enfermedad/Accidente (Art. 79 CT)
                             days_since_group_start = (overlap_start - group_start).days
