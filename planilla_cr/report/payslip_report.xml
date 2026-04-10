@@ -208,13 +208,23 @@
                             <td/>
                         </tr>
 
-                        <!-- Dias sin goce -->
-                        <t t-set="sg_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category in ('licencia_sin_goce','ausencia') and l.line_type == 'deduction')"/>
-                        <t t-set="sg_total" t-value="sum(l.amount for l in sg_lines)"/>
+                        <!-- Dias y Horas sin goce (separados) -->
+                        <t t-set="sg_dias_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.line_type == 'deduction' and l.deduction_category in ('licencia_sin_goce','ausencia') and (not l.leave_cr_id or l.leave_cr_id.leave_unit != 'hour'))"/>
+                        <t t-set="sg_horas_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.line_type == 'deduction' and l.deduction_category == 'licencia_sin_goce' and l.leave_cr_id and l.leave_cr_id.leave_unit == 'hour')"/>
+                        <t t-set="sg_dias_total" t-value="sum(l.amount for l in sg_dias_lines)"/>
+                        <t t-set="sg_horas_total" t-value="sum(l.amount for l in sg_horas_lines)"/>
                         <tr>
                             <td style="padding:2px 8px 2px 20px;">Dias sin goce:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-if="sg_total &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(sg_total)"/></t>
+                                <t t-if="sg_dias_total &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(sg_dias_total)"/></t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td/>
+                        </tr>
+                        <tr>
+                            <td style="padding:2px 8px 2px 20px;">Horas sin goce:</td>
+                            <td style="padding:2px 8px; text-align:right;">
+                                <t t-if="sg_horas_total &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(sg_horas_total)"/></t>
                                 <t t-else="">-</t>
                             </td>
                             <td/>
