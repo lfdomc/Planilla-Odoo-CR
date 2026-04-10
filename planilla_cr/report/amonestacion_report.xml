@@ -1,122 +1,116 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <template id="report_amonestacion_document">
         <t t-call="web.html_container"><t t-foreach="docs" t-as="doc">
-        <t t-set="doc" t-value="doc.sudo()"/>
+        <t t-set="doc"   t-value="doc.sudo()"/>
         <t t-set="company" t-value="doc.company_id.sudo()"/>
-        <t t-set="emp" t-value="doc.employee_id.sudo()"/>
-        <t t-set="meses_es" t-value="{             1:'enero', 2:'febrero', 3:'marzo', 4:'abril', 5:'mayo', 6:'junio',             7:'julio', 8:'agosto', 9:'septiembre', 10:'octubre', 11:'noviembre', 12:'diciembre'         }"/>
-        <t t-set="mes_texto" t-value="meses_es.get(doc.date.month, '')"/>
-        <t t-set="cfg" t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',company.id)], limit=1)"/>
-        <t t-set="location" t-value="doc.location or (cfg.hr_rep_location if cfg else '') or (company.city or 'Costa Rica')"/>
-        <t t-set="firmante_nombre" t-value="doc.signed_by_name or (cfg.hr_rep_name if cfg else '') or company.name"/>
+        <t t-set="emp"   t-value="doc.employee_id.sudo()"/>
+        <t t-set="cfg"   t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',company.id)], limit=1)"/>
+        <t t-set="location"       t-value="doc.location or (cfg.hr_rep_location if cfg else '') or (company.city or 'Costa Rica')"/>
+        <t t-set="firmante_nombre" t-value="doc.signed_by_name  or (cfg.hr_rep_name  if cfg else '') or company.name"/>
         <t t-set="firmante_titulo" t-value="doc.signed_by_title or (cfg.hr_rep_title if cfg else '') or 'Representante Legal'"/>
-
+        <t t-set="meses_es" t-value="{1:'enero',2:'febrero',3:'marzo',4:'abril',5:'mayo',6:'junio',7:'julio',8:'agosto',9:'septiembre',10:'octubre',11:'noviembre',12:'diciembre'}"/>
+        <t t-set="mes_texto" t-value="meses_es.get(doc.date.month, '')"/>
         <t t-call="web.external_layout">
             <main>
-            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 10px 20px; line-height: 1.7;">
+            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 30px 40px; line-height: 1.8; max-width: 680px; margin: 0 auto;">
 
-                <!-- Encabezado: fecha + destinatario apilados -->
-                <p style="margin-bottom: 16px;">
-                    <strong><t t-out="location"/>,
+                <!-- Lugar y fecha -->
+                <p style="margin-bottom: 20px;">
+                    <t t-out="location"/>,
                     <t t-out="doc.date.strftime('%d')"/> de <t t-out="mes_texto"/>
-                    de <t t-out="doc.date.strftime('%Y')"/></strong>
+                    de <t t-out="doc.date.strftime('%Y')"/>
                 </p>
-                <p style="margin-bottom: 4px;">Estimado(a) señor(a):</p>
+
+                <!-- Destinatario -->
                 <p style="margin-bottom: 4px;"><strong><t t-out="emp.name"/></strong></p>
                 <t t-if="emp.identification_id">
-                    <p style="margin-bottom: 16px;">Cédula: <t t-out="emp.identification_id"/></p>
+                    <p style="margin-bottom: 4px;">Cedula: <t t-out="emp.identification_id"/></p>
                 </t>
+                <t t-if="emp.job_id">
+                    <p style="margin-bottom: 4px;"><t t-out="emp.job_id.name"/></p>
+                </t>
+                <p style="margin-bottom: 20px;">Presente.</p>
 
-                <p style="margin-bottom: 14px;">
-                    <strong>Asunto: <t t-out="doc.subject"/></strong>
+                <!-- Asunto -->
+                <p style="margin-bottom: 20px;">
+                    <strong>Asunto: <t t-out="doc.subject or 'Amonestacion Escrita'"/></strong>
                 </p>
 
-                <!-- Cuerpo -->
-                <p style="text-align: justify;">
-                    Por este medio se le comunica formalmente una amonestación escrita,
-                    con fundamento en el <strong><t t-out="doc.legal_basis or 'Artículo 71, inciso b) del Código de Trabajo'"/></strong>
-                    y la jurisprudencia nacional, debido a:
+                <!-- Cuerpo principal -->
+                <p style="text-align: justify; margin-bottom: 14px;">
+                    Por este medio se le comunica formalmente
+                    <strong>amonestacion escrita</strong>,
+                    con fundamento en el
+                    <strong><t t-out="doc.legal_basis or 'Articulo 71, inciso c) del Codigo de Trabajo de Costa Rica'"/></strong>,
+                    debido a:
                 </p>
 
                 <!-- Hechos específicos -->
                 <t t-if="doc.specific_incidents">
-                    <div style="margin: 12px 0 12px 20px; padding: 10px; border-left: 3px solid #1F4E79; background: #f8f9fa;">
-                        <strong>Hechos específicos:</strong><br/>
+                    <p style="margin-bottom: 6px;"><strong>Hechos especificos:</strong></p>
+                    <p style="text-align: justify; margin-bottom: 14px; margin-left: 16px; white-space: pre-line;">
                         <t t-out="doc.specific_incidents"/>
-                    </div>
+                    </p>
                 </t>
 
                 <!-- Cuerpo adicional -->
                 <t t-if="doc.body">
-                    <p style="text-align: justify; margin-top: 10px;">
+                    <p style="text-align: justify; margin-bottom: 14px;">
                         <t t-out="doc.body"/>
                     </p>
                 </t>
 
                 <!-- Advertencia legal Art. 81 -->
-                <p style="text-align: justify; margin-top: 10px;">
-                    Se le recuerda que, conforme al artículo 81, inciso i) del Código de Trabajo,
-                    el patrono está facultado para rescindir el contrato de trabajo sin responsabilidad
-                    patronal en caso de incurrir en faltas repetidas de puntualidad u obligaciones contractuales,
-                    una vez que el trabajador haya sido debidamente amonestado por escrito, como ocurre en este caso.
+                <p style="text-align: justify; margin-bottom: 14px;">
+                    Se le recuerda que, conforme al <strong>Articulo 81 inciso d)</strong>
+                    del Codigo de Trabajo, el patrono tiene la facultad de rescindir el
+                    contrato sin responsabilidad patronal en caso de incurrir en faltas
+                    repetidas de puntualidad <strong>luego de haber sido amonestado por
+                    escrito</strong>, como es el caso del presente documento.
                 </p>
 
                 <!-- Consecuencias -->
-                <p style="text-align: justify; margin-top: 10px;">
-                    <t t-out="doc.consequences or 'De persistir la situación, se tomarán medidas disciplinarias más severas, incluyendo la posibilidad de suspensión o despido, conforme a derecho.'"/>
+                <p style="text-align: justify; margin-bottom: 20px;">
+                    <t t-out="doc.consequences or 'Esta amonestacion tiene como proposito que tome conciencia de la importancia del cumplimiento de sus obligaciones laborales y corrija su conducta de forma inmediata. En caso de reincidencia, se tomaran medidas disciplinarias mas severas, incluyendo la posibilidad de suspension o despido, conforme a derecho.'"/>
                 </p>
 
-                <p style="margin-top: 10px;">Atentamente,</p>
+                <p style="margin-bottom: 40px;">Atentamente,</p>
 
-                <!-- Firma -->
-                <div style="margin-top: 50px; margin-bottom: 30px;">
-                    <div style="border-top: 1px solid #000; width: 280px; padding-top: 6px;">
-                        <strong><t t-out="firmante_nombre"/></strong><br/>
-                        <t t-out="firmante_titulo"/>
+                <!-- Firma patrono -->
+                <div style="margin-bottom: 50px;">
+                    <div style="border-top: 1px solid #000; width: 280px; padding-top: 6px; margin-bottom: 4px;"/>
+                    <strong><t t-out="firmante_nombre"/></strong><br/>
+                    <t t-out="firmante_titulo"/><br/>
+                    <t t-out="company.name"/>
+                </div>
+
+                <!-- Constancia de recibo -->
+                <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 16px;">
+                    <p style="margin-bottom: 14px;"><strong>Constancia de recibo</strong></p>
+                    <p style="text-align: justify; margin-bottom: 20px;">
+                        Yo, <t t-out="emp.name"/>,
+                        <t t-if="emp.identification_id">
+                            con cedula numero <t t-out="emp.identification_id"/>,
+                        </t>
+                        declaro haber recibido la presente amonestacion escrita con fecha
+                        <t t-out="doc.date.strftime('%d')"/> de <t t-out="mes_texto"/>
+                        de <t t-out="doc.date.strftime('%Y')"/>.
+                    </p>
+                    <div style="margin-top: 40px; border-top: 1px solid #000; width: 280px; padding-top: 6px;">
+                        Firma del trabajador
                     </div>
                 </div>
 
-                <!-- Recibido por el trabajador — sin cuadro, solo lineas -->
-                <div style="margin-top: 40px;">
-                    <p style="margin: 0 0 20px 0; font-size: 11px; border-top: 1px solid #000; padding-top: 6px;">
-                        <strong>RECIBIDO POR EL TRABAJADOR</strong>
-                        <span style="font-size: 10px; color: #666; margin-left: 8px;">
-                            (La firma no implica aceptación de los hechos, sino únicamente la recepción del documento.)
-                        </span>
-                    </p>
-                    <p style="margin-bottom: 40px;">
-                        Nombre y apellidos: _______________________________________    
-                        Cédula: ______________________
-                    </p>
-                    <p>
-                        <span style="border-top: 1px solid #000; padding-top: 4px; display: inline-block; width: 260px;">
-                            Firma
-                        </span>
-                                
-                        Fecha: ______________________
-                    </p>
-                </div>
-
-                <!-- Espacio para adjuntos -->
-                <div style="margin-top: 30px; border-top: 1px dashed #ccc; padding-top: 10px;">
-                    <p style="font-size: 11px; color: #888; margin: 0;">
-                        Adjuntar pruebas y evidencias al dorso de este documento.
-                    </p>
-                </div>
-
-                <p style="font-size: 9px; color: #aaa; margin-top: 20px;">
-                    Planilla CR v5.28 | Odoo 19 | Legislación Costa Rica
-                </p>
-                <div class="page_break"/>
             </div>
             </main>
         </t>
         </t>
-    </t></template>
+        </t>
+    </template>
 
     <record id="action_report_amonestacion" model="ir.actions.report">
-        <field name="name">Amonestación Escrita</field>
+        <field name="name">Carta de Amonestacion</field>
         <field name="model">planilla.amonestacion</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">planilla_cr.report_amonestacion_document</field>
@@ -124,6 +118,5 @@
         <field name="binding_model_id" ref="model_planilla_amonestacion"/>
         <field name="binding_type">report</field>
         <field name="paperformat_id" ref="base.paperformat_euro"/>
-        <field name="print_report_name">'Amonestacion_%s' % (object.employee_id.name or '').replace(' ', '_')</field>
     </record>
 </odoo>

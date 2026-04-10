@@ -58,8 +58,13 @@ class SendPayslipWizard(models.TransientModel):
 
     def _default_from(self):
         config = self._get_config()
+        # Usar el remitente configurado explicitamente, o el smtp_user del servidor
         if config and config.email_payslip_from:
             return config.email_payslip_from
+        if config and config.email_payslip_server_id:
+            smtp_user = config.email_payslip_server_id.smtp_user
+            if smtp_user:
+                return smtp_user
         return self.env.user.email or self.env.company.email or ''
 
     def action_send(self):
@@ -100,7 +105,7 @@ class SendPayslipWizard(models.TransientModel):
                     .replace('{period}', period)
                     .replace('{company}', company_name),
                 'email_to': email,
-                'email_from': self.email_from or self.env.user.email or self.env.company.email,
+                'email_from': self.email_from or self.env.user.email or self.env.company.email or '',
                 'attachment_ids': [(0, 0, {
                     'name': f'Boleta_{employee.name}_{payslip.date_to}.pdf',
                     'datas': pdf_b64,

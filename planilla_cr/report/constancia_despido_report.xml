@@ -197,224 +197,180 @@
     ================================================================ -->
     <template id="report_carta_despido_document">
         <t t-call="web.html_container"><t t-foreach="docs" t-as="doc">
-        <t t-set="doc" t-value="doc.sudo()"/>
+        <t t-set="doc"     t-value="doc.sudo()"/>
         <t t-set="company" t-value="doc.company_id.sudo()"/>
+        <t t-set="emp"     t-value="doc.employee_id.sudo()"/>
+        <t t-set="cfg"     t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',company.id)], limit=1)"/>
+        <t t-set="firmante_nombre" t-value="(cfg.hr_rep_name  if cfg else '') or company.name"/>
+        <t t-set="firmante_titulo" t-value="(cfg.hr_rep_title if cfg else '') or 'Representante Legal'"/>
+        <t t-set="location"        t-value="(cfg.hr_rep_location if cfg else '') or (company.city or 'Costa Rica')"/>
+        <t t-set="meses_es" t-value="{1:'enero',2:'febrero',3:'marzo',4:'abril',5:'mayo',6:'junio',7:'julio',8:'agosto',9:'septiembre',10:'octubre',11:'noviembre',12:'diciembre'}"/>
+        <t t-set="fecha_hoy" t-value="doc.termination_date or datetime.date.today()"/>
+        <t t-set="mes_texto" t-value="meses_es.get(fecha_hoy.month, '')"/>
         <t t-call="web.external_layout">
             <main>
-            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 20px;">
+            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 30px 40px; line-height: 1.9; max-width: 680px; margin: 0 auto;">
 
-                    <!-- Encabezado -->
-                    <div class="row mb-4">
-                        <div class="col-12 text-end" style="font-size:11px; color:#555;">
-                            <p><t t-out="company.name"/></p>
-                            <t t-if="doc.company_id.vat">
-                                <p>Cédula Jurídica: <t t-out="doc.company_id.vat"/></p>
-                            </t>
-                            <p><t t-out="datetime.date.today().strftime('%d/%m/%Y')"/></p>
-                        </div>
-                    </div>
+                <!-- Estimado + Lugar + Fecha (alineado derecha como el machote sin resp.) -->
+                <p style="margin-bottom: 20px;">
+                    <strong>Estimado(a) Senor(a).
+                    <t t-out="location"/>,
+                    <t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
+                    de <t t-out="fecha_hoy.strftime('%Y')"/></strong>
+                </p>
 
-                    <!-- Tipo de carta -->
-                    <div class="row mb-3">
-                        <div class="col-12 text-center">
-                            <t t-if="doc.termination_reason == 'despido_justif'">
-                                <h3 style="color:#C00000;">COMUNICADO DE DESPIDO CON JUSTA CAUSA</h3>
-                                <p style="font-size:10px; color:#888;">(Art. 81 Código de Trabajo)</p>
-                            </t>
-                            <t t-elif="doc.termination_reason == 'despido_injust'">
-                                <h3 style="color:#1F4E79;">COMUNICADO DE PREAVISO DE DESPIDO</h3>
-                                <p style="font-size:10px; color:#888;">(Art. 28 Código de Trabajo)</p>
-                            </t>
-                            <t t-elif="doc.termination_reason == 'renuncia'">
-                                <h3 style="color:#375623;">CARTA DE RENUNCIA VOLUNTARIA</h3>
-                                <p style="font-size:10px; color:#888;">(Art. 83 Código de Trabajo)</p>
-                            </t>
-                            <t t-else="">
-                                <h3 style="color:#1F4E79;">COMUNICADO DE TERMINACION DE RELACION LABORAL</h3>
-                                <p style="font-size:10px; color:#888;">(Código de Trabajo Costa Rica)</p>
-                            </t>
-                        </div>
-                    </div>
-
-                    <!-- Datos empleado -->
-                    <div class="row mb-4 p-2" style="background:#f8f9fa; border-radius:5px; border-left:4px solid #1F4E79;">
-                        <div class="col-6">
-                            <p class="mb-1"><strong>Colaborador:</strong> <t t-out="doc.employee_id.name"/></p>
-                            <p class="mb-1"><strong>Identificacion:</strong> <t t-out="doc.employee_id.identification_id or ''"/></p>
-                            <p class="mb-1"><strong>Puesto:</strong> <t t-out="doc.employee_id.job_id.name or ''"/></p>
-                        </div>
-                        <div class="col-6">
-                            <p class="mb-1"><strong>Fecha Ingreso:</strong>
-                                <t t-out="doc.employee_id.entry_date.strftime('%d/%m/%Y') if doc.employee_id.entry_date else 'N/D'"/>
-                            </p>
-                            <p class="mb-1"><strong>Fecha Efectiva:</strong>
-                                <t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/>
-                            </p>
-                            <p class="mb-1"><strong>Salario:</strong>
-                                <t t-out="doc.employee_id.currency_id.symbol or 'CRC'"/>
-                                <t t-out="'{:,.2f}'.format(doc.employee_id.base_salary or 0)"/>
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Cuerpo según tipo -->
-                    <div class="row" style="text-align:justify; line-height:1.9; font-size:12px;">
-                        <div class="col-12">
-
-                            <!-- DESPIDO CON JUSTA CAUSA -->
-                            <t t-if="doc.termination_reason == 'despido_justif'">
-                                <p>
-                                    Por medio de la presente, la empresa
-                                    <strong><t t-out="doc.company_id.name"/></strong>
-                                    le comunica que, con fundamento en el
-                                    <strong>Articulo 81 del Código de Trabajo de Costa Rica</strong>,
-                                    se da por terminada su relación laboral con justa causa,
-                                    a partir del dia
-                                    <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
-                                </p>
-                                <t t-if="doc.note">
-                                    <p><strong>Causa(s) que motivan el despido:</strong></p>
-                                    <p style="border:1px solid #ddd; padding:10px; border-radius:4px; background:#fff8f8;">
-                                        <t t-out="doc.note"/>
-                                    </p>
-                                </t>
-                                <p>
-                                    En virtud de que el despido se realiza con justa causa,
-                                    <strong>no corresponde el pago de preaviso ni de cesantía</strong>
-                                    (Art. 82 C.T.).
-                                </p>
-                                <p>
-                                    Se hace entrega de la presente comunicación en dos tantos, uno para cada parte.
-                                    El trabajador tiene derecho a dejar constancia escrita de su disconformidad con el despido.
-                                </p>
-                            </t>
-
-                            <!-- DESPIDO SIN JUSTA CAUSA (PREAVISO) -->
-                            <t t-elif="doc.termination_reason == 'despido_injust'">
-                                <p>
-                                    Por medio de la presente, la empresa
-                                    <strong><t t-out="doc.company_id.name"/></strong>
-                                    le comunica que, con fundamento en el
-                                    <strong>Articulo 28 del Código de Trabajo de Costa Rica</strong>,
-                                    se da por terminada su relación laboral
-                                    <strong>sin justa causa</strong>,
-                                    a partir del dia
-                                    <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
-                                </p>
-                                <p><strong>Terminos del preaviso (Art. 28 C.T.):</strong></p>
-                                <table class="table table-bordered table-sm" style="font-size:11px;">
-                                    <thead style="background:#f0f4f8;">
-                                        <tr>
-                                            <th>Tiempo laborado</th>
-                                            <th>Preaviso</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr><td>Menos de 3 meses</td><td>1 semana</td></tr>
-                                        <tr><td>De 3 a 6 meses</td><td>2 semanas</td></tr>
-                                        <tr><td>De 6 meses a 1 ano</td><td>1 mes</td></tr>
-                                        <tr><td>Mas de 1 ano</td><td>1 mes</td></tr>
-                                    </tbody>
-                                </table>
-                                <p>
-                                    Corresponde ademas el pago de
-                                    <strong>auxilio de cesantía</strong>
-                                    conforme al Articulo 29 del Código de Trabajo,
-                                    calculado según los anos de servicio.
-                                </p>
-                                <t t-if="doc.note">
-                                    <p><strong>Observaciones:</strong></p>
-                                    <p style="border:1px solid #ddd; padding:10px; border-radius:4px;">
-                                        <t t-out="doc.note"/>
-                                    </p>
-                                </t>
-                                <p>
-                                    Se le informa ademas que tiene derecho a solicitar audiencia ante
-                                    el Ministerio de Trabajo y Seguridad Social (MTSS) si considera que
-                                    el despido no se ajusta a las disposiciones legales.
-                                </p>
-                            </t>
-
-                            <!-- RENUNCIA VOLUNTARIA -->
-                            <t t-elif="doc.termination_reason == 'renuncia'">
-                                <p>
-                                    Por medio de la presente, el (la) señor(a)
-                                    <strong><t t-out="doc.employee_id.name"/></strong>
-                                    comunica formalmente su renuncia voluntaria al puesto de
-                                    <strong><t t-out="doc.employee_id.job_id.name or 'colaborador(a)'"/></strong>
-                                    en la empresa
-                                    <strong><t t-out="doc.company_id.name"/></strong>,
-                                    con fundamento en el <strong>Articulo 83 del Código de Trabajo</strong>.
-                                </p>
-                                <p>
-                                    La fecha efectiva de la renuncia es el dia
-                                    <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
-                                </p>
-                                <p>
-                                    En la renuncia voluntaria <strong>no corresponde el pago de cesantía</strong>.
-                                    Si el trabajador no otorga el preaviso correspondiente según Art. 28 C.T.,
-                                    el patrono podra deducir el equivalente de su liquidación.
-                                </p>
-                                <t t-if="doc.note">
-                                    <p><strong>Motivo de la renuncia (opcional):</strong></p>
-                                    <p style="border:1px solid #ddd; padding:10px; border-radius:4px;">
-                                        <t t-out="doc.note"/>
-                                    </p>
-                                </t>
-                            </t>
-
-                            <!-- OTRO / MUTUO ACUERDO -->
-                            <t t-else="">
-                                <p>
-                                    Por medio de la presente, la empresa
-                                    <strong><t t-out="doc.company_id.name"/></strong>
-                                    y el (la) colaborador(a)
-                                    <strong><t t-out="doc.employee_id.name"/></strong>
-                                    dan por terminada la relación laboral de mutuo acuerdo,
-                                    conforme al Código de Trabajo de Costa Rica,
-                                    a partir del dia
-                                    <strong><t t-out="doc.termination_date.strftime('%d/%m/%Y') if doc.termination_date else datetime.date.today().strftime('%d/%m/%Y')"/></strong>.
-                                </p>
-                                <t t-if="doc.note">
-                                    <p><strong>Terminos del acuerdo:</strong></p>
-                                    <p style="border:1px solid #ddd; padding:10px; border-radius:4px;">
-                                        <t t-out="doc.note"/>
-                                    </p>
-                                </t>
-                            </t>
-
-                        </div>
-                    </div>
-
-                    <!-- Firmas -->
-                    <div class="row mt-5">
-                        <div class="col-5 text-center">
-                            <div style="border-top:1px solid #000; margin-top:60px; padding-top:8px;">
-                                <p style="margin:0;"><strong><t t-out="doc.company_id.name"/></strong></p>
-                                <p style="margin:0; font-size:11px; color:#555;">Representante Legal / Patrono</p>
-                            </div>
-                        </div>
-                        <div class="col-5 offset-2 text-center">
-                            <div style="border-top:1px solid #000; margin-top:60px; padding-top:8px;">
-                                <p style="margin:0;"><strong><t t-out="doc.employee_id.name"/></strong></p>
-                                <p style="margin:0; font-size:11px; color:#555;">Colaborador(a)</p>
-                                <p style="margin:0; font-size:11px; color:#555;">
-                                    Ced. <t t-out="doc.employee_id.identification_id or ''"/>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <p class="text-center mt-4" style="font-size:9px; color:#aaa;">
-                        Se extiende en dos tantos del mismo tenor y para un solo efecto legal.
-                        Planilla CR v5.28 | Odoo 19
+                <!-- Destinatario -->
+                <p style="margin-bottom: 2px;"><strong><t t-out="emp.name"/></strong></p>
+                <t t-if="emp.identification_id">
+                    <p style="margin-bottom: 2px;">
+                        Cedula identidad <t t-out="emp.identification_id"/>
                     </p>
-                    <div class="page_break"/>
+                </t>
+                <t t-if="emp.job_id">
+                    <p style="margin-bottom: 2px;"><t t-out="emp.job_id.name"/></p>
+                </t>
+                <p style="margin-bottom: 20px;">Presente.</p>
+
+                <!-- ====== DESPIDO SIN RESPONSABILIDAD (justa causa Art. 81) ====== -->
+                <t t-if="doc.termination_reason == 'despido_justif'">
+                    <p style="text-align: justify; margin-bottom: 14px;">
+                        Por medio de la presente, y conforme lo establecido en el Codigo de
+                        Trabajo de la Republica de Costa Rica, le comunicamos que la empresa ha
+                        decidido dar por terminado su contrato de trabajo a partir del
+                        <strong><t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
+                        de <t t-out="fecha_hoy.strftime('%Y')"/></strong>,
+                        <strong>sin responsabilidad para la misma</strong>,
+                        <t t-if="doc.note">
+                            debido a: <t t-out="doc.note"/>
+                        </t>
+                        <t t-else="">
+                            debido a incumplimientos graves de sus obligaciones laborales.
+                        </t>
+                    </p>
+                    <p style="text-align: justify; margin-bottom: 14px;">
+                        De acuerdo con el <strong>articulo 81 del Codigo de Trabajo</strong>,
+                        las causas descritas facultan al patrono para rescindir la relacion laboral
+                        sin responsabilidad patronal. A traves de esta notificacion, se le informa
+                        que el vinculo laboral queda definitivamente rescindido, y que no se le
+                        reconocera indemnizacion alguna ni otros beneficios adicionales.
+                    </p>
+                    <p style="text-align: justify; margin-bottom: 14px;">
+                        Se le invita a coordinar la entrega de los bienes y equipos de la empresa
+                        que pudieran estar bajo su responsabilidad. Ademas, se le informara sobre
+                        el calculo y entrega de su liquidacion final, la cual incluira los pagos
+                        pendientes hasta la fecha de su salida, conforme a lo dispuesto por la ley.
+                    </p>
+                    <p style="text-align: justify; margin-bottom: 20px;">
+                        Le agradecemos el tiempo que estuvo laborando en nuestra empresa y
+                        lamentamos que este asunto haya tenido que llegar a esta conclusion.
+                    </p>
+                </t>
+
+                <!-- ====== DESPIDO CON RESPONSABILIDAD (Art. 85 / preaviso Art. 28) ====== -->
+                <t t-elif="doc.termination_reason == 'despido_injust'">
+                    <p style="text-align: justify; margin-bottom: 14px;">
+                        Por este medio le informo que de conformidad con lo dispuesto en el
+                        <strong>articulo 85 inciso d) del Codigo de Trabajo</strong>,
+                        la empresa ha decidido dar por terminado el contrato laboral mantenido
+                        con su persona <strong><u>con responsabilidad patronal</u></strong>
+                        a partir del dia
+                        <strong><t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
+                        de <t t-out="fecha_hoy.strftime('%Y')"/></strong>,
+                        siendo este su ultimo dia de trabajo.
+                    </p>
+                    <t t-if="doc.note">
+                        <p style="text-align: justify; margin-bottom: 14px;">
+                            El motivo de la decision se debe a: <t t-out="doc.note"/>
+                        </p>
+                    </t>
+                    <t t-else="">
+                        <p style="text-align: justify; margin-bottom: 14px;">
+                            El motivo de la decision se debe al cierre de las operaciones
+                            definitivas de la empresa.
+                        </p>
+                    </t>
+                    <p style="text-align: justify; margin-bottom: 20px;">
+                        Se le agradecen los servicios prestados y para efectos del retiro de
+                        todos los extremos laborales de su liquidacion se le solicita
+                        presentarse en las instalaciones de la empresa para coordinar la entrega
+                        conforme a lo dispuesto por la ley.
+                    </p>
+                </t>
+
+                <!-- ====== RENUNCIA VOLUNTARIA (Art. 83) ====== -->
+                <t t-elif="doc.termination_reason == 'renuncia'">
+                    <p style="text-align: justify; margin-bottom: 14px;">
+                        Por medio de la presente, el (la) senor(a)
+                        <strong><t t-out="emp.name"/></strong>
+                        comunica formalmente su renuncia voluntaria al puesto de
+                        <strong><t t-out="emp.job_id.name or 'colaborador(a)'"/></strong>
+                        en la empresa
+                        <strong><t t-out="company.name"/></strong>,
+                        con fundamento en el <strong>Articulo 83 del Codigo de Trabajo</strong>,
+                        con efectividad a partir del
+                        <strong><t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
+                        de <t t-out="fecha_hoy.strftime('%Y')"/></strong>.
+                    </p>
+                    <t t-if="doc.note">
+                        <p style="text-align: justify; margin-bottom: 14px;">
+                            <t t-out="doc.note"/>
+                        </p>
+                    </t>
+                    <p style="text-align: justify; margin-bottom: 20px;">
+                        Se agradece el tiempo y dedicacion brindados a la empresa durante
+                        la relacion laboral.
+                    </p>
+                </t>
+
+                <!-- ====== OTRO MOTIVO ====== -->
+                <t t-else="">
+                    <p style="text-align: justify; margin-bottom: 14px;">
+                        Por medio de la presente, le comunicamos que la empresa ha decidido
+                        dar por terminada la relacion laboral con su persona a partir del
+                        <strong><t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
+                        de <t t-out="fecha_hoy.strftime('%Y')"/></strong>,
+                        conforme lo dispuesto en el Codigo de Trabajo de Costa Rica.
+                    </p>
+                    <t t-if="doc.note">
+                        <p style="text-align: justify; margin-bottom: 14px;">
+                            <t t-out="doc.note"/>
+                        </p>
+                    </t>
+                </t>
+
+                <p style="margin-bottom: 40px;">Atentamente.</p>
+
+                <!-- Firma patrono -->
+                <div style="margin-bottom: 50px;">
+                    <div style="border-top: 1px solid #000; width: 300px; padding-top: 6px; margin-bottom: 4px;"/>
+                    <strong><t t-out="firmante_nombre"/></strong><br/>
+                    <t t-out="firmante_titulo"/><br/>
+                    <t t-out="company.name"/>
                 </div>
+
+                <!-- Recibido -->
+                <div style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 16px;">
+                    <p style="margin-bottom: 24px;">
+                        Fecha de recibido: ___________________________________
+                    </p>
+                    <p style="margin-bottom: 24px;">
+                        Nombre de colaborador: ___________________________________
+                    </p>
+                    <p style="margin-bottom: 10px;">
+                        Firma de colaborador: ___________________________________
+                    </p>
+                    <p style="margin-top: 20px; font-size: 11px; color: #555;">
+                        Cc / Expediente personal. Ministerio de Trabajo C.R.
+                    </p>
+                </div>
+
+            </div>
             </main>
         </t>
         </t>
-    </t></template>
+        </t>
+    </template>
+
 
     <record id="action_report_carta_despido" model="ir.actions.report">
         <field name="name">Carta de Despido / Renuncia</field>

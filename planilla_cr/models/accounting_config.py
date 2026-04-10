@@ -555,7 +555,15 @@ class PayrollAccountingConfig(models.Model):
             except Exception:
                 pass
 
-        from_email = self.email_payslip_from or self.env.user.email or company.email
+        # Prioridad del remitente:
+        # 1. Campo "Remitente" configurado explicitamente en el modulo
+        # 2. smtp_user del servidor de salida seleccionado (garantiza que coincida con SMTP)
+        # 3. Email del usuario actual como fallback
+        from_email = self.email_payslip_from or ''
+        if not from_email and self.email_payslip_server_id:
+            from_email = self.email_payslip_server_id.smtp_user or ''
+        if not from_email:
+            from_email = self.env.user.email or company.email or ''
         mail_vals = {
             'subject': '[PRUEBA] ' + subject,
             'body_html': body_str,
