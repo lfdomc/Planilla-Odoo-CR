@@ -272,24 +272,45 @@
 
                         <!-- ====== DEPOSITO DEL PATRON ====== -->
                         <tr><td colspan="3" style="border-top:1px solid #aaa; padding:0;"/></tr>
+
+                        <!-- Opcion A: neto total en italica ANTES del bloque oscuro, solo cuando hay subsidio -->
+                        <t t-if="doc.ccss_subsidy_total &gt; 0">
+                        <t t-set="mat_s2" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'maternity' and d.state in ('confirmed','paid'))"/>
+                        <tr style="font-size:10.5px; color:#555; font-style:italic;">
+                            <td style="padding:2px 8px;">Neto total del periodo:</td>
+                            <td style="padding:2px 8px; text-align:right;">
+                                &#8353; <t t-out="'{:,.2f}'.format(doc.net_salary)"/>
+                            </td>
+                            <td style="padding:2px 8px; font-size:9.5px; color:#888;">
+                                (patrono + CCSS)
+                            </td>
+                        </tr>
+                        </t>
+
                         <tr style="background:#444; color:#fff;">
                             <td style="padding:3px 8px; font-weight:bold;">Deposito del Patron</td>
                             <td style="padding:3px 8px; text-align:right;"/>
                             <td style="padding:3px 8px; text-align:right; font-weight:bold;">
                                 &#8353; <t t-out="'{:,.2f}'.format(doc.deposito_patrono)"/>
+                                <t t-if="doc.ccss_subsidy_total &gt; 0">
+                                    <span style="font-weight:normal; font-size:9.5px; opacity:0.85;">
+                                        &#160;<t t-set="pct_patron" t-value="round(doc.deposito_patrono / doc.net_salary * 100) if doc.net_salary else 0"/>
+                                        (<t t-out="str(pct_patron)"/>% del neto)
+                                    </span>
+                                </t>
                             </td>
                         </tr>
 
-                        <!-- Informacion subsidio (solo si hay, sin montos) -->
+                        <!-- Nota subsidio: solo tipo, sin montos -->
                         <t t-if="doc.ccss_subsidy_total &gt; 0">
+                        <t t-set="mat_s" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'maternity' and d.state in ('confirmed','paid'))"/>
                         <tr>
-                            <td colspan="3" style="padding:2px 8px; font-size:10px; font-style:italic; color:#555;">
-                                <t t-set="mat_s" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'maternity' and d.state in ('confirmed','paid'))"/>
+                            <td colspan="3" style="padding:2px 8px; font-size:9.5px; font-style:italic; color:#666;">
                                 <t t-if="mat_s">
-                                    * Subsidio de maternidad (Art. 94 CT): la CCSS deposita directamente al empleado.
+                                    * La CCSS deposita el 50% restante directamente a su cuenta (maternidad Art. 94 CT).
                                 </t>
                                 <t t-else="">
-                                    * Subsidio de incapacidad (Art. 79 CT): la CCSS deposita directamente al empleado.
+                                    * La CCSS deposita el resto directamente a su cuenta (incapacidad Art. 79 CT).
                                 </t>
                             </td>
                         </tr>
