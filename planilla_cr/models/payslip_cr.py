@@ -122,6 +122,18 @@ class PayslipCR(models.Model):
         string='Monto Horas Extras', currency_field='currency_id',
         compute='_compute_extras', store=True
     )
+    overtime_hours_total = fields.Float(
+        string='Total Horas Extras',
+        compute='_compute_extras', store=True,
+        digits=(5, 2),
+        help='Suma de horas extras aprobadas en este periodo (simple + doble + feriado).'
+    )
+    overtime_holiday_hours = fields.Float(
+        string='Horas en Dia Feriado',
+        compute='_compute_extras', store=True,
+        digits=(5, 2),
+        help='Horas trabajadas en dias feriados de pago obligatorio (Art. 148 CT).'
+    )
     vacation_amount = fields.Monetary(
         string='Monto Vacaciones', currency_field='currency_id',
         compute='_compute_extras', store=True
@@ -248,10 +260,17 @@ class PayslipCR(models.Model):
         compute='_compute_totals', store=True
     )
     salary_payable = fields.Monetary(
-        string='Salario a Pagar', currency_field='currency_id',
+        string='Neto Empleado (incl. subsidios)', currency_field='currency_id',
         compute='_compute_totals', store=True,
-        help='Monto neto a depositar al empleado '
-             '(neto menos prestamos, embargos y deducciones adicionales).'
+        help='Total neto que recibe el empleado incluyendo subsidios CCSS/INS. '
+             'Para el deposito real de la empresa usar deposito_patrono.'
+    )
+    deposito_patrono = fields.Monetary(
+        string='Deposito del Patrono', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+        help='Monto real que la empresa deposita al empleado. '
+             'Excluye subsidios CCSS/INS que paga la Caja/INS directamente. '
+             'Este es el valor correcto para los libros contables de la empresa.'
     )
     neto_por_patrono = fields.Monetary(
         string='Neto por Patrono', currency_field='currency_id',

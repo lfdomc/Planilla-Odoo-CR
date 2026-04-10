@@ -168,7 +168,12 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.base_salary')
     def _compute_extras(self):
         for rec in self:
-            rec.overtime_amount  = sum(o.amount for o in rec.overtime_ids if o.state == 'approved')
+            approved_ot = [o for o in rec.overtime_ids if o.state == 'approved']
+            rec.overtime_amount         = sum(o.amount for o in approved_ot)
+            rec.overtime_hours_total    = round(sum(o.hours  for o in approved_ot), 2)
+            rec.overtime_holiday_hours  = round(sum(
+                o.hours for o in approved_ot if o.overtime_type == 'holiday'
+            ), 2)
             rec.vacation_amount  = sum(v.total_amount for v in rec.vacation_ids if v.state == 'approved')
             active_dis = rec.disability_ids.filtered(lambda d: d.state in ('confirmed', 'paid'))
             rec.disability_days          = 0  # se actualiza abajo tras calcular disability_days_in_period

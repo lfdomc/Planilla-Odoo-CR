@@ -51,7 +51,9 @@
                 <!-- ── RESULTADO OBRERO ── -->
                 <field name="total_net" string="Total Neto"
                        help="Bruto menos CCSS Obrero y Renta"/>
-                <field name="total_salary_payable" string="A Pagar" optional="show"
+                <field name="total_deposito_patrono" string="Deposito Patrono" optional="show"/>
+                <field name="total_ccss_subsidy" string="Subsidio CCSS" optional="show"/>
+                <field name="total_salary_payable" string="Neto Total Empleados" optional="hide"
                        help="Lo que realmente se deposita: neto menos préstamos y deducciónes adicionales"/>
 
                 <!-- ── CARGAS PATRONALES ── -->

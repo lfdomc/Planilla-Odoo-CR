@@ -156,8 +156,13 @@ class PayrollRunCR(models.Model):
         compute='_compute_totals', store=True,
         help='Suma del ROP patronal (3.25%) de todas las boletas activas con rop_applies=True.'
     )
+    total_deposito_patrono = fields.Monetary(
+        string='Total Deposito Patrono', currency_field='currency_id',
+        compute='_compute_totals', store=True,
+        help='Suma real de depositos de la empresa (sin subsidios CCSS/INS).'
+    )
     total_salary_payable = fields.Monetary(
-        string='Salario a Pagar', currency_field='currency_id',
+        string='Neto Total Empleados', currency_field='currency_id',
         compute='_compute_totals', store=True,
         help='Total neto a transferir a los empleados (bruto - CCSS obrero - renta - deducciones)'
     )
@@ -517,11 +522,12 @@ class PayrollRunCR(models.Model):
                 rec.total_ccss_employee + rec.total_income_tax, 2
             )
             rec.total_net = round(sum(active_slips.mapped('net_salary')), 2)
-            rec.total_salary_payable = round(sum(active_slips.mapped('salary_payable')), 2)
+            rec.total_salary_payable   = round(sum(active_slips.mapped('salary_payable')), 2)
+            rec.total_deposito_patrono = round(sum(active_slips.mapped('deposito_patrono')), 2)
             rec.total_rop_employer   = round(sum(active_slips.mapped('rop_employer')), 2)
 
             if rec.total_salary_payable and rec.total_salary_payable > 0:
-                rec.cost_per_net_colon = round(rec.total_employer_cost / rec.total_salary_payable, 4)
+                rec.cost_per_net_colon = round(rec.total_employer_cost / rec.total_deposito_patrono, 4) if rec.total_deposito_patrono else 0.0
             else:
                 rec.cost_per_net_colon = 0.0
 

@@ -226,6 +226,11 @@ class PayslipValidationMixin(models.AbstractModel):
                 extra_income, 2
             )
             rec.salary_payable = rec.net_salary
+            # deposito_patrono = lo que la empresa realmente transfiere al empleado
+            # = net_salary - subsidios CCSS/INS que paga la Caja/INS directamente
+            ccss_sub_val = rec.ccss_subsidy_total or 0.0
+            ins_sub_val  = rec.ins_subsidy_total  or 0.0
+            rec.deposito_patrono = round(rec.net_salary - ccss_sub_val - ins_sub_val, 2)
 
             # -- Desglose patrono vs CCSS/INS (todos los tipos de incapacidad) --
             ccss_sub = rec.ccss_subsidy_total or 0.0
@@ -326,7 +331,7 @@ class PayslipValidationMixin(models.AbstractModel):
                 rec.neto_por_ccss    = 0.0
 
             if rec.salary_payable and rec.salary_payable > 0:
-                rec.cost_per_net_colon = round(rec.total_employer_cost / rec.salary_payable, 2)
+                rec.cost_per_net_colon = round(rec.total_employer_cost / rec.deposito_patrono, 2) if rec.deposito_patrono else 0.0
             else:
                 rec.cost_per_net_colon = 0.0
 

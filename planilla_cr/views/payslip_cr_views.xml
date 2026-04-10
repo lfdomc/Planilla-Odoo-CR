@@ -49,7 +49,10 @@
 
                 <!-- ── RESULTADO OBRERO ── -->
                 <field name="net_salary" string="Salario Neto"/>
-                <field name="salary_payable" string="A Pagar" optional="show"
+                <field name="deposito_patrono" string="Deposito Patrono" optional="show"
+                       help="Monto real que deposita la empresa, sin subsidios CCSS/INS"/>
+                <field name="ccss_subsidy_total" string="Subsidio CCSS" optional="show"/>
+                <field name="salary_payable" string="Neto Empleado" optional="hide"
                        help="Neto menos préstamos y deducciónes adicionales — lo que se deposita"/>
 
                 <!-- ── CARGAS PATRONALES ── -->

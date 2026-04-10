@@ -5,11 +5,16 @@
         <t t-call="web.external_layout">
             <main>
             <t t-foreach="docs" t-as="doc">
-                <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; max-width: 520px; margin: 0 auto;">
+                <t t-set="freq_label" t-value="
+                    'Quincenal' if doc.effective_frequency == 'biweekly' else
+                    'Semanal' if doc.effective_frequency == 'weekly' else
+                    'Bimensual' if doc.effective_frequency == 'bimonthly' else
+                    'Mensual'
+                "/>
+                <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; max-width: 480px; margin: 0 auto;">
 
-                    <!-- ENCABEZADO EMPRESA -->
-                    <t t-set="freq_label" t-value="                         'Quincenal' if doc.effective_frequency == 'biweekly' else                         'Semanal' if doc.effective_frequency == 'weekly' else                         'Bimensual' if doc.effective_frequency == 'bimonthly' else                         'Mensual'                     "/>
-                    <div style="text-align:center; border:1px solid #000; padding:8px 12px 6px 12px; margin-bottom:0;">
+                    <!-- ENCABEZADO -->
+                    <div style="text-align:center; border:1px solid #000; padding:6px 10px 5px; border-bottom:none;">
                         <div style="font-weight:bold; font-size:13px; text-transform:uppercase;">
                             <t t-out="doc.company_id.name"/>
                         </div>
@@ -18,322 +23,324 @@
                         </t>
                         <div style="font-size:11px;">
                             Comprobante de pago PLANILLA <t t-out="freq_label"/> DEL
-                            <t t-out="doc.date_from.strftime('%d/%m/%Y')"/>
-                            AL
+                            <t t-out="doc.date_from.strftime('%d/%m/%Y')"/> AL
                             <t t-out="doc.date_to.strftime('%d/%m/%Y')"/>
+                        </div>
+                        <div style="font-size:11px; color:#555;">
+                            No: <t t-out="doc.name or ''"/>
                         </div>
                     </div>
 
-                    <!-- DATOS EMPLEADO -->
-                    <table style="width:100%; border:1px solid #000; border-top:none; border-collapse:collapse; font-size:12px;">
+                    <!-- TABLA PRINCIPAL -->
+                    <table style="width:100%; border:1px solid #000; border-collapse:collapse; font-size:12px;">
+
+                        <!-- EMPLEADO -->
                         <tr>
-                            <td style="padding:3px 8px; border-bottom:1px solid #ddd;">
+                            <td colspan="3" style="padding:3px 8px; border-bottom:1px solid #ddd;">
                                 <span style="font-weight:bold;">Empleado:</span>
                                 <t t-out="doc.employee_id.name"/>
-                            </td>
-                            <td style="padding:3px 8px; border-bottom:1px solid #ddd; text-align:right; font-size:11px;">
-                                Ced: <t t-out="doc.employee_id.identification_id or ''"/>
+                                <t t-if="doc.employee_id.identification_id">
+                                    <span style="font-size:11px; color:#555;">
+                                        &#160;&#160;Ced: <t t-out="doc.employee_id.identification_id"/>
+                                    </span>
+                                </t>
                             </td>
                         </tr>
                         <t t-if="doc.employee_id.job_id">
                         <tr>
-                            <td colspan="2" style="padding:2px 8px; border-bottom:1px solid #ddd; font-size:11px; color:#555;">
+                            <td colspan="3" style="padding:1px 8px 3px; font-size:11px; color:#555; border-bottom:1px solid #ddd;">
                                 Puesto: <t t-out="doc.employee_id.job_id.name"/>
+                                &#160;&#160;|&#160;&#160;
+                                Dias laborados: <t t-out="str(doc.dias_laborados_periodo)"/>
+                                &#160;&#160;|&#160;&#160;
+                                Saldo vacac.: <t t-out="'{:.1f}'.format(doc.employee_id.vacation_days_available or 0)"/> dias
                             </td>
                         </tr>
                         </t>
-                        <t t-if="doc.calculation_method == 'attendance'">
-                        <tr>
-                            <td colspan="2" style="padding:2px 8px; border-bottom:1px solid #ddd; font-size:11px; color:#555;">
-                                Horas trabajadas en el período: <strong><t t-out="doc.attendance_hours"/> h</strong>
-                            </td>
+
+                        <!-- CABECERA COLUMNAS -->
+                        <tr style="background:#f0f0f0; font-size:10px; color:#555;">
+                            <td style="padding:2px 8px; font-weight:bold; width:55%;">Concepto</td>
+                            <td style="padding:2px 8px; text-align:right; width:22%;">Monto (&#8353;)</td>
+                            <td style="padding:2px 8px; text-align:right; width:23%;">Total (&#8353;)</td>
                         </tr>
-                        </t>
-                    </table>
 
-                    <!-- TABLA PRINCIPAL -->
-                    <table style="width:100%; border:1px solid #000; border-top:none; border-collapse:collapse; font-size:12px;">
-
-                        <!-- ENCABEZADO INGRESOS -->
-                        <tr style="background-color:#000; color:#fff;">
+                        <!-- ====== INGRESOS ====== -->
+                        <tr style="background:#000; color:#fff;">
                             <td style="padding:3px 8px; font-weight:bold;">Ingresos</td>
+                            <td style="padding:3px 8px; text-align:right;"/>
                             <td style="padding:3px 8px; text-align:right; font-weight:bold;">
-                                ₡ <t t-out="'{:,.0f}'.format(doc.gross_salary)"/>
+                                &#8353; <t t-out="'{:,.0f}'.format(doc.gross_salary)"/>
                             </td>
                         </tr>
 
-                        <!-- Salario base - ocultar si hay incapacidad/maternidad total -->
-                        <t t-if="doc.base_salary &gt; 0">
+                        <!-- Salario -->
                         <tr>
                             <td style="padding:2px 8px 2px 20px;">Salario:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                ₡ <t t-out="'{:,.0f}'.format(doc.base_salary)"/>
-                            </td>
-                        </tr>
-                        </t>
-
-                        <!-- Horas extras -->
-                        <tr>
-                            <td style="padding:2px 8px 2px 20px;">Horas Extras:</td>
-                            <td style="padding:2px 8px; text-align:right;">
-                                <t t-if="doc.overtime_amount &gt; 0">
-                                    ₡ <t t-out="'{:,.0f}'.format(doc.overtime_amount)"/>
-                                </t>
+                                <t t-if="doc.base_salary &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.base_salary)"/></t>
                                 <t t-else="">-</t>
                             </td>
+                            <td/>
+                        </tr>
+
+                        <!-- Horas Feriado -->
+                        <tr>
+                            <td style="padding:2px 8px 2px 20px;">
+                                Horas Feriado<t t-if="doc.overtime_holiday_hours &gt; 0">
+                                    <span style="font-size:10px; color:#666;"> (<t t-out="'{:.2f}'.format(doc.overtime_holiday_hours)"/> h)</span>
+                                </t>:
+                            </td>
+                            <td style="padding:2px 8px; text-align:right;">
+                                <t t-set="feriado_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state == 'approved')"/>
+                                <t t-set="feriado_monto" t-value="sum(o.amount for o in feriado_lines)"/>
+                                <t t-if="feriado_monto &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(feriado_monto)"/></t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td/>
+                        </tr>
+
+                        <!-- Horas Extras (no feriado) -->
+                        <tr>
+                            <td style="padding:2px 8px 2px 20px;">
+                                Horas Extras<t t-if="doc.overtime_hours_total &gt; doc.overtime_holiday_hours">
+                                    <span style="font-size:10px; color:#666;"> (<t t-out="'{:.2f}'.format(doc.overtime_hours_total - doc.overtime_holiday_hours)"/> h)</span>
+                                </t>:
+                            </td>
+                            <td style="padding:2px 8px; text-align:right;">
+                                <t t-set="he_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type != 'holiday' and o.state == 'approved')"/>
+                                <t t-set="he_monto" t-value="sum(o.amount for o in he_lines)"/>
+                                <t t-if="he_monto &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(he_monto)"/></t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td/>
                         </tr>
 
                         <!-- Vacaciones pagadas -->
-                        <t t-if="doc.vacation_amount &gt; 0">
                         <tr>
                             <td style="padding:2px 8px 2px 20px;">Vacaciones:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                ₡ <t t-out="'{:,.0f}'.format(doc.vacation_amount)"/>
+                                <t t-if="doc.vacation_amount &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.vacation_amount)"/></t>
+                                <t t-else="">-</t>
                             </td>
+                            <td/>
                         </tr>
-                        </t>
 
-                        <!-- Subsidio CCSS: distinguir maternidad de incapacidad ordinaria -->
-                        <t t-if="doc.ccss_subsidy_total &gt; 0 and doc.base_salary == 0">
-                            <t t-set="mat_dis" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'maternity' and d.state in ('confirmed','paid'))"/>
-                            <t t-if="mat_dis">
-                            <tr>
-                                <td style="padding:2px 8px 2px 20px; font-style:italic; color:#555;">
-                                    Subsidio Maternidad (CCSS):
-                                </td>
-                                <td style="padding:2px 8px; text-align:right;">
-                                    ₡ <t t-out="'{:,.0f}'.format(doc.ccss_subsidy_total)"/>
-                                </td>
-                            </tr>
-                            </t>
-                            <t t-else="">
-                            <tr>
-                                <td style="padding:2px 8px 2px 20px; font-style:italic; color:#555;">
-                                    Subsidio Incapacidad (CCSS):
-                                </td>
-                                <td style="padding:2px 8px; text-align:right;">
-                                    ₡ <t t-out="'{:,.0f}'.format(doc.ccss_subsidy_total)"/>
-                                </td>
-                            </tr>
-                            </t>
-                        </t>
-
-                        <!-- Licencias con goce -->
-                        <t t-foreach="doc.leave_cr_ids" t-as="lic">
-                            <t t-if="lic.has_salary or lic.has_salary_override">
-                            <tr>
-                                <td style="padding:2px 8px 2px 20px;">
-                                    Licencia <t t-out="dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)"/>
-                                    (<t t-out="lic.working_days if lic.working_days &gt; 0 else lic.days"/> dia(s)):
-                                </td>
-                                <td style="padding:2px 8px; text-align:right;">
-                                    ₡ <t t-out="'{:,.0f}'.format(lic.leave_amount)"/>
-                                </td>
-                            </tr>
-                            </t>
-                        </t>
-
-                        <!-- Bonos salariales -->
-                        <t t-if="doc.bono_salarial_amount &gt; 0">
+                        <!-- Bonos / Incentivos -->
                         <tr>
                             <td style="padding:2px 8px 2px 20px;">Bonos / Incentivos:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                ₡ <t t-out="'{:,.0f}'.format(doc.bono_salarial_amount)"/>
+                                <t t-if="doc.bono_salarial_amount &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.bono_salarial_amount)"/></t>
+                                <t t-else="">-</t>
                             </td>
+                            <td/>
                         </tr>
-                        </t>
 
                         <!-- Otros ingresos -->
-                        <t t-if="doc.other_income &gt; 0">
+                        <t t-set="otros_ingresos_lic" t-value="doc.deduction_line_ids.filtered(lambda l: l.line_type == 'income' and l.deduction_category not in ('bonus',))"/>
+                        <t t-set="otros_ingresos_total" t-value="sum(l.amount for l in otros_ingresos_lic)"/>
                         <tr>
                             <td style="padding:2px 8px 2px 20px;">Otros:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                ₡ <t t-out="'{:,.0f}'.format(doc.other_income)"/>
+                                <t t-if="otros_ingresos_total &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(otros_ingresos_total)"/></t>
+                                <t t-else="">-</t>
                             </td>
+                            <td/>
                         </tr>
-                        </t>
 
-                        <!-- SEPARADOR -->
-                        <tr><td colspan="2" style="border-top:1px solid #ccc; padding:0;"/></tr>
-
-                        <!-- ENCABEZADO EGRESOS -->
-                        <tr style="background-color:#000; color:#fff;">
+                        <!-- ====== EGRESOS ====== -->
+                        <tr style="background:#000; color:#fff;">
                             <td style="padding:3px 8px; font-weight:bold;">Egresos</td>
+                            <td style="padding:3px 8px; text-align:right;"/>
                             <td style="padding:3px 8px; text-align:right; font-weight:bold;">
-                                ₡ <t t-out="'{:,.0f}'.format(doc.total_employee_deductions)"/>
+                                &#8353; <t t-out="'{:,.0f}'.format(doc.total_employee_deductions)"/>
                             </td>
                         </tr>
 
-                        <!-- CCSS obrero -->
+                        <!-- CCSS Obrero -->
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">CCSS (10.83%):</td>
+                            <td style="padding:2px 8px 2px 20px;">CCSS:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-if="doc.ccss_employee &gt; 0">
-                                    ₡ <t t-out="'{:,.0f}'.format(doc.ccss_employee)"/>
+                                <t t-if="doc.ccss_employee &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.ccss_employee)"/></t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td/>
+                        </tr>
+
+                        <!-- Incapacidad CCSS (dias de incapacidad del periodo) -->
+                        <tr>
+                            <td style="padding:2px 8px 2px 20px;">
+                                Incapacidad CCSS<t t-if="doc.disability_days_in_period &gt; 0">
+                                    <span style="font-size:10px; color:#666;"> (<t t-out="str(doc.disability_days_in_period)"/> dias)</span>
+                                </t>:
+                            </td>
+                            <td style="padding:2px 8px; text-align:right;">
+                                <t t-set="incap_normal" t-value="doc.disability_ids.filtered(lambda d: d.disability_type not in ('maternity','ins') and d.state in ('confirmed','paid'))"/>
+                                <t t-if="incap_normal and doc.disability_days_in_period &gt; 0">
+                                    <t t-set="dias_sin_sueldo" t-value="doc.disability_days_in_period"/>
+                                    &#8353; <t t-out="'{:,.0f}'.format(round(doc.employee_id.base_salary / 30 * dias_sin_sueldo, 0))"/>
                                 </t>
                                 <t t-else="">-</t>
                             </td>
+                            <td/>
                         </tr>
 
-                        <!-- Incapacidades: NO mostrar como egreso del empleado.
-                             El costo patronal es información del patrono, no del colaborador. -->
-
-                        <!-- Permisos sin goce -->
-                        <t t-set="sin_goce_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category in ('ausencia', 'licencia_sin_goce'))"/>
-                        <t t-set="sin_goce_total" t-value="sum(sin_goce_lines.mapped('amount'))"/>
-                        <t t-if="sin_goce_total &gt; 0">
+                        <!-- Incapacidad INS -->
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Permisos sin goce:</td>
-                            <td style="padding:2px 8px; text-align:right; color:#c00000;">
-                                ₡ <t t-out="'{:,.0f}'.format(sin_goce_total)"/>
+                            <td style="padding:2px 8px 2px 20px;">Incapacidad INS:</td>
+                            <td style="padding:2px 8px; text-align:right;">
+                                <t t-set="ins_dis" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'ins' and d.state in ('confirmed','paid'))"/>
+                                <t t-if="ins_dis">&#8353; <t t-out="'{:,.0f}'.format(doc.ins_subsidy_total)"/></t>
+                                <t t-else="">-</t>
                             </td>
+                            <td/>
                         </tr>
-                        </t>
 
-                        <!-- Licencias sin goce desde leave_cr -->
-                        <t t-foreach="doc.leave_cr_ids" t-as="lic">
-                            <t t-if="not lic.has_salary and not lic.has_salary_override and lic.leave_amount &gt; 0">
-                            <tr>
-                                <td style="padding:2px 8px 2px 20px;">
-                                    Sin goce (<t t-out="dict(lic._fields['leave_type'].selection).get(lic.leave_type, lic.leave_type)"/>):
-                                </td>
-                                <td style="padding:2px 8px; text-align:right; color:#c00000;">
-                                    ₡ <t t-out="'{:,.0f}'.format(lic.leave_amount)"/>
-                                </td>
-                            </tr>
-                            </t>
-                        </t>
+                        <!-- Ahorro (Sindicato/Cooperativa/Ahorro) -->
+                        <t t-set="ahorro_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category in ('ahorro','sindical','cooperativa','seguro'))"/>
+                        <t t-set="ahorro_total" t-value="sum(l.amount for l in ahorro_lines)"/>
+                        <tr>
+                            <td style="padding:2px 8px 2px 20px;">Ahorro / Sindical:</td>
+                            <td style="padding:2px 8px; text-align:right;">
+                                <t t-if="ahorro_total &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(ahorro_total)"/></t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td/>
+                        </tr>
 
-                        <!-- Impuesto de Renta -->
+                        <!-- Dias sin goce -->
+                        <t t-set="sg_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category in ('licencia_sin_goce','ausencia') and l.line_type == 'deduction')"/>
+                        <t t-set="sg_total" t-value="sum(l.amount for l in sg_lines)"/>
+                        <tr>
+                            <td style="padding:2px 8px 2px 20px;">Dias sin goce:</td>
+                            <td style="padding:2px 8px; text-align:right;">
+                                <t t-if="sg_total &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(sg_total)"/></t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td/>
+                        </tr>
+
+                        <!-- Imp. Renta -->
                         <tr>
                             <td style="padding:2px 8px 2px 20px;">Imp. Renta:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-if="doc.income_tax &gt; 0">
-                                    ₡ <t t-out="'{:,.0f}'.format(doc.income_tax)"/>
-                                </t>
+                                <t t-if="doc.income_tax &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.income_tax)"/></t>
                                 <t t-else="">-</t>
                             </td>
+                            <td/>
                         </tr>
 
-                        <!-- Pensión alimentaria -->
-                        <t t-set="pension_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category == 'pension_alimentaria')"/>
-                        <t t-set="pension_total" t-value="sum(pension_lines.mapped('amount'))"/>
+                        <!-- Pension Alimentaria -->
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Pensión Alimentaria:</td>
+                            <td style="padding:2px 8px 2px 20px;">Pension Alimentaria:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-if="pension_total &gt; 0">
-                                    ₡ <t t-out="'{:,.0f}'.format(pension_total)"/>
-                                </t>
+                                <t t-if="doc.amount_pension_alimentaria &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.amount_pension_alimentaria)"/></t>
                                 <t t-else="">-</t>
                             </td>
+                            <td/>
                         </tr>
 
-                        <!-- Embargo judicial -->
-                        <t t-set="embargo_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category == 'embargo')"/>
-                        <t t-set="embargo_total" t-value="sum(embargo_lines.mapped('amount'))"/>
-                        <t t-if="embargo_total &gt; 0">
+                        <!-- Embargo -->
                         <tr>
                             <td style="padding:2px 8px 2px 20px;">Embargo Judicial:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                ₡ <t t-out="'{:,.0f}'.format(embargo_total)"/>
-                            </td>
-                        </tr>
-                        </t>
-
-                        <!-- Préstamos -->
-                        <t t-set="loan_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category == 'loan')"/>
-                        <t t-set="loan_total" t-value="sum(loan_lines.mapped('amount'))"/>
-                        <tr>
-                            <td style="padding:2px 8px 2px 20px;">Préstamos:</td>
-                            <td style="padding:2px 8px; text-align:right;">
-                                <t t-if="loan_total &gt; 0">
-                                    ₡ <t t-out="'{:,.0f}'.format(loan_total)"/>
-                                </t>
+                                <t t-if="doc.amount_embargo &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.amount_embargo)"/></t>
                                 <t t-else="">-</t>
                             </td>
+                            <td/>
                         </tr>
 
-                        <!-- Cobros / Facturas -->
-                        <t t-set="cobro_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category not in ('loan','pension_alimentaria','embargo','rop','ausencia','licencia_con_goce','vacation','bonus'))"/>
-                        <t t-set="cobro_total" t-value="sum(cobro_lines.filtered(lambda l: l.deduction_category not in ('maternity','paternity')).mapped('amount'))"/>
+                        <!-- Prestamos -->
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Facturas / Cobros:</td>
+                            <td style="padding:2px 8px 2px 20px;">Prestamos:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-if="cobro_total &gt; 0">
-                                    ₡ <t t-out="'{:,.0f}'.format(cobro_total)"/>
-                                </t>
+                                <t t-if="doc.amount_loans &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.amount_loans)"/></t>
                                 <t t-else="">-</t>
                             </td>
+                            <td/>
                         </tr>
 
-                        <!-- Días / Horas sin goce -->
-                        <t t-set="ausencia_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category in ('ausencia','licencia_sin_goce'))"/>
-                        <t t-set="ausencia_total" t-value="sum(ausencia_lines.mapped('amount'))"/>
-                        <t t-if="ausencia_total &gt; 0">
+                        <!-- Facturas / Cobros -->
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Días / Horas sin goce:</td>
+                            <td style="padding:2px 8px 2px 20px;">Facturas / Compras:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                ₡ <t t-out="'{:,.0f}'.format(ausencia_total)"/>
+                                <t t-if="doc.amount_cobros_empleado &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.amount_cobros_empleado)"/></t>
+                                <t t-else="">-</t>
+                            </td>
+                            <td/>
+                        </tr>
+
+                        <!-- ====== DEPOSITO DEL PATRON ====== -->
+                        <tr><td colspan="3" style="border-top:1px solid #aaa; padding:0;"/></tr>
+                        <tr style="background:#444; color:#fff;">
+                            <td style="padding:3px 8px; font-weight:bold;">Deposito del Patron</td>
+                            <td style="padding:3px 8px; text-align:right;"/>
+                            <td style="padding:3px 8px; text-align:right; font-weight:bold;">
+                                &#8353; <t t-out="'{:,.2f}'.format(doc.deposito_patrono)"/>
+                            </td>
+                        </tr>
+
+                        <!-- Informacion subsidio (solo si hay, sin montos) -->
+                        <t t-if="doc.ccss_subsidy_total &gt; 0">
+                        <tr>
+                            <td colspan="3" style="padding:2px 8px; font-size:10px; font-style:italic; color:#555;">
+                                <t t-set="mat_s" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'maternity' and d.state in ('confirmed','paid'))"/>
+                                <t t-if="mat_s">
+                                    * Subsidio de maternidad (Art. 94 CT): la CCSS deposita directamente al empleado.
+                                </t>
+                                <t t-else="">
+                                    * Subsidio de incapacidad (Art. 79 CT): la CCSS deposita directamente al empleado.
+                                </t>
                             </td>
                         </tr>
                         </t>
 
-                        <!-- Ahorros / Sindicales / Seguros -->
-                        <t t-set="otros_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category in ('ahorro','sindical','cooperativa','seguro','pension_vol'))"/>
-                        <t t-foreach="otros_lines" t-as="ol">
+                        <!-- ====== DETALLE DEL PERIODO (condicional) ====== -->
+                        <t t-if="doc.overtime_hours_total &gt; 0 or doc.disability_days_in_period &gt; 0 or doc.vacation_amount &gt; 0">
+                        <tr><td colspan="3" style="border-top:1px dashed #ccc; padding:0;"/></tr>
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;"><t t-out="ol.deduction_code_id.name"/>:</td>
-                            <td style="padding:2px 8px; text-align:right;">
-                                ₡ <t t-out="'{:,.0f}'.format(ol.amount)"/>
+                            <td colspan="3" style="padding:2px 8px; font-size:10px; font-weight:bold; color:#1F4E79; text-transform:uppercase; letter-spacing:0.4px;">
+                                Detalle del Periodo
                             </td>
                         </tr>
+                        <t t-if="doc.overtime_hours_total &gt; 0">
+                        <tr>
+                            <td style="padding:1px 8px 1px 20px; font-size:11px; color:#555;">Horas extras trabajadas:</td>
+                            <td style="padding:1px 8px; text-align:right; font-size:11px; color:#555;"><t t-out="'{:.2f}'.format(doc.overtime_hours_total)"/> h</td>
+                            <td/>
+                        </tr>
                         </t>
-
-                        <!-- DESGLOSE PATRONO vs CCSS/INS para incapacidades -->
+                        <t t-if="doc.overtime_holiday_hours &gt; 0">
+                        <tr>
+                            <td style="padding:1px 8px 1px 20px; font-size:11px; color:#555;">Feriados trabajados:</td>
+                            <td style="padding:1px 8px; text-align:right; font-size:11px; color:#555;">
+                                <t t-set="hol_ot2" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state == 'approved')"/>
+                                <t t-out="str(len(hol_ot2))"/> dia(s) (<t t-out="'{:.2f}'.format(doc.overtime_holiday_hours)"/> h)
+                            </td>
+                            <td/>
+                        </tr>
+                        </t>
                         <t t-if="doc.disability_days_in_period &gt; 0">
-                        <tr><td colspan="2" style="border-top:1px solid #ccc; padding:0; margin:4px 0;"/></tr>
-                        <tr style="background-color:#f5f5f5;">
-                            <td colspan="2" style="padding:3px 8px; font-size:10px; font-weight:bold; color:#555; text-transform:uppercase; letter-spacing:0.5px;">
-                                Desglose de Pago
-                            </td>
-                        </tr>
-                        <!-- Pago del Patrono -->
-                        <t t-if="doc.neto_por_patrono &gt; 0">
                         <tr>
-                            <td style="padding:2px 8px 2px 20px; font-size:11px;">
-                                ① Pago del Patrono:
+                            <td style="padding:1px 8px 1px 20px; font-size:11px; color:#555;">
+                                Dias de incapacidad:<t t-set="mat_det2" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'maternity' and d.state in ('confirmed','paid'))"/>
+                                <t t-if="mat_det2"><span style="font-size:10px; color:#888;"> (maternidad)</span></t>
                             </td>
-                            <td style="padding:2px 8px; text-align:right; font-size:11px;">
-                                ₡ <t t-out="'{:,.2f}'.format(doc.neto_por_patrono)"/>
-                            </td>
+                            <td style="padding:1px 8px; text-align:right; font-size:11px; color:#555;"><t t-out="str(doc.disability_days_in_period)"/> dias</td>
+                            <td/>
                         </tr>
                         </t>
-                        <!-- Subsidio CCSS/INS -->
-                        <t t-if="doc.neto_por_ccss &gt; 0">
-                        <t t-set="ins_dis_only" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'ins' and d.state in ('confirmed','paid'))"/>
+                        <t t-if="doc.vacation_amount &gt; 0">
                         <tr>
-                            <td style="padding:2px 8px 2px 20px; font-size:11px;">
-                                ② Subsidio
-                                <t t-if="ins_dis_only"> INS</t>
-                                <t t-else=""> CCSS</t>:
+                            <td style="padding:1px 8px 1px 20px; font-size:11px; color:#555;">Vacaciones tomadas:</td>
+                            <td style="padding:1px 8px; text-align:right; font-size:11px; color:#555;">
+                                <t t-set="vac_d" t-value="sum(v.days for v in doc.vacation_ids if v.state in ('approved','paid'))"/>
+                                <t t-out="str(vac_d)"/> dias
                             </td>
-                            <td style="padding:2px 8px; text-align:right; font-size:11px;">
-                                ₡ <t t-out="'{:,.2f}'.format(doc.neto_por_ccss)"/>
-                            </td>
+                            <td/>
                         </tr>
                         </t>
                         </t>
-
-                        <!-- SEPARADOR FINAL -->
-                        <tr><td colspan="2" style="border-top:2px solid #000; padding:0;"/></tr>
-
-                        <!-- NETO A PAGAR -->
-                        <tr style="font-size:13px; font-weight:bold;">
-                            <td style="padding:5px 8px;">Neto a Pagar</td>
-                            <td style="padding:5px 8px; text-align:right;">
-                                ₡ <t t-out="'{:,.2f}'.format(doc.net_salary)"/>
-                            </td>
-                        </tr>
 
                     </table>
 
@@ -348,19 +355,13 @@
                         </div>
                     </div>
 
-                    <!-- NOTAS -->
-                    <t t-if="doc.notes">
-                        <div style="margin-top:8px; font-size:10px; color:#444; border-top:1px solid #ddd; padding-top:4px;">
-                            <strong>Observaciones:</strong> <t t-out="doc.notes"/>
-                        </div>
-                    </t>
-
                     <div class="page_break"/>
                 </div>
             </t>
             </main>
         </t>
-    </t></template>
+        </t>
+    </template>
 
     <record id="action_report_payslip_cr" model="ir.actions.report">
         <field name="name">Boleta de Pago</field>

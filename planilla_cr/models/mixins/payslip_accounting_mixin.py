@@ -167,33 +167,37 @@ class PayslipAccountingMixin(models.AbstractModel):
         ), 2)
         otras_ded = round(otras_ded + otras_ded_manual, 2)
 
-        # salary_payable calculado localmente para garantizar cuadre
-        # = gross - ccss_emp - renta + subsidio_ccss + paternidad + extra_income
-        #   + licencias_con_goce  (se pagan al empleado -> aumentan el neto)
-        #   - pensiones - embargos - prestamos - ausencias
-        #   - licencias_sin_goce  (se descuentan al empleado -> reducen el neto)
+        # deposito_patrono: lo que la empresa REALMENTE deposita al empleado
+        # = gross - ccss_emp - renta + paternidad + extra_income
+        #   + licencias_con_goce
+        #   - pensiones - embargos - prestamos - ausencias - licencias_sg
         #   - rop_obrero - otras_ded
+        # NOTA: el subsidio CCSS (subsidy) NO entra en deposito_patrono porque
+        # la Caja lo deposita directamente al empleado. La empresa solo registra
+        # el derecho de cobro (DEBE 120500) y la obligacion hacia el empleado (HABER).
         # ROP obrero va a 230350 (rop_payable), no a 230000 (salary_payable)
         rop_obrero_net = round(sum(
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'rop' and l.line_type == 'deduction'
         ), 2)
-        net_for_accounting = round(
+        deposito_contable = round(
             gross - ccss_emp - renta
-            + subsidy            # subsidio CCSS dias 4+ (la CCSS lo deposita al empleado)
             + pat_amount         # paternidad: patrono asume los 8 dias
             + extra_income       # ingresos adicionales en boleta (bonos + subsidios)
-            + licencias_con_goce # licencias pagadas (duelo, matrimonio, etc.) -> aumentan neto
+            + licencias_con_goce # licencias pagadas (duelo, matrimonio, etc.)
             - pensiones
-            - embargos           # embargos judiciales retenidos
+            - embargos
             - prestamos
             - ausencias
-            - licencias_sin_goce # permisos sin goce -> reducen neto
-            - rop_obrero_net     # ROP obrero 1% -- va a 230350, reduce lo que va a 230000
-            - cobros_empleado    # cobros retenidos (almuerzos, productos...) -> van a 230970
+            - licencias_sin_goce
+            - rop_obrero_net
+            - cobros_empleado
             - otras_ded,
             2
         )
+        # net_for_accounting se mantiene igual para compatibilidad con cualquier codigo que lo use
+        # pero ya NO incluye el subsidio en 230000 (se separa abajo en las lineas de HABER)
+        net_for_accounting = deposito_contable  # alias limpio
 
         # -- DEBITOS (Gastos del patrono) -------------------------------------
         add_line(config.account_salary_expense,
@@ -382,11 +386,26 @@ class PayslipAccountingMixin(models.AbstractModel):
                      credit=dis_cost,
                      name=f'Incapacidad dias 1-3 (por pagar al empleado) -- {emp}')
 
-        # Neto final a depositar (salary_payable calculado localmente)
-        if net_for_accounting > 0:
+        # Deposito real de la empresa al empleado (SIN subsidios CCSS/INS)
+        if deposito_contable > 0:
             add_line(config.account_salary_payable,
-                     credit=net_for_accounting,
-                     name=f'Salarios por Pagar (neto a depositar) -- {emp}')
+                     credit=deposito_contable,
+                     name=f'Salarios por Pagar (deposito empresa) -- {emp}')
+
+        # Subsidio CCSS/INS: obligacion hacia el empleado via Caja/INS
+        # La empresa actua como intermediaria:
+        #   DEBE  120500 Subsidio CCSS x Cobrar (ya registrado arriba)
+        #   HABER 230300 CCSS por Pagar (obligacion de transferir al empleado)
+        # Cuando la Caja deposita el subsidio, se cancela: DEBE 230300 / HABER Banco
+        ins_subsidy_local = round(self.ins_subsidy_total or 0.0, 2)
+        if subsidy > 0:
+            add_line(config.account_ccss_payable,
+                     credit=subsidy,
+                     name=f'Subsidio CCSS x Pagar al Empleado (la Caja deposita directo) -- {emp}')
+        if ins_subsidy_local > 0:
+            add_line(config.account_ins_payable,
+                     credit=ins_subsidy_local,
+                     name=f'Subsidio INS x Pagar al Empleado (INS deposita directo) -- {emp}')
 
         if not lines:
             return
