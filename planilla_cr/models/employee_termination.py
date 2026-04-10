@@ -704,3 +704,6 @@ class EmployeeTermination(models.Model):
 
     def action_print_termination(self):
         return self.env.ref('planilla_cr.action_report_termination').report_action(self)
+
+    def action_print_carta_despido(self):
+        return self.env.ref('planilla_cr.action_report_carta_despido').report_action(self)

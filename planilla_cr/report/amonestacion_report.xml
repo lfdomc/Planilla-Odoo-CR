@@ -2,105 +2,90 @@
 <odoo>
     <template id="report_amonestacion_document">
         <t t-call="web.html_container"><t t-foreach="docs" t-as="doc">
-        <t t-set="doc"   t-value="doc.sudo()"/>
+        <t t-set="doc"    t-value="doc.sudo()"/>
         <t t-set="company" t-value="doc.company_id.sudo()"/>
-        <t t-set="emp"   t-value="doc.employee_id.sudo()"/>
-        <t t-set="cfg"   t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',company.id)], limit=1)"/>
-        <t t-set="location"       t-value="doc.location or (cfg.hr_rep_location if cfg else '') or (company.city or 'Costa Rica')"/>
+        <t t-set="emp"    t-value="doc.employee_id.sudo()"/>
+        <t t-set="cfg"    t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',company.id)], limit=1)"/>
         <t t-set="firmante_nombre" t-value="doc.signed_by_name  or (cfg.hr_rep_name  if cfg else '') or company.name"/>
         <t t-set="firmante_titulo" t-value="doc.signed_by_title or (cfg.hr_rep_title if cfg else '') or 'Representante Legal'"/>
         <t t-set="meses_es" t-value="{1:'enero',2:'febrero',3:'marzo',4:'abril',5:'mayo',6:'junio',7:'julio',8:'agosto',9:'septiembre',10:'octubre',11:'noviembre',12:'diciembre'}"/>
         <t t-set="mes_texto" t-value="meses_es.get(doc.date.month, '')"/>
         <t t-call="web.external_layout">
             <main>
-            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 30px 40px; line-height: 1.8; max-width: 680px; margin: 0 auto;">
+            <div class="page" style="font-family: Arial, sans-serif; font-size: 12pt; padding: 40px 50px; line-height: 1.8; max-width: 700px; margin: 0 auto;">
 
-                <!-- Lugar y fecha -->
-                <p style="margin-bottom: 20px;">
-                    <t t-out="location"/>,
-                    <t t-out="doc.date.strftime('%d')"/> de <t t-out="mes_texto"/>
-                    de <t t-out="doc.date.strftime('%Y')"/>
-                </p>
-
-                <!-- Destinatario -->
-                <p style="margin-bottom: 4px;"><strong><t t-out="emp.name"/></strong></p>
-                <t t-if="emp.identification_id">
-                    <p style="margin-bottom: 4px;">Cedula: <t t-out="emp.identification_id"/></p>
-                </t>
-                <t t-if="emp.job_id">
-                    <p style="margin-bottom: 4px;"><t t-out="emp.job_id.name"/></p>
-                </t>
-                <p style="margin-bottom: 20px;">Presente.</p>
-
-                <!-- Asunto -->
-                <p style="margin-bottom: 20px;">
+                <!-- ASUNTO como primera linea, igual al machote -->
+                <p style="margin-bottom: 24px;">
                     <strong>Asunto: <t t-out="doc.subject or 'Amonestacion Escrita'"/></strong>
                 </p>
 
-                <!-- Cuerpo principal -->
+                <!-- Parrafo principal -->
                 <p style="text-align: justify; margin-bottom: 14px;">
-                    Por este medio se le comunica formalmente
-                    <strong>amonestacion escrita</strong>,
-                    con fundamento en el
-                    <strong><t t-out="doc.legal_basis or 'Articulo 71, inciso c) del Codigo de Trabajo de Costa Rica'"/></strong>,
-                    debido a:
+                    Por este medio se le comunica formalmente <strong>amonestacion escrita</strong>,
+                    con fundamento en el <strong><t t-out="doc.legal_basis or 'Articulo 71, inciso c) del Codigo de Trabajo de Costa Rica'"/></strong>,
+                    debido a la <strong>falta de cumplimiento reiterada</strong> de sus obligaciones laborales,
+                    incumpliendo lo establecido en el reglamento interno de la empresa y en su contrato laboral.
                 </p>
 
-                <!-- Hechos específicos -->
+                <!-- Faltas especificas -->
+                <p style="margin-bottom: 6px;"><strong>Hechos especificos:</strong></p>
+
                 <t t-if="doc.specific_incidents">
-                    <p style="margin-bottom: 6px;"><strong>Hechos especificos:</strong></p>
-                    <p style="text-align: justify; margin-bottom: 14px; margin-left: 16px; white-space: pre-line;">
-                        <t t-out="doc.specific_incidents"/>
+                    <p style="text-align: justify; margin-bottom: 14px; margin-left: 8px; white-space: pre-line;"><t t-out="doc.specific_incidents"/></p>
+                </t>
+                <t t-else="">
+                    <p style="margin-bottom: 14px; margin-left: 8px;">
+                        Se han registrado multiples incumplimientos de sus obligaciones laborales
+                        sin justificacion valida, afectando la productividad del equipo y el normal
+                        desarrollo de las operaciones de la empresa.
                     </p>
                 </t>
 
                 <!-- Cuerpo adicional -->
                 <t t-if="doc.body">
-                    <p style="text-align: justify; margin-bottom: 14px;">
-                        <t t-out="doc.body"/>
-                    </p>
+                    <p style="text-align: justify; margin-bottom: 14px;"><t t-out="doc.body"/></p>
                 </t>
 
-                <!-- Advertencia legal Art. 81 -->
+                <!-- Advertencia Art 81 -->
                 <p style="text-align: justify; margin-bottom: 14px;">
-                    Se le recuerda que, conforme al <strong>Articulo 81 inciso d)</strong>
-                    del Codigo de Trabajo, el patrono tiene la facultad de rescindir el
-                    contrato sin responsabilidad patronal en caso de incurrir en faltas
-                    repetidas de puntualidad <strong>luego de haber sido amonestado por
-                    escrito</strong>, como es el caso del presente documento.
+                    Se le recuerda que, conforme al <strong>Articulo 81 inciso d)</strong> del Codigo de
+                    Trabajo, el patron tiene la facultad de rescindir el contrato sin responsabilidad
+                    patronal en caso de incurrir en faltas repetidas <strong>luego de haber sido
+                    amonestado por escrito</strong>, como es el caso del presente documento.
                 </p>
 
                 <!-- Consecuencias -->
-                <p style="text-align: justify; margin-bottom: 20px;">
+                <p style="text-align: justify; margin-bottom: 14px;">
                     <t t-out="doc.consequences or 'Esta amonestacion tiene como proposito que tome conciencia de la importancia del cumplimiento de sus obligaciones laborales y corrija su conducta de forma inmediata. En caso de reincidencia, se tomaran medidas disciplinarias mas severas, incluyendo la posibilidad de suspension o despido, conforme a derecho.'"/>
                 </p>
 
-                <p style="margin-bottom: 40px;">Atentamente,</p>
+                <p style="margin-bottom: 14px;">
+                    Agradecemos su atencion a este llamado y quedamos atentos a su compromiso de mejora.
+                </p>
+
+                <p style="margin-bottom: 50px;">Atentamente,</p>
 
                 <!-- Firma patrono -->
-                <div style="margin-bottom: 50px;">
-                    <div style="border-top: 1px solid #000; width: 280px; padding-top: 6px; margin-bottom: 4px;"/>
-                    <strong><t t-out="firmante_nombre"/></strong><br/>
-                    <t t-out="firmante_titulo"/><br/>
-                    <t t-out="company.name"/>
-                </div>
+                <p style="border-top: 1px solid #000; width: 260px; padding-top: 4px; margin-bottom: 2px;">&#160;</p>
+                <p style="margin-bottom: 2px;"><strong><t t-out="firmante_nombre"/></strong></p>
+                <p style="margin-bottom: 2px;"><t t-out="firmante_titulo"/></p>
+                <p style="margin-bottom: 40px;"><t t-out="company.name"/></p>
 
                 <!-- Constancia de recibo -->
-                <div style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 16px;">
-                    <p style="margin-bottom: 14px;"><strong>Constancia de recibo</strong></p>
-                    <p style="text-align: justify; margin-bottom: 20px;">
-                        Yo, <t t-out="emp.name"/>,
-                        <t t-if="emp.identification_id">
-                            con cedula numero <t t-out="emp.identification_id"/>,
-                        </t>
-                        declaro haber recibido la presente amonestacion escrita con fecha
-                        <t t-out="doc.date.strftime('%d')"/> de <t t-out="mes_texto"/>
-                        de <t t-out="doc.date.strftime('%Y')"/>.
-                    </p>
-                    <div style="margin-top: 40px; border-top: 1px solid #000; width: 280px; padding-top: 6px;">
-                        Firma del trabajador
-                    </div>
-                </div>
+                <p style="margin-bottom: 10px;"><strong>Constancia de recibo</strong></p>
+
+                <p style="text-align: justify; margin-bottom: 30px;">
+                    Yo, <t t-out="emp.name"/>,
+                    <t t-if="emp.identification_id">
+                        con cedula numero <t t-out="emp.identification_id"/>,
+                    </t>
+                    declaro haber recibido la presente amonestacion escrita con fecha
+                    <t t-out="doc.date.strftime('%d')"/> de <t t-out="mes_texto"/>
+                    de <t t-out="doc.date.strftime('%Y')"/>.
+                </p>
+
+                <p style="border-top: 1px solid #000; width: 260px; padding-top: 4px;">&#160;</p>
+                <p>Firma del trabajador</p>
 
             </div>
             </main>

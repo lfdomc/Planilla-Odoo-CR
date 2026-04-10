@@ -209,75 +209,120 @@
         <t t-set="mes_texto" t-value="meses_es.get(fecha_hoy.month, '')"/>
         <t t-call="web.external_layout">
             <main>
-            <div class="page" style="font-family: Arial, sans-serif; font-size: 12px; padding: 30px 40px; line-height: 1.9; max-width: 680px; margin: 0 auto;">
+            <div class="page" style="font-family: Arial, sans-serif; font-size: 12pt; padding: 40px 50px; line-height: 1.9; max-width: 700px; margin: 0 auto;">
 
-                <!-- Estimado + Lugar + Fecha (alineado derecha como el machote sin resp.) -->
-                <p style="margin-bottom: 20px;">
-                    <strong>Estimado(a) Senor(a).
-                    <t t-out="location"/>,
-                    <t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
-                    de <t t-out="fecha_hoy.strftime('%Y')"/></strong>
-                </p>
-
-                <!-- Destinatario -->
-                <p style="margin-bottom: 2px;"><strong><t t-out="emp.name"/></strong></p>
-                <t t-if="emp.identification_id">
-                    <p style="margin-bottom: 2px;">
-                        Cedula identidad <t t-out="emp.identification_id"/>
-                    </p>
-                </t>
-                <t t-if="emp.job_id">
-                    <p style="margin-bottom: 2px;"><t t-out="emp.job_id.name"/></p>
-                </t>
-                <p style="margin-bottom: 20px;">Presente.</p>
-
-                <!-- ====== DESPIDO SIN RESPONSABILIDAD (justa causa Art. 81) ====== -->
+                <!-- ====== DESPIDO SIN RESPONSABILIDAD (justa causa Art.81) ====== -->
                 <t t-if="doc.termination_reason == 'despido_justif'">
+
+                    <!-- Primera linea: Estimado Senor + lugar + fecha en BOLD, en una sola linea -->
+                    <p style="margin-bottom: 16px;">
+                        <strong>Estimado Senor.
+                        <t t-out="location"/>,
+                        <t t-out="str(fecha_hoy.day)"/> de <t t-out="mes_texto"/>
+                        de <t t-out="str(fecha_hoy.year)"/></strong>
+                    </p>
+
+                    <p style="margin-bottom: 4px;"><strong><t t-out="emp.name"/></strong></p>
+                    <t t-if="emp.identification_id">
+                        <p style="margin-bottom: 20px;"><strong>Cedula identidad <t t-out="emp.identification_id"/></strong></p>
+                    </t>
+
                     <p style="text-align: justify; margin-bottom: 14px;">
                         Por medio de la presente, y conforme lo establecido en el Codigo de
                         Trabajo de la Republica de Costa Rica, le comunicamos que la empresa ha
                         decidido dar por terminado su contrato de trabajo a partir del
-                        <strong><t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
-                        de <t t-out="fecha_hoy.strftime('%Y')"/></strong>,
-                        <strong>sin responsabilidad para la misma</strong>,
-                        <t t-if="doc.note">
-                            debido a: <t t-out="doc.note"/>
-                        </t>
-                        <t t-else="">
-                            debido a incumplimientos graves de sus obligaciones laborales.
-                        </t>
+                        <strong><t t-out="str(fecha_hoy.day)"/> de <t t-out="mes_texto"/>
+                        de <t t-out="str(fecha_hoy.year)"/></strong>,
+                        <strong>sin responsabilidad para la misma</strong>.
                     </p>
+
+                    <t t-if="doc.note">
+                        <p style="text-align: justify; margin-bottom: 14px;"><t t-out="doc.note"/></p>
+                    </t>
+                    <t t-else="">
+                        <p style="text-align: justify; margin-bottom: 14px;">
+                            Lamentablemente, hemos tenido que proceder con esta decision despues de
+                            que se evidenciaran incumplimientos graves de sus obligaciones laborales,
+                            a pesar de los diversos intentos de comunicacion y de la aplicacion de
+                            medidas correctivas. De acuerdo con el <strong>articulo 81 del Codigo de
+                            Trabajo</strong>, las causas descritas facultan al patrono para rescindir
+                            la relacion laboral sin responsabilidad patronal.
+                        </p>
+                    </t>
+
                     <p style="text-align: justify; margin-bottom: 14px;">
-                        De acuerdo con el <strong>articulo 81 del Codigo de Trabajo</strong>,
-                        las causas descritas facultan al patrono para rescindir la relacion laboral
-                        sin responsabilidad patronal. A traves de esta notificacion, se le informa
-                        que el vinculo laboral queda definitivamente rescindido, y que no se le
-                        reconocera indemnizacion alguna ni otros beneficios adicionales.
+                        Le recordamos que los incumplimientos reiterados constituyen una causal
+                        objetiva de despido sin responsabilidad para el empleador. A traves de esta
+                        notificacion, se le informa que el vinculo laboral queda definitivamente
+                        rescindido, y que no se le reconocera indemnizacion alguna ni otros
+                        beneficios adicionales mas alla de los establecidos por ley.
                     </p>
+
                     <p style="text-align: justify; margin-bottom: 14px;">
                         Se le invita a coordinar la entrega de los bienes y equipos de la empresa
                         que pudieran estar bajo su responsabilidad. Ademas, se le informara sobre
                         el calculo y entrega de su liquidacion final, la cual incluira los pagos
                         pendientes hasta la fecha de su salida, conforme a lo dispuesto por la ley.
                     </p>
-                    <p style="text-align: justify; margin-bottom: 20px;">
+
+                    <p style="text-align: justify; margin-bottom: 30px;">
                         Le agradecemos el tiempo que estuvo laborando en nuestra empresa y
                         lamentamos que este asunto haya tenido que llegar a esta conclusion.
                     </p>
+
+                    <p style="margin-bottom: 40px;">Atentamente.</p>
+
+                    <!-- Firma -->
+                    <p style="border-top: 1px solid #000; width: 280px; padding-top: 4px; margin-bottom: 2px;">&#160;</p>
+                    <p style="margin-bottom: 2px;"><t t-out="firmante_nombre"/></p>
+                    <p style="margin-bottom: 30px;"><t t-out="firmante_titulo"/></p>
+
+                    <!-- Recibido -->
+                    <p style="margin-bottom: 16px;">
+                        Fecha de recibido:&#160;&#160;
+                        ___________________________________
+                    </p>
+                    <p style="margin-bottom: 16px;">
+                        Nombre de colaborador:&#160;&#160;
+                        ___________________________________
+                    </p>
+                    <p style="margin-bottom: 20px;">
+                        Firma de colaborador:&#160;&#160;
+                        ___________________________________
+                    </p>
+                    <p style="margin-bottom: 4px;">Cc/Expediente personal.</p>
+                    <p>Ministerio de Trabajo C.R</p>
+
                 </t>
 
-                <!-- ====== DESPIDO CON RESPONSABILIDAD (Art. 85 / preaviso Art. 28) ====== -->
+                <!-- ====== DESPIDO CON RESPONSABILIDAD (Art. 85 / preaviso) ====== -->
                 <t t-elif="doc.termination_reason == 'despido_injust'">
+
+                    <!-- Fecha al inicio, sin bold -->
+                    <p style="margin-bottom: 20px;">
+                        <t t-out="location"/>,
+                        <t t-out="str(fecha_hoy.day)"/> de <t t-out="mes_texto"/>
+                        de <t t-out="str(fecha_hoy.year)"/>
+                    </p>
+
+                    <p style="margin-bottom: 4px;">Senor(a)</p>
+                    <p style="margin-bottom: 4px;"><t t-out="emp.name"/></p>
+                    <t t-if="emp.job_id">
+                        <p style="margin-bottom: 4px;"><t t-out="emp.job_id.name"/></p>
+                    </t>
+                    <p style="margin-bottom: 20px;">Presente.</p>
+
                     <p style="text-align: justify; margin-bottom: 14px;">
                         Por este medio le informo que de conformidad con lo dispuesto en el
-                        <strong>articulo 85 inciso d) del Codigo de Trabajo</strong>,
-                        la empresa ha decidido dar por terminado el contrato laboral mantenido
-                        con su persona <strong><u>con responsabilidad patronal</u></strong>
+                        <strong>articulo 85 inciso d) del Codigo de Trabajo</strong>, la empresa ha
+                        decidido dar por terminado el contrato laboral mantenido con su persona
+                        <u><strong>con responsabilidad patronal</strong></u>
                         a partir del dia
-                        <strong><t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
-                        de <t t-out="fecha_hoy.strftime('%Y')"/></strong>,
+                        <strong><t t-out="str(fecha_hoy.day)"/> de <t t-out="mes_texto"/>
+                        de <t t-out="str(fecha_hoy.year)"/></strong>,
                         siendo este su ultimo dia de trabajo.
                     </p>
+
                     <t t-if="doc.note">
                         <p style="text-align: justify; margin-bottom: 14px;">
                             El motivo de la decision se debe a: <t t-out="doc.note"/>
@@ -289,80 +334,71 @@
                             definitivas de la empresa.
                         </p>
                     </t>
-                    <p style="text-align: justify; margin-bottom: 20px;">
+
+                    <p style="text-align: justify; margin-bottom: 30px;">
                         Se le agradecen los servicios prestados y para efectos del retiro de
                         todos los extremos laborales de su liquidacion se le solicita
-                        presentarse en las instalaciones de la empresa para coordinar la entrega
-                        conforme a lo dispuesto por la ley.
+                        presentarse en las instalaciones de la empresa para coordinar la
+                        entrega conforme a lo dispuesto por la ley.
                     </p>
+
+                    <p style="margin-bottom: 40px;">Sin otro particular,</p>
+
+                    <!-- Firma entre parentesis como el machote -->
+                    <p style="margin-bottom: 4px;"><strong>(<t t-out="firmante_nombre"/>, <t t-out="firmante_titulo"/>)</strong></p>
+                    <p style="margin-bottom: 30px;"><strong>(<t t-out="company.name"/>)</strong></p>
+
+                    <p style="margin-bottom: 16px;"><strong>Recibe: _________________________</strong></p>
+                    <p><strong>Fecha: ___________________</strong></p>
+
                 </t>
 
-                <!-- ====== RENUNCIA VOLUNTARIA (Art. 83) ====== -->
+                <!-- ====== RENUNCIA VOLUNTARIA ====== -->
                 <t t-elif="doc.termination_reason == 'renuncia'">
+
+                    <p style="margin-bottom: 20px;">
+                        <t t-out="location"/>,
+                        <t t-out="str(fecha_hoy.day)"/> de <t t-out="mes_texto"/>
+                        de <t t-out="str(fecha_hoy.year)"/>
+                    </p>
+
+                    <p style="margin-bottom: 4px;">Senor(a)</p>
+                    <p style="margin-bottom: 4px;"><t t-out="emp.name"/></p>
+                    <t t-if="emp.job_id">
+                        <p style="margin-bottom: 4px;"><t t-out="emp.job_id.name"/></p>
+                    </t>
+                    <p style="margin-bottom: 20px;">Presente.</p>
+
                     <p style="text-align: justify; margin-bottom: 14px;">
                         Por medio de la presente, el (la) senor(a)
                         <strong><t t-out="emp.name"/></strong>
                         comunica formalmente su renuncia voluntaria al puesto de
                         <strong><t t-out="emp.job_id.name or 'colaborador(a)'"/></strong>
-                        en la empresa
-                        <strong><t t-out="company.name"/></strong>,
+                        en la empresa <strong><t t-out="company.name"/></strong>,
                         con fundamento en el <strong>Articulo 83 del Codigo de Trabajo</strong>,
-                        con efectividad a partir del
-                        <strong><t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
-                        de <t t-out="fecha_hoy.strftime('%Y')"/></strong>.
+                        con efectividad a partir del dia
+                        <strong><t t-out="str(fecha_hoy.day)"/> de <t t-out="mes_texto"/>
+                        de <t t-out="str(fecha_hoy.year)"/></strong>.
                     </p>
+
                     <t t-if="doc.note">
-                        <p style="text-align: justify; margin-bottom: 14px;">
-                            <t t-out="doc.note"/>
-                        </p>
+                        <p style="text-align: justify; margin-bottom: 14px;"><t t-out="doc.note"/></p>
                     </t>
-                    <p style="text-align: justify; margin-bottom: 20px;">
-                        Se agradece el tiempo y dedicacion brindados a la empresa durante
-                        la relacion laboral.
-                    </p>
-                </t>
 
-                <!-- ====== OTRO MOTIVO ====== -->
-                <t t-else="">
-                    <p style="text-align: justify; margin-bottom: 14px;">
-                        Por medio de la presente, le comunicamos que la empresa ha decidido
-                        dar por terminada la relacion laboral con su persona a partir del
-                        <strong><t t-out="fecha_hoy.strftime('%d')"/> de <t t-out="mes_texto"/>
-                        de <t t-out="fecha_hoy.strftime('%Y')"/></strong>,
-                        conforme lo dispuesto en el Codigo de Trabajo de Costa Rica.
+                    <p style="text-align: justify; margin-bottom: 30px;">
+                        Se agradece el tiempo y dedicacion brindados a la empresa durante la
+                        relacion laboral.
                     </p>
-                    <t t-if="doc.note">
-                        <p style="text-align: justify; margin-bottom: 14px;">
-                            <t t-out="doc.note"/>
-                        </p>
+
+                    <p style="margin-bottom: 40px;">Atentamente,</p>
+
+                    <p style="border-top: 1px solid #000; width: 280px; padding-top: 4px; margin-bottom: 2px;">&#160;</p>
+                    <p style="margin-bottom: 2px;"><t t-out="emp.name"/></p>
+                    <t t-if="emp.identification_id">
+                        <p style="margin-bottom: 2px;">Cedula: <t t-out="emp.identification_id"/></p>
                     </t>
+
                 </t>
-
-                <p style="margin-bottom: 40px;">Atentamente.</p>
-
-                <!-- Firma patrono -->
-                <div style="margin-bottom: 50px;">
-                    <div style="border-top: 1px solid #000; width: 300px; padding-top: 6px; margin-bottom: 4px;"/>
-                    <strong><t t-out="firmante_nombre"/></strong><br/>
-                    <t t-out="firmante_titulo"/><br/>
-                    <t t-out="company.name"/>
-                </div>
-
-                <!-- Recibido -->
-                <div style="margin-top: 20px; border-top: 1px solid #ccc; padding-top: 16px;">
-                    <p style="margin-bottom: 24px;">
-                        Fecha de recibido: ___________________________________
-                    </p>
-                    <p style="margin-bottom: 24px;">
-                        Nombre de colaborador: ___________________________________
-                    </p>
-                    <p style="margin-bottom: 10px;">
-                        Firma de colaborador: ___________________________________
-                    </p>
-                    <p style="margin-top: 20px; font-size: 11px; color: #555;">
-                        Cc / Expediente personal. Ministerio de Trabajo C.R.
-                    </p>
-                </div>
 
             </div>
             </main>

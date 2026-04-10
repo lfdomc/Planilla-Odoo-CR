@@ -34,6 +34,9 @@
                             invisible="state != 'confirmed'" class="btn-success"/>
                     <button name="action_print_termination" type="object" string="Imprimir Finiquito"
                             invisible="state == 'draft'"/>
+                    <button name="action_print_carta_despido" type="object" string="Carta de Despido"
+                            invisible="state == 'draft' or termination_reason not in ('despido_justif','despido_injust','renuncia')"
+                            class="btn-secondary" icon="fa-file-text-o"/>
                     <button name="action_view_accounting_entry" type="object" string="Ver Asiento"
                             invisible="not move_id"/>
                     <field name="move_id" invisible="1"/>
@@ -191,10 +194,20 @@
                     </div>
 
                     <!-- Notas -->
-                    <group style="margin-top:16px;">
-                        <field name="note" string="Observaciones"
-                               placeholder="Observaciones adicionales..." nolabel="1"/>
-                    </group>
+                    <div style="margin-top:16px; padding:0 16px;"
+                         invisible="termination_reason not in ('despido_justif','despido_injust','renuncia','mutuo')">
+                        <div invisible="termination_reason not in ('despido_justif','despido_injust')"
+                             class="alert alert-info" role="alert" style="margin-bottom:8px;">
+                            <i class="fa fa-info-circle"/> El texto ingresado en <strong>Motivo del Despido</strong>
+                            aparecera automaticamente en la carta de despido al imprimirla.
+                        </div>
+                        <field name="note"
+                               string="Motivo del Despido"
+                               placeholder="Describa el motivo del despido (absencias, incumplimientos, etc.)"
+                               nolabel="1"
+                               required="termination_reason in ('despido_justif', 'despido_injust')"
+                               style="width:100%;"/>
+                    </div>
 
                 </sheet>
                 <chatter/>

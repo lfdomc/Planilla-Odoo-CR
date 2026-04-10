@@ -4,6 +4,9 @@
         <t t-call="web.html_container">
             <meta charset="UTF-8"/>
             <t t-foreach="docs" t-as="doc">
+                <t t-set="cfg" t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',doc.company_id.id)], limit=1)"/>
+                <t t-set="firmante_nombre" t-value="(cfg.hr_rep_name  if cfg else '') or doc.company_id.name"/>
+                <t t-set="firmante_titulo" t-value="(cfg.hr_rep_title if cfg else '') or 'Representante Legal'"/>
                 <div class="page">
                     <div style="border-bottom:3px solid #1F4E79; padding-bottom:10px; margin-bottom:15px;">
                         <table width="100%">
@@ -115,27 +118,44 @@
                         </tfoot>
                     </table>
 
-                    <!-- Firma -->
-                    <div style="margin-top:40px;">
+                    <!-- Leyenda de conformidad -->
+                    <div style="margin-top:24px; padding:10px 14px; border:1px solid #ddd; font-size:10px; color:#444; text-align:justify; background:#fafafa;">
+                        El trabajador declara recibir a plena conformidad los montos indicados
+                        en concepto de liquidacion final de su relacion laboral con
+                        <t t-esc="doc.company_id.name"/>, reconociendo que los mismos
+                        corresponden a todos los extremos laborales a que tiene derecho conforme
+                        al Codigo de Trabajo de Costa Rica, sin reservas ni reclamos pendientes.
+                    </div>
+
+                    <!-- Firmas -->
+                    <div style="margin-top:36px;">
                         <table width="100%">
                             <tr>
-                                <td width="45%" style="text-align:center; border-top:1px solid #333; padding-top:5px; font-size:11px;">
-                                    Firma del Empleado<br/>
-                                    <t t-esc="doc.employee_id.name"/><br/>
-                                    <t t-esc="doc.employee_id.identification_id or ''"/>
+                                <td width="45%" style="text-align:center; padding-top:5px; font-size:11px;">
+                                    <div style="border-top:1px solid #333; padding-top:5px;">
+                                        Firma del Colaborador<br/>
+                                        <strong><t t-esc="doc.employee_id.name"/></strong><br/>
+                                        Cedula: <t t-esc="doc.employee_id.identification_id or ''"/>
+                                    </div>
                                 </td>
                                 <td width="10%"/>
-                                <td width="45%" style="text-align:center; border-top:1px solid #333; padding-top:5px; font-size:11px;">
-                                    Firma del Representante<br/>
-                                    <t t-esc="doc.company_id.name"/>
+                                <td width="45%" style="text-align:center; padding-top:5px; font-size:11px;">
+                                    <div style="border-top:1px solid #333; padding-top:5px;">
+                                        Firma del Representante Patronal<br/>
+                                        <strong><t t-esc="firmante_nombre"/></strong><br/>
+                                        <t t-esc="firmante_titulo"/><br/>
+                                        <t t-esc="doc.company_id.name"/>
+                                    </div>
                                 </td>
                             </tr>
                         </table>
                     </div>
 
-                    <div style="margin-top:20px; font-size:8px; color:#888; text-align:center; border-top:1px solid #ddd; padding-top:6px;">
-                        Liquidación emitida el <t t-esc="doc.termination_date"/> |
-                        Montos calculados conforme al Código de Trabajo de Costa Rica
+                    <!-- Pie -->
+                    <div style="margin-top:20px; font-size:9px; color:#888; border-top:1px solid #ddd; padding-top:6px;">
+                        <span>Liquidacion emitida el <t t-esc="doc.termination_date"/> |
+                        Montos calculados conforme al Codigo de Trabajo de Costa Rica</span>
+                        <span style="float:right;">Cc / Expediente personal. Ministerio de Trabajo C.R.</span>
                     </div>
                 </div>
             </t>
