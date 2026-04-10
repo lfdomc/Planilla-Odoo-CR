@@ -113,6 +113,12 @@ class PayrollAccountingConfig(models.Model):
 <p>Atentamente,<br/><strong>{company}</strong><br/>Departamento de Recursos Humanos</p>''',
         help='Cuerpo HTML del correo. Use {period} para el periodo y {company} para la empresa.'
     )
+    email_payslip_server_id = fields.Many2one(
+        'ir.mail_server',
+        string='Servidor de correo saliente',
+        help='Servidor SMTP para enviar boletas. '
+             'Si no aparece ninguno, configure uno en Ajustes > Servidores de correo saliente.'
+    )
     email_payslip_signature = fields.Char(
         string='Firma del remitente',
         help='Nombre que aparece en la firma del correo. Ej: "Recursos Humanos".'
@@ -498,40 +504,42 @@ class PayrollAccountingConfig(models.Model):
         }
 
     def action_test_email(self):
-        """Envia un correo de prueba al email del usuario actual."""
+        """Abre wizard para enviar correo de prueba con destinatario configurable."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Enviar Correo de Prueba',
+            'res_model': 'planilla.test.email.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_config_id': self.id,
+                'default_recipient': self.env.user.email or '',
+            },
+        }
+
+    def _do_send_test_email(self, recipient):
+        """Logica real de envio del correo de prueba."""
         import base64
         from odoo.exceptions import UserError
-        
-        test_recipient = self.env.user.email
-        if not test_recipient:
-            raise UserError(
-                'El usuario actual no tiene email configurado. '
-                'Configure su email en Ajustes -> Usuarios antes de probar.'
-            )
-        
+
+        if not recipient:
+            raise UserError('Ingrese un correo destinatario para la prueba.')
+
         company = self.env.company
         period_sample = 'Periodo de Prueba'
-        
+
         subject = (self.email_payslip_subject or 'Boleta de Pago - {period}').replace(
             '{period}', period_sample
         )
-        
-        body = self.email_payslip_body or ''
-        if hasattr(body, '__html__'):
-            body_str = str(body)
-        else:
-            body_str = body or ''
-        body_str = body_str.replace('{period}', period_sample).replace(
-            '{company}', company.name or ''
-        )
-        
-        # Adjuntar una boleta real si existe, sino mensaje de prueba
+        body_str = str(self.email_payslip_body or '').replace(
+            '{period}', period_sample
+        ).replace('{company}', company.name or '')
+
         attachments = []
         sample_slip = self.env['planilla.payslip.cr'].search([
             ('company_id', '=', company.id),
             ('state', 'in', ('confirmed', 'paid')),
         ], limit=1)
-        
         if sample_slip:
             try:
                 report = self.env.ref('planilla_cr.action_report_payslip_cr')
@@ -546,34 +554,33 @@ class PayrollAccountingConfig(models.Model):
                 })]
             except Exception:
                 pass
-        
-        from_email = (
-            self.email_payslip_from
-            or self.env.user.email
-            or company.email
-        )
-        
+
+        from_email = self.email_payslip_from or self.env.user.email or company.email
         mail_vals = {
-            'subject': f'[PRUEBA] {subject}',
+            'subject': '[PRUEBA] ' + subject,
             'body_html': body_str,
-            'email_to': test_recipient,
+            'email_to': recipient,
             'email_from': from_email,
             'attachment_ids': attachments,
         }
+        if self.email_payslip_server_id:
+            mail_vals['mail_server_id'] = self.email_payslip_server_id.id
+
         mail = self.env['mail.mail'].create(mail_vals)
         mail.send()
-        
+        slip_note = (
+            ' Se adjunto la boleta de ' + sample_slip.employee_id.name + '.'
+            if sample_slip else ''
+        )
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': 'Correo de prueba enviado',
-                'message': (
-                    f'Se envio un correo de prueba a {test_recipient}. '
-                    f'Revise su bandeja de entrada.'
-                    + (f' Se adjunto la boleta de {sample_slip.employee_id.name}.' if sample_slip else '')
-                ),
+                'message': 'Correo enviado a ' + recipient + '. Revise su bandeja.' + slip_note,
                 'type': 'success',
                 'sticky': False,
             },
         }
+
+

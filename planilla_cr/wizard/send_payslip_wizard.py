@@ -44,6 +44,18 @@ class SendPayslipWizard(models.TransientModel):
             '<br/><p>Atentamente,<br/>{company}<br/>Recursos Humanos</p>'
         )
 
+    mail_server_id = fields.Many2one(
+        'ir.mail_server',
+        string='Servidor de correo',
+        default=lambda self: self._default_server()
+    )
+
+    def _default_server(self):
+        config = self._get_config()
+        if config and config.email_payslip_server_id:
+            return config.email_payslip_server_id
+        return False
+
     def _default_from(self):
         config = self._get_config()
         if config and config.email_payslip_from:
@@ -95,6 +107,8 @@ class SendPayslipWizard(models.TransientModel):
                     'mimetype': 'application/pdf',
                 })],
             }
+            if self.mail_server_id:
+                mail_values['mail_server_id'] = self.mail_server_id.id
             mail = self.env['mail.mail'].create(mail_values)
             mail.send()
             sent_count += 1

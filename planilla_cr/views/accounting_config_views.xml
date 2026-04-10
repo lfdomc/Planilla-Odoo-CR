@@ -60,6 +60,7 @@
                     <!-- Configuracion de Correo de Boletas -->
                     <group string="Correo de Boletas a Empleados">
                         <group string="Servidor y Remitente">
+                            <field name="email_payslip_server_id"/>
                             <field name="email_payslip_from" placeholder="planilla@empresa.cr"/>
                             <field name="email_payslip_subject"/>
                             <field name="email_payslip_signature" placeholder="Recursos Humanos - Mundopet"/>
