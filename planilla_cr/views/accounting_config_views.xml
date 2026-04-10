@@ -57,6 +57,34 @@
                         </div>
                     </group>
 
+                    <!-- Configuracion de Correo de Boletas -->
+                    <group string="Correo de Boletas a Empleados">
+                        <group string="Servidor y Remitente">
+                            <field name="email_payslip_from" placeholder="planilla@empresa.cr"/>
+                            <field name="email_payslip_subject"/>
+                            <field name="email_payslip_signature" placeholder="Recursos Humanos - Mundopet"/>
+                        </group>
+                        <group string="Prueba de Envio">
+                            <div colspan="2">
+                                <button name="action_test_email" type="object"
+                                        string="Enviar correo de prueba a mi email"
+                                        class="btn-secondary"/>
+                                <div class="text-muted" style="font-size:12px; margin-top:6px;">
+                                    Envia un correo de prueba a tu email para verificar
+                                    que el servidor esta configurado correctamente.
+                                    Si hay una boleta confirmada en el sistema, la adjunta como ejemplo.
+                                </div>
+                            </div>
+                        </group>
+                        <group string="Cuerpo del Correo" colspan="2">
+                            <field name="email_payslip_body" widget="html" nolabel="1" colspan="2"/>
+                            <div class="text-muted" colspan="2" style="font-size:11px;">
+                                Variables: <code>{period}</code> = periodo del pago,
+                                <code>{company}</code> = nombre de la empresa.
+                            </div>
+                        </group>
+                    </group>
+
                     <!-- Beneficios Especiales de la Empresa -->
                     <group string="Beneficios Especiales">
                         <group string="Vacaciones Adicionales por Año (1 de enero)">

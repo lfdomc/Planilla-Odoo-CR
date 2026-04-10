@@ -11,18 +11,44 @@ class SendPayslipWizard(models.TransientModel):
     send_all = fields.Boolean(string='Enviar Todas', default=False)
     email_subject = fields.Char(
         string='Asunto',
-        default='Boleta de Pago - {period}'
+        default=lambda self: self._default_subject()
     )
     email_body = fields.Html(
         string='Mensaje',
-        default="""
-<p>Estimado/a colaborador/a,</p>
-<p>Adjunto encontrara su boleta de pago correspondiente al periodo indicado.</p>
-<p>Si tiene alguna consulta, no dude en contactar al departamento de Recursos Humanos.</p>
-<br/>
-<p>Atentamente,<br/>Departamento de Recursos Humanos</p>
-        """
+        default=lambda self: self._default_body()
     )
+    email_from = fields.Char(
+        string='Remitente',
+        default=lambda self: self._default_from()
+    )
+
+    def _get_config(self):
+        return self.env['planilla.accounting.config'].get_config(
+            self.env.company.id
+        )
+
+    def _default_subject(self):
+        config = self._get_config()
+        if config and config.email_payslip_subject:
+            return config.email_payslip_subject
+        return 'Boleta de Pago - {period}'
+
+    def _default_body(self):
+        config = self._get_config()
+        if config and config.email_payslip_body:
+            return config.email_payslip_body
+        return (
+            '<p>Estimado/a colaborador/a,</p>'
+            '<p>Adjunto encontrara su boleta de pago del periodo <strong>{period}</strong>.</p>'
+            '<p>Si tiene alguna consulta, contacte al departamento de Recursos Humanos.</p>'
+            '<br/><p>Atentamente,<br/>{company}<br/>Recursos Humanos</p>'
+        )
+
+    def _default_from(self):
+        config = self._get_config()
+        if config and config.email_payslip_from:
+            return config.email_payslip_from
+        return self.env.user.email or self.env.company.email or ''
 
     def action_send(self):
         """Envia las boletas por correo a cada empleado."""
@@ -53,13 +79,16 @@ class SendPayslipWizard(models.TransientModel):
                 continue
 
             period = f'{payslip.date_from} al {payslip.date_to}'
+            company_name = payslip.company_id.name or self.env.company.name
             subject = self.email_subject.replace('{period}', period)
 
             mail_values = {
                 'subject': subject,
-                'body_html': self.email_body,
+                'body_html': (str(self.email_body or ''))
+                    .replace('{period}', period)
+                    .replace('{company}', company_name),
                 'email_to': email,
-                'email_from': self.env.user.email or self.env.company.email,
+                'email_from': self.email_from or self.env.user.email or self.env.company.email,
                 'attachment_ids': [(0, 0, {
                     'name': f'Boleta_{employee.name}_{payslip.date_to}.pdf',
                     'datas': pdf_b64,

@@ -93,6 +93,31 @@ class PayrollAccountingConfig(models.Model):
         help='Ciudad o lugar donde se emiten las constancias. Ej: "INVU Las Canas, Alajuela".'
     )
 
+    # == Configuracion de envio de boletas por correo ==================
+    email_payslip_subject = fields.Char(
+        string='Asunto del correo',
+        default='Boleta de Pago - {period}',
+        help='Asunto del correo. Use {period} para insertar el periodo automaticamente.'
+    )
+    email_payslip_from = fields.Char(
+        string='Remitente (From)',
+        help='Direccion de correo del remitente. Si se deja vacio usa el email '
+             'de la empresa o del usuario que envia.'
+    )
+    email_payslip_body = fields.Html(
+        string='Cuerpo del correo',
+        default='''<p>Estimado/a colaborador/a,</p>
+<p>Adjunto encontrara su boleta de pago correspondiente al periodo <strong>{period}</strong>.</p>
+<p>Si tiene alguna consulta, no dude en contactar al departamento de Recursos Humanos.</p>
+<br/>
+<p>Atentamente,<br/><strong>{company}</strong><br/>Departamento de Recursos Humanos</p>''',
+        help='Cuerpo HTML del correo. Use {period} para el periodo y {company} para la empresa.'
+    )
+    email_payslip_signature = fields.Char(
+        string='Firma del remitente',
+        help='Nombre que aparece en la firma del correo. Ej: "Recursos Humanos".'
+    )
+
     default_payroll_calendar_id = fields.Many2one(
         'planilla.calendar', string='Calendarizacion por Defecto',
         help='Al crear una nueva planilla, esta calendarizacion se seleccionara '
@@ -470,4 +495,85 @@ class PayrollAccountingConfig(models.Model):
                 'type': 'success',
                 'sticky': True,
             }
+        }
+
+    def action_test_email(self):
+        """Envia un correo de prueba al email del usuario actual."""
+        import base64
+        from odoo.exceptions import UserError
+        
+        test_recipient = self.env.user.email
+        if not test_recipient:
+            raise UserError(
+                'El usuario actual no tiene email configurado. '
+                'Configure su email en Ajustes -> Usuarios antes de probar.'
+            )
+        
+        company = self.env.company
+        period_sample = 'Periodo de Prueba'
+        
+        subject = (self.email_payslip_subject or 'Boleta de Pago - {period}').replace(
+            '{period}', period_sample
+        )
+        
+        body = self.email_payslip_body or ''
+        if hasattr(body, '__html__'):
+            body_str = str(body)
+        else:
+            body_str = body or ''
+        body_str = body_str.replace('{period}', period_sample).replace(
+            '{company}', company.name or ''
+        )
+        
+        # Adjuntar una boleta real si existe, sino mensaje de prueba
+        attachments = []
+        sample_slip = self.env['planilla.payslip.cr'].search([
+            ('company_id', '=', company.id),
+            ('state', 'in', ('confirmed', 'paid')),
+        ], limit=1)
+        
+        if sample_slip:
+            try:
+                report = self.env.ref('planilla_cr.action_report_payslip_cr')
+                pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(
+                    report, [sample_slip.id]
+                )
+                pdf_b64 = base64.b64encode(pdf_content).decode('utf-8')
+                attachments = [(0, 0, {
+                    'name': 'Boleta_PRUEBA.pdf',
+                    'datas': pdf_b64,
+                    'mimetype': 'application/pdf',
+                })]
+            except Exception:
+                pass
+        
+        from_email = (
+            self.email_payslip_from
+            or self.env.user.email
+            or company.email
+        )
+        
+        mail_vals = {
+            'subject': f'[PRUEBA] {subject}',
+            'body_html': body_str,
+            'email_to': test_recipient,
+            'email_from': from_email,
+            'attachment_ids': attachments,
+        }
+        mail = self.env['mail.mail'].create(mail_vals)
+        mail.send()
+        
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Correo de prueba enviado',
+                'message': (
+                    f'Se envio un correo de prueba a {test_recipient}. '
+                    f'Revise su bandeja de entrada.'
+                    + (f' Se adjunto la boleta de {sample_slip.employee_id.name}.' if sample_slip else '')
+                ),
+                'type': 'success',
+                'sticky': False,
+            },
         }
