@@ -180,23 +180,32 @@ class PayslipAccountingMixin(models.AbstractModel):
             l.amount for l in self.deduction_line_ids
             if l.deduction_category == 'rop' and l.line_type == 'deduction'
         ), 2)
-        deposito_contable = round(
-            gross - ccss_emp - renta
-            + pat_amount         # paternidad: patrono asume los 8 dias
-            + extra_income       # ingresos adicionales en boleta (bonos + subsidios)
-            + licencias_con_goce # licencias pagadas (duelo, matrimonio, etc.)
-            - pensiones
-            - embargos
-            - prestamos
-            - ausencias
-            - licencias_sin_goce
-            - rop_obrero_net
-            - cobros_empleado
-            - otras_ded,
-            2
-        )
-        # net_for_accounting se mantiene igual para compatibilidad con cualquier codigo que lo use
-        # pero ya NO incluye el subsidio en 230000 (se separa abajo en las lineas de HABER)
+        # deposito_contable = lo que la empresa deposita al empleado (HABER 230000)
+        # CASO normal (sin subsidio):
+        #   deposito_contable = gross - ccss_emp - renta +/- extras y deducciones
+        # CASO con subsidio (incapacidad/maternidad):
+        #   gross puede ser 0 (maternidad total) -> la formula daria negativo.
+        #   En estos casos usar neto_por_patrono que ya tiene el calculo correcto
+        #   del 50/50 y del desglose patrono/CCSS/INS.
+        ins_subsidy_local = round(self.ins_subsidy_total or 0.0, 2)
+        if subsidy > 0 or ins_subsidy_local > 0:
+            deposito_contable = round(self.neto_por_patrono or 0.0, 2)
+        else:
+            deposito_contable = round(
+                gross - ccss_emp - renta
+                + pat_amount
+                + extra_income
+                + licencias_con_goce
+                - pensiones
+                - embargos
+                - prestamos
+                - ausencias
+                - licencias_sin_goce
+                - rop_obrero_net
+                - cobros_empleado
+                - otras_ded,
+                2
+            )
         net_for_accounting = deposito_contable  # alias limpio
 
         # -- DEBITOS (Gastos del patrono) -------------------------------------
@@ -397,7 +406,6 @@ class PayslipAccountingMixin(models.AbstractModel):
         #   DEBE  120500 Subsidio CCSS x Cobrar (ya registrado arriba)
         #   HABER 230300 CCSS por Pagar (obligacion de transferir al empleado)
         # Cuando la Caja deposita el subsidio, se cancela: DEBE 230300 / HABER Banco
-        ins_subsidy_local = round(self.ins_subsidy_total or 0.0, 2)
         if subsidy > 0:
             add_line(config.account_ccss_payable,
                      credit=subsidy,

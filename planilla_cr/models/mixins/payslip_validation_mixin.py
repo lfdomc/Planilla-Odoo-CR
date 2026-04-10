@@ -230,7 +230,16 @@ class PayslipValidationMixin(models.AbstractModel):
             # = net_salary - subsidios CCSS/INS que paga la Caja/INS directamente
             ccss_sub_val = rec.ccss_subsidy_total or 0.0
             ins_sub_val  = rec.ins_subsidy_total  or 0.0
-            rec.deposito_patrono = round(rec.net_salary - ccss_sub_val - ins_sub_val, 2)
+            # deposito_patrono = lo que la empresa realmente deposita al empleado
+            # CASO 1 (normal, sin subsidios): toda la boleta la paga la empresa
+            # CASO 2 (incapacidad/maternidad con subsidio): neto_por_patrono ya
+            #         tiene el calculo correcto incluyendo el 50/50 de maternidad.
+            # NO se puede usar net_salary - ccss_subsidy porque en maternidad 50/50
+            # ccss_subsidy = monto_base_completo > net_salary, dando valor negativo.
+            if ccss_sub_val > 0 or ins_sub_val > 0:
+                rec.deposito_patrono = round(rec.neto_por_patrono or 0.0, 2)
+            else:
+                rec.deposito_patrono = round(rec.net_salary, 2)
 
             # -- Desglose patrono vs CCSS/INS (todos los tipos de incapacidad) --
             ccss_sub = rec.ccss_subsidy_total or 0.0
