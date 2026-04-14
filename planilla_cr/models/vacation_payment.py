@@ -240,13 +240,21 @@ class VacationPayment(models.Model):
             if rec.state != 'draft':
                 raise UserError('Solo se pueden aprobar vacaciones en borrador.')
 
-            # BUG #1 FIX v50: Verificar dias disponibles usando vacation_days_available
-            # (campo calculado en hr_employee que descuenta vacaciones ya tomadas)
+            # Verificar dias disponibles -- advertencia pero NO bloqueo
+            # Se permite aprobar vacaciones aunque el saldo sea negativo (vacaciones adelantadas)
+            # El saldo puede quedar en negativo y se descuenta en futuras acumulaciones
             if rec.days > rec.days_accrued:
-                raise ValidationError(
-                    'El empleado %s tiene %.1f dias '
-                    'disponibles pero solicita %s dias.' % (
-                        rec.employee_id.name, rec.days_accrued, rec.days)
+                deficit = rec.days - rec.days_accrued
+                rec.message_post(
+                    body=(
+                        f'<b>Advertencia: Saldo insuficiente.</b> '
+                        f'{rec.employee_id.name} tiene <b>{rec.days_accrued:.1f} dias</b> disponibles '
+                        f'y solicita <b>{rec.days} dias</b>. '
+                        f'El saldo quedara en <b>{rec.days_accrued - rec.days:.1f} dias</b> '
+                        f'(deficit de {deficit:.1f} dias). '
+                        f'Vacaciones aprobadas como adelanto.'
+                    ),
+                    message_type='notification',
                 )
 
             rec.state = 'approved'
