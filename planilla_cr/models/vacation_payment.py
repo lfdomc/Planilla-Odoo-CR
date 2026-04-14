@@ -201,14 +201,12 @@ class VacationPayment(models.Model):
                         message_type='comment',
                         subtype_xmlid='mail.mt_note',
                     )
-            # Validar dias disponibles segun tipo
+            # Validar dias disponibles segun tipo -- advertencia, no bloqueo
+            # Se permite saldo negativo (vacaciones adelantadas)
             if rec.vacation_type in ('disfrutadas', 'proporcionales'):
                 if rec.days > rec.days_accrued:
-                    raise ValidationError(
-                        'El empleado %s tiene %.1f dias '
-                        'disponibles pero solicita %s dias.' % (
-                            rec.employee_id.name, rec.days_accrued, rec.days)
-                    )
+                    # Solo registrar advertencia, no bloquear
+                    pass  # el chatter ya tiene la nota del bloque anterior
             elif rec.vacation_type == 'adelanto':
                 # FIX A-01 v59: Adelanto maximo = dias anuales (Art. 153 CT: 12 dias/50 semanas)
                 MAX_ADELANTO = 12

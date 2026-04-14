@@ -1564,10 +1564,20 @@ class PayslipSyncMixin(models.AbstractModel):
                 if charge._is_period_already_applied(self.date_from):
                     continue
             else:
+                # Deduplicacion en boleta actual
                 existing = self.deduction_line_ids.filtered(
                     lambda l, c=charge: l.employee_charge_id == c.id
                 )
                 if existing:
+                    continue
+                # Deduplicacion cross-boleta: si ya fue aplicado en otra boleta
+                # activa (no cancelada), no duplicar
+                applied_elsewhere = self.env['planilla.payslip.deduction.line'].search([
+                    ('employee_charge_id', '=', charge.id),
+                    ('payslip_id', '!=', self.id),
+                    ('payslip_id.state', 'in', ('confirmed', 'paid')),
+                ], limit=1)
+                if applied_elsewhere:
                     continue
 
             ded_code = charge.charge_type_id.deduction_code_id or default_code
@@ -1669,7 +1679,14 @@ class PayslipSyncMixin(models.AbstractModel):
                 if charge.is_recurring:
                     if charge._is_period_already_applied(slip.date_from):
                         continue
-                # (cobros unicos: no hay lineas aun en la boleta recien creada)
+                # cobros unicos: verificar que no hayan sido aplicados en otra boleta confirmada
+                if not charge.is_recurring:
+                    already_applied = self.env['planilla.payslip.deduction.line'].search([
+                        ('employee_charge_id', '=', charge.id),
+                        ('payslip_id.state', 'in', ('confirmed', 'paid')),
+                    ], limit=1)
+                    if already_applied:
+                        continue
 
                 ded_code = charge.charge_type_id.deduction_code_id or default_code
                 if not ded_code:
