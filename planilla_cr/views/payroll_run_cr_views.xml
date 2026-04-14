@@ -51,6 +51,7 @@
                 <!-- ── RESULTADO OBRERO ── -->
                 <field name="total_net" string="Total Neto"
                        help="Bruto menos CCSS Obrero y Renta"/>
+                <field name="company_id" optional="show"/>
                 <field name="total_deposito_patrono" string="Deposito Patrono" optional="show"/>
                 <field name="total_ccss_subsidy" string="Subsidio CCSS" optional="show"/>
                 <field name="total_salary_payable" string="Neto Total Empleados" optional="hide"
@@ -142,9 +143,9 @@
                     </div>
                     <group>
                         <group string="General">
-                            <field name="payroll_calendar_id" required="1"/>
+                            <field name="company_id"/>
+                            <field name="payroll_calendar_id" required="1" domain="['|', ('company_id', '=', False), ('company_id', '=', company_id)]"/>
                             <field name="name"/>
-                            <field name="company_id" groups="base.group_multi_company"/>
                             <field name="branch_id"/>
                             <field name="department_id"/>
                         </group>
