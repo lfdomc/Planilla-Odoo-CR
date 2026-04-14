@@ -1,112 +1,137 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    IMPORTANTE: noupdate="1" garantiza que este XML solo se carga en la
+    PRIMERA instalación del módulo. Las actualizaciones posteriores NO
+    sobreescriben los tramos que el administrador haya configurado en la UI.
+
+    Para actualizar tramos de un año nuevo:
+      1. Vaya a Planilla → Configuración → Tramos de Renta
+      2. Desactive los tramos del año anterior
+      3. Cree los tramos del año nuevo manualmente
+
+    Fuente: Resolución DGT-R-016-2026 Ministerio de Hacienda CR
+    Vigentes: 1 enero 2026 (para salarios mensuales en ₡)
+-->
 <odoo noupdate="1">
-    <!-- ══════════════════════════════════════════════════════════
-         TRAMOS IMPUESTO DE RENTA 2025 — DESACTIVADOS
-         Decreto Ejecutivo MH 2025
-    ══════════════════════════════════════════════════════════ -->
+
+    <!-- TRAMOS 2025 — DESACTIVADOS (referencia histórica) -->
     <record id="tax_bracket_0" model="planilla.income.tax.bracket">
         <field name="sequence">1</field>
+        <field name="year">2025</field>
         <field name="name">Exento 2025</field>
         <field name="limit_from">0</field>
         <field name="limit_to">929000</field>
         <field name="rate">0</field>
         <field name="valid_from">2025-01-01</field>
         <field name="active">False</field>
-        <field name="note">Decreto MH 2025 - Reemplazado por tramos 2026</field>
+        <field name="note">Decreto MH 2025 — Reemplazado por DGT-R-016-2026</field>
     </record>
     <record id="tax_bracket_1" model="planilla.income.tax.bracket">
         <field name="sequence">2</field>
+        <field name="year">2025</field>
         <field name="name">10% sobre el exceso de &#8353;929,000 (2025)</field>
         <field name="limit_from">929000</field>
         <field name="limit_to">1362000</field>
         <field name="rate">10</field>
         <field name="valid_from">2025-01-01</field>
         <field name="active">False</field>
-        <field name="note">Decreto MH 2025 - Reemplazado por tramos 2026</field>
+        <field name="note">Decreto MH 2025 — Reemplazado por DGT-R-016-2026</field>
     </record>
     <record id="tax_bracket_2" model="planilla.income.tax.bracket">
         <field name="sequence">3</field>
+        <field name="year">2025</field>
         <field name="name">15% sobre el exceso de &#8353;1,362,000 (2025)</field>
         <field name="limit_from">1362000</field>
         <field name="limit_to">2414000</field>
         <field name="rate">15</field>
         <field name="valid_from">2025-01-01</field>
         <field name="active">False</field>
-        <field name="note">Decreto MH 2025 - Reemplazado por tramos 2026</field>
+        <field name="note">Decreto MH 2025 — Reemplazado por DGT-R-016-2026</field>
     </record>
     <record id="tax_bracket_3" model="planilla.income.tax.bracket">
         <field name="sequence">4</field>
+        <field name="year">2025</field>
         <field name="name">20% sobre el exceso de &#8353;2,414,000 (2025)</field>
         <field name="limit_from">2414000</field>
         <field name="limit_to">4830000</field>
         <field name="rate">20</field>
         <field name="valid_from">2025-01-01</field>
         <field name="active">False</field>
-        <field name="note">Decreto MH 2025 - Reemplazado por tramos 2026</field>
+        <field name="note">Decreto MH 2025 — Reemplazado por DGT-R-016-2026</field>
     </record>
     <record id="tax_bracket_4" model="planilla.income.tax.bracket">
         <field name="sequence">5</field>
+        <field name="year">2025</field>
         <field name="name">25% sobre el exceso de &#8353;4,830,000 (2025)</field>
         <field name="limit_from">4830000</field>
         <field name="limit_to">0</field>
         <field name="rate">25</field>
         <field name="valid_from">2025-01-01</field>
         <field name="active">False</field>
-        <field name="note">Decreto MH 2025 - Reemplazado por tramos 2026</field>
+        <field name="note">Decreto MH 2025 — Reemplazado por DGT-R-016-2026</field>
     </record>
 
-    <!-- ══════════════════════════════════════════════════════════
-         TRAMOS IMPUESTO DE RENTA 2026 — VIGENTES
-         Decreto Ejecutivo MH 2026 (ajuste anual ~1.3% inflación)
-    ══════════════════════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════════════════════════
+         TRAMOS 2026 — VIGENTES desde marzo 2026
+         Fuente: Resolución DGT-R-016-2026, Ministerio de Hacienda CR
+         El tramo exento es ₡918,000 (10% sobre el exceso).
+         ESTOS VALORES SOLO SE CARGAN EN LA PRIMERA INSTALACIÓN.
+         Para modificarlos use: Planilla → Configuración → Tramos de Renta
+    ═══════════════════════════════════════════════════════════════ -->
     <record id="tax_bracket_2026_0" model="planilla.income.tax.bracket">
         <field name="sequence">10</field>
-        <field name="name">Exento</field>
+        <field name="year">2026</field>
+        <field name="name">Exento 2026 — hasta &#8353;918,000</field>
         <field name="limit_from">0</field>
-        <field name="limit_to">941000</field>
+        <field name="limit_to">918000</field>
         <field name="rate">0</field>
         <field name="valid_from">2026-01-01</field>
         <field name="active">True</field>
-        <field name="note">Decreto MH 2026 - Tramo exento</field>
+        <field name="note">DGT-R-016-2026 — Tramo exento mensual</field>
     </record>
     <record id="tax_bracket_2026_1" model="planilla.income.tax.bracket">
         <field name="sequence">20</field>
-        <field name="name">10% sobre el exceso de &#8353;941,000</field>
-        <field name="limit_from">941000</field>
+        <field name="year">2026</field>
+        <field name="name">10% sobre el exceso de &#8353;918,000</field>
+        <field name="limit_from">918000</field>
         <field name="limit_to">1381000</field>
         <field name="rate">10</field>
         <field name="valid_from">2026-01-01</field>
         <field name="active">True</field>
-        <field name="note">Decreto MH 2026</field>
+        <field name="note">DGT-R-016-2026</field>
     </record>
     <record id="tax_bracket_2026_2" model="planilla.income.tax.bracket">
         <field name="sequence">30</field>
+        <field name="year">2026</field>
         <field name="name">15% sobre el exceso de &#8353;1,381,000</field>
         <field name="limit_from">1381000</field>
         <field name="limit_to">2423000</field>
         <field name="rate">15</field>
         <field name="valid_from">2026-01-01</field>
         <field name="active">True</field>
-        <field name="note">Decreto MH 2026</field>
+        <field name="note">DGT-R-016-2026</field>
     </record>
     <record id="tax_bracket_2026_3" model="planilla.income.tax.bracket">
         <field name="sequence">40</field>
+        <field name="year">2026</field>
         <field name="name">20% sobre el exceso de &#8353;2,423,000</field>
         <field name="limit_from">2423000</field>
         <field name="limit_to">4845000</field>
         <field name="rate">20</field>
         <field name="valid_from">2026-01-01</field>
         <field name="active">True</field>
-        <field name="note">Decreto MH 2026</field>
+        <field name="note">DGT-R-016-2026</field>
     </record>
     <record id="tax_bracket_2026_4" model="planilla.income.tax.bracket">
         <field name="sequence">50</field>
+        <field name="year">2026</field>
         <field name="name">25% sobre el exceso de &#8353;4,845,000</field>
         <field name="limit_from">4845000</field>
         <field name="limit_to">0</field>
         <field name="rate">25</field>
         <field name="valid_from">2026-01-01</field>
         <field name="active">True</field>
-        <field name="note">Decreto MH 2026</field>
+        <field name="note">DGT-R-016-2026</field>
     </record>
+
 </odoo>

@@ -61,16 +61,16 @@
                              invisible="use_average or not employee_id">
                             <i class="fa fa-exclamation-triangle" title="Advertencia"/> <strong>Art. 153 CT:</strong>
                             Si el empleado recibe comisiones, horas extras recurrentes u otros
-                            ingresos variables, debe usar el <strong>Promedio de las últimas 4 semanas</strong>
-                            para calcular el pago de vacaciones. Active la opción abajo.
+                            ingresos variables, debe usar el <strong>Promedio de las ultimas 4 semanas</strong>
+                            para calcular el pago de vacaciones. Active la opcion abajo.
                         </div>
 
                         <field name="use_average" string="Usar Promedio 4 Semanas (Art. 153 CT)"/>
 
-                        <!-- Bloque de promedio visible cuando use_average está activo -->
+                        <!-- Bloque de promedio visible cuando use_average esta activo -->
                         <div class="col-12" invisible="not use_average">
                             <group col="2">
-                                <field name="avg_last_4_weeks" string="Salario Diario Promedio (₡)"/>
+                                <field name="avg_last_4_weeks" string="Salario Diario Promedio (CRC)"/>
                                 <field name="avg_vs_base_diff_pct"
                                        string="Diferencia vs Salario Base (%)"
                                        readonly="1"/>
@@ -86,9 +86,9 @@
                             <div class="alert alert-warning" role="alert"
                                  invisible="avg_last_4_weeks &gt; 0">
                                 <i class="fa fa-exclamation-triangle" title="Advertencia"/>
-                                No hay historial salarial disponible. El sistema usará el salario
-                                base diario como aproximación. Para mayor precisión, asegúrese de
-                                que las boletas anteriores estén pagadas y en el historial.
+                                No hay historial salarial disponible. El sistema usara el salario
+                                base diario como aproximacion. Para mayor precisión, asegurese de
+                                que las boletas anteriores esten pagadas y en el historial.
                             </div>
                         </div>
 

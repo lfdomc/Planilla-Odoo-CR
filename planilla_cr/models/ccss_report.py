@@ -39,7 +39,7 @@ class CcssReport(models.TransientModel):
             domain.append(('branch_id', '=', self.branch_id.id))
         payslips = self.env['planilla.payslip.cr'].search(domain)
         # FIX M-05 v59: Prefetch de campos de empleado para eliminar N+1.
-        # Sin esto, cada iteración del loop genera queries individuales.
+        # Sin esto, cada iteracion del loop genera queries individuales.
         if payslips:
             payslips.mapped('employee_id.identification_id')
             payslips.mapped('employee_id.name')
@@ -59,7 +59,7 @@ class CcssReport(models.TransientModel):
     def get_report_data(self):
         """Devuelve datos estructurados para el reporte PDF y Excel."""
         payslips = self._get_payslips()
-        # Leer tasas desde RateHelper (fuente única — Configuración → Códigos de Deducción)
+        # Leer tasas desde RateHelper (fuente unica -- Configuracion -> Codigos de Deduccion)
         rh = self.env['planilla.rate.helper']
         tasa_obrero = rh.get_ccss_employee_rate()
         tasa_patronal = rh.get_ccss_employer_rate()
@@ -72,7 +72,7 @@ class CcssReport(models.TransientModel):
         for ps in payslips:
             emp = ps.employee_id
             bruto = ps.gross_salary
-            # Usar monto real de la boleta si está disponible (más preciso)
+            # Usar monto real de la boleta si esta disponible (mas preciso)
             obrero   = ps.ccss_employee if ps.ccss_employee else round(bruto * tasa_obrero, 2)
             patronal = ps.ccss_employer if ps.ccss_employer else round(bruto * tasa_patronal, 2)
             total_bruto += bruto
@@ -113,7 +113,7 @@ class CcssReport(models.TransientModel):
         wb = xlsxwriter.Workbook(output, {'in_memory': True})
         ws = wb.add_worksheet('Planilla CCSS')
 
-        # ── Formatos ─────────────────────────────────────────────
+        # -- Formatos ---------------------------------------------
         ft = wb.add_format({'bold': True, 'font_size': 14, 'font_color': '#FFFFFF',
                             'bg_color': '#1A5276', 'align': 'center', 'border': 1})
         fs = wb.add_format({'bold': True, 'font_size': 11, 'font_color': '#1A5276', 'align': 'center'})
@@ -128,7 +128,7 @@ class CcssReport(models.TransientModel):
         ftm = wb.add_format({'bold': True, 'bg_color': '#1A5276', 'font_color': '#FFFFFF',
                              'border': 1, 'num_format': '#,##0.00', 'align': 'right'})
 
-        # ── Encabezado ────────────────────────────────────────────
+        # -- Encabezado --------------------------------------------
         ws.merge_range('A1:G1', 'PLANILLA CCSS - CUOTAS DE PATRONO', ft)
         ws.merge_range('A2:G2', data['company'].name, fs)
         ws.write('A3', 'Periodo:', fi)
@@ -136,7 +136,7 @@ class CcssReport(models.TransientModel):
         ws.write('D3', f"Tasa Obrero: {data['tasa_obrero']:.2f}%", fi)
         ws.write('E3', f"Tasa Patronal: {data['tasa_patronal']:.2f}%", fi)
 
-        # ── Cabeceras ─────────────────────────────────────────────
+        # -- Cabeceras ---------------------------------------------
         headers = ['#', 'Cedula', 'Nombre Empleado', 'Salario Bruto',
                    'Cuota Obrero (10.83%)', 'Cuota Patronal (26.83%)', 'Total Cuota']
         widths = [4, 14, 30, 16, 20, 20, 16]
@@ -145,7 +145,7 @@ class CcssReport(models.TransientModel):
             ws.set_column(c, c, w)
         ws.set_row(4, 35)
 
-        # ── Datos ─────────────────────────────────────────────────
+        # -- Datos -------------------------------------------------
         row = 5
         for i, r in enumerate(data['rows']):
             bg = '#EBF5FB' if i % 2 == 0 else '#FFFFFF'
@@ -162,14 +162,14 @@ class CcssReport(models.TransientModel):
             ws.write(row, 6, r['total_cuota'], fme)
             row += 1
 
-        # ── Totales ───────────────────────────────────────────────
+        # -- Totales -----------------------------------------------
         ws.merge_range(row, 0, row, 2, 'TOTALES', ftl)
         ws.write(row, 3, data['total_bruto'], ftm)
         ws.write(row, 4, data['total_obrero'], ftm)
         ws.write(row, 5, data['total_patronal'], ftm)
         ws.write(row, 6, data['total_cuota'], ftm)
 
-        # ── Resumen debajo ────────────────────────────────────────
+        # -- Resumen debajo ----------------------------------------
         row += 2
         fr = wb.add_format({'bold': True, 'font_size': 10, 'border': 1,
                             'bg_color': '#D6EAF8', 'align': 'center'})
@@ -204,7 +204,7 @@ class CcssReport(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
+            'url': f'/web/content/{attachment.id}download=true',
             'target': 'self',
         }
 
@@ -239,13 +239,13 @@ class CcssReport(models.TransientModel):
 
         lines = []
 
-        # ── Registro tipo 01: Encabezado ──────────────────────────────
+        # -- Registro tipo 01: Encabezado ------------------------------
         patron = str(self.patron_number).replace('-', '').replace(' ', '').rjust(10, '0')[:10]
         periodo = self.date_from.strftime('%Y%m')  # AAAAMM
         r1 = f'01{patron}{periodo}01'
         lines.append(r1)
 
-        # ── Registros tipo 02: Un registro por empleado ───────────────
+        # -- Registros tipo 02: Un registro por empleado ---------------
         errors = []
         total_bruto = 0.0
 
@@ -289,7 +289,7 @@ class CcssReport(models.TransientModel):
                 '\n'.join(errors)
             )
 
-        # ── Registro tipo 09: Total/Cierre ────────────────────────────
+        # -- Registro tipo 09: Total/Cierre ----------------------------
         total_centimos = int(round(total_bruto * 100))
         total_fmt = str(total_centimos).rjust(14, '0')[:14]
         num_trabajadores = str(len(lines) - 1).rjust(6, '0')  # excluir encabezado
@@ -310,6 +310,6 @@ class CcssReport(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
+            'url': f'/web/content/{attachment.id}download=true',
             'target': 'self',
         }

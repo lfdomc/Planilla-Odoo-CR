@@ -1,10 +1,10 @@
 """
-Procesadores de importación masiva — Planilla CR v5.6
-Cada procesador es un método del wizard ImportDataWizard.
-Se importan desde import_data_wizard.py via herencia múltiple.
+Procesadores de importacion masiva -- Planilla CR v5.6
+Cada procesador es un metodo del wizard ImportDataWizard.
+Se importan desde import_data_wizard.py via herencia multiple.
 """
 import logging
-import traceback  # FIX-L3: faltaba — usado en bloques except
+import traceback  # FIX-L3: faltaba -- usado en bloques except
 from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
@@ -25,7 +25,7 @@ class ImportProcessorNovedades(models.AbstractModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -52,9 +52,9 @@ class ImportProcessorNovedades(models.AbstractModel):
                         'date_end':             _parse_date(v('Fecha Fin')) or date.today(),
                         'subsidy_percentage':   _parse_float(v('% Subsidiado', 'Subsidiado CCSS')),
                         'employer_percentage':  _parse_float(v('% Patrono', 'Cargo Patrono')) or 0.0,
-                        # FIX-B3b: sync con fix A2 — default 0.0 (no 40.0). Art. 79 Regl. CCSS.
-                        'certificate_number':   str(v('Número Certificado', 'Certificado') or '').strip() or False,
-                        'diagnosis':            str(v('Diagnóstico', 'Diagnostico') or '').strip() or False,
+                        # FIX-B3b: sync con fix A2 -- default 0.0 (no 40.0). Art. 79 Regl. CCSS.
+                        'certificate_number':   str(v('Numero Certificado', 'Certificado') or '').strip() or False,
+                        'diagnosis':            str(v('Diagnostico', 'Diagnostico') or '').strip() or False,
                         'note':                 str(v('Observaciones') or '').strip() or False,
                         'state':                'confirmed',
                     }
@@ -81,8 +81,8 @@ class ImportProcessorNovedades(models.AbstractModel):
 
     def _process_vacations(self, wb, errors):
         """
-        Registra los días tomados como registros de vacation.payment tipo 'disfrutadas'.
-        Los días acumulados son computados automáticamente por entry_date.
+        Registra los dias tomados como registros de vacation.payment tipo 'disfrutadas'.
+        Los dias acumulados son computados automaticamente por entry_date.
         """
         created = err_count = 0
         hdrs, rows = self._sheet_rows(wb, ['VACACION', 'VACATION'])
@@ -91,7 +91,7 @@ class ImportProcessorNovedades(models.AbstractModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -108,14 +108,14 @@ class ImportProcessorNovedades(models.AbstractModel):
 
             try:
                 with self.env.cr.savepoint():
-                    days_taken = _parse_float(v('Días Tomados', 'Dias Tomados'))
-                    cutoff     = _parse_date(v('Última Fecha', 'Fecha de Corte')) or date.today()
-                    obs        = str(v('Observaciones', 'Período') or '').strip()
+                    days_taken = _parse_float(v('Dias Tomados', 'Dias Tomados'))
+                    cutoff     = _parse_date(v('Ultima Fecha', 'Fecha de Corte')) or date.today()
+                    obs        = str(v('Observaciones', 'Periodo') or '').strip()
 
                     branch = self._find_m2o('planilla.branch', v('Sucursal'),
                                 extra_domain=[('company_id', '=', self.company_id.id)])
 
-                    # Solo crear registro si hay días tomados que registrar
+                    # Solo crear registro si hay dias tomados que registrar
                     if days_taken > 0:
                         days_int = int(days_taken)
                         vals = {
@@ -124,7 +124,7 @@ class ImportProcessorNovedades(models.AbstractModel):
                             'date_start':     emp.entry_date or cutoff,
                             'date_end':       cutoff,
                             'state':          'paid',
-                            'note':           obs or f'Saldo inicial importación — {days_int} días tomados',
+                            'note':           obs or f'Saldo inicial importacion -- {days_int} dias tomados',
                         }
                         if branch:
                             vals['branch_id'] = branch.id
@@ -152,7 +152,7 @@ class ImportProcessorNovedades(models.AbstractModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -205,7 +205,7 @@ class ImportProcessorNovedades(models.AbstractModel):
 
         return created, err_count
 
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
     # PROCESADOR EMBARGOS JUDICIALES
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
 

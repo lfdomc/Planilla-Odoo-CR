@@ -4,15 +4,18 @@
         <field name="name">planilla.income.tax.bracket.list</field>
         <field name="model">planilla.income.tax.bracket</field>
         <field name="arch" type="xml">
-            <list string="Tramos de Renta" editable="bottom">
+            <list string="Tramos de Renta" editable="bottom"
+                  decoration-muted="active == False"
+                  decoration-success="active == True">
                 <field name="sequence" widget="handle"/>
+                <field name="year" string="Ano Fiscal"/>
                 <field name="name"/>
                 <field name="limit_from"/>
                 <field name="limit_to"/>
                 <field name="rate" string="Tasa (%)"/>
                 <field name="valid_from"/>
                 <field name="note"/>
-                <field name="active"/>
+                <field name="active" widget="boolean_toggle"/>
             </list>
         </field>
     </record>
@@ -26,18 +29,23 @@
                     <group>
                         <group>
                             <field name="name"/>
+                            <field name="year"/>
                             <field name="sequence"/>
                             <field name="valid_from"/>
+                            <field name="active"/>
                         </group>
                         <group>
                             <field name="limit_from"/>
-                            <field name="limit_to" help="0 = sin límite superior"/>
+                            <field name="limit_to" help="0 = sin limite superior"/>
                             <field name="rate" string="Tasa (%)"/>
+                            <field name="note" placeholder="Ej: DGT-R-016-2026"/>
                         </group>
                     </group>
-                    <group>
-                        <field name="note" placeholder="Ej: Decreto N.° 44123-H vigente desde enero 2026"/>
-                    </group>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="active == True">
+                        <i class="fa fa-exclamation-triangle"/>
+                        Este tramo esta <strong>inactivo</strong> y NO se usa en el cálculo de renta.
+                    </div>
                 </sheet>
             </form>
         </field>
@@ -47,11 +55,17 @@
         <field name="name">Tramos Impuesto de Renta</field>
         <field name="res_model">planilla.income.tax.bracket</field>
         <field name="view_mode">list,form</field>
+        <field name="context">{"active_test": false}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Configure los tramos del Impuesto sobre la Renta para asalariados.
             </p>
-            <p>Actualice los montos cada vez que el Ministerio de Hacienda emita un nuevo decreto.</p>
+            <p>
+                <strong>Regla importante:</strong> Solo puede haber tramos activos de UN ano fiscal a la vez.
+                Para actualizar la tabla anual: desactive todos los tramos del ano anterior
+                y active los del ano nuevo. El sistema valida que no haya mezclas de anos.
+            </p>
+            <p>Fuente: Resolución DGT del Ministerio de Hacienda (públicada cada enero).</p>
         </field>
     </record>
 </odoo>

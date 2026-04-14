@@ -59,7 +59,7 @@
                         </group>
                         <group>
                             <div class="alert alert-warning" role="alert">
-                                <strong>⚠️ Prioridad Legal:</strong> La pensión alimentaria
+                                <strong>⚠ Prioridad Legal:</strong> La pensión alimentaria
                                 tiene prioridad sobre cualquier otra deducción (Ley 8590, Art. 59).
                                 Se descuenta antes que embargos y préstamos.
                             </div>
@@ -78,7 +78,7 @@
         <field name="model">planilla.pension.alimentaria</field>
         <field name="priority">1</field>
         <field name="arch" type="xml">
-            <list string="Pensiones Alimentarias"
+            <list string="Pensiónes Alimentarias"
                   decoration-danger="state=='ended'"
                   decoration-warning="state=='suspended'"
                   decoration-success="state=='active'">
@@ -101,7 +101,7 @@
 
     <!-- ── ACTION ───────────────────────────────────────────────── -->
     <record id="action_pension_alimentaria" model="ir.actions.act_window">
-        <field name="name">Pensiones Alimentarias</field>
+        <field name="name">Pensiónes Alimentarias</field>
         <field name="res_model">planilla.pension.alimentaria</field>
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_active': 1}</field>

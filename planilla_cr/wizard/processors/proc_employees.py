@@ -1,10 +1,10 @@
 """
-Procesadores de importación masiva — Planilla CR v5.6
-Cada procesador es un método del wizard ImportDataWizard.
-Se importan desde import_data_wizard.py via herencia múltiple.
+Procesadores de importacion masiva -- Planilla CR v5.6
+Cada procesador es un metodo del wizard ImportDataWizard.
+Se importan desde import_data_wizard.py via herencia multiple.
 """
 import logging
-import traceback  # FIX-L3: faltaba — usado en bloques except
+import traceback  # FIX-L3: faltaba -- usado en bloques except
 from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
@@ -25,7 +25,7 @@ class ImportProcessorEmployees(models.AbstractModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula', 'Identificación', 'Identificacion') or '').strip()
+            cedula = str(v('Cedula', 'Cedula', 'Identificacion', 'Identificacion') or '').strip()
             nombre = str(v('Nombre') or '').strip()
 
             if not cedula or not nombre:
@@ -61,7 +61,7 @@ class ImportProcessorEmployees(models.AbstractModel):
                     etype   = self._find_m2o('planilla.employee.type', etype_name)
                     estatus = self._find_m2o('planilla.employee.status', estatus_name)
 
-                    # Sub departamento — buscar dentro del dpto padre si se encontró
+                    # Sub departamento -- buscar dentro del dpto padre si se encontro
                     subdept = None
                     if subdept_name:
                         subdept_domain = [('company_id', '=', company.id)]
@@ -70,7 +70,7 @@ class ImportProcessorEmployees(models.AbstractModel):
                         subdept = self._find_m2o('hr.department', subdept_name,
                                     extra_domain=subdept_domain)
 
-                    # Si no se encontró calendario por nombre, buscar por frecuencia
+                    # Si no se encontro calendario por nombre, buscar por frecuencia
                     if not cal:
                         freq_raw = _normalize(v('Frecuencia', 'Calendario', 'Frecuencia de Pago') or '')
                         freq_val = FREQUENCY.get(freq_raw)
@@ -80,8 +80,8 @@ class ImportProcessorEmployees(models.AbstractModel):
                                 ('company_id', '=', company.id),
                             ], limit=1) or None
 
-                    # Identificación type
-                    id_type_raw  = _normalize(v('Tipo de Identificación', 'Tipo Identificacion') or '')
+                    # Identificacion type
+                    id_type_raw  = _normalize(v('Tipo de Identificacion', 'Tipo Identificacion') or '')
                     id_type_code = INS_ID_TYPE.get(id_type_raw, '01')
                     id_type_rec  = self.env['planilla.identification.type'].search(
                         [('code', '=', id_type_code)], limit=1)
@@ -95,18 +95,18 @@ class ImportProcessorEmployees(models.AbstractModel):
                         'work_email':                 v('Correo', 'Email') or False,
                         'base_salary':                _parse_float(v('Salario Base', 'Salario')),
                         'salary_effective_date':      _parse_date(v('Fecha Vigencia', 'Vigencia Salarial')),
-                        'payroll_calculation_method': _map(CALC_METHOD, v('Método', 'Metodo', 'Método de Cálculo')) or 'fixed',
-                        'ccss_number':                str(v('CCSS', 'Número CCSS', 'Numero CCSS') or '').strip() or False,
+                        'payroll_calculation_method': _map(CALC_METHOD, v('Metodo', 'Metodo', 'Metodo de Calculo')) or 'fixed',
+                        'ccss_number':                str(v('CCSS', 'Numero CCSS', 'Numero CCSS') or '').strip() or False,
                         'ccss_insured':               _parse_bool(v('Asegurado CCSS', 'CCSS Asegurado')),
                         'has_variable_income':        _parse_bool(v('Salario Variable', 'Comisiones', 'Ingreso Variable')),
                         'bank_account_number':        str(v('Cuenta Bancaria', 'Cuenta') or '').strip() or False,
                         'bank_iban':                  str(v('IBAN') or '').strip() or False,
-                        'sinpe_phone':                str(v('SINPE', 'Sinpe Móvil', 'Sinpe Movil') or '').strip() or False,
+                        'sinpe_phone':                str(v('SINPE', 'Sinpe Movil', 'Sinpe Movil') or '').strip() or False,
                         'bank_name':                  _map(BANK, v('Banco')) or False,
                         'bank_account_type':          _map(ACCOUNT_TYPE, v('Tipo de Cuenta Banco', 'Tipo de Cuenta')) or False,
                         # INS
                         'ins_include':               _parse_bool(v('Incluir INS', 'Incluir en INS')),
-                        'ins_policy_number':         str(v('Póliza INS', 'Poliza INS', 'Número de Póliza') or '').strip() or False,
+                        'ins_policy_number':         str(v('Poliza INS', 'Poliza INS', 'Numero de Poliza') or '').strip() or False,
                         'ins_first_name':            str(v('Nombre INS') or '').strip() or False,
                         'ins_first_lastname':        str(v('Primer Apellido INS') or '').strip() or False,
                         'ins_second_lastname':       str(v('Segundo Apellido INS') or '').strip() or False,
@@ -128,20 +128,20 @@ class ImportProcessorEmployees(models.AbstractModel):
                     if estatus: vals['employee_status_id']  = estatus.id
                     if id_type_rec: vals['identification_type_id'] = id_type_rec.id
 
-                    # INS occupation (código numérico de 4 dígitos)
-                    ins_occ_raw = str(v('Ocupación INS', 'Ocupacion INS') or '').strip()
+                    # INS occupation (codigo numerico de 4 digitos)
+                    ins_occ_raw = str(v('Ocupacion INS', 'Ocupacion INS') or '').strip()
                     if ins_occ_raw:
                         vals['ins_occupation'] = ins_occ_raw
 
-                    # Campos personales estándar de hr.employee — pueden no existir
-                    # según la versión de Odoo o si están en hr.employee.private.
+                    # Campos personales estandar de hr.employee -- pueden no existir
+                    # segun la version de Odoo o si estan en hr.employee.private.
                     # Los agregamos solo si el campo existe en el modelo.
                     emp_fields = self.env['hr.employee']._fields
                     _personal = {
-                        'gender':        _map(GENDER, v('Género', 'Genero')) or False,
-                        'children':      _parse_int(v('Número de Dependientes', 'Dependientes')) or 0,
-                        'private_street': str(v('Dirección', 'Direccion') or '').strip() or False,
-                        'private_phone': str(v('Teléfono Personal', 'Telefono Personal') or '').strip() or False,
+                        'gender':        _map(GENDER, v('Genero', 'Genero')) or False,
+                        'children':      _parse_int(v('Numero de Dependientes', 'Dependientes')) or 0,
+                        'private_street': str(v('Direccion', 'Direccion') or '').strip() or False,
+                        'private_phone': str(v('Telefono Personal', 'Telefono Personal') or '').strip() or False,
                         'notes':         str(v('Observaciones') or '').strip() or False,
                     }
                     for fname, fval in _personal.items():

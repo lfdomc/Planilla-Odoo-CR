@@ -5,43 +5,43 @@ from odoo.exceptions import ValidationError
 
 class DeductionCode(models.Model):
     _name = 'planilla.deduction.code'
-    _description = 'Código de Deducción'
+    _description = 'Codigo de Deduccion'
     _inherit = ['mail.thread']
     # FIX-G5: constraint company-aware para soporte multi-empresa.
-    # La versión anterior (UNIQUE(code)) impedía que dos empresas distintas
-    # tuvieran el mismo código (ej: ambas con 'CCSS_OBR'), lo cual es correcto
-    # cuando company_id es NULL (código global), pero bloqueaba codes por empresa.
-    # La lógica correcta: code es único POR empresa (o único globalmente si company_id es NULL).
+    # La version anterior (UNIQUE(code)) impedia que dos empresas distintas
+    # tuvieran el mismo codigo (ej: ambas con 'CCSS_OBR'), lo cual es correcto
+    # cuando company_id es NULL (codigo global), pero bloqueaba codes por empresa.
+    # La logica correcta: code es unico POR empresa (o unico globalmente si company_id es NULL).
     # Odoo maneja esto con @api.constrains a nivel ORM para mayor flexibilidad.
     _unique_deduction_code = Constraint(
         'UNIQUE(code, company_id)',
-        'El código de deducción ya existe para esta empresa. Cada código debe ser único por empresa.'
+        'El codigo de deduccion ya existe para esta empresa. Cada codigo debe ser unico por empresa.'
     )
 
 
 
     name = fields.Char(string='Nombre', required=True, tracking=True)
-    code = fields.Char(string='Código', required=True, tracking=True)
+    code = fields.Char(string='Codigo', required=True, tracking=True)
     active = fields.Boolean(default=True)
     company_id = fields.Many2one(
         'res.company', string='Empresa',
         default=lambda self: self.env.company,
-        help='Deje vacío para que aplique a todas las empresas (código global).'
+        help='Deje vacio para que aplique a todas las empresas (codigo global).'
     )
-    description = fields.Text(string='Descripción')
+    description = fields.Text(string='Descripcion')
 
     deduction_type = fields.Selection([
-        ('employee', 'Deducción Obrero'),
+        ('employee', 'Deduccion Obrero'),
         ('employer', 'Cargo Patronal'),
         ('both', 'Obrero y Patronal'),
         ('other', 'Otro'),
-    ], string='Tipo de Deducción', required=True, default='employee', tracking=True)
+    ], string='Tipo de Deduccion', required=True, default='employee', tracking=True)
 
     calculation_type = fields.Selection([
         ('percentage', 'Porcentaje'),
         ('fixed', 'Monto Fijo'),
         ('table', 'Tabla Progresiva'),
-    ], string='Tipo de Cálculo', required=True, default='percentage', tracking=True)
+    ], string='Tipo de Calculo', required=True, default='percentage', tracking=True)
 
     # Porcentajes
     employee_percentage = fields.Float(
@@ -54,31 +54,31 @@ class DeductionCode(models.Model):
     )
     fixed_amount = fields.Float(string='Monto Fijo', digits=(12, 2))
 
-    # Configuración contable
+    # Configuracion contable
     account_debit_id = fields.Many2one(
-        'account.account', string='Cuenta Débito',
+        'account.account', string='Cuenta Debito',
         help='Cuenta contable de gasto patronal'
     )
     account_credit_id = fields.Many2one(
-        'account.account', string='Cuenta Crédito',
+        'account.account', string='Cuenta Credito',
         help='Cuenta contable de pasivo (por pagar)'
     )
     account_employee_id = fields.Many2one(
-        'account.account', string='Cuenta Deducción Obrero',
-        help='Cuenta donde se registra la deducción al empleado'
+        'account.account', string='Cuenta Deduccion Obrero',
+        help='Cuenta donde se registra la deduccion al empleado'
     )
 
-    # Categorías predefinidas
+    # Categorias predefinidas
     is_ccss = fields.Boolean(string='Es CCSS', default=False)
     is_ins = fields.Boolean(string='Es INS', default=False)
     is_income_tax = fields.Boolean(string='Es Renta', default=False)
 
-    # ── Tasas INS por Clase de Riesgo (solo aplica si is_ins=True) ───
-    ins_rate_i   = fields.Float(string='Clase I — Oficinas (%)',          digits=(5, 4), default=0.87)
-    ins_rate_ii  = fields.Float(string='Clase II — Comercio (%)',         digits=(5, 4), default=1.49)
-    ins_rate_iii = fields.Float(string='Clase III — Industria liviana (%)',digits=(5, 4), default=2.47)
-    ins_rate_iv  = fields.Float(string='Clase IV — Construcción (%)',     digits=(5, 4), default=4.13)
-    ins_rate_v   = fields.Float(string='Clase V — Alto riesgo (%)',       digits=(5, 4), default=6.88)
+    # -- Tasas INS por Clase de Riesgo (solo aplica si is_ins=True) ---
+    ins_rate_i   = fields.Float(string='Clase I -- Oficinas (%)',          digits=(5, 4), default=0.87)
+    ins_rate_ii  = fields.Float(string='Clase II -- Comercio (%)',         digits=(5, 4), default=1.49)
+    ins_rate_iii = fields.Float(string='Clase III -- Industria liviana (%)',digits=(5, 4), default=2.47)
+    ins_rate_iv  = fields.Float(string='Clase IV -- Construccion (%)',     digits=(5, 4), default=4.13)
+    ins_rate_v   = fields.Float(string='Clase V -- Alto riesgo (%)',       digits=(5, 4), default=6.88)
     ins_valid_from = fields.Date(string='Vigente desde', help='Fecha desde la cual aplican estas tasas INS')
 
     def get_ins_rate(self, risk_class):
@@ -106,7 +106,7 @@ class DeductionCode(models.Model):
                 raise ValidationError('Los porcentajes no pueden superar el 100%.')
 
     def compute_deduction(self, base_salary):
-        """Calcula el monto de deducción dado un salario base."""
+        """Calcula el monto de deduccion dado un salario base."""
         self.ensure_one()
         if self.calculation_type == 'percentage':
             salary = min(base_salary, self.salary_ceiling) if self.has_ceiling else base_salary

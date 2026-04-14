@@ -1,7 +1,7 @@
 """
 planilla.import.data.wizard
-Importación masiva desde el machote Excel generado por import_template_wizard.
-Estrategia: si el empleado ya existe (por identification_id) → se salta.
+Importacion masiva desde el machote Excel generado por import_template_wizard.
+Estrategia: si el empleado ya existe (por identification_id) -> se salta.
 Al finalizar: resumen en pantalla + Excel de errores descargable.
 """
 from odoo import models, fields, api
@@ -20,30 +20,30 @@ try:
 except ImportError:
     OPENPYXL_OK = False
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TABLAS DE TRADUCCIÓN  (valor amigable del Excel → valor técnico del modelo)
-# ══════════════════════════════════════════════════════════════════════════════
+# ==============================================================================
+# TABLAS DE TRADUCCION  (valor amigable del Excel -> valor tecnico del modelo)
+# ==============================================================================
 
 INS_RISK = {
-    # Valor corto (solo el número romano)
+    # Valor corto (solo el numero romano)
     'i': 'I', 'ii': 'II', 'iii': 'III', 'iv': 'IV', 'v': 'V',
     'I': 'I', 'II': 'II', 'III': 'III', 'IV': 'IV', 'V': 'V',
     '1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V',
-    # Valor largo con descripción (formato del machote: "I - Oficinas")
+    # Valor largo con descripcion (formato del machote: "I - Oficinas")
     'i - oficinas': 'I', 'i - riesgo minimo': 'I', 'i - minimo': 'I',
     'ii - comercio': 'II', 'ii - riesgo bajo': 'II', 'ii - bajo': 'II',
     'ii - comercio general': 'II', 'ii - servicios': 'II',
     'iii - manufactura': 'III', 'iii - riesgo medio': 'III', 'iii - medio': 'III',
     'iii - manufactura ligera': 'III', 'iii - transporte': 'III',
-    'iv - construccion': 'IV', 'iv - construcción': 'IV',
+    'iv - construccion': 'IV', 'iv - construccion': 'IV',
     'iv - riesgo alto': 'IV', 'iv - alto': 'IV', 'iv - industria': 'IV',
-    'v - mineria': 'V', 'v - minería': 'V',
-    'v - riesgo maximo': 'V', 'v - riesgo máximo': 'V', 'v - maximo': 'V',
+    'v - mineria': 'V', 'v - mineria': 'V',
+    'v - riesgo maximo': 'V', 'v - riesgo maximo': 'V', 'v - maximo': 'V',
     'v - explosivos': 'V', 'v - pesca': 'V',
 }
 
 INS_WORKDAY = {
-    # Valores del dropdown (español legible)
+    # Valores del dropdown (espanol legible)
     'ordinaria': '01', 'diurna': '01', '01': '01',
     'extraordinaria': '02', '02': '02',
     'mixta': '03', '03': '03',
@@ -54,13 +54,13 @@ INS_WORKDAY = {
 
 INS_NATIONALITY = {
     'cr': 'CR', 'costarricense': 'CR', 'costa rica': 'CR',
-    'ni': 'NI', 'nicaraguense': 'NI', 'nicaragüense': 'NI',
+    'ni': 'NI', 'nicaraguense': 'NI', 'nicaraguense': 'NI',
     'co': 'CO', 'colombiano': 'CO', 'colombiana': 'CO', 'colombiano/a': 'CO',
     'us': 'US', 'estadounidense': 'US', 'americano': 'US',
-    'hn': 'HN', 'hondureno': 'HN', 'hondureño': 'HN', 'hondureño/a': 'HN',
-    'sv': 'SV', 'salvadoreno': 'SV', 'salvadoreño': 'SV', 'salvadoreño/a': 'SV',
+    'hn': 'HN', 'hondureno': 'HN', 'hondureno': 'HN', 'hondureno/a': 'HN',
+    'sv': 'SV', 'salvadoreno': 'SV', 'salvadoreno': 'SV', 'salvadoreno/a': 'SV',
     'gt': 'GT', 'guatemalteco': 'GT', 'guatemalteca': 'GT', 'guatemalteco/a': 'GT',
-    'pa': 'PA', 'panameno': 'PA', 'panameño': 'PA', 'panameño/a': 'PA',
+    'pa': 'PA', 'panameno': 'PA', 'panameno': 'PA', 'panameno/a': 'PA',
     'mx': 'MX', 'mexicano': 'MX', 'mexicana': 'MX', 'mexicano/a': 'MX',
     've': 'VE', 'venezolano': 'VE', 'venezolana': 'VE', 'venezolano/a': 'VE',
     'pe': 'PE', 'peruano': 'PE', 'peruana': 'PE', 'peruano/a': 'PE',
@@ -71,7 +71,7 @@ INS_NATIONALITY = {
 ACCOUNT_TYPE = {
     'cuenta corriente': 'corriente', 'corriente': 'corriente', 'iban': 'corriente',
     'cuenta de ahorros': 'ahorros', 'ahorros': 'ahorros',
-    'sinpe movil': 'sinpe', 'sinpe móvil': 'sinpe', 'sinpe': 'sinpe',
+    'sinpe movil': 'sinpe', 'sinpe movil': 'sinpe', 'sinpe': 'sinpe',
 }
 
 GENDER = {
@@ -85,40 +85,40 @@ INS_CIVIL = {
     'casado/a': '02', 'casado': '02', 'casada': '02', '02': '02',
     'divorciado/a': '03', 'divorciado': '03', 'divorciada': '03', '03': '03',
     'viudo/a': '04', 'viudo': '04', 'viuda': '04', '04': '04',
-    'union libre': '05', 'unión libre': '05', '05': '05',
+    'union libre': '05', 'union libre': '05', '05': '05',
     'separado/a': '06', 'separado': '06', 'separada': '06', '06': '06',
 }
 
 INS_ID_TYPE = {
-    # Mapeo texto del Excel → code de planilla.identification.type en BD
-    # Códigos según data inicial: CI, DIMEX, PAS, CJ, NITE
-    'cedula nacional': 'CI', 'cédula nacional': 'CI',
-    'cedula de identidad': 'CI', 'cédula de identidad': 'CI',
-    'cedula': 'CI', 'cédula': 'CI', '01': 'CI', 'ci': 'CI',
+    # Mapeo texto del Excel -> code de planilla.identification.type en BD
+    # Codigos segun data inicial: CI, DIMEX, PAS, CJ, NITE
+    'cedula nacional': 'CI', 'cedula nacional': 'CI',
+    'cedula de identidad': 'CI', 'cedula de identidad': 'CI',
+    'cedula': 'CI', 'cedula': 'CI', '01': 'CI', 'ci': 'CI',
     'residencia / dimex': 'DIMEX', 'residencia': 'DIMEX',
     'dimex': 'DIMEX', '02': 'DIMEX',
     'permiso de trabajo': 'NITE', 'permiso': 'NITE',
     'nite': 'NITE', '03': 'NITE',
     'pasaporte': 'PAS', 'pas': 'PAS', '04': 'PAS',
-    'cedula juridica': 'CJ', 'cédula jurídica': 'CJ',
+    'cedula juridica': 'CJ', 'cedula juridica': 'CJ',
     'juridica': 'CJ', 'cj': 'CJ',
     'indocumentado': 'NITE', '05': 'NITE',
 }
 
-# Mapeo separado texto → código INS (campo ins_id_type, numérico 2 dígitos)
+# Mapeo separado texto -> codigo INS (campo ins_id_type, numerico 2 digitos)
 INS_ID_TYPE_CODE = {
-    'cedula nacional': '01', 'cédula nacional': '01',
-    'cedula de identidad': '01', 'cédula de identidad': '01',
-    'cedula': '01', 'cédula': '01', '01': '01', 'ci': '01',
+    'cedula nacional': '01', 'cedula nacional': '01',
+    'cedula de identidad': '01', 'cedula de identidad': '01',
+    'cedula': '01', 'cedula': '01', '01': '01', 'ci': '01',
     'residencia / dimex': '02', 'residencia': '02', 'dimex': '02', '02': '02',
     'permiso de trabajo': '03', 'permiso': '03', 'nite': '03', '03': '03',
     'pasaporte': '04', 'pas': '04', '04': '04',
     'indocumentado': '05', '05': '05',
-    'cedula juridica': '06', 'cédula jurídica': '06', 'cj': '06',
+    'cedula juridica': '06', 'cedula juridica': '06', 'cj': '06',
 }
 
 DISABILITY_TYPE = {
-    'enfermedad común (ccss)': 'ccss', 'enfermedad comun (ccss)': 'ccss',
+    'enfermedad comun (ccss)': 'ccss', 'enfermedad comun (ccss)': 'ccss',
     'enfermedad': 'ccss', 'ccss': 'ccss',
     'accidente de trabajo (ccss)': 'ccss_accident',
     'accidente trabajo': 'ccss_accident', 'accidente_trabajo': 'ccss_accident',
@@ -131,8 +131,8 @@ DISABILITY_TYPE = {
 BENEFIT_TYPE = {
     'beneficio / ingreso': 'income', 'beneficio': 'income', 'ingreso': 'income',
     'income': 'income', 'plus': 'income',
-    'deducción / descuento': 'deduction', 'deduccion / descuento': 'deduction',
-    'deduccion': 'deduction', 'deducción': 'deduction',
+    'deduccion / descuento': 'deduction', 'deduccion / descuento': 'deduction',
+    'deduccion': 'deduction', 'deduccion': 'deduction',
     'descuento': 'deduction', 'deduction': 'deduction', 'embargo': 'deduction',
 }
 
@@ -150,7 +150,7 @@ PENSION_CALC = {
 OVERTIME_TYPE = {
     'simple (1.5x)': 'simple', 'simple': 'simple', '1.5x': 'simple', 'ordinaria': 'simple',
     'doble (2.0x)': 'double', 'doble': 'double', '2x': 'double', 'double': 'double',
-    'día feriado': 'holiday', 'dia feriado': 'holiday', 'feriado': 'holiday',
+    'dia feriado': 'holiday', 'dia feriado': 'holiday', 'feriado': 'holiday',
     'holiday': 'holiday',
 }
 
@@ -158,7 +158,7 @@ BANK = {
     'bncr': 'BNCR', 'banco nacional': 'BNCR', 'nacional': 'BNCR',
     'bcr': 'BCR', 'banco de costa rica': 'BCR',
     'bp': 'BP', 'bpop': 'BP', 'banco popular': 'BP', 'popular': 'BP',
-    'bac': 'BAC', 'bac san jose': 'BAC', 'bac san josé': 'BAC',
+    'bac': 'BAC', 'bac san jose': 'BAC', 'bac san jose': 'BAC',
     'bct': 'BCT', 'banco bct': 'BCT',
     'cathay': 'CATHAY',
     'cmb': 'CMB',
@@ -182,8 +182,8 @@ CALC_METHOD = {
 }
 
 LOAN_TYPE = {
-    'préstamo de empresa': 'loan', 'prestamo de empresa': 'loan',
-    'loan': 'loan', 'prestamo': 'loan', 'préstamo': 'loan',
+    'prestamo de empresa': 'loan', 'prestamo de empresa': 'loan',
+    'loan': 'loan', 'prestamo': 'loan', 'prestamo': 'loan',
     'adelanto de salario': 'advance', 'advance': 'advance', 'adelanto': 'advance',
 }
 
@@ -197,13 +197,13 @@ LOAN_STATE = {
 
 PENSION_RELATION = {
     'hijo/a': 'hijo', 'hijo': 'hijo', 'hija': 'hijo',
-    'cónyuge': 'conyuge', 'conyuge': 'conyuge', 'compañero': 'conyuge',
-    'compañera': 'conyuge', 'conviviente': 'conyuge',
+    'conyuge': 'conyuge', 'conyuge': 'conyuge', 'companero': 'conyuge',
+    'companera': 'conyuge', 'conviviente': 'conyuge',
     'padre': 'padre', 'madre': 'madre',
     'otro': 'otro', 'otra': 'otro',
 }
 
-BOOL_MAP = {'si': True, 'sí': True, 'yes': True, '1': True, 'true': True, 'x': True}
+BOOL_MAP = {'si': True, 'si': True, 'yes': True, '1': True, 'true': True, 'x': True}
 
 FREQUENCY = {
     'mensual': 'monthly', 'monthly': 'monthly',
@@ -257,13 +257,13 @@ def _map(table, val, default=None):
     return table.get(_normalize(val), default)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ==============================================================================
 # MODELO WIZARD
-# ══════════════════════════════════════════════════════════════════════════════
+# ==============================================================================
 
 class ImportDataWizard(models.TransientModel):
     _name        = 'planilla.import.data.wizard'
-    _description = 'Importación Masiva de Empleados desde Excel'
+    _description = 'Importacion Masiva de Empleados desde Excel'
 
     company_id = fields.Many2one(
         'res.company', required=True, default=lambda self: self.env.company)
@@ -274,20 +274,21 @@ class ImportDataWizard(models.TransientModel):
     excel_filename = fields.Char(string='Nombre de archivo')
 
     # Hojas a procesar
-    import_employees    = fields.Boolean('👤  Empleados',                      default=True)
-    import_loans        = fields.Boolean('💰  Préstamos',                      default=True)
-    import_pension      = fields.Boolean('👨‍👧  Pensiones Alimentarias',         default=True)
-    import_benefits     = fields.Boolean('➕  Beneficios / Deducciones',       default=True)
-    import_disabilities = fields.Boolean('🏥  Incapacidades',                  default=True)
-    import_vacations    = fields.Boolean('🏖️  Vacaciones',                     default=True)
-    import_overtime     = fields.Boolean('⏱️  Horas Extras',                   default=True)
-    import_embargos     = fields.Boolean('⚖️  Embargos Judiciales',            default=True)
-    import_bonos        = fields.Boolean('🎯  Bonos y Beneficios',             default=True)
+    import_employees    = fields.Boolean('  Empleados',                      default=True)
+    import_loans        = fields.Boolean('  Prestamos',                      default=True)
+    import_pension      = fields.Boolean('  Pensiones Alimentarias',         default=True)
+    import_benefits     = fields.Boolean('  Beneficios / Deducciones',       default=True)
+    import_disabilities = fields.Boolean('  Incapacidades',                  default=True)
+    import_vacations    = fields.Boolean('  Vacaciones',                     default=True)
+    import_overtime     = fields.Boolean('  Horas Extras',                   default=True)
+    import_embargos     = fields.Boolean('  Embargos Judiciales',            default=True)
+    import_acumulados   = fields.Boolean('  Acumulados (aguinaldo/vacaciones)', default=True)
+    import_bonos        = fields.Boolean('  Bonos y Beneficios',             default=True)
     import_sample_data  = fields.Boolean(
-        '🧪  Importar fila de prueba (cédula 1-0000-0001)',
+        '  Importar fila de prueba (cedula 1-0000-0001)',
         default=False,
-        help='Active solo cuando quiera verificar que la importación funciona. '
-             'Desactivado por defecto para que la fila naranja se ignore automáticamente.'
+        help='Active solo cuando quiera verificar que la importacion funciona. '
+             'Desactivado por defecto para que la fila naranja se ignore automaticamente.'
     )
     sample_exists = fields.Boolean(
         string='Empleado de prueba existe',
@@ -308,7 +309,7 @@ class ImportDataWizard(models.TransientModel):
     # desincronizado de planilla_const.py). Ahora un solo punto de verdad.
     _SAMPLE_CEDULA = K.TEST_CEDULA
 
-    # Resultados (readonly, visibles después de procesar)
+    # Resultados (readonly, visibles despues de procesar)
     state = fields.Selection([
         ('draft',  'Pendiente'),
         ('done',   'Procesado'),
@@ -318,7 +319,7 @@ class ImportDataWizard(models.TransientModel):
     emp_created  = fields.Integer('Empleados creados',     readonly=True)
     emp_skipped  = fields.Integer('Empleados existentes (omitidos)', readonly=True)
     emp_errors   = fields.Integer('Empleados con errores', readonly=True)
-    loan_created = fields.Integer('Préstamos creados',     readonly=True)
+    loan_created = fields.Integer('Prestamos creados',     readonly=True)
     pen_created  = fields.Integer('Pensiones creadas',     readonly=True)
     ben_created  = fields.Integer('Beneficios creados',    readonly=True)
     dis_created  = fields.Integer('Incapacidades creadas', readonly=True)
@@ -332,17 +333,17 @@ class ImportDataWizard(models.TransientModel):
     report_file    = fields.Binary('Reporte de Errores (Excel)', readonly=True)
     report_name    = fields.Char(default='Reporte_Importacion.xlsx')
 
-    # ── helpers internos ──────────────────────────────────────────────────────
+    # -- helpers internos ------------------------------------------------------
 
     def _get_wb(self):
         if not OPENPYXL_OK:
-            raise UserError('La librería openpyxl no está instalada en el servidor.')
+            raise UserError('La libreria openpyxl no esta instalada en el servidor.')
         raw = base64.b64decode(self.excel_file)
         return load_workbook(io.BytesIO(raw), data_only=True, read_only=True)
 
     def _sheet_rows(self, wb, sheet_names):
         """Retorna (headers_dict, filas) de la primera hoja encontrada."""
-        _EXAMPLE_CEDULA = K.SAMPLE_CEDULA   # fila verde de ejemplo — siempre se salta
+        _EXAMPLE_CEDULA = K.SAMPLE_CEDULA   # fila verde de ejemplo -- siempre se salta
         for name in sheet_names:
             for sn in wb.sheetnames:
                 if name.lower() in sn.lower():
@@ -351,17 +352,17 @@ class ImportDataWizard(models.TransientModel):
                     if len(rows) < 2:
                         return {}, []
 
-                    # ── Detectar fila de encabezados ──────────────────────
+                    # -- Detectar fila de encabezados ----------------------
                     # Buscamos la fila donde alguna celda sea EXACTAMENTE una
-                    # palabra clave de encabezado (no un título largo que las
+                    # palabra clave de encabezado (no un titulo largo que las
                     # contenga como substring). Esto distingue la fila de
-                    # encabezados de columna de la fila de título o secciones.
-                    EXACT_KEYS = ('nombre completo', 'cédula / identificación',
-                                  'cédula empleado', 'número de expediente',
+                    # encabezados de columna de la fila de titulo o secciones.
+                    EXACT_KEYS = ('nombre completo', 'cedula / identificacion',
+                                  'cedula empleado', 'numero de expediente',
                                   'concepto', 'tipo de incapacidad',
-                                  'días acumulados', 'tipo de hora extra',
-                                  'tipo de préstamo', 'cédula empleado')
-                    PARTIAL_KEYS = ('cédula', 'cedula')
+                                  'dias acumulados', 'tipo de hora extra',
+                                  'tipo de prestamo', 'cedula empleado')
+                    PARTIAL_KEYS = ('cedula', 'cedula')
                     header_row = None
                     for i, r in enumerate(rows):
                         cells = [str(c).strip().lower() for c in r
@@ -370,7 +371,7 @@ class ImportDataWizard(models.TransientModel):
                         if any(cell in EXACT_KEYS for cell in cells):
                             header_row = i
                             break
-                        # O celda que sea exactamente 'cédula' o 'cedula'
+                        # O celda que sea exactamente 'cedula' o 'cedula'
                         if any(cell in PARTIAL_KEYS for cell in cells):
                             header_row = i
                             break
@@ -381,10 +382,10 @@ class ImportDataWizard(models.TransientModel):
                     hdrs = {str(c).strip(): ci
                             for ci, c in enumerate(rows[header_row]) if c}
 
-                    # ── Datos: todo lo que viene después del encabezado ───
+                    # -- Datos: todo lo que viene despues del encabezado ---
                     data_rows = rows[header_row + 1:]
 
-                    # Saltar la fila de ejemplo verde (cédula 1-2345-6789)
+                    # Saltar la fila de ejemplo verde (cedula 1-2345-6789)
                     # buscando ese valor en cualquier columna de cada fila
                     data_rows = [
                         r for r in data_rows
@@ -394,30 +395,44 @@ class ImportDataWizard(models.TransientModel):
                         )
                     ]
 
-                    # Filtrar filas completamente vacías
+                    # Filtrar filas completamente vacias
                     data_rows = [r for r in data_rows
                                  if any(c for c in r
                                         if c is not None and str(c).strip())]
 
                     # FIX v5.15.6: Filtrar filas de instrucciones al pie de la hoja.
                     # Algunos machotes tienen un bloque de instrucciones al final
-                    # (ej. fila 85+ en VACACIONES) que el wizard leía como datos.
-                    # Una fila es instrucción si su primera celda no-nula:
-                    #   - empieza con '📋' (marcador de instrucciones), o
-                    #   - tiene más de 80 chars (ninguna cédula/nombre es tan largo), o
-                    #   - empieza con un número seguido de punto y espacio ('1. ', '2. ')
+                    # (ej. fila 85+ en VACACIONES) que el wizard leia como datos.
+                    # Una fila es instruccion si su primera celda no-nula:
+                    #   - empieza con '' (marcador de instrucciones), o
+                    #   - tiene mas de 80 chars (ninguna cedula/nombre es tan largo), o
+                    #   - empieza con un numero seguido de punto y espacio ('1. ', '2. ')
                     def _is_instruction_row(row):
+                        import re as _re
+                        INSTR_KEYWORDS = (
+                            'instruccion', 'instruction', 'nota:', 'note:',
+                            'como calcular', 'ejemplo:', 'example:',
+                        )
                         for c in row:
                             if c is not None and str(c).strip():
                                 txt = str(c).strip()
-                                if txt.startswith('📋'):
+                                txt_l = txt.lower()
+                                # Fila de prueba WARN
+                                if txt_l.startswith('warn ') or txt_l.startswith('warn:'):
                                     return True
-                                if len(txt) > 80:
+                                # Instruccion indentada (doble espacio)
+                                if txt.startswith('  '):
                                     return True
-                                import re
-                                if re.match(r'^\d+\.\s+', txt):
+                                # Texto muy largo = instruccion
+                                if len(txt) > 100:
                                     return True
-                                break  # solo checar la primera celda no-nula
+                                # Instruccion numerada: "1. ", "2. " etc.
+                                if _re.match(r'^\d+\.\s+', txt):
+                                    return True
+                                # Palabras clave de instrucciones
+                                if any(kw in txt_l for kw in INSTR_KEYWORDS):
+                                    return True
+                                break
                         return False
 
                     # Truncar en el primer bloque de instrucciones encontrado
@@ -462,16 +477,25 @@ class ImportDataWizard(models.TransientModel):
         domain = [(field, 'ilike', name_str)]
         if extra_domain:
             domain += extra_domain
+        # FIX PEND-04: agregar filtro de empresa para evitar cross-company
+        # en entornos multi-empresa. Solo aplica si el modelo tiene company_id.
+        try:
+            if 'company_id' in self.env[model]._fields:
+                domain += ['|',
+                    ('company_id', '=', self.company_id.id),
+                    ('company_id', '=', False)]
+        except Exception:
+            pass
         result = self.env[model].sudo().with_context(active_test=False).search(
             domain, limit=1)
         return result or None
 
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
     # PROCESADORES POR HOJA
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
 
     def _is_sample(self, cedula):
-        """Retorna True si la cédula corresponde a la fila de prueba."""
+        """Retorna True si la cedula corresponde a la fila de prueba."""
         return str(cedula).strip() == self._SAMPLE_CEDULA
 
     def _process_employees(self, wb, errors):
@@ -482,7 +506,7 @@ class ImportDataWizard(models.TransientModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula', 'Identificación', 'Identificacion') or '').strip()
+            cedula = str(v('Cedula', 'Cedula', 'Identificacion', 'Identificacion') or '').strip()
             nombre = str(v('Nombre') or '').strip()
 
             if not cedula or not nombre:
@@ -502,7 +526,7 @@ class ImportDataWizard(models.TransientModel):
                     branch_name  = v('Sucursal')
                     job_name     = v('Puesto', 'Cargo')
                     sched_name   = v('Tipo de Horario', 'Horario')
-                    cal_name     = v('Calendarización de Planilla', 'Frecuencia', 'Calendario', 'Frecuencia de Pago')
+                    cal_name     = v('Calendarizacion de Planilla', 'Frecuencia', 'Calendario', 'Frecuencia de Pago')
                     etype_name   = v('Tipo de Empleado')
                     estatus_name = v('Estado del Empleado', 'Estado')
 
@@ -516,7 +540,7 @@ class ImportDataWizard(models.TransientModel):
                                 extra_domain=['|', ('company_id', '=', company.id),
                                                    ('company_id', '=', False)])
                     sched   = self._find_m2o('planilla.schedule.type', sched_name)
-                    # Si no encontró por nombre completo, intentar con las
+                    # Si no encontro por nombre completo, intentar con las
                     # primeras palabras (ej: "Jornada Completa" de
                     # "Jornada Completa (8 horas - Lun a Vie)")
                     if not sched and sched_name:
@@ -529,7 +553,7 @@ class ImportDataWizard(models.TransientModel):
                     etype   = self._find_m2o('planilla.employee.type', etype_name)
                     estatus = self._find_m2o('planilla.employee.status', estatus_name)
 
-                    # Sub departamento — buscar dentro del dpto padre si se encontró
+                    # Sub departamento -- buscar dentro del dpto padre si se encontro
                     subdept = None
                     if subdept_name:
                         subdept_domain = ['|', ('company_id', '=', company.id),
@@ -539,9 +563,9 @@ class ImportDataWizard(models.TransientModel):
                         subdept = self._find_m2o('hr.department', subdept_name,
                                     extra_domain=subdept_domain)
 
-                    # Si no se encontró calendario por nombre, buscar por frecuencia
+                    # Si no se encontro calendario por nombre, buscar por frecuencia
                     if not cal:
-                        freq_raw = _normalize(v('Calendarización de Planilla', 'Frecuencia', 'Calendario', 'Frecuencia de Pago') or '')
+                        freq_raw = _normalize(v('Calendarizacion de Planilla', 'Frecuencia', 'Calendario', 'Frecuencia de Pago') or '')
                         freq_val = FREQUENCY.get(freq_raw)
                         if freq_val:
                             cal = self.env['planilla.calendar'].sudo().search([
@@ -551,10 +575,10 @@ class ImportDataWizard(models.TransientModel):
                                 ('frequency', '=', freq_val),
                             ], limit=1) or None
 
-                    # Identificación type
-                    id_type_raw  = _normalize(v('Tipo de Identificación', 'Tipo Identificacion') or '')
+                    # Identificacion type
+                    id_type_raw  = _normalize(v('Tipo de Identificacion', 'Tipo Identificacion') or '')
                     id_type_code = INS_ID_TYPE.get(id_type_raw, 'CI')      # code en planilla.identification.type
-                    ins_id_code  = INS_ID_TYPE_CODE.get(id_type_raw, '01') # código numérico para INS
+                    ins_id_code  = INS_ID_TYPE_CODE.get(id_type_raw, '01') # codigo numerico para INS
                     id_type_rec  = self.env['planilla.identification.type'].search(
                         [('code', '=', id_type_code)], limit=1)
 
@@ -567,18 +591,18 @@ class ImportDataWizard(models.TransientModel):
                         'work_email':                 v('Correo', 'Email') or False,
                         'base_salary':                _parse_float(v('Salario Base', 'Salario')),
                         'salary_effective_date':      _parse_date(v('Fecha Vigencia', 'Vigencia Salarial')),
-                        'payroll_calculation_method': _map(CALC_METHOD, v('Método', 'Metodo', 'Método de Cálculo')) or 'fixed',
-                        'ccss_number':                str(v('CCSS', 'Número CCSS', 'Numero CCSS') or '').strip() or False,
+                        'payroll_calculation_method': _map(CALC_METHOD, v('Metodo', 'Metodo', 'Metodo de Calculo')) or 'fixed',
+                        'ccss_number':                str(v('CCSS', 'Numero CCSS', 'Numero CCSS') or '').strip() or False,
                         'ccss_insured':               _parse_bool(v('Asegurado CCSS', 'CCSS Asegurado')),
                         'has_variable_income':        _parse_bool(v('Salario Variable', 'Comisiones', 'Ingreso Variable')),
                         'bank_account_number':        str(v('Cuenta Bancaria', 'Cuenta') or '').strip() or False,
                         'bank_iban':                  str(v('IBAN') or '').strip() or False,
-                        'sinpe_phone': re.sub(r'\D', '', str(v('SINPE', 'Sinpe Móvil', 'Sinpe Movil') or ''))[:8] or False,
+                        'sinpe_phone': re.sub(r'\D', '', str(v('SINPE', 'Sinpe Movil', 'Sinpe Movil') or ''))[:8] or False,
                         'bank_name':                  _map(BANK, v('Banco')) or False,
                         'bank_account_type':          _map(ACCOUNT_TYPE, v('Tipo de Cuenta Banco', 'Tipo de Cuenta')) or False,
                         # INS
                         'ins_include':               _parse_bool(v('Incluir INS', 'Incluir en INS')),
-                        'ins_policy_number':         str(v('Póliza INS', 'Poliza INS', 'Número de Póliza') or '').strip() or False,
+                        'ins_policy_number':         str(v('Poliza INS', 'Poliza INS', 'Numero de Poliza') or '').strip() or False,
                         'ins_first_name':            str(v('Nombre INS') or '').strip() or False,
                         'ins_first_lastname':        str(v('Primer Apellido INS') or '').strip() or False,
                         'ins_second_lastname':       str(v('Segundo Apellido INS') or '').strip() or False,
@@ -600,30 +624,30 @@ class ImportDataWizard(models.TransientModel):
                     if estatus: vals['employee_status_id']  = estatus.id
                     if id_type_rec: vals['identification_type_id'] = id_type_rec.id
 
-                    # INS occupation — acepta código numérico (4 dígitos) o
+                    # INS occupation -- acepta codigo numerico (4 digitos) o
                     # texto completo del dropdown "[1120] Directores y gerentes generales"
-                    ins_occ_raw = str(v('Ocupación INS', 'Ocupacion INS') or '').strip()
+                    ins_occ_raw = str(v('Ocupacion INS', 'Ocupacion INS') or '').strip()
                     if ins_occ_raw:
-                        # Extraer solo el código si viene como "[1120] Descripción..."
+                        # Extraer solo el codigo si viene como "[1120] Descripcion..."
                         import re as _re
-                        _occ_match = _re.match(r'\[?(\d{4})\]?', ins_occ_raw)
+                        _occ_match = _re.match(r'\[(\d{4})\]', ins_occ_raw)
                         vals['ins_occupation'] = _occ_match.group(1) if _occ_match else ins_occ_raw
 
-                    # Tipo de sangre y notas médicas
+                    # Tipo de sangre y notas medicas
                     blood_raw = str(v('Tipo de Sangre', 'Sangre') or '').strip().upper()
                     if blood_raw in ('A+','A-','B+','B-','AB+','AB-','O+','O-'):
                         vals['blood_type'] = blood_raw
-                    medical = str(v('Diagnóstico', 'Diagnostico', 'Notas Médicas', 'Notas Medicas') or '').strip()
+                    medical = str(v('Diagnostico', 'Diagnostico', 'Notas Medicas', 'Notas Medicas') or '').strip()
                     if medical:
                         vals['medical_notes'] = medical
 
-                    # Campos personales estándar de hr.employee — pueden no existir
-                    # según la versión de Odoo o si están en hr.employee.private.
+                    # Campos personales estandar de hr.employee -- pueden no existir
+                    # segun la version de Odoo o si estan en hr.employee.private.
                     # Los agregamos solo si el campo existe en el modelo.
                     emp_fields = self.env['hr.employee']._fields
 
-                    # País: buscar por nombre en res.country
-                    country_raw = str(v('País', 'Pais') or '').strip()
+                    # Pais: buscar por nombre en res.country
+                    country_raw = str(v('Pais', 'Pais') or '').strip()
                     country_id  = False
                     if country_raw:
                         country = self.env['res.country'].search(
@@ -631,10 +655,10 @@ class ImportDataWizard(models.TransientModel):
                         country_id = country.id if country else False
 
                     _personal = {
-                        'gender':            _map(GENDER, v('Género', 'Genero')) or False,
-                        'children':          _parse_int(v('Número de Dependientes', 'Dependientes')) or 0,
-                        'private_street':    str(v('Dirección', 'Direccion') or '').strip() or False,
-                        'private_phone':     str(v('Teléfono Personal', 'Telefono Personal') or '').strip() or False,
+                        'gender':            _map(GENDER, v('Genero', 'Genero')) or False,
+                        'children':          _parse_int(v('Numero de Dependientes', 'Dependientes')) or 0,
+                        'private_street':    str(v('Direccion', 'Direccion') or '').strip() or False,
+                        'private_phone':     str(v('Telefono Personal', 'Telefono Personal') or '').strip() or False,
                         'private_email':     str(v('Correo Personal', 'Email Personal') or '').strip() or False,
                         'private_country_id': country_id or False,
                         'notes':             str(v('Observaciones') or '').strip() or False,
@@ -651,12 +675,17 @@ class ImportDataWizard(models.TransientModel):
                     })
                     vals['work_contact_id'] = contact.id
 
-                    # Crear empleado. Si el IBAN falla la validación del
-                    # dígito verificador, reintentar sin el IBAN para no
-                    # bloquear toda la importación — el IBAN se puede
-                    # corregir manualmente después.
+                    # Crear empleado. Si el IBAN falla la validacion del
+                    # digito verificador, reintentar sin el IBAN para no
+                    # bloquear toda la importacion -- el IBAN se puede
+                    # corregir manualmente despues.
                     try:
-                        self.env['hr.employee'].create(vals)
+                        new_emp = self.env['hr.employee'].create(vals)
+                        # Crear contrato nativo de HR para sincronizar con pestaa Nmina
+                        try:
+                            new_emp._get_or_create_contract()
+                        except Exception:
+                            pass  # No bloquear importacion si el contrato falla
                     except Exception as e_create:
                         if 'iban' in str(e_create).lower() or 'digito verificador' in str(e_create).lower():
                             iban_original = vals.pop('bank_iban', None)
@@ -666,11 +695,11 @@ class ImportDataWizard(models.TransientModel):
                             errors.append({
                                 'hoja': 'EMPLEADOS', 'fila': row_num,
                                 'cedula': cedula, 'nombre': nombre,
-                                'error': f'ADVERTENCIA: Empleado creado SIN IBAN — dígito verificador inválido: {iban_original}. Corrija el IBAN manualmente en el empleado.',
+                                'error': f'ADVERTENCIA: Empleado creado SIN IBAN -- digito verificador invalido: {iban_original}. Corrija el IBAN manualmente en el empleado.',
                                 'traceback': '',
                                 'vals': {},
                             })
-                            _logger.warning('ImportDataWizard EMPLEADOS fila %s cedula %s: IBAN inválido %s — empleado creado sin IBAN',
+                            _logger.warning('ImportDataWizard EMPLEADOS fila %s cedula %s: IBAN invalido %s -- empleado creado sin IBAN',
                                             row_num, cedula, iban_original)
                             continue
                         else:
@@ -699,7 +728,7 @@ class ImportDataWizard(models.TransientModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -717,11 +746,11 @@ class ImportDataWizard(models.TransientModel):
             try:
                 with self.env.cr.savepoint():
                     amount_total = _parse_float(v('Monto Total', 'Monto'))
-                    installments = _parse_int(v('Número de Cuotas', 'Cuotas', 'Installments'))
+                    installments = _parse_int(v('Numero de Cuotas', 'Cuotas', 'Installments'))
                     date_granted = _parse_date(v('Fecha de Otorgamiento', 'Fecha Otorgamiento'))
-                    date_first   = _parse_date(v('Fecha Primera Deducción', 'Primera Deduccion'))
+                    date_first   = _parse_date(v('Fecha Primera Deduccion', 'Primera Deduccion'))
                     state_raw    = _map(LOAN_STATE, v('Estado')) or 'approved'
-                    loan_type    = _map(LOAN_TYPE, v('Tipo de Préstamo', 'Tipo')) or 'loan'
+                    loan_type    = _map(LOAN_TYPE, v('Tipo de Prestamo', 'Tipo')) or 'loan'
                     amount_paid  = _parse_float(v('Monto ya Pagado', 'Monto Pagado'))
 
                     if amount_total <= 0 or installments <= 0:
@@ -730,7 +759,7 @@ class ImportDataWizard(models.TransientModel):
                     loan = self.env['planilla.employee.loan'].create({
                         'employee_id':         emp.id,
                         'loan_type':           loan_type,
-                        'description':         str(v('Descripción', 'Descripcion', 'Motivo') or '').strip() or False,
+                        'description':         str(v('Descripcion', 'Descripcion', 'Motivo') or '').strip() or False,
                         'amount_total':        amount_total,
                         'installments':        installments,
                         'date_granted':        date_granted or date.today(),
@@ -739,7 +768,7 @@ class ImportDataWizard(models.TransientModel):
                         'note':                str(v('Observaciones') or '').strip() or False,
                     })
 
-                    # Generar cuotas automáticamente
+                    # Generar cuotas automaticamente
                     loan._generate_installments()
 
                     # Si ya tiene pagos parciales, marcar cuotas como descontadas
@@ -779,13 +808,13 @@ class ImportDataWizard(models.TransientModel):
 
     def _process_pension(self, wb, errors):
         created = err_count = 0
-        hdrs, rows = self._sheet_rows(wb, ['PENSION', 'PENSIÓN'])
+        hdrs, rows = self._sheet_rows(wb, ['PENSION', 'PENSION'])
         if not rows:
             return 0, 0
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -802,7 +831,7 @@ class ImportDataWizard(models.TransientModel):
 
             try:
                 with self.env.cr.savepoint():
-                    calc_type = _map(PENSION_CALC, v('Tipo de Cálculo', 'Tipo Calculo')) or 'fixed'
+                    calc_type = _map(PENSION_CALC, v('Tipo de Calculo', 'Tipo Calculo')) or 'fixed'
                     pct_raw   = _parse_float(v('Porcentaje'))
                     monto_raw = _parse_float(v('Monto Fijo', 'Monto'))
 
@@ -811,11 +840,11 @@ class ImportDataWizard(models.TransientModel):
 
                     vals = {
                         'employee_id':          emp.id,
-                        'numero_expediente':    str(v('Expediente', 'Número de Expediente') or '').strip() or False,
+                        'numero_expediente':    str(v('Expediente', 'Numero de Expediente') or '').strip() or False,
                         'juzgado':              str(v('Juzgado') or '').strip() or False,
-                        'fecha_resolucion':     _parse_date(v('Fecha de Resolución', 'Fecha Resolucion')),
+                        'fecha_resolucion':     _parse_date(v('Fecha de Resolucion', 'Fecha Resolucion')),
                         'beneficiario_nombre':  str(v('Beneficiario', 'Nombre Beneficiario') or '').strip() or False,
-                        'beneficiario_relacion': _map(PENSION_RELATION, v('Relación', 'Relacion')) or 'hijo',
+                        'beneficiario_relacion': _map(PENSION_RELATION, v('Relacion', 'Relacion')) or 'hijo',
                         'beneficiario_cuenta':  str(v('Cuenta Beneficiario') or '').strip() or False,
                         'calculation_type':     calc_type,
                         'percentage':           pct_raw if calc_type == 'percentage' else 0.0,
@@ -851,7 +880,7 @@ class ImportDataWizard(models.TransientModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -874,8 +903,8 @@ class ImportDataWizard(models.TransientModel):
                     pct          = _parse_float(v('Porcentaje'))
                     concepto     = str(v('Concepto') or '').strip()
 
-                    # Buscar código de deducción por código o por nombre
-                    ded_code_raw = str(v('Código Deducción', 'Codigo', 'Código') or '').strip()
+                    # Buscar codigo de deduccion por codigo o por nombre
+                    ded_code_raw = str(v('Codigo Deduccion', 'Codigo', 'Codigo') or '').strip()
                     ded_code = None
                     if ded_code_raw:
                         ded_code = (
@@ -886,7 +915,7 @@ class ImportDataWizard(models.TransientModel):
                         ) or None
 
                     # deduction_code_id es required=True en el modelo.
-                    # Si no se especificó, usar el primer código disponible del tipo correcto,
+                    # Si no se especifico, usar el primer codigo disponible del tipo correcto,
                     # o el primero que exista.
                     if not ded_code:
                         ded_type = 'employee' if benefit_type == 'deduction' else 'employer'
@@ -899,8 +928,8 @@ class ImportDataWizard(models.TransientModel):
                     if not concepto:
                         raise ValueError('El campo Concepto es obligatorio')
                     if not ded_code:
-                        raise ValueError('No existe ningún Código de Deducción en Odoo. '
-                                         'Cree al menos uno en Configuración → Códigos de Deducción')
+                        raise ValueError('No existe ningun Codigo de Deduccion en Odoo. '
+                                         'Cree al menos uno en Configuracion -> Codigos de Deduccion')
 
                     vals = {
                         'employee_id':      emp.id,
@@ -939,7 +968,7 @@ class ImportDataWizard(models.TransientModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -959,20 +988,32 @@ class ImportDataWizard(models.TransientModel):
                     branch = self._find_m2o('planilla.branch', v('Sucursal'),
                                 extra_domain=[('company_id', '=', self.company_id.id)])
 
+                    dtype = _map(DISABILITY_TYPE, v('Tipo de Incapacidad', 'Tipo')) or 'ccss'
                     vals = {
                         'employee_id':          emp.id,
-                        'disability_type':      _map(DISABILITY_TYPE, v('Tipo de Incapacidad', 'Tipo')) or 'ccss',
+                        'disability_type':      dtype,
                         'date_start':           _parse_date(v('Fecha Inicio')) or date.today(),
                         'date_end':             _parse_date(v('Fecha Fin')) or date.today(),
                         'subsidy_percentage':   _parse_float(v('% Subsidiado', 'Subsidiado CCSS')),
                         'employer_percentage':  _parse_float(v('% Patrono', 'Cargo Patrono')) or 0.0,
-                        # FIX-A2: default 0.0 — el complemento patronal NO es obligatorio
-                        # (Art. 79 Regl. CCSS). El valor anterior 40.0 era fiscalmente incorrecto.
-                        'certificate_number':   str(v('Número Certificado', 'Certificado') or '').strip() or False,
-                        'diagnosis':            str(v('Diagnóstico', 'Diagnostico') or '').strip() or False,
+                        'certificate_number':   str(v('Numero Certificado', 'Certificado') or '').strip() or False,
+                        'diagnosis':            str(v('Diagnostico', 'Diagnostico') or '').strip() or False,
                         'note':                 str(v('Observaciones') or '').strip() or False,
                         'state':                'confirmed',
                     }
+                    # Campos especiales maternidad
+                    if dtype == 'maternity':
+                        fecha_parto = _parse_date(v('Fecha de Parto', 'Parto', 'Fecha Parto'))
+                        if fecha_parto:
+                            vals['fecha_parto'] = fecha_parto
+                        # Check 1: CCSS 50% + Patrono 50%
+                        split_raw = v('Maternidad 50/50', 'Maternidad 50', 'Split 50')
+                        if split_raw is not None:
+                            vals['maternity_split_50'] = _parse_bool(split_raw)
+                        # Check 2: Cobrar CCSS sobre parte patronal
+                        ccss_raw = v('Cobrar CCSS', 'CCSS s/patronal', 'CCSS obrera')
+                        if ccss_raw is not None:
+                            vals['maternity_ccss_on_employer'] = _parse_bool(ccss_raw)
                     daily = _parse_float(v('Salario Diario', 'Daily Salary'))
                     if daily:
                         vals['daily_salary'] = daily
@@ -1000,10 +1041,10 @@ class ImportDataWizard(models.TransientModel):
         vacation_initial_balance y vacation_initial_balance_date del empleado.
 
         Estrategia:
-          - Lee 'Saldo Inicial (días)' y 'Fecha de Corte del Saldo' del Excel.
+          - Lee 'Saldo Inicial (dias)' y 'Fecha de Corte del Saldo' del Excel.
           - Actualiza el empleado con esos valores.
-          - El cálculo automático (_compute_vacation_balance) usará estos campos
-            como punto de partida y acumulará días solo a partir de esa fecha.
+          - El calculo automatico (_compute_vacation_balance) usara estos campos
+            como punto de partida y acumulara dias solo a partir de esa fecha.
           - Si el empleado ya tiene saldo inicial configurado, lo SOBREESCRIBE
             (idempotente: se puede reimportar sin duplicar datos).
         """
@@ -1014,7 +1055,7 @@ class ImportDataWizard(models.TransientModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -1032,44 +1073,44 @@ class ImportDataWizard(models.TransientModel):
             try:
                 with self.env.cr.savepoint():
                     # Columnas principales (obligatorias para saldo inicial)
-                    saldo_raw = v('Saldo Inicial', 'Saldo Inicial (días)', 'Días Disponibles', 'Dias Disponibles')
-                    # Distinguir celda vacía (None/'') de cero real
+                    saldo_raw = v('Saldo Inicial', 'Saldo Inicial (dias)', 'Dias Disponibles', 'Dias Disponibles')
+                    # Distinguir celda vacia (None/'') de cero real
                     saldo_vacio = (saldo_raw is None or str(saldo_raw).strip() == '')
-                    saldo_inicial = _parse_float(saldo_raw)  # 0.0 si vacío
+                    saldo_inicial = _parse_float(saldo_raw)  # 0.0 si vacio
                     fecha_corte = _parse_date(
-                        v('Fecha de Corte del Saldo', 'Fecha de Corte', 'Última Fecha de Corte', 'Ultima Fecha')
+                        v('Fecha de Corte del Saldo', 'Fecha de Corte', 'Ultima Fecha de Corte', 'Ultima Fecha')
                     )
-                    obs = str(v('Observaciones', 'Período', 'Periodo') or '').strip()
+                    obs = str(v('Observaciones', 'Periodo', 'Periodo') or '').strip()
 
                     vals_emp = {}
 
-                    # Solo actualizar si la celda tiene un valor (incluso 0 explícito es válido)
+                    # Solo actualizar si la celda tiene un valor (incluso 0 explicito es valido)
                     if not saldo_vacio:
                         vals_emp['vacation_initial_balance'] = round(saldo_inicial, 2)
 
                     if fecha_corte:
                         vals_emp['vacation_initial_balance_date'] = fecha_corte
                     elif not saldo_vacio and saldo_inicial > 0 and not fecha_corte:
-                        # Hay saldo pero no fecha → advertir y usar hoy
+                        # Hay saldo pero no fecha -> advertir y usar hoy
                         vals_emp['vacation_initial_balance_date'] = date.today()
                         errors.append({
                             'hoja': 'VACACIONES', 'fila': row_num, 'cedula': cedula,
                             'nombre': emp.name,
-                            'error': 'Advertencia: no se encontró Fecha de Corte del Saldo. '
-                                     'Se usó la fecha de hoy como corte. '
+                            'error': 'Advertencia: no se encontro Fecha de Corte del Saldo. '
+                                     'Se uso la fecha de hoy como corte. '
                                      'Corrija manualmente en el perfil del empleado.',
                         })
 
                     if vals_emp:
                         emp.write(vals_emp)
-                        # Forzar recálculo del saldo
+                        # Forzar recalculo del saldo
                         emp._compute_vacation_balance()
                         created += 1
 
                         if obs:
                             emp.message_post(
                                 body=f'<b>Saldo inicial de vacaciones importado:</b> '
-                                     f'{saldo_inicial} días al {fecha_corte}. '
+                                     f'{saldo_inicial} dias al {fecha_corte}. '
                                      f'Obs: {obs}',
                                 message_type='notification',
                             )
@@ -1086,6 +1127,89 @@ class ImportDataWizard(models.TransientModel):
         return created, err_count
 
 
+    def _process_acumulados(self, wb, errors):
+        """
+        Procesa la hoja ACUMULADOS: carga el acumulado de aguinaldo inicial
+        y el saldo de vacaciones en dias directamente en el empleado.
+
+        Columnas esperadas:
+          - Cedula Empleado       (obligatoria)
+          - Fecha de Corte        (DD/MM/AAAA)
+          - Aguinaldo Acumulado   (CRC) -> aguinaldo_initial_amount
+          - Vacaciones Acumuladas (dias) -> vacation_initial_balance
+
+        Si el empleado ya tiene vacaciones cargadas desde la hoja VACACIONES,
+        no sobreescribe (la hoja VACACIONES tiene prioridad).
+        """
+        created = err_count = 0
+        hdrs, rows = self._sheet_rows(wb, ['ACUMULADO', 'ACUMULADOS', 'PROVISION'])
+        if not rows:
+            return 0, 0
+
+        for row_num, row in enumerate(rows, start=1):
+            v = lambda *cols: self._v(row, hdrs, *cols)
+            cedula = str(v('Cedula', 'Cedula Empleado') or '').strip()
+            if not cedula:
+                continue
+            if self._is_sample(cedula) and not self.import_sample_data:
+                continue
+
+            emp = self._find_employee(cedula)
+            if not emp:
+                err_count += 1
+                errors.append({
+                    'hoja': 'ACUMULADOS', 'fila': row_num, 'cedula': cedula,
+                    'nombre': '', 'error': 'Empleado no encontrado en Odoo',
+                })
+                continue
+
+            try:
+                with self.env.cr.savepoint():
+                    fecha_corte = _parse_date(
+                        v('Fecha de Corte', 'Fecha Corte', 'Fecha')
+                    )
+                    ag_raw  = v('Aguinaldo Acumulado', 'Aguinaldo Acumulado (CRC)',
+                                'Aguinaldo', 'Acumulado Aguinaldo')
+                    vac_raw = v('Vacaciones Acumuladas', 'Vacaciones Acumuladas (dias)',
+                                'Vacaciones', 'Dias Vacaciones')
+
+                    ag_amount = _parse_float(ag_raw)
+                    vac_dias  = _parse_float(vac_raw)
+
+                    vals_emp = {}
+
+                    # Aguinaldo inicial
+                    if ag_amount and ag_amount > 0:
+                        vals_emp['aguinaldo_initial_amount'] = round(ag_amount, 2)
+                        if fecha_corte:
+                            vals_emp['aguinaldo_initial_date'] = fecha_corte
+
+                    # Vacaciones iniciales (solo si NO tiene ya vacation_initial_balance_date)
+                    if vac_dias and not emp.vacation_initial_balance_date:
+                        vals_emp['vacation_initial_balance'] = round(vac_dias, 2)
+                        if fecha_corte:
+                            vals_emp['vacation_initial_balance_date'] = fecha_corte
+
+                    if vals_emp:
+                        emp.with_context(skip_salary_history=True).write(vals_emp)
+                        if 'vacation_initial_balance' in vals_emp:
+                            emp._compute_vacation_balance()
+                        created += 1
+
+            except Exception as e:
+                import traceback
+                err_count += 1
+                errors.append({
+                    'hoja': 'ACUMULADOS', 'fila': row_num, 'cedula': cedula,
+                    'nombre': emp.name if emp else '',
+                    'error': str(e)[:200],
+                    'traceback': traceback.format_exc(),
+                    'vals': {},
+                })
+                _logger.warning('ImportDataWizard ACUMULADOS fila %s: %s', row_num, e)
+
+        return created, err_count
+
     def _process_overtime(self, wb, errors):
         created = err_count = 0
         hdrs, rows = self._sheet_rows(wb, ['HORA', 'OVERTIME', 'HE'])
@@ -1094,7 +1218,7 @@ class ImportDataWizard(models.TransientModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -1147,9 +1271,9 @@ class ImportDataWizard(models.TransientModel):
 
         return created, err_count
 
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
     # PROCESADOR EMBARGOS JUDICIALES
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
 
     def _process_embargos(self, wb, errors):
         """Importa embargos judiciales desde la hoja EMBARGOS del machote."""
@@ -1166,7 +1290,7 @@ class ImportDataWizard(models.TransientModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -1185,25 +1309,25 @@ class ImportDataWizard(models.TransientModel):
 
             try:
                 with self.env.cr.savepoint():
-                    calc_raw  = _normalize(v('Tipo de Cálculo', 'Tipo Calculo') or '')
+                    calc_raw  = _normalize(v('Tipo de Calculo', 'Tipo Calculo') or '')
                     calc_type = EMBARGO_CALC.get(calc_raw, 'fixed')
                     pct       = _parse_float(v('Porcentaje', 'Porcentaje (%)'))
-                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (₡)'))
-                    expediente= str(v('N° Expediente', 'Expediente') or '').strip()
+                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (CRC)'))
+                    expediente= str(v('Ndeg Expediente', 'Expediente') or '').strip()
                     juzgado   = str(v('Juzgado', 'Juzgado / Tribunal') or '').strip()
 
                     if not expediente:
-                        raise ValueError('El N° Expediente Judicial es obligatorio')
+                        raise ValueError('El Ndeg Expediente Judicial es obligatorio')
                     if calc_type == 'fixed' and monto <= 0:
-                        raise ValueError('El Monto Fijo debe ser mayor a ₡0')
+                        raise ValueError('El Monto Fijo debe ser mayor a CRC0')
                     if calc_type == 'percentage' and not (0 < pct <= 25):
-                        raise ValueError(f'El porcentaje ({pct}%) debe estar entre 0 y 25% (Art. 172 CT)')
+                        raise ValueError('El porcentaje (%s%%) debe estar entre 0 y 25%% (Art. 172 CT)' % pct)
 
                     vals = {
                         'employee_id':        emp.id,
                         'numero_expediente':  expediente,
                         'juzgado':            juzgado or 'Sin especificar',
-                        'fecha_resolucion':   _parse_date(v('Fecha de Resolución', 'Fecha Resolucion')),
+                        'fecha_resolucion':   _parse_date(v('Fecha de Resolucion', 'Fecha Resolucion')),
                         'beneficiario_nombre': str(v('Nombre del Acreedor', 'Acreedor') or '').strip() or 'Sin especificar',
                         'beneficiario_cuenta': str(v('IBAN del Acreedor', 'IBAN Acreedor') or '').strip() or False,
                         'calculation_type':   calc_type,
@@ -1230,9 +1354,9 @@ class ImportDataWizard(models.TransientModel):
 
         return created, err_count
 
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
     # PROCESADOR BONOS E INCENTIVOS
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
 
     def _process_bonos(self, wb, errors):
         """Importa bonos e incentivos desde la hoja BONOS del machote."""
@@ -1246,20 +1370,20 @@ class ImportDataWizard(models.TransientModel):
             'productividad':                       'productividad',
             'asistencia perfecta':                 'asistencia',
             'asistencia':                          'asistencia',
-            'antigüedad por años de servicio':     'antiguedad',
+            'antiguedad por anos de servicio':     'antiguedad',
             'antiguedad':                          'antiguedad',
             'subsidio de transporte / kilometraje':'transporte',
             'transporte':                          'transporte',
-            'subsidio de alimentación (en dinero)':'alimentacion',
+            'subsidio de alimentacion (en dinero)':'alimentacion',
             'alimentacion':                        'alimentacion',
-            'alimentación':                        'alimentacion',
+            'alimentacion':                        'alimentacion',
             'subsidio educativo':                  'educacion',
             'educacion':                           'educacion',
-            'subsidio de salud / médico':          'salud',
+            'subsidio de salud / medico':          'salud',
             'salud':                               'salud',
-            'gastos de representación':            'representacion',
+            'gastos de representacion':            'representacion',
             'representacion':                      'representacion',
-            'comisión por ventas':                 'comision',
+            'comision por ventas':                 'comision',
             'comision':                            'comision',
             'incentivo / premio especial':         'incentivo',
             'incentivo':                           'incentivo',
@@ -1273,7 +1397,7 @@ class ImportDataWizard(models.TransientModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -1294,24 +1418,24 @@ class ImportDataWizard(models.TransientModel):
                 with self.env.cr.savepoint():
                     concepto  = str(v('Concepto', 'Nombre', 'Concepto / Nombre') or '').strip()
                     tipo_raw  = _normalize(v('Tipo de Bono', 'Tipo') or '')
-                    calc_raw  = _normalize(v('Tipo de Cálculo', 'Tipo Calculo') or '')
+                    calc_raw  = _normalize(v('Tipo de Calculo', 'Tipo Calculo') or '')
                     bono_type = BONO_TYPE_MAP.get(tipo_raw, 'otro')
                     calc_type = BONO_CALC_MAP.get(calc_raw, 'fixed')
-                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (₡)'))
+                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (CRC)'))
                     pct       = _parse_float(v('Porcentaje', 'Porcentaje (%)'))
                     recurrente= _parse_bool(v('Es Recurrente', 'Recurrente'))
                     afecto_ccss  = _parse_bool(v('Afecto CCSS', 'CCSS'))
                     afecto_renta = _parse_bool(v('Afecto Renta', 'Renta'))
-                    tope      = _parse_float(v('Tope Exento', 'Tope Exento (₡/mes)'))
+                    tope      = _parse_float(v('Tope Exento', 'Tope Exento (CRC/mes)'))
 
                     if not concepto:
                         raise ValueError('El Concepto del bono es obligatorio')
                     if calc_type == 'fixed' and monto <= 0:
-                        raise ValueError('El Monto Fijo debe ser mayor a ₡0')
+                        raise ValueError('El Monto Fijo debe ser mayor a CRC0')
                     if calc_type == 'percentage' and pct <= 0:
                         raise ValueError('El Porcentaje debe ser mayor a 0%')
 
-                    # Si no se especificó afecto_ccss/renta, aplicar defaults del tipo
+                    # Si no se especifico afecto_ccss/renta, aplicar defaults del tipo
                     DEFAULTS_CCSS  = {'transporte': False, 'educacion': False,
                                       'salud': False, 'representacion': False}
                     DEFAULTS_RENTA = {'transporte': False, 'educacion': False,
@@ -1355,9 +1479,9 @@ class ImportDataWizard(models.TransientModel):
 
         return created, err_count
 
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
     # REPORTE DE ERRORES EN EXCEL
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
 
     def _build_error_report(self, errors, counters):
         wb = Workbook()
@@ -1384,28 +1508,28 @@ class ImportDataWizard(models.TransientModel):
             counters['emp_errors'], counters['loan_errors'], counters['pen_errors'],
             counters['ben_errors'], counters['dis_errors'], counters['vac_errors'],
             counters['ot_errors'],
-            # FIX-O4: faltaban embargos y bonos — el resumen subestimaba errores
+            # FIX-O4: faltaban embargos y bonos -- el resumen subestimaba errores
             counters.get('emb_errors', 0), counters.get('bon_errors', 0),
         ] if e)
         total_ok = sum(e for e in [
             counters['emp_created'], counters['loan_created'], counters['pen_created'],
             counters['ben_created'], counters['dis_created'], counters['vac_created'],
             counters['ot_created'],
-            # FIX-O4: faltaban embargos y bonos — el resumen subestimaba importaciones
+            # FIX-O4: faltaban embargos y bonos -- el resumen subestimaba importaciones
             counters.get('emb_created', 0), counters.get('bon_created', 0),
         ] if e)
 
-        # ══════════════════════════════════════════════════════════════════════
-        # HOJA 1 — RESUMEN
-        # ══════════════════════════════════════════════════════════════════════
+        # ======================================================================
+        # HOJA 1 -- RESUMEN
+        # ======================================================================
         ws1 = wb.active
-        ws1.title = '📊 Resumen'
+        ws1.title = ' Resumen'
         ws1.sheet_view.showGridLines = False
 
         # Cabecera
         ws1.merge_cells('A1:G1')
         c = ws1['A1']
-        c.value = f'REPORTE DE IMPORTACIÓN — {self.company_id.name}'
+        c.value = f'REPORTE DE IMPORTACION -- {self.company_id.name}'
         c.font = font(bold=True, color=WHITE, size=14)
         c.fill = fill(DARK)
         c.alignment = center()
@@ -1413,7 +1537,7 @@ class ImportDataWizard(models.TransientModel):
 
         ws1.merge_cells('A2:G2')
         c = ws1['A2']
-        c.value = (f'Archivo: {self.excel_filename or "—"}   |   '
+        c.value = (f'Archivo: {self.excel_filename or "--"}   |   '
                    f'Procesado: {datetime.now().strftime("%d/%m/%Y %H:%M")}   |   '
                    f'Total creados: {total_ok}   |   Total errores: {total_errors}')
         c.font = font(italic=True, color=WHITE, size=9)
@@ -1424,7 +1548,7 @@ class ImportDataWizard(models.TransientModel):
         # Resultado global
         ws1.row_dimensions[3].height = 8
         ws1.merge_cells('A4:G4')
-        estado_txt = '✅ IMPORTACIÓN COMPLETADA SIN ERRORES' if not total_errors else f'⚠️  IMPORTACIÓN CON {total_errors} ERROR(ES) — Ver hoja "Detalle Errores"'
+        estado_txt = 'OK IMPORTACION COMPLETADA SIN ERRORES' if not total_errors else f'WARN  IMPORTACION CON {total_errors} ERROR(ES) -- Ver hoja "Detalle Errores"'
         c = ws1['A4']
         c.value = estado_txt
         c.font = font(bold=True, color=WHITE, size=11)
@@ -1434,7 +1558,7 @@ class ImportDataWizard(models.TransientModel):
 
         # Tabla resumen por hoja
         ws1.row_dimensions[5].height = 8
-        hdrs_res = ['Hoja', 'Registros Creados ✅', 'Omitidos ⏭️', 'Errores ❌', 'Total Procesados']
+        hdrs_res = ['Hoja', 'Registros Creados OK', 'Omitidos ', 'Errores ERR', 'Total Procesados']
         for ci, h in enumerate(hdrs_res, 1):
             c = ws1.cell(6, ci, value=h)
             c.font = font(bold=True, color=WHITE, size=10)
@@ -1444,15 +1568,15 @@ class ImportDataWizard(models.TransientModel):
         ws1.row_dimensions[6].height = 22
 
         summary_data = [
-            ('👤 Empleados',      counters['emp_created'],  counters['emp_skipped'],  counters['emp_errors']),
-            ('💰 Préstamos',      counters['loan_created'], 0,                        counters['loan_errors']),
-            ('👨‍👧 Pensiones',       counters['pen_created'],  0,                        counters['pen_errors']),
-            ('➕ Otros Descuentos',counters['ben_created'],  0,                        counters['ben_errors']),
-            ('🏥 Incapacidades',   counters['dis_created'],  0,                        counters['dis_errors']),
-            ('🏖️ Vacaciones',      counters['vac_created'],  0,                        counters['vac_errors']),
-            ('⏱️ Horas Extras',    counters['ot_created'],   0,                        counters['ot_errors']),
-            ('⚖️ Embargos',        counters.get('emb_created', 0), 0,                 counters.get('emb_errors', 0)),
-            ('🎯 Bonos',           counters.get('bon_created', 0), 0,                 counters.get('bon_errors', 0)),
+            (' Empleados',      counters['emp_created'],  counters['emp_skipped'],  counters['emp_errors']),
+            (' Prestamos',      counters['loan_created'], 0,                        counters['loan_errors']),
+            (' Pensiones',       counters['pen_created'],  0,                        counters['pen_errors']),
+            (' Otros Descuentos',counters['ben_created'],  0,                        counters['ben_errors']),
+            (' Incapacidades',   counters['dis_created'],  0,                        counters['dis_errors']),
+            (' Vacaciones',      counters['vac_created'],  0,                        counters['vac_errors']),
+            (' Horas Extras',    counters['ot_created'],   0,                        counters['ot_errors']),
+            (' Embargos',        counters.get('emb_created', 0), 0,                 counters.get('emb_errors', 0)),
+            (' Bonos',           counters.get('bon_created', 0), 0,                 counters.get('bon_errors', 0)),
         ]
 
         for i, (hoja, created, skipped, errs) in enumerate(summary_data, start=7):
@@ -1497,15 +1621,15 @@ class ImportDataWizard(models.TransientModel):
         for col, w in [(1,26),(2,22),(3,16),(4,14),(5,18)]:
             ws1.column_dimensions[get_column_letter(col)].width = w
 
-        # ══════════════════════════════════════════════════════════════════════
-        # HOJA 2 — DETALLE DE ERRORES
-        # ══════════════════════════════════════════════════════════════════════
-        ws2 = wb.create_sheet('❌ Detalle Errores')
+        # ======================================================================
+        # HOJA 2 -- DETALLE DE ERRORES
+        # ======================================================================
+        ws2 = wb.create_sheet('ERR Detalle Errores')
         ws2.sheet_view.showGridLines = False
 
         ws2.merge_cells('A1:H1')
         c = ws2['A1']
-        c.value = f'DETALLE DE ERRORES — {self.company_id.name}  |  {datetime.now().strftime("%d/%m/%Y %H:%M")}'
+        c.value = f'DETALLE DE ERRORES -- {self.company_id.name}  |  {datetime.now().strftime("%d/%m/%Y %H:%M")}'
         c.font = font(bold=True, color=WHITE, size=12)
         c.fill = fill(RED)
         c.alignment = center()
@@ -1514,13 +1638,13 @@ class ImportDataWizard(models.TransientModel):
         if not errors:
             ws2.merge_cells('A2:H2')
             c = ws2['A2']
-            c.value = '✅ No hubo errores en esta importación'
+            c.value = 'OK No hubo errores en esta importacion'
             c.font = font(bold=True, color=GREEN, size=12)
             c.fill = fill('E2EFDA')
             c.alignment = center()
             ws2.row_dimensions[2].height = 28
         else:
-            hdrs2 = ['#', 'Hoja', 'Fila Excel', 'Cédula', 'Nombre', 'Tipo de Error', 'Mensaje de Error', 'Acción Sugerida']
+            hdrs2 = ['#', 'Hoja', 'Fila Excel', 'Cedula', 'Nombre', 'Tipo de Error', 'Mensaje de Error', 'Accion Sugerida']
             for ci, h in enumerate(hdrs2, 1):
                 c = ws2.cell(2, ci, value=h)
                 c.font = font(bold=True, color=WHITE, size=9)
@@ -1530,7 +1654,7 @@ class ImportDataWizard(models.TransientModel):
             ws2.row_dimensions[2].height = 20
 
             def _classify_error(err_msg):
-                """Clasifica el error y sugiere acción correctiva."""
+                """Clasifica el error y sugiere accion correctiva."""
                 msg = str(err_msg).lower()
                 if 'not found' in msg or 'no encontrado' in msg:
                     return 'Empleado no existe', 'Importe primero la hoja EMPLEADOS antes de importar otras hojas'
@@ -1541,24 +1665,24 @@ class ImportDataWizard(models.TransientModel):
                     if m:
                         campo = m.group(1).split('.')[-1]
                         valor = m.group(2)
-                        return f'Valor inválido en {campo}', f'El valor "{valor}" no es válido para el campo {campo}. Consulte la hoja CATALOGOS'
-                    return 'Valor inválido', 'Verifique que el valor corresponda exactamente a los listados en la hoja CATALOGOS'
+                        return f'Valor invalido en {campo}', f'El valor "{valor}" no es valido para el campo {campo}. Consulte la hoja CATALOGOS'
+                    return 'Valor invalido', 'Verifique que el valor corresponda exactamente a los listados en la hoja CATALOGOS'
                 if 'invalid field' in msg:
                     import re
                     m = re.search(r"'([^']+)'", err_msg)
-                    campo = m.group(1) if m else '?'
-                    return f'Campo inexistente: {campo}', f'El campo {campo} no existe en esta versión de Odoo. Contacte al administrador'
+                    campo = m.group(1) if m else ''
+                    return f'Campo inexistente: {campo}', f'El campo {campo} no existe en esta version de Odoo. Contacte al administrador'
                 if 'required' in msg or 'obligatorio' in msg or 'cannot be empty' in msg:
-                    return 'Campo obligatorio vacío', 'Complete todos los campos marcados en amarillo en el machote'
+                    return 'Campo obligatorio vacio', 'Complete todos los campos marcados en amarillo en el machote'
                 if 'unique' in msg or 'duplicate' in msg or 'ya existe' in msg:
-                    return 'Registro duplicado', 'Este registro ya existe en Odoo. Verifique la cédula y elimine el duplicado'
+                    return 'Registro duplicado', 'Este registro ya existe en Odoo. Verifique la cedula y elimine el duplicado'
                 if 'constraint' in msg:
-                    return 'Restricción de BD', 'Violación de regla de negocio. Revise los datos ingresados'
+                    return 'Restriccion de BD', 'Violacion de regla de negocio. Revise los datos ingresados'
                 if 'date' in msg or 'fecha' in msg:
                     return 'Error de fecha', 'Use el formato DD/MM/AAAA. Ejemplo: 01/03/2024'
                 if 'float' in msg or 'int' in msg or 'numeric' in msg:
-                    return 'Error numérico', 'Use solo números sin comas ni símbolos. Ejemplo: 750000'
-                return 'Error inesperado', 'Revise el log técnico en la hoja "Log Técnico" para más detalles'
+                    return 'Error numerico', 'Use solo numeros sin comas ni simbolos. Ejemplo: 750000'
+                return 'Error inesperado', 'Revise el log tecnico en la hoja "Log Tecnico" para mas detalles'
 
             for num, err in enumerate(errors, start=1):
                 r = 2 + num
@@ -1583,7 +1707,7 @@ class ImportDataWizard(models.TransientModel):
                     if ci == 7:  # mensaje error
                         c.font = font(size=9, color=RED, bold=True)
                         c.fill = fill('FCE4D6')
-                    elif ci == 8:  # acción
+                    elif ci == 8:  # accion
                         c.font = font(size=9, color='7B3F00', italic=True)
                         c.fill = fill('FFF2CC')
                     elif ci == 6:  # tipo
@@ -1597,15 +1721,15 @@ class ImportDataWizard(models.TransientModel):
         for col, w in [(1,5),(2,18),(3,10),(4,16),(5,22),(6,24),(7,48),(8,46)]:
             ws2.column_dimensions[get_column_letter(col)].width = w
 
-        # ══════════════════════════════════════════════════════════════════════
-        # HOJA 3 — LOG TÉCNICO
-        # ══════════════════════════════════════════════════════════════════════
-        ws3 = wb.create_sheet('🔧 Log Técnico')
+        # ======================================================================
+        # HOJA 3 -- LOG TECNICO
+        # ======================================================================
+        ws3 = wb.create_sheet(' Log Tecnico')
         ws3.sheet_view.showGridLines = False
 
         ws3.merge_cells('A1:C1')
         c = ws3['A1']
-        c.value = f'LOG TÉCNICO — {self.company_id.name}  |  {datetime.now().strftime("%d/%m/%Y %H:%M")}'
+        c.value = f'LOG TECNICO -- {self.company_id.name}  |  {datetime.now().strftime("%d/%m/%Y %H:%M")}'
         c.font = font(bold=True, color=WHITE, size=11)
         c.fill = fill('4A4A4A')
         c.alignment = center()
@@ -1613,7 +1737,7 @@ class ImportDataWizard(models.TransientModel):
 
         ws3.merge_cells('A2:C2')
         c = ws3['A2']
-        c.value = 'Este log contiene el traceback completo y los valores enviados en cada error. Comparta esta hoja con soporte técnico.'
+        c.value = 'Este log contiene el traceback completo y los valores enviados en cada error. Comparta esta hoja con soporte tecnico.'
         c.font = font(italic=True, size=9, color='555555')
         c.fill = fill('F5F5F5')
         c.alignment = left()
@@ -1623,7 +1747,7 @@ class ImportDataWizard(models.TransientModel):
         if not errors:
             ws3.merge_cells('A3:C3')
             c = ws3['A3']
-            c.value = '✅ Sin errores — no hay log técnico que mostrar'
+            c.value = 'OK Sin errores -- no hay log tecnico que mostrar'
             c.font = font(bold=True, color=GREEN, size=10)
             c.fill = fill('E2EFDA')
             c.alignment = center()
@@ -1632,7 +1756,7 @@ class ImportDataWizard(models.TransientModel):
                 # Bloque por error
                 ws3.merge_cells(f'A{log_row}:C{log_row}')
                 c = ws3.cell(log_row, 1,
-                    value=f'ERROR #{num} — Hoja: {err.get("hoja","")}  |  Fila: {err.get("fila","")}  |  Cédula: {err.get("cedula","")}  |  Nombre: {err.get("nombre","")}')
+                    value=f'ERROR #{num} -- Hoja: {err.get("hoja","")}  |  Fila: {err.get("fila","")}  |  Cedula: {err.get("cedula","")}  |  Nombre: {err.get("nombre","")}')
                 c.font = font(bold=True, color=WHITE, size=10)
                 c.fill = fill(RED if num % 2 else '8B0000')
                 c.alignment = left(wrap=False)
@@ -1687,14 +1811,14 @@ class ImportDataWizard(models.TransientModel):
         ws3.column_dimensions['B'].width = 60
         ws3.column_dimensions['C'].width = 60
 
-        # ── Serializar ────────────────────────────────────────────────────────
+        # -- Serializar --------------------------------------------------------
         buf = io.BytesIO()
         wb.save(buf)
         return base64.b64encode(buf.getvalue())
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # ACCIÓN PRINCIPAL
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
+    # ACCION PRINCIPAL
+    # ==========================================================================
 
     def action_import(self):
         self.ensure_one()
@@ -1704,7 +1828,7 @@ class ImportDataWizard(models.TransientModel):
         wb     = self._get_wb()
         errors = []
 
-        # ── Procesar hojas ────────────────────────────────────────────────────
+        # -- Procesar hojas ----------------------------------------------------
         emp_c = emp_s = emp_e = 0
         loan_c = loan_e = 0
         pen_c = pen_e = 0
@@ -1727,6 +1851,9 @@ class ImportDataWizard(models.TransientModel):
             dis_c, dis_e = self._process_disabilities(wb, errors)
         if self.import_vacations:
             vac_c, vac_e = self._process_vacations(wb, errors)
+        acum_c = acum_e = 0
+        if self.import_acumulados:
+            acum_c, acum_e = self._process_acumulados(wb, errors)
         if self.import_overtime:
             ot_c, ot_e = self._process_overtime(wb, errors)
         if self.import_embargos:
@@ -1734,7 +1861,7 @@ class ImportDataWizard(models.TransientModel):
         if self.import_bonos:
             bon_c, bon_e = self._process_bonos(wb, errors)
 
-        total_err = emp_e + loan_e + pen_e + ben_e + dis_e + vac_e + ot_e + emb_e + bon_e
+        total_err = emp_e + loan_e + pen_e + ben_e + dis_e + vac_e + acum_e + ot_e + emb_e + bon_e
 
         counters = {
             'emp_created': emp_c, 'emp_skipped': emp_s, 'emp_errors': emp_e,
@@ -1743,27 +1870,28 @@ class ImportDataWizard(models.TransientModel):
             'ben_created':  ben_c,  'ben_errors':  ben_e,
             'dis_created':  dis_c,  'dis_errors':  dis_e,
             'vac_created':  vac_c,  'vac_errors':  vac_e,
+            'acum_created': acum_c, 'acum_errors': acum_e,
             'ot_created':   ot_c,   'ot_errors':   ot_e,
             'emb_created':  emb_c,  'emb_errors':  emb_e,
             'bon_created':  bon_c,  'bon_errors':  bon_e,
         }
 
-        # ── Resumen texto ─────────────────────────────────────────────────────
+        # -- Resumen texto -----------------------------------------------------
         summary = (
-            f"══ IMPORTACIÓN COMPLETADA ══\n\n"
-            f"👤 Empleados:        {emp_c} creados  |  {emp_s} omitidos (ya existían)  |  {emp_e} errores\n"
-            f"💰 Préstamos:        {loan_c} creados  |  {loan_e} errores\n"
-            f"👨‍👧 Pensiones:         {pen_c} creadas  |  {pen_e} errores\n"
-            f"➕ Otros Descuentos:  {ben_c} creados  |  {ben_e} errores\n"
-            f"🏥 Incapacidades:    {dis_c} creadas  |  {dis_e} errores\n"
-            f"🏖️ Vacaciones:       {vac_c} procesadas  |  {vac_e} errores\n"
-            f"⏱️ Horas Extras:     {ot_c} creadas  |  {ot_e} errores\n"
-            f"⚖️ Embargos:         {emb_c} creados  |  {emb_e} errores\n"
-            f"🎯 Bonos:            {bon_c} creados  |  {bon_e} errores\n"
-            f"\n{'⚠️  Hay errores — descargue el reporte para ver el detalle.' if total_err else '✅ Sin errores.'}"
+            f"== IMPORTACION COMPLETADA ==\n\n"
+            f" Empleados:        {emp_c} creados  |  {emp_s} omitidos (ya existian)  |  {emp_e} errores\n"
+            f" Prestamos:        {loan_c} creados  |  {loan_e} errores\n"
+            f" Pensiones:         {pen_c} creadas  |  {pen_e} errores\n"
+            f" Otros Descuentos:  {ben_c} creados  |  {ben_e} errores\n"
+            f" Incapacidades:    {dis_c} creadas  |  {dis_e} errores\n"
+            f" Vacaciones:       {vac_c} procesadas  |  {vac_e} errores\n"
+            f" Horas Extras:     {ot_c} creadas  |  {ot_e} errores\n"
+            f" Embargos:         {emb_c} creados  |  {emb_e} errores\n"
+            f" Bonos:            {bon_c} creados  |  {bon_e} errores\n"
+            f"\n{'WARN  Hay errores -- descargue el reporte para ver el detalle.' if total_err else 'OK Sin errores.'}"
         )
 
-        # ── Generar reporte Excel ─────────────────────────────────────────────
+        # -- Generar reporte Excel ---------------------------------------------
         report_data = self._build_error_report(errors, counters)
         fname = f'Reporte_Importacion_{self.company_id.name}_{date.today()}.xlsx'
 
@@ -1784,7 +1912,7 @@ class ImportDataWizard(models.TransientModel):
             'report_name':    fname,
         })
 
-        # ── Reabrir wizard para mostrar resultados ────────────────────────────
+        # -- Reabrir wizard para mostrar resultados ----------------------------
         return {
             'type':    'ir.actions.act_window',
             'res_model': self._name,
@@ -1803,14 +1931,14 @@ class ImportDataWizard(models.TransientModel):
         ], limit=1)
 
         if not emp:
-            raise UserError('No se encontró ningún empleado de prueba (cédula 1-0000-0001) '
+            raise UserError('No se encontro ningun empleado de prueba (cedula 1-0000-0001) '
                             'en esta empresa. Es posible que ya haya sido eliminado.')
 
         deleted = []
 
         # Eliminar registros relacionados antes del empleado
         related = [
-            ('planilla.employee.loan',      [('employee_id', '=', emp.id)], 'préstamos'),
+            ('planilla.employee.loan',      [('employee_id', '=', emp.id)], 'prestamos'),
             ('planilla.pension.alimentaria',[('employee_id', '=', emp.id)], 'pensiones'),
             ('planilla.recurring.benefit',  [('employee_id', '=', emp.id)], 'beneficios'),
             ('planilla.disability',         [('employee_id', '=', emp.id)], 'incapacidades'),
@@ -1829,7 +1957,7 @@ class ImportDataWizard(models.TransientModel):
                     recs.unlink()
                     deleted.append(f'{len(recs)} {label}')
             except Exception:
-                pass  # modelo puede no existir en esta instalación
+                pass  # modelo puede no existir en esta instalacion
 
         # Eliminar el empleado
         emp_name = emp.name
@@ -1846,7 +1974,7 @@ class ImportDataWizard(models.TransientModel):
             'view_id': self.env.ref('planilla_cr.view_import_data_wizard_form').id,
             'target': 'new',
             'context': {
-                'default_delete_msg': f'✅ Empleado "{emp_name}" eliminado correctamente. '
+                'default_delete_msg': f'OK Empleado "{emp_name}" eliminado correctamente. '
                                       f'Registros eliminados: {deleted_txt}.'
             },
         }

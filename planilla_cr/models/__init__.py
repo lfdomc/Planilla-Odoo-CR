@@ -1,10 +1,10 @@
-# ── Constantes (primero, sin dependencias de modelos) ─────────────────────────
+# -- Constantes (primero, sin dependencias de modelos) -------------------------
 from . import planilla_const
 
-# ── Mixins (deben cargarse ANTES de payslip_cr que los hereda) ────────────────
+# -- Mixins (deben cargarse ANTES de payslip_cr que los hereda) ----------------
 from . import mixins
 
-# ── Catálogos y configuración ─────────────────────────────────────────────────
+# -- Catalogos y configuracion -------------------------------------------------
 from . import branch
 from . import identification_type
 from . import employee_status
@@ -19,10 +19,10 @@ from . import rate_helper
 from . import closed_period
 from . import public_holiday
 
-# ── Empleados ─────────────────────────────────────────────────────────────────
+# -- Empleados -----------------------------------------------------------------
 from . import hr_employee_extension
 
-# ── Novedades ─────────────────────────────────────────────────────────────────
+# -- Novedades -----------------------------------------------------------------
 from . import overtime
 from . import disability
 from . import vacation_payment
@@ -36,11 +36,11 @@ from . import employee_charge
 from . import employee_termination
 from . import leave_cr
 
-# ── Boleta y Planilla (dependen de mixins + catálogos + novedades) ────────────
+# -- Boleta y Planilla (dependen de mixins + catalogos + novedades) ------------
 from . import payslip_cr
 from . import payroll_run_cr
 
-# ── Reportes y auxiliares ─────────────────────────────────────────────────────
+# -- Reportes y auxiliares -----------------------------------------------------
 from . import salary_history
 from . import payroll_report
 from . import payroll_dashboard
@@ -51,3 +51,4 @@ from . import scheduled_actions
 from . import employer_cost_report
 from . import overtime_report
 from . import eddi7_export
+from . import amonestacion

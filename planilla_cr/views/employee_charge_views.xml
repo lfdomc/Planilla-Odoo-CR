@@ -145,6 +145,21 @@
         </field>
     </record>
 
+    <!-- Server Action: Sanear cobros huerfanos - aparece en menu Acción de la lista -->
+    <record id="action_sanear_cobros_huerfanos" model="ir.actions.server">
+        <field name="name">Sanear Cobros Huerfanos</field>
+        <field name="model_id" ref="model_planilla_employee_charge"/>
+        <field name="binding_model_id" ref="model_planilla_employee_charge"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    action = records.action_sanear_huerfanos()
+else:
+    action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
+        </field>
+    </record>
+
     <record id="view_employee_charge_form" model="ir.ui.view">
         <field name="name">planilla.employee.charge.form</field>
         <field name="model">planilla.employee.charge</field>
@@ -158,13 +173,19 @@
                     <button name="action_cancel" type="object" string="Cancelar"
                             invisible="state in ('applied', 'cancelled')"
                             groups="planilla_cr.group_planilla_aprobador"
-                            confirm="¿Está seguro de cancelar este cobro?"/>
+                            confirm="¿Esta seguro de cancelar este cobro?"/>
                     <button name="action_reset_to_draft" type="object"
                             string="Reactivar a Borrador"
                             invisible="state != 'cancelled'"
                             groups="planilla_cr.group_planilla_aprobador"/>
+                    <button name="action_clean_orphan_periods" type="object"
+                            string=" Limpiar Períodos Huérfanos"
+                            class="btn-warning"
+                            invisible="not applied_periods or state == 'cancelled'"
+                            groups="planilla_cr.group_planilla_aprobador"
+                            confirm="Esto eliminara periodos aplicados que ya no tienen boleta activa. ¿Continuar?"/>
                     <button name="action_print_charge" type="object"
-                            string="🖨 Imprimir" class="btn-secondary"
+                            string=" Imprimir" class="btn-secondary"
                             invisible="state == 'draft'"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,approved,applied"/>
@@ -214,6 +235,15 @@
                                invisible="not is_recurring"
                                readonly="1"/>
                     </group>
+                    <!-- Advertencia de período huérfano -->
+                    <div invisible="not applied_periods or state == 'cancelled'"
+                         class="alert alert-warning" role="alert">
+                        <strong>⚠ Cobro no aplicado en boleta actual</strong><br/>
+                        Este cobro tiene períodos registrados en <em>Períodos Aplicados</em>.
+                        Si fue excluido de una boleta que luego se borró o está en borrador,
+                        use el botón <strong> Limpiar Períodos Huérfanos</strong> para
+                        permitir que el sistema lo aplique en la próxima sincronización.
+                    </div>
                     <group string="Resumen de Montos" col="3">
                         <field name="total_amount" readonly="1"/>
                         <field name="employer_amount" readonly="1"/>
@@ -233,7 +263,7 @@
                     </div>
                     <div class="alert alert-primary" role="alert"
                          invisible="not is_recurring or state == 'cancelled'">
-                        🔄 <strong>Cobro Recurrente:</strong> se aplica automáticamente
+                         <strong>Cobro Recurrente:</strong> se aplica automáticamente
                         en cada período de planilla. Última aplicación:
                         <strong><field name="payslip_id" readonly="1" nolabel="1"/></strong>
                     </div>

@@ -12,6 +12,7 @@
                 <field name="hours_per_week"/>
                 <field name="days_per_week"/>
                 <field name="overtime_factor"/>
+                <field name="is_part_time" widget="boolean_toggle"/>
                 <field name="active"/>
             </list>
         </field>

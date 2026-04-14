@@ -6,12 +6,12 @@ from . import planilla_const as K
 
 class PensionAlimentaria(models.Model):
     _name = 'planilla.pension.alimentaria'
-    _description = 'Pensión Alimentaria'
+    _description = 'Pension Alimentaria'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'employee_id, date_start'
     _unique_pension_employee_expediente = Constraint(
         'UNIQUE(employee_id, numero_expediente)',
-        'Ya existe una pensión alimentaria con ese número de expediente para este empleado. Verifique el número de expediente antes de continuar.'
+        'Ya existe una pension alimentaria con ese numero de expediente para este empleado. Verifique el numero de expediente antes de continuar.'
     )
 
 
@@ -25,41 +25,41 @@ class PensionAlimentaria(models.Model):
         related='employee_id.branch_id', string='Sucursal', store=True
     )
 
-    # ── Datos judiciales ────────────────────────────────────────────
+    # -- Datos judiciales --------------------------------------------
     numero_expediente = fields.Char(
-        string='N° Expediente Judicial', required=True, tracking=True
+        string='Ndeg Expediente Judicial', required=True, tracking=True
     )
     juzgado = fields.Char(
         string='Juzgado de Familia', tracking=True
     )
     fecha_resolucion = fields.Date(
-        string='Fecha Resolución', tracking=True
+        string='Fecha Resolucion', tracking=True
     )
 
-    # ── Beneficiario ────────────────────────────────────────────────
+    # -- Beneficiario ------------------------------------------------
     beneficiario_nombre = fields.Char(
         string='Nombre Beneficiario', required=True
     )
     beneficiario_relacion = fields.Selection([
         ('hijo', 'Hijo/a'),
-        ('conyuge', 'Cónyuge / Conviviente'),
+        ('conyuge', 'Conyuge / Conviviente'),
         ('padre', 'Padre'),
         ('madre', 'Madre'),
         ('otro', 'Otro'),
-    ], string='Relación', required=True, default='hijo')
+    ], string='Relacion', required=True, default='hijo')
     beneficiario_cuenta = fields.Char(
         string='IBAN / Cuenta Beneficiario',
-        help='Cuenta donde se deposita la pensión (IBAN CR o número de cuenta)'
+        help='Cuenta donde se deposita la pension (IBAN CR o numero de cuenta)'
     )
 
-    # ── Monto ───────────────────────────────────────────────────────
+    # -- Monto -------------------------------------------------------
     calculation_type = fields.Selection([
-        ('fixed',      'Monto Fijo (₡)'),
+        ('fixed',      'Monto Fijo (CRC)'),
         ('percentage', 'Porcentaje del Salario Bruto (%)'),
-    ], string='Tipo de Cálculo', required=True, default='fixed', tracking=True)
+    ], string='Tipo de Calculo', required=True, default='fixed', tracking=True)
 
     fixed_amount = fields.Monetary(
-        string='Monto Fijo (₡)', currency_field='currency_id',
+        string='Monto Fijo (CRC)', currency_field='currency_id',
         tracking=True
     )
     percentage = fields.Float(
@@ -71,14 +71,14 @@ class PensionAlimentaria(models.Model):
         related='employee_id.currency_id', store=True
     )
 
-    # ── Vigencia ────────────────────────────────────────────────────
+    # -- Vigencia ----------------------------------------------------
     date_start = fields.Date(
         string='Fecha Inicio', required=True,
         default=fields.Date.today, tracking=True
     )
     date_end = fields.Date(
         string='Fecha Fin',
-        help='Dejar vacío si la pensión no tiene fecha de vencimiento definida'
+        help='Dejar vacio si la pension no tiene fecha de vencimiento definida'
     )
     active = fields.Boolean(default=True, tracking=True)
 
@@ -96,7 +96,7 @@ class PensionAlimentaria(models.Model):
             emp = rec.employee_id.name or ''
             exp = rec.numero_expediente or ''
             ben = rec.beneficiario_nombre or ''
-            rec.name = f'PA — {emp} → {ben} [{exp}]'
+            rec.name = f'PA -- {emp} -> {ben} [{exp}]'
 
     @api.constrains('percentage')
     def _check_percentage(self):
@@ -112,7 +112,7 @@ class PensionAlimentaria(models.Model):
 
     @api.constrains('percentage', 'fixed_amount', 'calculation_type', 'employee_id')
     def _check_amount_vs_salary(self):
-        """FIX C-04 v53: Advertir si la pensión puede superar el salario neto.
+        """FIX C-04 v53: Advertir si la pension puede superar el salario neto.
         La Ley 8590 permite retener hasta el 100% del salario en casos extremos,
         pero se registra advertencia como aviso al usuario (no bloquea).
         """
@@ -120,7 +120,7 @@ class PensionAlimentaria(models.Model):
             if not rec.employee_id or not rec.employee_id.base_salary:
                 continue
             gross = rec.employee_id.base_salary
-            # Estimar neto: bruto − CCSS obrero (10.83%) − renta estimada 0%
+            # Estimar neto: bruto  CCSS obrero (10.83%)  renta estimada 0%
             approx_net = gross * (1 - K.CCSS_EMP)
             if rec.calculation_type == 'percentage' and rec.percentage > 0:
                 monto = round(gross * rec.percentage / 100, 2)
@@ -131,15 +131,15 @@ class PensionAlimentaria(models.Model):
             if monto > approx_net:
                 rec.message_post(
                     body=(
-                        f'⚠️ <b>Advertencia:</b> El monto de pensión alimentaria '
-                        f'(₡{monto:,.2f}) supera el salario neto estimado del empleado '
-                        f'(₡{approx_net:,.2f}). Verifique la resolución judicial.'
+                        f'WARN <b>Advertencia:</b> El monto de pension alimentaria '
+                        f'(CRC{monto:,.2f}) supera el salario neto estimado del empleado '
+                        f'(CRC{approx_net:,.2f}). Verifique la resolucion judicial.'
                     ),
                     message_type='notification',
                 )
 
     def compute_amount(self, gross_salary):
-        """Calcula el monto de pensión para un salario bruto dado."""
+        """Calcula el monto de pension para un salario bruto dado."""
         self.ensure_one()
         if self.calculation_type == 'fixed':
             return self.fixed_amount

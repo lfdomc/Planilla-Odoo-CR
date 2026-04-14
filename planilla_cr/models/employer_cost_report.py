@@ -35,7 +35,7 @@ class EmployerCostReport(models.TransientModel):
     def _build_report_data(self):
         payslips = self._get_payslips()
         if not payslips:
-            raise UserError('No hay boletas pagadas en el período y filtros seleccionados.')
+            raise UserError('No hay boletas pagadas en el periodo y filtros seleccionados.')
 
         rows = []
         totals = {k: 0.0 for k in (
@@ -50,7 +50,7 @@ class EmployerCostReport(models.TransientModel):
                 'employee':    ps.employee_id.name,
                 'branch':      branch,
                 'month':       month,
-                'period':      f"{ps.date_from} — {ps.date_to}",
+                'period':      f"{ps.date_from} -- {ps.date_to}",
                 'gross':       ps.gross_salary or 0.0,
                 'ccss_patronal': ps.ccss_employer or 0.0,
                 'ins':           ps.ins_employer or 0.0,
@@ -65,7 +65,7 @@ class EmployerCostReport(models.TransientModel):
             for k in totals:
                 totals[k] += row[k]
 
-        # Agrupar según selección
+        # Agrupar segun seleccion
         grouped = {}
         for row in rows:
             key = row[self.group_by] if self.group_by in ('branch', 'month') else row['employee']
@@ -107,14 +107,14 @@ class EmployerCostReport(models.TransientModel):
 
         ws.write(0, 0, 'REPORTE DE COSTOS PATRONALES CONSOLIDADO', title)
         ws.write(1, 0, f"Empresa: {self.company_id.name}")
-        ws.write(2, 0, f"Período: {self.date_from} al {self.date_to}")
+        ws.write(2, 0, f"Periodo: {self.date_from} al {self.date_to}")
         ws.write(3, 0, f"Sucursal: {self.branch_id.name if self.branch_id else 'Todas'}")
 
         COLS = [
             ('Grupo / Empleado', 28), ('Salario Bruto', 16),
             ('CCSS Patronal', 15), ('INS', 13),
-            ('Aguinaldo Prov.', 15), ('Cesantía Prov.', 15),
-            ('Vacaciones Prov.', 16), ('COSTO TOTAL (₡)', 17),
+            ('Aguinaldo Prov.', 15), ('Cesantia Prov.', 15),
+            ('Vacaciones Prov.', 16), ('COSTO TOTAL (CRC)', 17),
         ]
         row = 5
         for col, (name, width) in enumerate(COLS):
@@ -147,4 +147,4 @@ class EmployerCostReport(models.TransientModel):
             'datas': base64.b64encode(output.getvalue()),
             'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}?download=true', 'target': 'self'}
+        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}download=true', 'target': 'self'}

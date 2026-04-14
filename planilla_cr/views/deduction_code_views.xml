@@ -24,7 +24,7 @@
             <form string="Código de Deducción">
                 <sheet>
                     <group>
-                        <group string="Identificación">
+                        <group string="Identificacion">
                             <field name="code"/>
                             <field name="name"/>
                             <field name="deduction_type"/>
@@ -45,7 +45,7 @@
                     <group string="Empresa">
                         <field name="company_id"/>
                     </group>
-                    <group string="Categorías">
+                    <group string="Categorias">
                         <group>
                             <field name="is_ccss"/>
                             <field name="is_ins"/>
@@ -57,17 +57,17 @@
                     <group string="Tasas INS por Clase de Riesgo" invisible="not is_ins">
                         <group>
                             <field name="ins_valid_from"/>
-                            <field name="ins_rate_i" string="Clase I — Oficinas (%)"/>
-                            <field name="ins_rate_ii" string="Clase II — Comercio (%)"/>
-                            <field name="ins_rate_iii" string="Clase III — Industria liviana (%)"/>
+                            <field name="ins_rate_i" string="Clase I -- Oficinas (%)"/>
+                            <field name="ins_rate_ii" string="Clase II -- Comercio (%)"/>
+                            <field name="ins_rate_iii" string="Clase III -- Industria liviana (%)"/>
                         </group>
                         <group>
-                            <field name="ins_rate_iv" string="Clase IV — Construcción (%)"/>
-                            <field name="ins_rate_v" string="Clase V — Alto riesgo (%)"/>
+                            <field name="ins_rate_iv" string="Clase IV -- Construccion (%)"/>
+                            <field name="ins_rate_v" string="Clase V -- Alto riesgo (%)"/>
                         </group>
                         <div style="background:#fff3cd; border-radius:4px; padding:8px; font-size:12px; color:#856404;">
                             Estas tasas se usan automáticamente en boletas e informe INS.
-                            Actualícelas cuando el INS emita nuevas tarifas.
+                            Actualicelas cuando el INS emita nuevas tarifas.
                         </div>
                     </group>
                     <group string="Cuentas Contables">

@@ -1,10 +1,10 @@
 """
-Procesadores de importación masiva — Planilla CR v5.6
-Cada procesador es un método del wizard ImportDataWizard.
-Se importan desde import_data_wizard.py via herencia múltiple.
+Procesadores de importacion masiva -- Planilla CR v5.6
+Cada procesador es un metodo del wizard ImportDataWizard.
+Se importan desde import_data_wizard.py via herencia multiple.
 """
 import logging
-import traceback  # FIX-L3: faltaba — usado en bloques except
+import traceback  # FIX-L3: faltaba -- usado en bloques except
 from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
@@ -32,7 +32,7 @@ class ImportProcessorBonosEmbargos(models.AbstractModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -51,25 +51,25 @@ class ImportProcessorBonosEmbargos(models.AbstractModel):
 
             try:
                 with self.env.cr.savepoint():
-                    calc_raw  = _normalize(v('Tipo de Cálculo', 'Tipo Calculo') or '')
+                    calc_raw  = _normalize(v('Tipo de Calculo', 'Tipo Calculo') or '')
                     calc_type = EMBARGO_CALC.get(calc_raw, 'fixed')
                     pct       = _parse_float(v('Porcentaje', 'Porcentaje (%)'))
-                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (₡)'))
-                    expediente= str(v('N° Expediente', 'Expediente') or '').strip()
+                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (CRC)'))
+                    expediente= str(v('Ndeg Expediente', 'Expediente') or '').strip()
                     juzgado   = str(v('Juzgado', 'Juzgado / Tribunal') or '').strip()
 
                     if not expediente:
-                        raise ValueError('El N° Expediente Judicial es obligatorio')
+                        raise ValueError('El Ndeg Expediente Judicial es obligatorio')
                     if calc_type == 'fixed' and monto <= 0:
-                        raise ValueError('El Monto Fijo debe ser mayor a ₡0')
+                        raise ValueError('El Monto Fijo debe ser mayor a CRC0')
                     if calc_type == 'percentage' and not (0 < pct <= 25):
-                        raise ValueError(f'El porcentaje ({pct}%) debe estar entre 0 y 25% (Art. 172 CT)')
+                        raise ValueError('El porcentaje (%s%%) debe estar entre 0 y 25%% (Art. 172 CT)' % pct)
 
                     vals = {
                         'employee_id':        emp.id,
                         'numero_expediente':  expediente,
                         'juzgado':            juzgado or 'Sin especificar',
-                        'fecha_resolucion':   _parse_date(v('Fecha de Resolución', 'Fecha Resolucion')),
+                        'fecha_resolucion':   _parse_date(v('Fecha de Resolucion', 'Fecha Resolucion')),
                         'beneficiario_nombre': str(v('Nombre del Acreedor', 'Acreedor') or '').strip() or 'Sin especificar',
                         'beneficiario_cuenta': str(v('IBAN del Acreedor', 'IBAN Acreedor') or '').strip() or False,
                         'calculation_type':   calc_type,
@@ -96,9 +96,9 @@ class ImportProcessorBonosEmbargos(models.AbstractModel):
 
         return created, err_count
 
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
     # PROCESADOR BONOS E INCENTIVOS
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
 
     def _process_bonos(self, wb, errors):
         """Importa bonos e incentivos desde la hoja BONOS del machote."""
@@ -112,20 +112,20 @@ class ImportProcessorBonosEmbargos(models.AbstractModel):
             'productividad':                       'productividad',
             'asistencia perfecta':                 'asistencia',
             'asistencia':                          'asistencia',
-            'antigüedad por años de servicio':     'antiguedad',
+            'antiguedad por anos de servicio':     'antiguedad',
             'antiguedad':                          'antiguedad',
             'subsidio de transporte / kilometraje':'transporte',
             'transporte':                          'transporte',
-            'subsidio de alimentación (en dinero)':'alimentacion',
+            'subsidio de alimentacion (en dinero)':'alimentacion',
             'alimentacion':                        'alimentacion',
-            'alimentación':                        'alimentacion',
+            'alimentacion':                        'alimentacion',
             'subsidio educativo':                  'educacion',
             'educacion':                           'educacion',
-            'subsidio de salud / médico':          'salud',
+            'subsidio de salud / medico':          'salud',
             'salud':                               'salud',
-            'gastos de representación':            'representacion',
+            'gastos de representacion':            'representacion',
             'representacion':                      'representacion',
-            'comisión por ventas':                 'comision',
+            'comision por ventas':                 'comision',
             'comision':                            'comision',
             'incentivo / premio especial':         'incentivo',
             'incentivo':                           'incentivo',
@@ -139,7 +139,7 @@ class ImportProcessorBonosEmbargos(models.AbstractModel):
 
         for row_num, row in enumerate(rows, start=1):
             v = lambda *cols: self._v(row, hdrs, *cols)
-            cedula = str(v('Cédula', 'Cedula') or '').strip()
+            cedula = str(v('Cedula', 'Cedula') or '').strip()
             if not cedula:
                 continue
             if self._is_sample(cedula) and not self.import_sample_data:
@@ -160,24 +160,24 @@ class ImportProcessorBonosEmbargos(models.AbstractModel):
                 with self.env.cr.savepoint():
                     concepto  = str(v('Concepto', 'Nombre', 'Concepto / Nombre') or '').strip()
                     tipo_raw  = _normalize(v('Tipo de Bono', 'Tipo') or '')
-                    calc_raw  = _normalize(v('Tipo de Cálculo', 'Tipo Calculo') or '')
+                    calc_raw  = _normalize(v('Tipo de Calculo', 'Tipo Calculo') or '')
                     bono_type = BONO_TYPE_MAP.get(tipo_raw, 'otro')
                     calc_type = BONO_CALC_MAP.get(calc_raw, 'fixed')
-                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (₡)'))
+                    monto     = _parse_float(v('Monto Fijo', 'Monto Fijo (CRC)'))
                     pct       = _parse_float(v('Porcentaje', 'Porcentaje (%)'))
                     recurrente= _parse_bool(v('Es Recurrente', 'Recurrente'))
                     afecto_ccss  = _parse_bool(v('Afecto CCSS', 'CCSS'))
                     afecto_renta = _parse_bool(v('Afecto Renta', 'Renta'))
-                    tope      = _parse_float(v('Tope Exento', 'Tope Exento (₡/mes)'))
+                    tope      = _parse_float(v('Tope Exento', 'Tope Exento (CRC/mes)'))
 
                     if not concepto:
                         raise ValueError('El Concepto del bono es obligatorio')
                     if calc_type == 'fixed' and monto <= 0:
-                        raise ValueError('El Monto Fijo debe ser mayor a ₡0')
+                        raise ValueError('El Monto Fijo debe ser mayor a CRC0')
                     if calc_type == 'percentage' and pct <= 0:
                         raise ValueError('El Porcentaje debe ser mayor a 0%')
 
-                    # Si no se especificó afecto_ccss/renta, aplicar defaults del tipo
+                    # Si no se especifico afecto_ccss/renta, aplicar defaults del tipo
                     DEFAULTS_CCSS  = {'transporte': False, 'educacion': False,
                                       'salud': False, 'representacion': False}
                     DEFAULTS_RENTA = {'transporte': False, 'educacion': False,
@@ -221,7 +221,7 @@ class ImportProcessorBonosEmbargos(models.AbstractModel):
 
         return created, err_count
 
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
     # REPORTE DE ERRORES EN EXCEL
-    # ══════════════════════════════════════════════════════════════════════════
+    # ==========================================================================
 

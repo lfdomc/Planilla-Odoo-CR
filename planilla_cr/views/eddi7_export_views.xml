@@ -9,15 +9,15 @@
             <form string="Exportación EDDI-7 CCSS">
                 <sheet>
                     <div class="oe_title">
-                        <h1>Declaración Mensual CCSS — EDDI-7</h1>
+                        <h1>Declaración Mensual CCSS -- EDDI-7</h1>
                     </div>
 
-                    <group string="Parámetros de Exportación">
+                    <group string="Parametros de Exportación">
                         <group>
                             <field name="company_id"/>
                             <field name="patron_number"
                                    placeholder="Ej: 123456789"
-                                   help="9 dígitos, sin guiones"/>
+                                   help="9 digitos, sin guiones"/>
                             <field name="branch_id"/>
                         </group>
                         <group>

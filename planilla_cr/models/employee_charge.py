@@ -8,16 +8,16 @@ _logger = logging.getLogger(__name__)
 
 class PlanillaChargeType(models.Model):
     """
-    Catálogo de Tipos de Cobro al Empleado — planilla.charge.type
+    Catalogo de Tipos de Cobro al Empleado -- planilla.charge.type
     ==============================================================
-    Define los conceptos que pueden cobrarse al empleado vía boleta:
+    Define los conceptos que pueden cobrarse al empleado via boleta:
     almuerzos, productos, uniformes, servicios, etc.
 
     Cada tipo tiene:
       - Precio unitario de referencia (editable por cobro individual)
       - Porcentaje de subsidio patronal (0% = empleado paga todo,
         100% = empresa paga todo, sin cargo al empleado)
-      - Modo de cálculo: fijo por período o por unidades/días
+      - Modo de calculo: fijo por periodo o por unidades/dias
       - Indicador si el beneficio en especie afecta base CCSS (Art. 166 CT)
     """
     _name = 'planilla.charge.type'
@@ -29,31 +29,31 @@ class PlanillaChargeType(models.Model):
         help='Ej: Almuerzo Comedor, Producto de Tienda, Uniforme, Seguro Voluntario'
     )
     code = fields.Char(
-        string='Código', required=True,
-        help='Código interno único. Ej: ALMUERZO, PRODUCTO, UNIFORME'
+        string='Codigo', required=True,
+        help='Codigo interno unico. Ej: ALMUERZO, PRODUCTO, UNIFORME'
     )
-    description = fields.Text(string='Descripción / Política')
+    description = fields.Text(string='Descripcion / Politica')
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
 
     deduction_code_id = fields.Many2one(
         'planilla.deduction.code',
-        string='Código de Deducción',
+        string='Codigo de Deduccion',
         required=True,
-        help='Código contable que se usará al crear la línea de deducción en la boleta.'
+        help='Codigo contable que se usara al crear la linea de deduccion en la boleta.'
     )
 
     charge_mode = fields.Selection([
-        ('fixed',    'Monto Fijo por Período'),
-        ('per_unit', 'Por Unidades / Días'),
+        ('fixed',    'Monto Fijo por Periodo'),
+        ('per_unit', 'Por Unidades / Dias'),
     ], string='Modo de Cobro', required=True, default='fixed',
-        help='Fijo: se cobra un monto fijo por período (ej. plan de almuerzo mensual).\n'
-             'Por unidades: monto = cantidad × precio unitario (ej. días asistidos al comedor).')
+        help='Fijo: se cobra un monto fijo por periodo (ej. plan de almuerzo mensual).\n'
+             'Por unidades: monto = cantidad x precio unitario (ej. dias asistidos al comedor).')
 
     default_unit_price = fields.Monetary(
-        string='Precio Unitario (₡)',
+        string='Precio Unitario (CRC)',
         currency_field='currency_id',
-        help='Precio por unidad o monto fijo del período. Editable en cada cobro individual.'
+        help='Precio por unidad o monto fijo del periodo. Editable en cada cobro individual.'
     )
     currency_id = fields.Many2one(
         'res.currency',
@@ -61,8 +61,8 @@ class PlanillaChargeType(models.Model):
         required=True
     )
     unit_label = fields.Char(
-        string='Unidad', default='días',
-        help='Etiqueta de la unidad de medida. Ej: días, unidades, litros, kits'
+        string='Unidad', default='dias',
+        help='Etiqueta de la unidad de medida. Ej: dias, unidades, litros, kits'
     )
 
     subsidy_pct = fields.Float(
@@ -76,13 +76,13 @@ class PlanillaChargeType(models.Model):
     affects_ccss = fields.Boolean(
         string='Afecta Base CCSS',
         default=False,
-        help='Si está activo, el valor subsidiado por la empresa se considera\n'
+        help='Si esta activo, el valor subsidiado por la empresa se considera\n'
              'salario en especie (Art. 166 CT) y se incluye en la base CCSS.\n'
              'Consulte con su asesor legal antes de activar.'
     )
 
     company_id = fields.Many2one(
-        'res.company', string='Compañía',
+        'res.company', string='Compania',
         default=lambda self: self.env.company
     )
 
@@ -119,15 +119,15 @@ class PlanillaChargeType(models.Model):
             ]
             if self.search(domain, limit=1):
                 raise ValidationError(
-                    f'Ya existe un tipo de cobro con el código "{rec.code}". '
-                    f'El código debe ser único por compañía.'
+                    f'Ya existe un tipo de cobro con el codigo "{rec.code}". '
+                    f'El codigo debe ser unico por compania.'
                 )
 
     def action_view_charges(self):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': f'Cobros — {self.name}',
+            'name': f'Cobros -- {self.name}',
             'res_model': 'planilla.employee.charge',
             'view_mode': 'list,form',
             'domain': [('charge_type_id', '=', self.id)],
@@ -137,19 +137,19 @@ class PlanillaChargeType(models.Model):
 
 class PlanillaEmployeeCharge(models.Model):
     """
-    Cobro al Empleado por Período — planilla.employee.charge
+    Cobro al Empleado por Periodo -- planilla.employee.charge
     =========================================================
-    Registra un cobro específico a un empleado en un período determinado.
-    El sync _sync_employee_charges() lo aplica automáticamente a la boleta.
+    Registra un cobro especifico a un empleado en un periodo determinado.
+    El sync _sync_employee_charges() lo aplica automaticamente a la boleta.
 
     Flujo de estados:
-      draft → approved → applied (boleta pagada)
-                       → cancelled
+      draft -> approved -> applied (boleta pagada)
+                       -> cancelled
 
     Cubre los tres esquemas de cobro:
-      1. Monto fijo por período  (charge_mode='fixed',    quantity=1)
+      1. Monto fijo por periodo  (charge_mode='fixed',    quantity=1)
       2. Variable por unidades   (charge_mode='per_unit', quantity=N)
-      3. Subsidio parcial/total  (subsidy_pct define qué % paga la empresa)
+      3. Subsidio parcial/total  (subsidy_pct define que % paga la empresa)
     """
     _name = 'planilla.employee.charge'
     _description = 'Cobro al Empleado'
@@ -164,7 +164,7 @@ class PlanillaEmployeeCharge(models.Model):
         ondelete='restrict', index=True, tracking=True
     )
     company_id = fields.Many2one(
-        'res.company', string='Compañía',
+        'res.company', string='Compania',
         required=True, default=lambda self: self.env.company
     )
     currency_id = fields.Many2one(
@@ -183,17 +183,17 @@ class PlanillaEmployeeCharge(models.Model):
     )
     unit_label = fields.Char(related='charge_type_id.unit_label', store=True)
 
-    # ── Período ───────────────────────────────────────────────────────
+    # -- Periodo -------------------------------------------------------
     date_from = fields.Date(string='Desde', required=True)
     date_to   = fields.Date(string='Hasta', required=True)
 
-    # ── Cálculo del monto ─────────────────────────────────────────────
+    # -- Calculo del monto ---------------------------------------------
     quantity = fields.Float(
         string='Cantidad', default=1.0, digits=(10, 2),
-        help='Número de unidades/días. Para monto fijo dejar en 1.'
+        help='Numero de unidades/dias. Para monto fijo dejar en 1.'
     )
     unit_price = fields.Monetary(
-        string='Precio Unitario (₡)', currency_field='currency_id',
+        string='Precio Unitario (CRC)', currency_field='currency_id',
         help='Precio por unidad. Se hereda del tipo de cobro pero es editable.'
     )
     subsidy_pct = fields.Float(
@@ -202,50 +202,50 @@ class PlanillaEmployeeCharge(models.Model):
     )
 
     total_amount = fields.Monetary(
-        string='Costo Total (₡)', currency_field='currency_id',
+        string='Costo Total (CRC)', currency_field='currency_id',
         compute='_compute_amounts', store=True,
-        help='Costo bruto = cantidad × precio unitario'
+        help='Costo bruto = cantidad x precio unitario'
     )
     employer_amount = fields.Monetary(
-        string='Subsidio Empresa (₡)', currency_field='currency_id',
+        string='Subsidio Empresa (CRC)', currency_field='currency_id',
         compute='_compute_amounts', store=True,
-        help='Monto que asume la empresa = total × (subsidio% / 100)'
+        help='Monto que asume la empresa = total x (subsidio% / 100)'
     )
     employee_amount = fields.Monetary(
-        string='Cargo al Empleado (₡)', currency_field='currency_id',
+        string='Cargo al Empleado (CRC)', currency_field='currency_id',
         compute='_compute_amounts', store=True,
-        help='Monto que se descuenta en la boleta = total − subsidio empresa'
+        help='Monto que se descuenta en la boleta = total  subsidio empresa'
     )
 
     affects_ccss = fields.Boolean(
         related='charge_type_id.affects_ccss', store=True,
-        help='Si está activo, el subsidio patronal se considera salario en especie.'
+        help='Si esta activo, el subsidio patronal se considera salario en especie.'
     )
 
-    # ── Recurrencia ───────────────────────────────────────────────────
+    # -- Recurrencia ---------------------------------------------------
     is_recurring = fields.Boolean(
         string='Cobro Recurrente',
         default=False,
         tracking=True,
-        help='Si está activo, este cobro se aplica automáticamente en cada período '
-             'de planilla mientras esté vigente (date_start–date_end).\n'
-             'El cobro permanece en estado Aprobado y se reutiliza cada período.\n\n'
-             'Si está inactivo (cobro único), se consume al aplicarse en la primera '
+        help='Si esta activo, este cobro se aplica automaticamente en cada periodo '
+             'de planilla mientras este vigente (date_start-date_end).\n'
+             'El cobro permanece en estado Aprobado y se reutiliza cada periodo.\n\n'
+             'Si esta inactivo (cobro unico), se consume al aplicarse en la primera '
              'boleta y pasa a estado Aplicado.'
     )
     recurrence_end = fields.Date(
         string='Vigente hasta',
-        help='Fecha límite de la recurrencia. Dejar vacío para aplicar indefinidamente.\n'
-             'Solo aplica cuando "Cobro Recurrente" está activo.'
+        help='Fecha limite de la recurrencia. Dejar vacio para aplicar indefinidamente.\n'
+             'Solo aplica cuando "Cobro Recurrente" esta activo.'
     )
     applied_periods = fields.Char(
-        string='Períodos Aplicados',
+        string='Periodos Aplicados',
         readonly=True,
-        help='Lista de períodos (YYYY-MM) en los que ya se aplicó este cobro recurrente. '
-             'Evita aplicar dos veces el mismo período. Formato: "2026-03,2026-04,..."'
+        help='Lista de periodos (YYYY-MM) en los que ya se aplico este cobro recurrente. '
+             'Evita aplicar dos veces el mismo periodo. Formato: "2026-03,2026-04,..."'
     )
 
-    # ── Estado y trazabilidad ─────────────────────────────────────────
+    # -- Estado y trazabilidad -----------------------------------------
     state = fields.Selection([
         ('draft',     'Borrador'),
         ('approved',  'Aprobado'),
@@ -254,36 +254,122 @@ class PlanillaEmployeeCharge(models.Model):
     ], string='Estado', default='draft', tracking=True, index=True)
 
     payslip_id = fields.Many2one(
-        'planilla.payslip.cr', string='Última Boleta Aplicada',
+        'planilla.payslip.cr', string='Ultima Boleta Aplicada',
         readonly=True, ondelete='set null',
-        help='Última boleta en la que se aplicó este cobro. '
-             'Para cobros recurrentes muestra la última aplicación.'
+        help='Ultima boleta en la que se aplico este cobro. '
+             'Para cobros recurrentes muestra la ultima aplicacion.'
     )
     notes = fields.Text(string='Observaciones')
 
-    # ── Helpers de recurrencia ────────────────────────────────────────
+    # -- Helpers de recurrencia ----------------------------------------
     def _get_applied_periods_set(self) -> set:
-        """Retorna el set de períodos YYYY-MM ya aplicados."""
+        """Retorna el set de periodos YYYY-MM ya aplicados."""
         self.ensure_one()
         if not self.applied_periods:
             return set()
         return set(p.strip() for p in self.applied_periods.split(',') if p.strip())
 
     def _mark_period_applied(self, date_from) -> None:
-        """Registra el período YYYY-MM como aplicado en el campo applied_periods."""
+        """Registra el periodo YYYY-MM como aplicado en el campo applied_periods."""
         self.ensure_one()
         period_key = str(date_from)[:7]  # YYYY-MM
         periods = self._get_applied_periods_set()
         periods.add(period_key)
         self.applied_periods = ','.join(sorted(periods))
 
-    def _is_period_already_applied(self, date_from) -> bool:
-        """Verifica si el período YYYY-MM ya fue aplicado en este cobro recurrente."""
+    def _remove_period_applied(self, date_from) -> None:
+        """
+        Elimina el periodo YYYY-MM de applied_periods.
+        Llamado cuando la boleta que lo aplico es cancelada o borrada.
+        """
         self.ensure_one()
         period_key = str(date_from)[:7]
-        return period_key in self._get_applied_periods_set()
+        periods = self._get_applied_periods_set()
+        if period_key in periods:
+            periods.discard(period_key)
+            self.applied_periods = ','.join(sorted(periods)) if periods else False
+            _logger.info(
+                'planilla_cr.employee_charge: periodo huerfano "%s" eliminado de cobro "%s".',
+                period_key, self.name
+            )
 
-    # ── Computed fields ───────────────────────────────────────────────
+    def _is_period_already_applied(self, date_from) -> bool:
+        """
+        Verifica si el periodo YYYY-MM ya fue aplicado en este cobro recurrente.
+
+        FIX BUG-COBRO-01: Verificacion activa de huerfanos.
+        Si el periodo esta en applied_periods pero NO existe una linea de deduccion
+        activa (en boleta no cancelada) que lo referencie, el periodo se considera
+        huerfano (la boleta original fue borrada sin cancelar). Se limpia
+        automaticamente y se permite re-aplicar el cobro.
+        """
+        self.ensure_one()
+        period_key = str(date_from)[:7]
+        if period_key not in self._get_applied_periods_set():
+            return False   # nunca aplicado en este periodo
+
+        # El periodo esta marcado -> verificar que exista una boleta ACTIVA
+        # (estado draft, confirmed o paid) con una linea de deduccion de este cobro.
+        active_line = self.env['planilla.payslip.deduction.line'].search([
+            ('employee_charge_id', '=', self.id),
+            ('payslip_id.state', 'in', ('draft', 'confirmed', 'paid')),
+        ], limit=1)
+
+        if active_line:
+            return True   # hay boleta activa -> periodo realmente aplicado
+
+        # No hay boleta activa -> periodo HUERFANO (boleta borrada/cancelada sin limpiar)
+        _logger.warning(
+            'planilla_cr.employee_charge: periodo "%s" huerfano en cobro "%s" (ID %d). '
+            'No existe boleta activa con este cobro -- limpiando y permitiendo re-aplicar.',
+            period_key, self.name, self.id
+        )
+        self._remove_period_applied(date_from)
+        return False   # permitir re-aplicar
+
+    def action_clean_orphan_periods(self):
+        """
+        Boton manual: verifica y limpia periodos huerfanos en applied_periods.
+        Un periodo es huerfano si no hay ninguna boleta activa (draft/confirmed/paid)
+        que tenga una linea de deduccion referenciando este cobro.
+        Util cuando el usuario borra boletas sin cancelarlas.
+        """
+        for rec in self:
+            if not rec.applied_periods:
+                continue
+            periods = rec._get_applied_periods_set()
+            # Obtener los periodos que SI tienen boleta activa
+            active_lines = self.env['planilla.payslip.deduction.line'].search([
+                ('employee_charge_id', '=', rec.id),
+                ('payslip_id.state', 'in', ('draft', 'confirmed', 'paid')),
+            ])
+            active_periods = set()
+            for line in active_lines:
+                if line.payslip_id.date_from:
+                    active_periods.add(str(line.payslip_id.date_from)[:7])
+
+            orphans = periods - active_periods
+            if orphans:
+                periods -= orphans
+                rec.applied_periods = ','.join(sorted(periods)) if periods else False
+                _logger.info(
+                    'planilla_cr.employee_charge: %d periodo(s) huerfano(s) limpiados '
+                    'de cobro "%s": %s',
+                    len(orphans), rec.name, orphans
+                )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Periodos Huerfanos Limpiados',
+                'message': 'Los periodos sin boleta activa han sido eliminados. '
+                           'El cobro puede aplicarse nuevamente.',
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    # -- Computed fields -----------------------------------------------
     @api.depends('employee_id', 'charge_type_id', 'date_from')
     def _compute_name(self):
         for rec in self:
@@ -301,7 +387,7 @@ class PlanillaEmployeeCharge(models.Model):
             rec.employer_amount = employer
             rec.employee_amount = round(total - employer, 2)
 
-    # ── Onchange para heredar valores del tipo ────────────────────────
+    # -- Onchange para heredar valores del tipo ------------------------
     @api.onchange('charge_type_id')
     def _onchange_charge_type(self):
         if self.charge_type_id:
@@ -310,7 +396,7 @@ class PlanillaEmployeeCharge(models.Model):
             if self.charge_type_id.charge_mode == 'fixed':
                 self.quantity = 1.0
 
-    # ── Constraints ───────────────────────────────────────────────────
+    # -- Constraints ---------------------------------------------------
     @api.constrains('date_from', 'date_to')
     def _check_dates(self):
         for rec in self:
@@ -336,9 +422,9 @@ class PlanillaEmployeeCharge(models.Model):
                     f'(valor: {rec.subsidy_pct:.2f}%).'
                 )
 
-    # ── Acciones de estado ────────────────────────────────────────────
+    # -- Acciones de estado --------------------------------------------
     def action_approve(self):
-        """Aprobar cobro para que sea sincronizado en la próxima boleta."""
+        """Aprobar cobro para que sea sincronizado en la proxima boleta."""
         for rec in self:
             if rec.state != 'draft':
                 raise UserError(
@@ -357,7 +443,7 @@ class PlanillaEmployeeCharge(models.Model):
         )
 
     def action_cancel(self):
-        """Cancelar cobro. Si está aplicado en boleta, se debe revisar manualmente."""
+        """Cancelar cobro. Si esta aplicado en boleta, se debe revisar manualmente."""
         for rec in self:
             if not rec.is_recurring and rec.state == 'applied' and rec.payslip_id:
                 raise UserError(
@@ -375,6 +461,101 @@ class PlanillaEmployeeCharge(models.Model):
                     'Solo se pueden reactivar cobros cancelados.'
                 )
         self.write({'state': 'draft'})
+
+    def action_sanear_huerfanos(self):
+        """
+        Saneamiento masivo de cobros huerfanos -- BUG-COBRO-02.
+
+        Un cobro es 'huerfano' cuando:
+          - Cobro unico (is_recurring=False): state='applied' pero su
+            payslip_id ya no existe o esta cancelada.
+          - Cobro recurrente (is_recurring=True): applied_periods contiene
+            periodos sin ninguna linea de deduccion activa que los respalde.
+
+        Esta accion puede ejecutarse:
+          - Desde la vista lista (seleccionando varios cobros -> Accion -> Sanear)
+          - Desde el menu Configuracion -> Saneamiento de Cobros
+          - Manualmente en cada cobro con el boton " Limpiar Periodos Huerfanos"
+
+        Retorna un resumen de lo que se corrigio.
+        """
+        cobros_a_sanar = self if self else self.search([
+            '|',
+            '&', ('is_recurring', '=', False), ('state', '=', 'applied'),
+            '&', ('is_recurring', '=', True),  ('applied_periods', '!=', False),
+        ])
+
+        revertidos = 0
+        periodos_limpiados = 0
+
+        for charge in cobros_a_sanar:
+            if not charge.is_recurring:
+                # -- Cobro unico: verificar que la boleta existe y esta activa --
+                if charge.state != 'applied':
+                    continue
+                boleta_activa = False
+                if charge.payslip_id:
+                    boleta_activa = charge.payslip_id.state in ('draft', 'confirmed', 'paid')
+                if not boleta_activa:
+                    # No hay boleta activa -> huerfano -> revertir a approved
+                    charge.write({'state': 'approved', 'payslip_id': False})
+                    revertidos += 1
+                    _logger.info(
+                        'planilla_cr.sanear_huerfanos: cobro unico "%s" (ID %d) '
+                        'revertido a "approved" -- boleta borrada o cancelada.',
+                        charge.name, charge.id
+                    )
+            else:
+                # -- Cobro recurrente: verificar cada periodo en applied_periods --
+                if not charge.applied_periods:
+                    continue
+                periods = charge._get_applied_periods_set()
+                # Obtener todos los periodos que SI tienen linea en boleta activa
+                active_lines = self.env['planilla.payslip.deduction.line'].search([
+                    ('employee_charge_id', '=', charge.id),
+                    ('payslip_id.state', 'in', ('draft', 'confirmed', 'paid')),
+                ])
+                active_periods = set()
+                for line in active_lines:
+                    if line.payslip_id.date_from:
+                        active_periods.add(str(line.payslip_id.date_from)[:7])
+
+                orphan_periods = periods - active_periods
+                if orphan_periods:
+                    periods -= orphan_periods
+                    charge.applied_periods = ','.join(sorted(periods)) if periods else False
+                    if not charge.applied_periods:
+                        charge.payslip_id = False
+                    periodos_limpiados += len(orphan_periods)
+                    _logger.info(
+                        'planilla_cr.sanear_huerfanos: cobro recurrente "%s" (ID %d) -- '
+                        '%d periodo(s) huerfano(s) eliminados: %s',
+                        charge.name, charge.id, len(orphan_periods), orphan_periods
+                    )
+
+        total = revertidos + periodos_limpiados
+        if total == 0:
+            mensaje = 'No se encontraron cobros huerfanos. Todos los cobros aplicados tienen boleta activa.'
+            msg_type = 'info'
+        else:
+            partes = []
+            if revertidos:
+                partes.append(f'{revertidos} cobro(s) unico(s) revertido(s) a "Aprobado"')
+            if periodos_limpiados:
+                partes.append(f'{periodos_limpiados} periodo(s) huerfano(s) limpiados en cobros recurrentes')
+            mensaje = 'Saneamiento completado: ' + ' . '.join(partes) + '.'
+            msg_type = 'success'
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': ' Saneamiento de Cobros Huerfanos',
+                'message': mensaje,
+                'type': msg_type,
+                'sticky': True,
+            },
+        }
 
     def action_print_charge(self):
         """Imprimir reporte PDF del cobro."""

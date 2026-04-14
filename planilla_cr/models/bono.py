@@ -1,12 +1,12 @@
 """
-planilla.bono — Bonos e Incentivos por Empleado
-Legislación CR aplicable:
-  - Bonos salariales (productividad, asistencia, antigüedad): Art. 162 CT
-    → afectan CCSS y renta; se integran al salario para aguinaldo/cesantía.
-  - Subsidio de transporte: exento CCSS/renta hasta ₡74 000/mes (Reglamento 2023).
-  - Subsidio alimentación en dinero: afecto CCSS y renta.
-  - Subsidio alimentación en especie (comedor): exento Art. 5 Ley 7983.
-  - Gastos de representación debidamente documentados: exento CCSS (Art. 5 Ley 7983).
+planilla.bono -- Bonos e Incentivos por Empleado
+Legislacion CR aplicable:
+  - Bonos salariales (productividad, asistencia, antiguedad): Art. 162 CT
+    -> afectan CCSS y renta; se integran al salario para aguinaldo/cesantia.
+  - Subsidio de transporte: exento CCSS/renta hasta CRC74 000/mes (Reglamento 2023).
+  - Subsidio alimentacion en dinero: afecto CCSS y renta.
+  - Subsidio alimentacion en especie (comedor): exento Art. 5 Ley 7983.
+  - Gastos de representacion debidamente documentados: exento CCSS (Art. 5 Ley 7983).
 """
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
@@ -26,7 +26,7 @@ class Bono(models.Model):
         string='Concepto', required=True, tracking=True
     )
 
-    # ── Relaciones ─────────────────────────────────────────────────────────
+    # -- Relaciones ---------------------------------------------------------
     employee_id = fields.Many2one(
         'hr.employee', string='Empleado', required=True,
         ondelete='cascade', tracking=True, index=True,
@@ -41,40 +41,40 @@ class Bono(models.Model):
         related='employee_id.currency_id', store=True
     )
 
-    # ── Tipo de bono ───────────────────────────────────────────────────────
+    # -- Tipo de bono -------------------------------------------------------
     bono_type = fields.Selection([
         ('productividad',  'Productividad / Rendimiento'),
         ('asistencia',     'Asistencia Perfecta'),
-        ('antiguedad',     'Antigüedad por Años de Servicio'),
+        ('antiguedad',     'Antiguedad por Anos de Servicio'),
         ('transporte',     'Subsidio de Transporte / Kilometraje'),
-        ('alimentacion',   'Subsidio de Alimentación (en dinero)'),
+        ('alimentacion',   'Subsidio de Alimentacion (en dinero)'),
         ('educacion',      'Subsidio Educativo'),
-        ('salud',          'Subsidio de Salud / Médico'),
-        ('representacion', 'Gastos de Representación'),
-        ('comision',       'Comisión por Ventas'),
+        ('salud',          'Subsidio de Salud / Medico'),
+        ('representacion', 'Gastos de Representacion'),
+        ('comision',       'Comision por Ventas'),
         ('incentivo',      'Incentivo / Premio Especial'),
         ('otro',           'Otro'),
     ], string='Tipo de Bono', required=True, default='productividad', tracking=True)
 
-    # ── Cálculo ────────────────────────────────────────────────────────────
+    # -- Calculo ------------------------------------------------------------
     amount_type = fields.Selection([
-        ('fixed',      'Monto Fijo (₡)'),
+        ('fixed',      'Monto Fijo (CRC)'),
         ('percentage', 'Porcentaje del Salario Base'),
-    ], string='Cálculo', required=True, default='fixed')
+    ], string='Calculo', required=True, default='fixed')
 
     amount = fields.Monetary(
-        string='Monto (₡)', currency_field='currency_id'
+        string='Monto (CRC)', currency_field='currency_id'
     )
     percentage = fields.Float(
         string='Porcentaje (%)', digits=(5, 2)
     )
 
-    # ── Reglas fiscales/CCSS — se completan automáticamente por tipo ────────
+    # -- Reglas fiscales/CCSS -- se completan automaticamente por tipo --------
     afecto_ccss = fields.Boolean(
         string='Afecto CCSS', default=True, tracking=True,
         help='Si es True, el monto se suma al salario bruto para calcular CCSS. '
-             'Bonos salariales (productividad, asistencia, antigüedad) = True. '
-             'Subsidio transporte (hasta tope), gastos representación = False.'
+             'Bonos salariales (productividad, asistencia, antiguedad) = True. '
+             'Subsidio transporte (hasta tope), gastos representacion = False.'
     )
     afecto_renta = fields.Boolean(
         string='Afecto Renta', default=True, tracking=True,
@@ -82,24 +82,24 @@ class Bono(models.Model):
              'Subsidio transporte hasta tope legal = False.'
     )
     tope_exento = fields.Monetary(
-        string='Tope Exento (₡/mes)', currency_field='currency_id',
-        help='Solo aplica para tipos con exención parcial (transporte). '
-             'El excedente sobre este tope sí es gravable.'
+        string='Tope Exento (CRC/mes)', currency_field='currency_id',
+        help='Solo aplica para tipos con exencion parcial (transporte). '
+             'El excedente sobre este tope si es gravable.'
     )
 
-    # ── Vigencia ───────────────────────────────────────────────────────────
+    # -- Vigencia -----------------------------------------------------------
     is_recurring = fields.Boolean(
         string='Es Recurrente', default=True,
-        help='Si es True, se aplica en cada boleta dentro del período de vigencia. '
+        help='Si es True, se aplica en cada boleta dentro del periodo de vigencia. '
              'Si es False, es un bono puntual (una sola vez).'
     )
     date_start = fields.Date(string='Vigente Desde', required=True, tracking=True)
     date_end   = fields.Date(
         string='Vigente Hasta', tracking=True,
-        help='Dejar vacío para aplicar indefinidamente.'
+        help='Dejar vacio para aplicar indefinidamente.'
     )
 
-    # ── Estado ─────────────────────────────────────────────────────────────
+    # -- Estado -------------------------------------------------------------
     state = fields.Selection([
         ('active',    'Activo'),
         ('suspended', 'Suspendido'),
@@ -110,15 +110,15 @@ class Bono(models.Model):
 
     note = fields.Text(string='Observaciones / Referencia')
 
-    # ── Computed: base gravable real ────────────────────────────────────────
+    # -- Computed: base gravable real ----------------------------------------
     monto_gravable_ccss = fields.Monetary(
-        string='Monto Gravable CCSS (₡)',
+        string='Monto Gravable CCSS (CRC)',
         compute='_compute_montos_gravables', store=False,
         currency_field='currency_id',
-        help='Porción del bono que cuenta para la base de CCSS.'
+        help='Porcion del bono que cuenta para la base de CCSS.'
     )
     monto_gravable_renta = fields.Monetary(
-        string='Monto Gravable Renta (₡)',
+        string='Monto Gravable Renta (CRC)',
         compute='_compute_montos_gravables', store=False,
         currency_field='currency_id',
     )
@@ -129,25 +129,36 @@ class Bono(models.Model):
         for rec in self:
             monto = rec._get_monto_base()
             exento = rec.tope_exento or 0.0
-            excedente = max(0.0, monto - exento)
-            rec.monto_gravable_ccss  = excedente if not rec.afecto_ccss  else monto
-            rec.monto_gravable_renta = excedente if not rec.afecto_renta else monto
+            # FIX CALC-02: bono totalmente exento (afecto=False, tope=0) -> gravable=0
+            # Antes: excedente = monto-0 = monto -> incorrecto para bonos sin tope
+            if rec.afecto_ccss:
+                rec.monto_gravable_ccss = monto
+            elif exento > 0:
+                rec.monto_gravable_ccss = max(0.0, monto - exento)
+            else:
+                rec.monto_gravable_ccss = 0.0  # Totalmente exento CCSS
+            if rec.afecto_renta:
+                rec.monto_gravable_renta = monto
+            elif exento > 0:
+                rec.monto_gravable_renta = max(0.0, monto - exento)
+            else:
+                rec.monto_gravable_renta = 0.0  # Totalmente exento Renta
 
-    # ── Defaults automáticos según tipo ────────────────────────────────────
+    # -- Defaults automaticos segun tipo ------------------------------------
     @api.onchange('bono_type')
     def _onchange_bono_type(self):
-        """Aplica defaults legales según el tipo de bono CR."""
+        """Aplica defaults legales segun el tipo de bono CR."""
         presets = {
             # tipo: (afecto_ccss, afecto_renta, tope_exento, nombre_sugerido)
             'productividad':  (True,  True,  0.0,          'Bono de Productividad'),
             'asistencia':     (True,  True,  0.0,          'Bono de Asistencia Perfecta'),
-            'antiguedad':     (True,  True,  0.0,          'Bono de Antigüedad'),
+            'antiguedad':     (True,  True,  0.0,          'Bono de Antiguedad'),
             'transporte':     (False, False, K.TOPE_TRANSPORTE, 'Subsidio de Transporte'),
-            'alimentacion':   (True,  True,  0.0,          'Subsidio de Alimentación'),
+            'alimentacion':   (True,  True,  0.0,          'Subsidio de Alimentacion'),
             'educacion':      (False, False, 0.0,          'Subsidio Educativo'),
             'salud':          (False, False, 0.0,          'Subsidio de Salud'),
-            'representacion': (False, False, 0.0,          'Gastos de Representación'),
-            'comision':       (True,  True,  0.0,          'Comisión por Ventas'),
+            'representacion': (False, False, 0.0,          'Gastos de Representacion'),
+            'comision':       (True,  True,  0.0,          'Comision por Ventas'),
             'incentivo':      (True,  True,  0.0,          'Incentivo Especial'),
             'otro':           (True,  True,  0.0,          'Bono'),
         }
@@ -159,13 +170,13 @@ class Bono(models.Model):
             if not self.name or self.name == 'Bono':
                 self.name = nombre
 
-    # ── Validaciones ───────────────────────────────────────────────────────
+    # -- Validaciones -------------------------------------------------------
     @api.constrains('amount', 'percentage', 'amount_type')
     def _check_amounts(self):
         for rec in self:
             if rec.amount_type == 'fixed' and rec.amount <= 0:
                 raise ValidationError(
-                    f'El monto del bono "{rec.name}" debe ser mayor a ₡0.'
+                    f'El monto del bono "{rec.name}" debe ser mayor a CRC0.'
                 )
             if rec.amount_type == 'percentage' and rec.percentage <= 0:
                 raise ValidationError(
@@ -180,7 +191,7 @@ class Bono(models.Model):
                     '"Vigente Hasta" debe ser posterior a "Vigente Desde".'
                 )
 
-    # ── Helpers ────────────────────────────────────────────────────────────
+    # -- Helpers ------------------------------------------------------------
     def _get_monto_base(self):
         """Calcula el monto bruto del bono dado el salario base del empleado."""
         self.ensure_one()
@@ -192,25 +203,30 @@ class Bono(models.Model):
     def get_amount_for_payslip(self, gross_salary=0.0):
         """
         Retorna (monto_total, monto_gravable_ccss, monto_gravable_renta).
-        El payslip lo usa para sumar el bono al bruto según las reglas fiscales.
+        El payslip lo usa para sumar el bono al bruto segun las reglas fiscales.
         """
         self.ensure_one()
         monto = self._get_monto_base()
         exento = self.tope_exento or 0.0
 
+        # FIX CALC-02: bono totalmente exento (afecto=False, tope=0) -> gravable=0
         if self.afecto_ccss:
             grav_ccss = monto
-        else:
+        elif exento > 0:
             grav_ccss = max(0.0, monto - exento)
+        else:
+            grav_ccss = 0.0  # Totalmente exento CCSS
 
         if self.afecto_renta:
             grav_renta = monto
-        else:
+        elif exento > 0:
             grav_renta = max(0.0, monto - exento)
+        else:
+            grav_renta = 0.0  # Totalmente exento Renta
 
         return monto, grav_ccss, grav_renta
 
-    # ── Acciones de estado ─────────────────────────────────────────────────
+    # -- Acciones de estado -------------------------------------------------
     def action_suspend(self):
         self.write({'state': 'suspended'})
 

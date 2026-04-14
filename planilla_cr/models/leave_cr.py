@@ -1,27 +1,27 @@
 """
-leave_cr.py — Licencias Especiales con Base Legal (Costa Rica)
+leave_cr.py -- Licencias Especiales con Base Legal (Costa Rica)
 ==============================================================
-Gestiona todas las licencias laborales distintas a incapacidades médicas
-y vacaciones anuales, según el Código de Trabajo CR y leyes especiales.
+Gestiona todas las licencias laborales distintas a incapacidades medicas
+y vacaciones anuales, segun el Codigo de Trabajo CR y leyes especiales.
 
 Licencias implementadas:
-  DUELO         — Ley 8698 Art. 37 bis CT: 3 días hábiles con goce (cónyuge/hijo/padre/madre)
+  DUELO         -- Ley 8698 Art. 37 bis CT: 3 dias habiles con goce (conyuge/hijo/padre/madre)
                   Otros parientes: a criterio patronal (sin goce o con goce voluntario)
-  PATERNIDAD    — Ley 8107 / Art. 95 CT: 8 días hábiles con goce 100% cargo patrono
-  MATRIMONIO    — Art. 37 CT: 2 días con goce de sueldo
-  DONACION_SANGRE — Art. 37 CT: 1 día con goce por donación de sangre
-  CIUDADANA     — Art. 37 CT: tiempo necesario para ejercer el voto (elecciones)
-  LACTANCIA     — Art. 95 CT: períodos diarios para lactancia (mínimo 1 año)
-  ADOPCION      — Ley 9406: 3 meses con goce, equiparable a maternidad
-  ESTUDIO       — Convenciones colectivas / acuerdo patronal: sin base legal obligatoria
-  SINDICAL      — Art. 60 Constitución / Convenio OIT 135: dirigentes sindicales
-  PATERNIDAD_ADOPCION — Ley 9406: 8 días hábiles con goce (padre adoptivo)
-  SIN_GOCE      — Art. 85 CT: permiso sin goce de sueldo, acuerdo entre partes
+  PATERNIDAD    -- Ley 8107 / Art. 95 CT: 8 dias habiles con goce 100% cargo patrono
+  MATRIMONIO    -- Art. 37 CT: 2 dias con goce de sueldo
+  DONACION_SANGRE -- Art. 37 CT: 1 dia con goce por donacion de sangre
+  CIUDADANA     -- Art. 37 CT: tiempo necesario para ejercer el voto (elecciones)
+  LACTANCIA     -- Art. 95 CT: periodos diarios para lactancia (minimo 1 ano)
+  ADOPCION      -- Ley 9406: 3 meses con goce, equiparable a maternidad
+  ESTUDIO       -- Convenciones colectivas / acuerdo patronal: sin base legal obligatoria
+  SINDICAL      -- Art. 60 Constitucion / Convenio OIT 135: dirigentes sindicales
+  PATERNIDAD_ADOPCION -- Ley 9406: 8 dias habiles con goce (padre adoptivo)
+  SIN_GOCE      -- Art. 85 CT: permiso sin goce de sueldo, acuerdo entre partes
 
-Integración:
-  - Se vincula automáticamente a la boleta de pago del período
+Integracion:
+  - Se vincula automaticamente a la boleta de pago del periodo
   - Las licencias CON goce generan gasto patronal (debit cuenta 630800)
-  - Las licencias SIN goce generan deducción en la boleta (category='licencia_sin_goce')
+  - Las licencias SIN goce generan deduccion en la boleta (category='licencia_sin_goce')
   - El asiento contable se extiende via _sync_licencias() en el sync mixin
 """
 
@@ -30,28 +30,28 @@ from odoo.models import Constraint
 from odoo.exceptions import ValidationError
 from . import planilla_const as K
 
-# ── Mapa legal: tipo → (días_max, con_goce, base_legal) ──────────────────────
+# -- Mapa legal: tipo -> (dias_max, con_goce, base_legal) ----------------------
 LEAVE_LEGAL_MAP = {
-    'duelo_primer_grado':  (3,  True,  'Art. 37 bis CT / Ley 8698 — 3 días hábiles cónyuge/hijo/padre/madre/hermano'),
-    'duelo_otro':          (0,  False, 'Art. 37 bis CT — otros parientes: a criterio patronal'),
-    'paternidad':          (8,  True,  'Art. 95 CT / Ley 8107 — 8 días hábiles con goce 100%'),
-    'paternidad_adopcion': (8,  True,  'Ley 9406 Art. 8 — 8 días hábiles padre adoptivo'),
-    'matrimonio':          (2,  True,  'Art. 37 CT — 2 días con goce'),
-    'donacion_sangre':     (1,  True,  'Art. 37 CT — 1 día con goce por donación'),
-    'ciudadana':           (0,  True,  'Art. 37 CT — tiempo para ejercer voto'),
-    'lactancia':           (0,  True,  'Art. 95 CT — períodos diarios, mínimo 1 año post-parto'),
-    'adopcion':            (90, True,  'Ley 9406 — 3 meses con goce equiparable a maternidad'),
-    'sindical':            (0,  True,  'Art. 60 Constitución / Convenio OIT 135'),
-    'estudio':             (0,  False, 'Acuerdo patronal — sin base legal obligatoria'),
-    'sin_goce':            (0,  False, 'Art. 85 CT — permiso sin goce de sueldo por acuerdo'),
-    'otro_con_goce':       (0,  True,  'Licencia pagada por política interna de la empresa'),
+    'duelo_primer_grado':  (3,  True,  'Art. 37 bis CT / Ley 8698 -- 3 dias habiles conyuge/hijo/padre/madre/hermano'),
+    'duelo_otro':          (0,  False, 'Art. 37 bis CT -- otros parientes: a criterio patronal'),
+    'paternidad':          (8,  True,  'Art. 95 CT / Ley 8107 -- 8 dias habiles con goce 100%'),
+    'paternidad_adopcion': (8,  True,  'Ley 9406 Art. 8 -- 8 dias habiles padre adoptivo'),
+    'matrimonio':          (2,  True,  'Art. 37 CT -- 2 dias con goce'),
+    'donacion_sangre':     (1,  True,  'Art. 37 CT -- 1 dia con goce por donacion'),
+    'ciudadana':           (0,  True,  'Art. 37 CT -- tiempo para ejercer voto'),
+    'lactancia':           (0,  True,  'Art. 95 CT -- periodos diarios, minimo 1 ano post-parto'),
+    'adopcion':            (90, True,  'Ley 9406 -- 3 meses con goce equiparable a maternidad'),
+    'sindical':            (0,  True,  'Art. 60 Constitucion / Convenio OIT 135'),
+    'estudio':             (0,  False, 'Acuerdo patronal -- sin base legal obligatoria'),
+    'sin_goce':            (0,  False, 'Art. 85 CT -- permiso sin goce de sueldo por acuerdo'),
+    'otro_con_goce':       (0,  True,  'Licencia pagada por politica interna de la empresa'),
     'otro_sin_goce':       (0,  False, 'Licencia sin goce por acuerdo entre las partes'),
 }
 
 
 class LeaveCR(models.Model):
     """
-    planilla.leave.cr — Licencias especiales con base legal CR.
+    planilla.leave.cr -- Licencias especiales con base legal CR.
     """
     _name = 'planilla.leave.cr'
     _description = 'Licencia Especial CR'
@@ -64,7 +64,7 @@ class LeaveCR(models.Model):
         'Ya existe una licencia del mismo tipo para este empleado en esa fecha de inicio.'
     )
 
-    # ── Identificación ────────────────────────────────────────────────────────
+    # -- Identificacion --------------------------------------------------------
     name = fields.Char(
         string='Referencia', compute='_compute_name', store=True
     )
@@ -76,39 +76,39 @@ class LeaveCR(models.Model):
         related='employee_id.branch_id', string='Sucursal', store=True
     )
     company_id = fields.Many2one(
-        'res.company', string='Compañía',
+        'res.company', string='Compania',
         required=True, default=lambda self: self.env.company
     )
     currency_id = fields.Many2one(
         related='employee_id.currency_id', store=True
     )
 
-    # ── Tipo y fechas ─────────────────────────────────────────────────────────
+    # -- Tipo y fechas ---------------------------------------------------------
     leave_type = fields.Selection([
-        # ── Con goce legal obligatorio ──────────────────────────────────────
-        ('duelo_primer_grado',  'Duelo — 1er grado (cónyuge/hijo/padre/madre/hermano)'),
-        ('paternidad',          'Paternidad — 8 días hábiles (Ley 8107)'),
-        ('paternidad_adopcion', 'Paternidad Adopción — 8 días hábiles (Ley 9406)'),
-        ('matrimonio',          'Matrimonio — 2 días (Art. 37 CT)'),
-        ('donacion_sangre',     'Donación de Sangre — 1 día (Art. 37 CT)'),
-        ('ciudadana',           'Licencia Ciudadana — Derecho al voto (Art. 37 CT)'),
-        ('lactancia',           'Lactancia — Períodos diarios (Art. 95 CT)'),
-        ('adopcion',            'Adopción — 3 meses con goce (Ley 9406)'),
-        ('sindical',            'Sindical — Dirigentes (Art. 60 Const.)'),
-        ('otro_con_goce',       'Otra con Goce — Política interna empresa'),
-        # ── Sin goce / a criterio patronal ─────────────────────────────────
-        ('duelo_otro',          'Duelo — Otro pariente (a criterio patronal)'),
-        ('estudio',             'Estudio — Acuerdo patronal'),
+        # -- Con goce legal obligatorio --------------------------------------
+        ('duelo_primer_grado',  'Duelo -- 1er grado (conyuge/hijo/padre/madre/hermano)'),
+        ('paternidad',          'Paternidad -- 8 dias habiles (Ley 8107)'),
+        ('paternidad_adopcion', 'Paternidad Adopcion -- 8 dias habiles (Ley 9406)'),
+        ('matrimonio',          'Matrimonio -- 2 dias (Art. 37 CT)'),
+        ('donacion_sangre',     'Donacion de Sangre -- 1 dia (Art. 37 CT)'),
+        ('ciudadana',           'Licencia Ciudadana -- Derecho al voto (Art. 37 CT)'),
+        ('lactancia',           'Lactancia -- Periodos diarios (Art. 95 CT)'),
+        ('adopcion',            'Adopcion -- 3 meses con goce (Ley 9406)'),
+        ('sindical',            'Sindical -- Dirigentes (Art. 60 Const.)'),
+        ('otro_con_goce',       'Otra con Goce -- Politica interna empresa'),
+        # -- Sin goce / a criterio patronal ---------------------------------
+        ('duelo_otro',          'Duelo -- Otro pariente (a criterio patronal)'),
+        ('estudio',             'Estudio -- Acuerdo patronal'),
         ('sin_goce',            'Permiso Sin Goce de Sueldo (Art. 85 CT)'),
-        ('otro_sin_goce',       'Otra Sin Goce — Acuerdo entre partes'),
+        ('otro_sin_goce',       'Otra Sin Goce -- Acuerdo entre partes'),
     ], string='Tipo de Licencia', required=True, tracking=True)
 
-    # ── Unidad de medida ─────────────────────────────────────────────────────
+    # -- Unidad de medida -----------------------------------------------------
     leave_unit = fields.Selection([
-        ('day',  'Días'),
+        ('day',  'Dias'),
         ('hour', 'Horas'),
     ], string='Unidad', required=True, default='day', tracking=True,
-        help='Seleccione "Horas" para permisos parciales (lactancia, cita médica, votar, etc.)'
+        help='Seleccione "Horas" para permisos parciales (lactancia, cita medica, votar, etc.)'
     )
 
     date_start = fields.Date(
@@ -120,16 +120,16 @@ class LeaveCR(models.Model):
         default=fields.Date.today
     )
     days = fields.Integer(
-        string='Días Calendario', compute='_compute_days', store=True
+        string='Dias Calendario', compute='_compute_days', store=True
     )
     working_days = fields.Integer(
-        string='Días Hábiles',
-        help='Complete manualmente si necesita distinguir días hábiles de calendario. '
-             'Para duelo/paternidad/matrimonio la ley habla de días HÁBILES. '
-             'Si queda en 0, el sistema usa los días calendario para el cálculo.'
+        string='Dias Habiles',
+        help='Complete manualmente si necesita distinguir dias habiles de calendario. '
+             'Para duelo/paternidad/matrimonio la ley habla de dias HABILES. '
+             'Si queda en 0, el sistema usa los dias calendario para el calculo.'
     )
 
-    # ── Campos para licencia por horas ────────────────────────────────────────
+    # -- Campos para licencia por horas ----------------------------------------
     hours = fields.Float(
         string='Horas de Permiso',
         digits=(5, 2),
@@ -141,13 +141,13 @@ class LeaveCR(models.Model):
         help='Salario base mensual / 30 / horas de jornada del empleado.'
     )
 
-    # ── Pariente (para duelo) ─────────────────────────────────────────────────
+    # -- Pariente (para duelo) -------------------------------------------------
     relative_name = fields.Char(
         string='Nombre del Fallecido / Familiar',
         help='Para licencias de duelo: nombre del familiar para el expediente.'
     )
     relative_relationship = fields.Selection([
-        ('conyuge',   'Cónyuge / Compañero(a)'),
+        ('conyuge',   'Conyuge / Companero(a)'),
         ('hijo',      'Hijo(a)'),
         ('padre',     'Padre'),
         ('madre',     'Madre'),
@@ -155,15 +155,15 @@ class LeaveCR(models.Model):
         ('abuelo',    'Abuelo(a)'),
         ('nieto',     'Nieto(a)'),
         ('suegro',    'Suegro(a)'),
-        ('cunado',    'Cuñado(a)'),
+        ('cunado',    'Cunado(a)'),
         ('otro',      'Otro'),
     ], string='Parentesco')
 
-    # ── Goce de sueldo ────────────────────────────────────────────────────────
+    # -- Goce de sueldo --------------------------------------------------------
     has_salary = fields.Boolean(
         string='Con Goce de Sueldo',
         compute='_compute_has_salary', store=True,
-        help='Determinado por la ley según el tipo de licencia. '
+        help='Determinado por la ley segun el tipo de licencia. '
              'Para tipos "a criterio patronal" puede editarse manualmente.'
     )
     # Permite al patrono pagar voluntariamente un duelo de 2do grado, etc.
@@ -173,7 +173,7 @@ class LeaveCR(models.Model):
              'aunque la ley no lo obligue (ej: duelo de segundo grado).'
     )
 
-    # ── Montos calculados ─────────────────────────────────────────────────────
+    # -- Montos calculados -----------------------------------------------------
     daily_salary = fields.Monetary(
         string='Salario Diario', currency_field='currency_id',
         compute='_compute_amounts', store=True
@@ -185,14 +185,14 @@ class LeaveCR(models.Model):
              'Sin goce: monto a descontar de la boleta.'
     )
 
-    # ── Documentación ─────────────────────────────────────────────────────────
+    # -- Documentacion ---------------------------------------------------------
     certificate_number = fields.Char(
-        string='N° Documento / Certificado',
-        help='Acta de defunción, partida de nacimiento, certificado médico, etc.'
+        string='Ndeg Documento / Certificado',
+        help='Acta de defuncion, partida de nacimiento, certificado medico, etc.'
     )
     note = fields.Text(string='Observaciones')
 
-    # ── Flujo de estados ─────────────────────────────────────────────────────
+    # -- Flujo de estados -----------------------------------------------------
     state = fields.Selection([
         ('draft',     'Borrador'),
         ('approved',  'Aprobado'),
@@ -200,23 +200,42 @@ class LeaveCR(models.Model):
         ('cancelled', 'Cancelado'),
     ], string='Estado', default='draft', tracking=True)
 
-    # ── Vinculación a boleta ──────────────────────────────────────────────────
+    # -- Vinculacion a boleta (M2M para soporte multi-periodo) -----------------
+    payslip_ids = fields.Many2many(
+        'planilla.payslip.cr',
+        'planilla_leave_cr_payslip_rel',
+        'leave_cr_id', 'payslip_id',
+        string='Boletas de Pago',
+        readonly=True,
+        help='Boletas en las que se proceso esta licencia. Puede ser mas de una '
+             'cuando la licencia cruza varios periodos (ej. adopcion 90 dias).'
+    )
+    # Compatibilidad: primera boleta que proceso esta licencia.
     payslip_id = fields.Many2one(
-        'planilla.payslip.cr', string='Boleta de Pago',
-        readonly=True, index=True
+        'planilla.payslip.cr',
+        string='Primera Boleta',
+        compute='_compute_payslip_id_compat',
+        store=True,
+        readonly=True, index=True,
+        help='Primera boleta que proceso esta licencia (solo lectura).'
     )
 
-    # ── Base legal (informativo) ──────────────────────────────────────────────
+    @api.depends('payslip_ids')
+    def _compute_payslip_id_compat(self):
+        for rec in self:
+            rec.payslip_id = rec.payslip_ids[:1] if rec.payslip_ids else False
+
+    # -- Base legal (informativo) ----------------------------------------------
     legal_basis = fields.Char(
         string='Base Legal', compute='_compute_legal_basis', store=False
     )
     max_days_info = fields.Integer(
-        string='Días Máximos (Ley)', compute='_compute_legal_basis', store=False
+        string='Dias Maximos (Ley)', compute='_compute_legal_basis', store=False
     )
 
-    # ═════════════════════════════════════════════════════════════════════════
+    # =========================================================================
     # COMPUTOS
-    # ═════════════════════════════════════════════════════════════════════════
+    # =========================================================================
 
     @api.depends('employee_id', 'leave_type', 'date_start')
     def _compute_name(self):
@@ -264,7 +283,7 @@ class LeaveCR(models.Model):
             rec.daily_salary = daily
 
             if rec.leave_unit == 'hour':
-                # ── Cálculo por horas ─────────────────────────────────────────
+                # -- Calculo por horas -----------------------------------------
                 # Salario hora = salario diario / horas de jornada del empleado
                 hours_per_day = (
                     rec.employee_id.schedule_type_id.hours_per_day
@@ -274,18 +293,25 @@ class LeaveCR(models.Model):
                 rec.hourly_salary = round(daily / hours_per_day, 4) if hours_per_day else 0.0
                 rec.leave_amount  = round(rec.hourly_salary * (rec.hours or 0.0), 2)
             else:
-                # ── Cálculo por días (comportamiento original) ────────────────
+                # -- Calculo por dias (comportamiento original) ----------------
                 rec.hourly_salary  = 0.0
                 effective_days     = rec.working_days if rec.working_days > 0 else (rec.days or 0)
                 rec.leave_amount   = round(daily * effective_days, 2) if effective_days > 0 else 0.0
 
-    # ═════════════════════════════════════════════════════════════════════════
+    # =========================================================================
     # VALIDACIONES
-    # ═════════════════════════════════════════════════════════════════════════
+    # =========================================================================
 
-    @api.constrains('date_start', 'date_end')
+    @api.constrains('date_start', 'date_end', 'leave_unit')
     def _check_dates(self):
         for rec in self:
+            # Para licencias por horas: fecha fin debe ser igual a fecha inicio
+            if rec.leave_unit == 'hour' and rec.date_start and rec.date_end:
+                if rec.date_end != rec.date_start:
+                    raise ValidationError(
+                        'Para licencias por horas, la Fecha Fin debe ser igual '
+                        'a la Fecha Inicio (una licencia de horas ocurre en un solo dia).'
+                    )
             if rec.date_start and rec.date_end and rec.date_end < rec.date_start:
                 raise ValidationError(
                     f'La Fecha Fin ({rec.date_end}) no puede ser anterior '
@@ -311,20 +337,20 @@ class LeaveCR(models.Model):
 
     @api.constrains('leave_type', 'days', 'working_days')
     def _check_legal_limits(self):
-        """Advierte si se exceden los días máximos establecidos por ley."""
+        """Advierte si se exceden los dias maximos establecidos por ley."""
         for rec in self:
             info = LEAVE_LEGAL_MAP.get(rec.leave_type or '', (0, False, ''))
             max_days = info[0]
             if max_days <= 0:
-                continue  # Sin límite definido o a criterio patronal
+                continue  # Sin limite definido o a criterio patronal
             effective = rec.working_days if rec.working_days > 0 else rec.days
             if effective > max_days:
                 tipo_label = dict(rec._fields['leave_type'].selection).get(rec.leave_type, rec.leave_type)
                 raise ValidationError(
-                    f'La licencia "{tipo_label}" no puede exceder {max_days} días hábiles '
-                    f'según {info[2]}. Días ingresados: {effective}.\n\n'
-                    f'Si necesita extender la licencia más allá del límite legal, '
-                    f'use el tipo "Permiso Sin Goce de Sueldo" para los días adicionales.'
+                    f'La licencia "{tipo_label}" no puede exceder {max_days} dias habiles '
+                    f'segun {info[2]}. Dias ingresados: {effective}.\n\n'
+                    f'Si necesita extender la licencia mas alla del limite legal, '
+                    f'use el tipo "Permiso Sin Goce de Sueldo" para los dias adicionales.'
                 )
 
     @api.constrains('leave_type', 'relative_name')
@@ -337,9 +363,9 @@ class LeaveCR(models.Model):
                         '(campo "Nombre del Fallecido / Familiar").'
                     )
 
-    # ═════════════════════════════════════════════════════════════════════════
+    # =========================================================================
     # ACCIONES
-    # ═════════════════════════════════════════════════════════════════════════
+    # =========================================================================
 
     def action_approve(self):
         for rec in self:
@@ -362,9 +388,24 @@ class LeaveCR(models.Model):
                 raise ValidationError('No se puede reabrir una licencia ya procesada en planilla.')
         self.write({'state': 'draft'})
 
+    @api.onchange('leave_unit')
+    def _onchange_leave_unit(self):
+        """Para licencias por horas, la fecha fin debe ser igual a la fecha inicio.
+        Una licencia de horas ocurre en un solo dia -- no tiene rango de fechas."""
+        if self.leave_unit == 'hour' and self.date_start:
+            self.date_end = self.date_start
+
+    @api.onchange('date_start')
+    def _onchange_date_start_hours(self):
+        """Si la unidad ya es horas, la fecha fin debe seguir a la fecha de inicio.
+        Sin este onchange: cambiar date_start con leave_unit=hour dejaba date_end
+        desincronizada (el onchange de leave_unit no se re-dispara)."""
+        if self.leave_unit == 'hour' and self.date_start:
+            self.date_end = self.date_start
+
     @api.onchange('leave_type')
     def _onchange_leave_type(self):
-        """Sugerir fecha fin según días máximos de ley cuando el tipo cambia."""
+        """Sugerir fecha fin segun dias maximos de ley cuando el tipo cambia."""
         if not self.leave_type or not self.date_start:
             return
         info = LEAVE_LEGAL_MAP.get(self.leave_type, (0, False, ''))

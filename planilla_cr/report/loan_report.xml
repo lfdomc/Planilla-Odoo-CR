@@ -29,7 +29,7 @@
 
                     <!-- Encabezado -->
                     <div class="header-box">
-                        <h4>Tabla de Amortización — Préstamo / Adelanto Salarial</h4>
+                        <h4>Tabla de Amortizacion -- Préstamo / Adelanto Salarial</h4>
                         <p><t t-out="doc.employee_id.company_id.name"/> | Generado: <t t-out="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/></p>
                     </div>
 
@@ -50,19 +50,19 @@
                         </div>
                         <div class="info-block">
                             <div class="info-label">Monto Total</div>
-                            <div class="info-value">₡ <t t-out="'{:,.2f}'.format(doc.amount_total)"/></div>
+                            <div class="info-value">CRC <t t-out="'{:,.2f}'.format(doc.amount_total)"/></div>
                         </div>
                         <div class="info-block">
                             <div class="info-label">Cuota Mensual</div>
-                            <div class="info-value">₡ <t t-out="'{:,.2f}'.format(doc.installment_amount)"/></div>
+                            <div class="info-value">CRC <t t-out="'{:,.2f}'.format(doc.installment_amount)"/></div>
                         </div>
                         <div class="info-block">
                             <div class="info-label">Saldo Pendiente</div>
-                            <div class="info-value" style="color:#E74C3C;">₡ <t t-out="'{:,.2f}'.format(doc.amount_pending)"/></div>
+                            <div class="info-value" style="color:#E74C3C;">CRC <t t-out="'{:,.2f}'.format(doc.amount_pending)"/></div>
                         </div>
                         <div class="info-block">
                             <div class="info-label">Primer Descuento</div>
-                            <div class="info-value"><t t-out="doc.date_first_deduction.strftime('%d/%m/%Y') if doc.date_first_deduction else '—'"/></div>
+                            <div class="info-value"><t t-out="doc.date_first_deduction.strftime('%d/%m/%Y') if doc.date_first_deduction else '--'"/></div>
                         </div>
                     </div>
 
@@ -78,8 +78,8 @@
                             <tr>
                                 <th>#</th>
                                 <th>Fecha de Descuento</th>
-                                <th style="text-align:right;">Monto Cuota (₡)</th>
-                                <th style="text-align:right;">Saldo Después (₡)</th>
+                                <th style="text-align:right;">Monto Cuota (CRC)</th>
+                                <th style="text-align:right;">Saldo Despues (CRC)</th>
                                 <th style="text-align:center;">Estado</th>
                             </tr>
                         </thead>
@@ -89,9 +89,9 @@
                                 <t t-set="running_balance" t-value="running_balance - inst.amount"/>
                                 <tr>
                                     <td><t t-out="inst.sequence"/></td>
-                                    <td><t t-out="inst.due_date.strftime('%d/%m/%Y') if inst.due_date else '—'"/></td>
-                                    <td style="text-align:right;">₡ <t t-out="'{:,.2f}'.format(inst.amount)"/></td>
-                                    <td style="text-align:right;">₡ <t t-out="'{:,.2f}'.format(max(running_balance, 0))"/></td>
+                                    <td><t t-out="inst.due_date.strftime('%d/%m/%Y') if inst.due_date else '--'"/></td>
+                                    <td style="text-align:right;">CRC <t t-out="'{:,.2f}'.format(inst.amount)"/></td>
+                                    <td style="text-align:right;">CRC <t t-out="'{:,.2f}'.format(max(running_balance, 0))"/></td>
                                     <td style="text-align:center;">
                                         <t t-if="inst.state == 'deducted'">
                                             <span class="badge-paid"><i class="fa fa-check" title="Check"/> Descontado</span>
@@ -104,8 +104,8 @@
                             </t>
                             <tr class="total-row">
                                 <td colspan="2">TOTAL</td>
-                                <td style="text-align:right;">₡ <t t-out="'{:,.2f}'.format(doc.amount_total)"/></td>
-                                <td style="text-align:right;">₡ <t t-out="'{:,.2f}'.format(doc.amount_pending)"/></td>
+                                <td style="text-align:right;">CRC <t t-out="'{:,.2f}'.format(doc.amount_total)"/></td>
+                                <td style="text-align:right;">CRC <t t-out="'{:,.2f}'.format(doc.amount_pending)"/></td>
                                 <td></td>
                             </tr>
                         </tbody>
@@ -114,7 +114,7 @@
                     <div class="footer-note">
                         Los descuentos se realizan mensualmente en la boleta de pago del empleado.
                         Saldo pendiente al <t t-out="datetime.date.today().strftime('%d/%m/%Y')"/>:
-                        <strong>₡ <t t-out="'{:,.2f}'.format(doc.amount_pending)"/></strong> en
+                        <strong>CRC <t t-out="'{:,.2f}'.format(doc.amount_pending)"/></strong> en
                         <t t-out="len(doc.installment_ids.filtered(lambda i: i.state == 'pending'))"/> cuota(s) pendiente(s).
                         Desarrollado por Planilla CR para Odoo 19.
                     </div>
@@ -124,7 +124,7 @@
     </template>
 
     <record id="action_report_loan_amortization" model="ir.actions.report">
-        <field name="name">Tabla de Amortización</field>
+        <field name="name">Tabla de Amortizacion</field>
         <field name="model">planilla.employee.loan</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">planilla_cr.report_loan_amortization_template</field>

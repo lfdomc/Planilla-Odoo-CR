@@ -72,8 +72,8 @@ Módulo completo de gestión de planillas adaptado a la legislación costarricen
 | Hasta ₡941,000 | Exento |
 | ₡941,001 - ₡1,381,000 | 10% |
 | ₡1,381,001 - ₡2,423,000 | 15% |
-| ₡2,414,001 - ₡4,830,000 | 20% |
-| Más de ₡4,830,000 | 25% |
+| ₡2,423,001 - ₡4,845,000 | 20% |
+| Más de ₡4,845,000 | 25% |
 
 ## Instalación
 1. Copiar carpeta `planilla_cr` a `/addons` de tu instancia Odoo

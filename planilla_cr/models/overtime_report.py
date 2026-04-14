@@ -31,7 +31,7 @@ class OvertimeConsolidatedReport(models.TransientModel):
             domain.append(('employee_id.branch_id', '=', self.branch_id.id))
         records = self.env['planilla.overtime'].search(domain, order='employee_id, date')
         if not records:
-            raise UserError('No hay horas extras aprobadas en el período seleccionado.')
+            raise UserError('No hay horas extras aprobadas en el periodo seleccionado.')
 
         type_labels = dict(records._fields['overtime_type'].selection)
         rows, totals = [], {'hours': 0.0, 'amount': 0.0, 'simple': 0.0, 'double': 0.0, 'holiday': 0.0}
@@ -81,9 +81,9 @@ class OvertimeConsolidatedReport(models.TransientModel):
         title = wb.add_format({'bold': True, 'font_size': 13, 'color': '#1F4E79'})
 
         ws.write(0, 0, 'REPORTE CONSOLIDADO DE HORAS EXTRAS', title)
-        ws.write(1, 0, f"Período: {self.date_from} al {self.date_to}")
+        ws.write(1, 0, f"Periodo: {self.date_from} al {self.date_to}")
         ws.write(2, 0, f"Empresa: {self.company_id.name} | Sucursal: {self.branch_id.name if self.branch_id else 'Todas'}")
-        COLS = [('Empleado', 28), ('Sucursal', 18), ('Tipo', 15), ('Fecha', 12), ('Horas', 10), ('Monto (₡)', 16)]
+        COLS = [('Empleado', 28), ('Sucursal', 18), ('Tipo', 15), ('Fecha', 12), ('Horas', 10), ('Monto (CRC)', 16)]
         row = 4
         for col, (nm, w) in enumerate(COLS):
             ws.write(row, col, nm, hdr); ws.set_column(col, col, w)
@@ -109,12 +109,12 @@ class OvertimeConsolidatedReport(models.TransientModel):
             'datas': base64.b64encode(output.getvalue()),
             'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}?download=true', 'target': 'self'}
+        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}download=true', 'target': 'self'}
 
 
 class MtssExportWizard(models.TransientModel):
     _name = 'planilla.mtss.export'
-    _description = 'Exportación MTSS para Inspecciones'
+    _description = 'Exportacion MTSS para Inspecciones'
 
     company_id  = fields.Many2one('res.company', required=True,
                                    default=lambda self: self.env.company)
@@ -149,15 +149,15 @@ class MtssExportWizard(models.TransientModel):
         title = wb.add_format({'bold': True, 'font_size': 12, 'color': '#1F4E79'})
         date_fmt = wb.add_format({'border': 1, 'num_format': 'yyyy-mm-dd'})
 
-        ws.write(0, 0, 'PLANILLA PARA INSPECCIÓN MINISTERIO DE TRABAJO (MTSS)', title)
-        ws.write(1, 0, f"Empresa: {self.company_id.name} | Período: {self.date_from} al {self.date_to}")
+        ws.write(0, 0, 'PLANILLA PARA INSPECCION MINISTERIO DE TRABAJO (MTSS)', title)
+        ws.write(1, 0, f"Empresa: {self.company_id.name} | Periodo: {self.date_from} al {self.date_to}")
         ws.write(2, 0, f"Sucursal: {self.branch_id.name if self.branch_id else 'Todas'}")
 
         COLS = [
-            ('N°', 5), ('Nombre Completo', 30), ('Cédula', 15),
+            ('Ndeg', 5), ('Nombre Completo', 30), ('Cedula', 15),
             ('Tipo ID', 12), ('Jornada', 12), ('Fecha Ingreso', 14),
-            ('Puesto', 20), ('Sucursal', 18), ('Salario Bruto (₡)', 18),
-            ('CCSS N°', 15), ('Asegurado CCSS', 14), ('Estado', 10),
+            ('Puesto', 20), ('Sucursal', 18), ('Salario Bruto (CRC)', 18),
+            ('CCSS Ndeg', 15), ('Asegurado CCSS', 14), ('Estado', 10),
         ]
         row = 4
         ws.set_row(row, 30)
@@ -179,14 +179,14 @@ class MtssExportWizard(models.TransientModel):
             ws.write(row, 0,  i, norm)
             ws.write(row, 1,  emp.name or '', norm)
             ws.write(row, 2,  emp.identification_id or '', norm)
-            ws.write(row, 3,  emp.identification_type_id.name if emp.identification_type_id else 'Cédula', norm)
+            ws.write(row, 3,  emp.identification_type_id.name if emp.identification_type_id else 'Cedula', norm)
             ws.write(row, 4,  emp.schedule_type_id.name if emp.schedule_type_id else '', norm)
             ws.write(row, 5,  str(emp.entry_date) if emp.entry_date else '', norm)
             ws.write(row, 6,  emp.job_title or emp.job_id.name if emp.job_id else '', norm)
             ws.write(row, 7,  emp.branch_id.name if emp.branch_id else '', norm)
             ws.write(row, 8,  salary, money)
             ws.write(row, 9,  emp.ccss_number or '', norm)
-            ws.write(row, 10, 'Sí' if emp.ccss_insured else 'No', norm)
+            ws.write(row, 10, 'Si' if emp.ccss_insured else 'No', norm)
             ws.write(row, 11, 'Activo' if emp.active else 'Inactivo', norm)
 
         wb.close()
@@ -196,4 +196,4 @@ class MtssExportWizard(models.TransientModel):
             'datas': base64.b64encode(output.getvalue()),
             'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}?download=true', 'target': 'self'}
+        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}download=true', 'target': 'self'}

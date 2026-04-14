@@ -5,12 +5,23 @@
         <field name="model">planilla.send.payslip.wizard</field>
         <field name="arch" type="xml">
             <form string="Enviar Boletas de Pago">
+                <div class="alert alert-info" role="alert">
+                    <i class="fa fa-info-circle"/> El asunto, cuerpo y remitente se cargan
+                    desde <strong>Configuracion &gt; Contabilidad &gt; Correo de Boletas</strong>.
+                    Puede editarlos antes de enviar.
+                </div>
                 <group>
-                    <field name="payslip_ids" widget="many2many_tags"/>
-                    <field name="email_subject"/>
+                    <group>
+                        <field name="mail_server_id"/>
+                        <field name="email_from" placeholder="planilla@empresa.cr"/>
+                        <field name="email_subject"/>
+                    </group>
+                    <group>
+                        <field name="payslip_ids" widget="many2many_tags"/>
+                    </group>
                 </group>
-                <group>
-                    <field name="email_body" widget="html"/>
+                <group string="Cuerpo del Correo">
+                    <field name="email_body" widget="html" nolabel="1"/>
                 </group>
                 <footer>
                     <button name="action_send" type="object"

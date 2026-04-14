@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ══════════════════════════════════════════════════════════
+    <!-- ==========================================================
          REPORTE: RESUMEN MENSUAL
-    ══════════════════════════════════════════════════════════ -->
+    ========================================================== -->
     <template id="report_monthly_summary_template">
         <t t-call="web.html_container">
             <meta charset="UTF-8"/>
             <t t-foreach="docs" t-as="o">
                 <t t-set="data" t-value="o._get_report_data()"/>
                 <t t-set="sym" t-value="data['currency'].symbol if data.get('currency') else '$'"/>
+                <t t-set="company" t-value="o.company_id"/>
                 <t t-call="web.external_layout">
                     <main>
                         <div class="page">
@@ -171,20 +172,21 @@
         <field name="binding_model_id" ref="model_planilla_report_wizard"/>
     </record>
 
-    <!-- ══════════════════════════════════════════════════════════
+    <!-- ==========================================================
          REPORTE: PLANILLA CCSS
-    ══════════════════════════════════════════════════════════ -->
+    ========================================================== -->
     <template id="report_ccss_template">
         <t t-call="web.html_container">
             <meta charset="UTF-8"/>
             <t t-foreach="docs" t-as="o">
                 <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-set="company" t-value="o.company_id"/>
                 <t t-call="web.external_layout">
                     <main>
                         <div class="page">
                             <div class="row mb-4">
                                 <div class="col-12 text-center">
-                                    <h2 style="color:#1F4E79;">PLANILLA DE PATRONO — CCSS</h2>
+                                    <h2 style="color:#1F4E79;">PLANILLA DE PATRONO -- CCSS</h2>
                                     <h4><t t-out="data['wizard'].company_id.name"/></h4>
                                     <p class="text-muted">
                                         Período: <t t-out="str(data['wizard'].date_from)"/> al <t t-out="str(data['wizard'].date_to)"/>
@@ -261,14 +263,15 @@
         <field name="binding_model_id" ref="model_planilla_report_wizard"/>
     </record>
 
-    <!-- ══════════════════════════════════════════════════════════
+    <!-- ==========================================================
          REPORTE: COSTO POR SUCURSAL
-    ══════════════════════════════════════════════════════════ -->
+    ========================================================== -->
     <template id="report_cost_branch_template">
         <t t-call="web.html_container">
             <meta charset="UTF-8"/>
             <t t-foreach="docs" t-as="o">
                 <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-set="company" t-value="o.company_id"/>
                 <t t-call="web.external_layout">
                     <main>
                         <div class="page">
@@ -294,7 +297,7 @@
                                             <th>Empleado</th>
                                             <th class="text-end">Bruto</th>
                                             <th class="text-end">Cargas Sociales</th>
-                                            <th class="text-end">Provisiones</th>
+                                            <th class="text-end">Provisiónes</th>
                                             <th class="text-end">Costo Total</th>
                                         </tr>
                                     </thead>
@@ -336,14 +339,15 @@
         <field name="binding_model_id" ref="model_planilla_report_wizard"/>
     </record>
 
-    <!-- ══════════════════════════════════════════════════════════
+    <!-- ==========================================================
          REPORTE: DETALLE POR EMPLEADO
-    ══════════════════════════════════════════════════════════ -->
+    ========================================================== -->
     <template id="report_employee_detail_template">
         <t t-call="web.html_container">
             <meta charset="UTF-8"/>
             <t t-foreach="docs" t-as="o">
                 <t t-set="data" t-value="o._get_report_data()"/>
+                <t t-set="company" t-value="o.company_id"/>
                 <t t-call="web.external_layout">
                     <main>
                         <div class="page">

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ══ FORM ══════════════════════════════════════════════════════════ -->
+    <!-- == FORM ========================================================== -->
     <record id="view_embargo_form" model="ir.ui.view">
         <field name="name">planilla.embargo.form</field>
         <field name="model">planilla.embargo</field>
@@ -11,14 +11,14 @@
                     <button name="action_suspend" string="Suspender"
                             type="object" class="btn-warning"
                             invisible="state != 'active'"
-                            confirm="¿Suspender este embargo? Las boletas futuras no lo incluirán hasta reactivarlo."/>
+                            confirm="¿Suspender este embargo? Las boletas futuras no lo incluiran hasta reactivarlo."/>
                     <button name="action_reactivate" string="Reactivar"
                             type="object" class="btn-success"
                             invisible="state != 'suspended'"/>
                     <button name="action_end" string="Finalizar"
                             type="object"
                             invisible="state == 'ended'"
-                            confirm="¿Finalizar este embargo? Esta acción lo desactivará permanentemente."/>
+                            confirm="¿Finalizar este embargo? Esta accion lo desactivara permanentemente."/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="active,suspended,ended"/>
                 </header>
@@ -28,9 +28,9 @@
                     </div>
 
                     <div class="alert alert-danger" role="alert">
-                        <strong>⚖️ Art. 172 Código de Trabajo:</strong>
+                        <strong>⚖ Art. 172 Código de Trabajo:</strong>
                         El embargo judicial no puede superar el <strong>25 % del salario neto disponible</strong>
-                        (después de CCSS obrera, renta y pensiones alimentarias).
+                        (despues de CCSS obrera, renta y pensiónes alimentarias).
                         El patrono tiene <strong>responsabilidad solidaria</strong> si no aplica el descuento.
                     </div>
 
@@ -47,7 +47,7 @@
                         </group>
                     </group>
 
-                    <group string="📋 Datos Judiciales">
+                    <group string=" Datos Judiciales">
                         <group>
                             <field name="numero_expediente"/>
                             <field name="juzgado"/>
@@ -55,7 +55,7 @@
                         </group>
                     </group>
 
-                    <group string="👤 Beneficiario / Acreedor">
+                    <group string=" Beneficiario / Acreedor">
                         <group>
                             <field name="beneficiario_nombre"/>
                             <field name="beneficiario_cuenta"
@@ -63,7 +63,7 @@
                         </group>
                     </group>
 
-                    <group string="💰 Monto del Embargo">
+                    <group string="$ Monto del Embargo">
                         <group>
                             <field name="calculation_type" widget="radio"/>
                             <field name="fixed_amount"
@@ -76,8 +76,8 @@
                             <div class="alert alert-info" role="alert"
                                  invisible="calculation_type != 'percentage'">
                                 El porcentaje se aplica sobre el neto disponible
-                                (bruto − CCSS obrera − renta − pensiones alimentarias).
-                                Si varios embargos suman más del 25 %, se prorratean.
+                                (bruto − CCSS obrera − renta − pensiónes alimentarias).
+                                Si varios embargos suman mas del 25 %, se prorratean.
                             </div>
                         </group>
                     </group>
@@ -89,7 +89,7 @@
         </field>
     </record>
 
-    <!-- ══ LIST ══════════════════════════════════════════════════════════ -->
+    <!-- == LIST ========================================================== -->
     <record id="view_embargo_list" model="ir.ui.view">
         <field name="name">planilla.embargo.list</field>
         <field name="model">planilla.embargo</field>
@@ -104,7 +104,7 @@
                 <field name="juzgado" optional="show"/>
                 <field name="beneficiario_nombre"/>
                 <field name="calculation_type" string="Cálculo"/>
-                <field name="fixed_amount" string="Monto (₡)" optional="show"/>
+                <field name="fixed_amount" string="Monto (CRC)" optional="show"/>
                 <field name="percentage" string="%" optional="show"/>
                 <field name="date_start"/>
                 <field name="date_end" optional="show"/>
@@ -116,7 +116,7 @@
         </field>
     </record>
 
-    <!-- ══ SEARCH ════════════════════════════════════════════════════════ -->
+    <!-- == SEARCH ======================================================== -->
     <record id="view_embargo_search" model="ir.ui.view">
         <field name="name">planilla.embargo.search</field>
         <field name="model">planilla.embargo</field>
@@ -145,7 +145,7 @@
         </field>
     </record>
 
-    <!-- ══ ACTION ════════════════════════════════════════════════════════ -->
+    <!-- == ACTION ======================================================== -->
     <record id="action_embargo" model="ir.actions.act_window">
         <field name="name">Embargos Judiciales</field>
         <field name="res_model">planilla.embargo</field>
@@ -157,9 +157,9 @@
                 No hay embargos judiciales registrados.
             </p>
             <p>
-                Registre aquí los embargos judiciales ordenados por el juzgado.
-                Se descontarán automáticamente en cada boleta respetando el
-                límite del <strong>25 % del salario neto</strong> (Art. 172 CT).
+                Registre aqui los embargos judiciales ordenados por el juzgado.
+                Se descontaran automáticamente en cada boleta respetando el
+                limite del <strong>25 % del salario neto</strong> (Art. 172 CT).
             </p>
         </field>
     </record>

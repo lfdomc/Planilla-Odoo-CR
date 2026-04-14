@@ -39,8 +39,8 @@
                             <div class="kpi-v"><t t-out="'{:.1f}'.format(data['totals']['double'])"/> h</div>
                         </div>
                         <div class="kpi" style="background:#FDE8E8">
-                            <div class="kpi-l">Monto Total (₡)</div>
-                            <div class="kpi-v" style="color:#C0392B">₡ <t t-out="'{:,.0f}'.format(data['totals']['amount'])"/></div>
+                            <div class="kpi-l">Monto Total (CRC)</div>
+                            <div class="kpi-v" style="color:#C0392B">CRC <t t-out="'{:,.0f}'.format(data['totals']['amount'])"/></div>
                         </div>
                     </div>
                     <table>
@@ -49,7 +49,7 @@
                                 <th style="width:28%">Empleado</th>
                                 <th style="width:18%">Sucursal</th>
                                 <th>Tipo</th><th>Fecha</th><th>Horas</th>
-                                <th style="color:#FFCC00">Monto (₡)</th>
+                                <th style="color:#FFCC00">Monto (CRC)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -57,7 +57,7 @@
                                 <tr class="grp">
                                     <td colspan="4"><t t-out="grp['label']"/></td>
                                     <td><t t-out="'{:.1f}'.format(grp['hours'])"/> h</td>
-                                    <td>₡ <t t-out="'{:,.0f}'.format(grp['amount'])"/></td>
+                                    <td>CRC <t t-out="'{:,.0f}'.format(grp['amount'])"/></td>
                                 </tr>
                                 <t t-foreach="grp['rows']" t-as="r">
                                     <tr>
@@ -66,14 +66,14 @@
                                         <td><t t-out="r['type']"/></td>
                                         <td><t t-out="r['date']"/></td>
                                         <td><t t-out="'{:.1f}'.format(r['hours'])"/></td>
-                                        <td>₡ <t t-out="'{:,.0f}'.format(r['amount'])"/></td>
+                                        <td>CRC <t t-out="'{:,.0f}'.format(r['amount'])"/></td>
                                     </tr>
                                 </t>
                             </t>
                             <tr class="total-row">
                                 <td colspan="4">TOTAL GENERAL</td>
                                 <td><t t-out="'{:.1f}'.format(data['totals']['hours'])"/> h</td>
-                                <td>₡ <t t-out="'{:,.0f}'.format(data['totals']['amount'])"/></td>
+                                <td>CRC <t t-out="'{:,.0f}'.format(data['totals']['amount'])"/></td>
                             </tr>
                         </tbody>
                     </table>

@@ -1,19 +1,19 @@
 """
-Tests v5.15 — Módulo de Cobros al Empleado
+Tests v5.15 -- Modulo de Cobros al Empleado
 ===========================================
-Cubre todas las funcionalidades del módulo planilla.charge.type
+Cubre todas las funcionalidades del modulo planilla.charge.type
 y planilla.employee.charge introducidas en v5.15:
 
-  MODELO     — Creación, campos computados, constraints
-  FLUJO      — Estados draft → approved → applied → cancelled
-  ÚNICO      — Cobro único: se consume al sincronizar
-  RECURRENTE — Cobro recurrente: persiste, deduplicación por período
-  SUBSIDIO   — Cobros con subsidio patronal parcial y total
-  SYNC       — _sync_employee_charges individual y batch
-  CONTABLE   — Integración en asiento DEBE=HABER (cuenta 230970)
-  CANCEL     — action_cancel restaura cobros a 'approved'
-  VISTA EMP  — employee_charge_ids en hr.employee
-  SEGURIDAD  — Permisos, validaciones, constraints
+  MODELO     -- Creacion, campos computados, constraints
+  FLUJO      -- Estados draft -> approved -> applied -> cancelled
+  UNICO      -- Cobro unico: se consume al sincronizar
+  RECURRENTE -- Cobro recurrente: persiste, deduplicacion por periodo
+  SUBSIDIO   -- Cobros con subsidio patronal parcial y total
+  SYNC       -- _sync_employee_charges individual y batch
+  CONTABLE   -- Integracion en asiento DEBE=HABER (cuenta 230970)
+  CANCEL     -- action_cancel restaura cobros a 'approved'
+  VISTA EMP  -- employee_charge_ids en hr.employee
+  SEGURIDAD  -- Permisos, validaciones, constraints
 
 Ejecutar:
   docker compose exec web odoo -d prueba --test-enable \\
@@ -25,9 +25,9 @@ from odoo.tests.common import TransactionCase
 from odoo.exceptions import UserError, ValidationError
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
 # Helpers
-# ─────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
 
 def _goc(env, company, code, name, atype):
     """Get or create account by code."""
@@ -52,12 +52,12 @@ def _goc_deduction(env, code, name, dtype='employee'):
     return dc
 
 
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 # BASE
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 
 class TestEmployeeChargesBase(TransactionCase):
-    """Base compartida: empresa, config contable, catálogo de cobros, empleados."""
+    """Base compartida: empresa, config contable, catalogo de cobros, empleados."""
 
     @classmethod
     def setUpClass(cls):
@@ -89,7 +89,7 @@ class TestEmployeeChargesBase(TransactionCase):
             'type': 'general', 'company_id': co.id,
         })
 
-        # Calendarización mensual
+        # Calendarizacion mensual
         cls.calendar = env['planilla.calendar'].search([
             ('company_id', '=', co.id), ('frequency', '=', 'monthly'),
         ], limit=1) or env['planilla.calendar'].create({
@@ -97,7 +97,7 @@ class TestEmployeeChargesBase(TransactionCase):
             'company_id': co.id,
         })
 
-        # Configuración contable
+        # Configuracion contable
         config = env['planilla.accounting.config'].search(
             [('company_id', '=', co.id)], limit=1
         )
@@ -125,7 +125,7 @@ class TestEmployeeChargesBase(TransactionCase):
         })
         cls.config = config
 
-        # Código de deducción para cobros
+        # Codigo de deduccion para cobros
         cls.ded_cobro = _goc_deduction(env, 'COBRO_EMP', 'Cobro al Empleado')
 
         # Tipo de cobro: almuerzo fijo
@@ -141,15 +141,15 @@ class TestEmployeeChargesBase(TransactionCase):
             'company_id':         co.id,
         })
 
-        # Tipo de cobro: almuerzo por días
+        # Tipo de cobro: almuerzo por dias
         cls.tipo_dias = env['planilla.charge.type'].search(
             [('code', '=', 'TEST_DIAS')], limit=1
         ) or env['planilla.charge.type'].create({
-            'name':              'Almuerzo por Días Test',
+            'name':              'Almuerzo por Dias Test',
             'code':              'TEST_DIAS',
             'charge_mode':       'per_unit',
             'default_unit_price': 3_000,
-            'unit_label':        'días',
+            'unit_label':        'dias',
             'subsidy_pct':        0.0,
             'deduction_code_id':  cls.ded_cobro.id,
             'company_id':         co.id,
@@ -209,9 +209,9 @@ class TestEmployeeChargesBase(TransactionCase):
         })
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# 1. MODELO — campos computados y constraints
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# 1. MODELO -- campos computados y constraints
+# =======================================================================
 
 class TestChargeModel(TestEmployeeChargesBase):
 
@@ -225,7 +225,7 @@ class TestChargeModel(TestEmployeeChargesBase):
         self.assertEqual(charge.employee_amount, 30_000.0)
 
     def test_02_amounts_per_unit(self):
-        """Por unidades: total = cantidad × precio."""
+        """Por unidades: total = cantidad x precio."""
         emp = self._emp('Test Amounts 02')
         charge = self._charge(emp, self.tipo_dias, '2026-03-01', '2026-03-31',
                               quantity=15, unit_price=3_000, subsidy_pct=0)
@@ -252,9 +252,9 @@ class TestChargeModel(TestEmployeeChargesBase):
 
     def test_05_name_computed(self):
         """El nombre se computa: COB - Empleado - Tipo - YYYY-MM."""
-        emp = self._emp('Juan Pérez')
+        emp = self._emp('Juan Perez')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31')
-        self.assertIn('Juan Pérez', charge.name)
+        self.assertIn('Juan Perez', charge.name)
         self.assertIn('2026-03', charge.name)
 
     def test_06_constraint_dates(self):
@@ -278,7 +278,7 @@ class TestChargeModel(TestEmployeeChargesBase):
                          subsidy_pct=110.0)
 
     def test_09_onchange_charge_type_inherits_price(self):
-        """Al cambiar tipo_cobro, hereda precio y subsidio del catálogo."""
+        """Al cambiar tipo_cobro, hereda precio y subsidio del catalogo."""
         emp = self._emp('Test Onchange 09')
         charge = self.env['planilla.employee.charge'].new({
             'employee_id':    emp.id,
@@ -291,9 +291,9 @@ class TestChargeModel(TestEmployeeChargesBase):
         self.assertEqual(charge.subsidy_pct, self.tipo_subsidiado.subsidy_pct)
 
 
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 # 2. FLUJO DE ESTADOS
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
 
 class TestChargeStateMachine(TestEmployeeChargesBase):
 
@@ -319,7 +319,7 @@ class TestChargeStateMachine(TestEmployeeChargesBase):
             charge.action_approve()
 
     def test_13_cancel_approved(self):
-        """action_cancel en approved → cancelled."""
+        """action_cancel en approved -> cancelled."""
         emp = self._emp('Test State 13')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               state='approved')
@@ -327,7 +327,7 @@ class TestChargeStateMachine(TestEmployeeChargesBase):
         self.assertEqual(charge.state, 'cancelled')
 
     def test_14_reset_cancelled_to_draft(self):
-        """action_reset_to_draft en cancelled → draft."""
+        """action_reset_to_draft en cancelled -> draft."""
         emp = self._emp('Test State 14')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               state='approved')
@@ -336,7 +336,7 @@ class TestChargeStateMachine(TestEmployeeChargesBase):
         self.assertEqual(charge.state, 'draft')
 
     def test_15_cannot_cancel_applied_unique(self):
-        """Cobro único aplicado no se puede cancelar directamente."""
+        """Cobro unico aplicado no se puede cancelar directamente."""
         emp = self._emp('Test State 15')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               state='approved')
@@ -347,7 +347,7 @@ class TestChargeStateMachine(TestEmployeeChargesBase):
             charge.action_cancel()
 
     def test_16_recurring_can_cancel_even_if_applied(self):
-        """Cobro recurrente SÍ se puede cancelar aunque tenga payslip_id."""
+        """Cobro recurrente SI se puede cancelar aunque tenga payslip_id."""
         emp = self._emp('Test State 16')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               is_recurring=True, state='approved')
@@ -357,14 +357,14 @@ class TestChargeStateMachine(TestEmployeeChargesBase):
         self.assertEqual(charge.state, 'cancelled')
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# 3. SYNC — cobro único
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# 3. SYNC -- cobro unico
+# =======================================================================
 
 class TestSyncUniqueCharge(TestEmployeeChargesBase):
 
     def test_20_unique_charge_creates_deduction_line(self):
-        """Cobro único aprobado genera línea de deducción en la boleta."""
+        """Cobro unico aprobado genera linea de deduccion en la boleta."""
         emp = self._emp('Test Sync 20')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               unit_price=30_000, state='approved')
@@ -380,7 +380,7 @@ class TestSyncUniqueCharge(TestEmployeeChargesBase):
         self.assertEqual(lines[0].deduction_category, 'other')
 
     def test_21_unique_charge_marked_as_applied(self):
-        """Cobro único pasa a 'applied' después del sync."""
+        """Cobro unico pasa a 'applied' despues del sync."""
         emp = self._emp('Test Sync 21')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               state='approved')
@@ -390,19 +390,19 @@ class TestSyncUniqueCharge(TestEmployeeChargesBase):
         self.assertEqual(charge.payslip_id.id, slip.id)
 
     def test_22_unique_charge_no_duplicate_on_re_sync(self):
-        """Re-sincronizar no crea duplicados para cobros únicos."""
+        """Re-sincronizar no crea duplicados para cobros unicos."""
         emp = self._emp('Test Sync 22')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               state='approved')
         slip = self._slip(emp)
         slip._sync_employee_charges()
         count_before = len(slip.deduction_line_ids)
-        # Re-sync: el cobro ya está applied, no debe crear otra línea
+        # Re-sync: el cobro ya esta applied, no debe crear otra linea
         slip._sync_employee_charges()
         self.assertEqual(len(slip.deduction_line_ids), count_before)
 
     def test_23_full_subsidy_no_deduction_line(self):
-        """Subsidio 100%: no crea línea pero marca cobro como applied."""
+        """Subsidio 100%: no crea linea pero marca cobro como applied."""
         emp = self._emp('Test Sync 23')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               unit_price=30_000, subsidy_pct=100.0, state='approved')
@@ -412,18 +412,18 @@ class TestSyncUniqueCharge(TestEmployeeChargesBase):
         lines = slip.deduction_line_ids.filtered(
             lambda l: l.employee_charge_id == charge.id
         )
-        self.assertEqual(len(lines), 0, "No debe crear línea si subsidio=100%")
+        self.assertEqual(len(lines), 0, "No debe crear linea si subsidio=100%")
         self.assertEqual(charge.state, 'applied')
 
     def test_24_charge_outside_period_not_synced(self):
-        """Cobro fuera del período de la boleta no se sincroniza."""
+        """Cobro fuera del periodo de la boleta no se sincroniza."""
         emp = self._emp('Test Sync 24')
         # Cobro de febrero, boleta de marzo
         charge = self._charge(emp, self.tipo_almuerzo, '2026-02-01', '2026-02-28',
                               state='approved')
         slip = self._slip(emp, '2026-03-01', '2026-03-31')
         slip._sync_employee_charges()
-        self.assertEqual(charge.state, 'approved', "No debe aplicarse fuera del período")
+        self.assertEqual(charge.state, 'approved', "No debe aplicarse fuera del periodo")
 
     def test_25_draft_charge_not_synced(self):
         """Cobro en draft no se sincroniza (requiere estar approved)."""
@@ -439,9 +439,9 @@ class TestSyncUniqueCharge(TestEmployeeChargesBase):
         self.assertEqual(len(lines), 0)
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# 4. SYNC — cobro recurrente
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# 4. SYNC -- cobro recurrente
+# =======================================================================
 
 class TestSyncRecurringCharge(TestEmployeeChargesBase):
 
@@ -474,7 +474,7 @@ class TestSyncRecurringCharge(TestEmployeeChargesBase):
         self.assertIn('2026-03', charge.applied_periods)
 
     def test_32_recurring_no_duplicate_same_period(self):
-        """Cobro recurrente no se aplica dos veces en el mismo período."""
+        """Cobro recurrente no se aplica dos veces en el mismo periodo."""
         emp = self._emp('Test Recur 32')
         charge = self._charge(
             emp, self.tipo_almuerzo, '2026-01-01', '2026-12-31',
@@ -484,12 +484,12 @@ class TestSyncRecurringCharge(TestEmployeeChargesBase):
         slip._sync_employee_charges()
         count_after_first = len(slip.deduction_line_ids)
 
-        # Segunda sincronización del mismo período → no debe agregar línea
+        # Segunda sincronizacion del mismo periodo -> no debe agregar linea
         slip._sync_employee_charges()
         self.assertEqual(len(slip.deduction_line_ids), count_after_first)
 
     def test_33_recurring_applies_multiple_periods(self):
-        """Cobro recurrente se aplica en períodos diferentes."""
+        """Cobro recurrente se aplica en periodos diferentes."""
         emp = self._emp('Test Recur 33')
         charge = self._charge(
             emp, self.tipo_almuerzo, '2026-01-01', '2026-12-31',
@@ -517,13 +517,13 @@ class TestSyncRecurringCharge(TestEmployeeChargesBase):
         self.assertEqual(len(lines_apr), 1)
 
     def test_34_recurring_respects_recurrence_end(self):
-        """Cobro recurrente no se aplica después de recurrence_end."""
+        """Cobro recurrente no se aplica despues de recurrence_end."""
         emp = self._emp('Test Recur 34')
         charge = self._charge(
             emp, self.tipo_almuerzo, '2026-01-01', '2026-12-31',
             is_recurring=True, recurrence_end='2026-02-28', state='approved'
         )
-        # Boleta de marzo: después del fin de recurrencia
+        # Boleta de marzo: despues del fin de recurrencia
         slip = self._slip(emp, '2026-03-01', '2026-03-31')
         slip._sync_employee_charges()
 
@@ -531,23 +531,23 @@ class TestSyncRecurringCharge(TestEmployeeChargesBase):
             lambda l: l.employee_charge_id == charge.id
         )
         self.assertEqual(len(lines), 0,
-                         "No debe aplicarse después de recurrence_end")
+                         "No debe aplicarse despues de recurrence_end")
 
     def test_35_applied_periods_helper_methods(self):
-        """Métodos helper de deduplicación funcionan correctamente."""
+        """Metodos helper de deduplicacion funcionan correctamente."""
         emp = self._emp('Test Recur 35')
         charge = self._charge(
             emp, self.tipo_almuerzo, '2026-01-01', '2026-12-31',
             is_recurring=True, state='approved'
         )
-        # Inicialmente vacío
+        # Inicialmente vacio
         self.assertFalse(charge._is_period_already_applied(date(2026, 3, 1)))
 
-        # Marcar período
+        # Marcar periodo
         charge._mark_period_applied(date(2026, 3, 1))
         self.assertTrue(charge._is_period_already_applied(date(2026, 3, 1)))
 
-        # Otro período no marcado
+        # Otro periodo no marcado
         self.assertFalse(charge._is_period_already_applied(date(2026, 4, 1)))
 
         # Marcar otro
@@ -557,14 +557,14 @@ class TestSyncRecurringCharge(TestEmployeeChargesBase):
         self.assertIn('2026-04', periods)
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# 5. SYNC — batch (múltiples empleados)
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# 5. SYNC -- batch (multiples empleados)
+# =======================================================================
 
 class TestSyncBatch(TestEmployeeChargesBase):
 
     def test_40_batch_applies_to_all_employees(self):
-        """_sync_employee_charges_batch aplica cobros a múltiples empleados."""
+        """_sync_employee_charges_batch aplica cobros a multiples empleados."""
         emp1 = self._emp('Batch Emp 1')
         emp2 = self._emp('Batch Emp 2')
 
@@ -585,13 +585,13 @@ class TestSyncBatch(TestEmployeeChargesBase):
         self.assertEqual(charge2.state, 'applied')
 
     def test_41_batch_recurring_no_duplicate(self):
-        """Batch no duplica cobros recurrentes ya aplicados en el período."""
+        """Batch no duplica cobros recurrentes ya aplicados en el periodo."""
         emp = self._emp('Batch Recur 41')
         charge = self._charge(
             emp, self.tipo_almuerzo, '2026-01-01', '2026-12-31',
             is_recurring=True, state='approved'
         )
-        # Marcar período como ya aplicado
+        # Marcar periodo como ya aplicado
         charge._mark_period_applied(date(2026, 3, 1))
 
         slip = self._slip(emp, '2026-03-01', '2026-03-31')
@@ -601,7 +601,7 @@ class TestSyncBatch(TestEmployeeChargesBase):
             lambda l: l.employee_charge_id == charge.id
         )
         self.assertEqual(len(lines), 0,
-                         "Batch no debe duplicar período ya aplicado")
+                         "Batch no debe duplicar periodo ya aplicado")
 
     def test_42_batch_isolated_between_employees(self):
         """Batch no aplica cobros de un empleado a otro."""
@@ -620,27 +620,27 @@ class TestSyncBatch(TestEmployeeChargesBase):
                          "emp2 no debe recibir cobros de emp1")
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# 6. INTEGRACIÓN CONTABLE
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# 6. INTEGRACION CONTABLE
+# =======================================================================
 
 class TestChargeAccounting(TestEmployeeChargesBase):
 
     def test_50_cobro_creates_deduction_line_with_correct_amount(self):
-        """Cobro genera línea de deducción con el monto correcto en la boleta."""
+        """Cobro genera linea de deduccion con el monto correcto en la boleta."""
         emp = self._emp('Test Acc 50', salary=500_000)
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               unit_price=30_000, state='approved')
         slip = self._slip(emp)
         slip._sync_employee_charges()
 
-        # Verificar que la línea de deducción existe con el monto correcto
+        # Verificar que la linea de deduccion existe con el monto correcto
         cobro_lines = slip.deduction_line_ids.filtered(
             lambda l: l.employee_charge_id == charge.id
         )
-        self.assertEqual(len(cobro_lines), 1, "Debe existir una línea de cobro")
+        self.assertEqual(len(cobro_lines), 1, "Debe existir una linea de cobro")
         self.assertAlmostEqual(cobro_lines[0].amount, 30_000.0, places=2,
-                               msg="El monto de la deducción debe ser 30,000")
+                               msg="El monto de la deduccion debe ser 30,000")
         self.assertEqual(cobro_lines[0].deduction_category, 'other')
         self.assertEqual(cobro_lines[0].line_type, 'deduction')
 
@@ -680,7 +680,7 @@ class TestChargeAccounting(TestEmployeeChargesBase):
             lambda l: l.account_id.id == self.acc_cobro.id
         )
         self.assertTrue(cobro_lines,
-                        "Debe existir línea en cuenta 230970 Cobros al Empleado")
+                        "Debe existir linea en cuenta 230970 Cobros al Empleado")
         total_cobro_credit = sum(l.credit for l in cobro_lines)
         self.assertAlmostEqual(total_cobro_credit, 30_000.0, places=2)
 
@@ -717,21 +717,21 @@ class TestChargeAccounting(TestEmployeeChargesBase):
         slip = self._slip(emp)
         slip._sync_employee_charges()
 
-        # Línea de deducción debe ser employee_amount (20,000), no total (40,000)
+        # Linea de deduccion debe ser employee_amount (20,000), no total (40,000)
         cobro_lines = slip.deduction_line_ids.filtered(
             lambda l: l.deduction_category == 'other' and l.employee_charge_id
         )
         self.assertAlmostEqual(cobro_lines[0].amount, 20_000.0, places=2)
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# 7. CANCELACIÓN DE BOLETA — restaura cobros
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# 7. CANCELACION DE BOLETA -- restaura cobros
+# =======================================================================
 
 class TestCancelRestoresCharges(TestEmployeeChargesBase):
 
     def test_60_cancel_payslip_restores_unique_charge(self):
-        """Cancelar boleta restaura cobro único a 'approved'."""
+        """Cancelar boleta restaura cobro unico a 'approved'."""
         emp = self._emp('Test Cancel 60')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               state='approved')
@@ -743,7 +743,7 @@ class TestCancelRestoresCharges(TestEmployeeChargesBase):
         self.assertEqual(charge.state, 'approved',
                          "Cobro debe volver a approved al cancelar boleta")
         self.assertFalse(charge.payslip_id,
-                         "payslip_id debe quedar vacío")
+                         "payslip_id debe quedar vacio")
 
     def test_61_cancel_payslip_recurring_clears_payslip_link(self):
         """Cancelar boleta en cobro recurrente limpia payslip_id."""
@@ -761,15 +761,15 @@ class TestCancelRestoresCharges(TestEmployeeChargesBase):
         self.assertEqual(charge.state, 'approved')
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# 8. CATÁLOGO — planilla.charge.type
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# 8. CATALOGO -- planilla.charge.type
+# =======================================================================
 
 class TestChargeTypeCatalog(TestEmployeeChargesBase):
 
     def test_70_charge_type_unique_code(self):
-        """El código de tipo de cobro debe ser único por compañía."""
-        # TEST_ALMUERZO ya existe en setUpClass — crear uno igual debe fallar
+        """El codigo de tipo de cobro debe ser unico por compania."""
+        # TEST_ALMUERZO ya existe en setUpClass -- crear uno igual debe fallar
         with self.assertRaises(ValidationError):
             self.env['planilla.charge.type'].create({
                 'name':             'Almuerzo Duplicado',
@@ -784,7 +784,7 @@ class TestChargeTypeCatalog(TestEmployeeChargesBase):
         """Subsidio fuera de [0,100] en charge.type lanza ValidationError."""
         with self.assertRaises(ValidationError):
             self.env['planilla.charge.type'].create({
-                'name':              'Tipo Inválido',
+                'name':              'Tipo Invalido',
                 'code':              'TEST_INV',
                 'charge_mode':       'fixed',
                 'default_unit_price': 1_000,
@@ -794,7 +794,7 @@ class TestChargeTypeCatalog(TestEmployeeChargesBase):
             })
 
     def test_72_charge_count_on_type(self):
-        """charge_count en el tipo refleja el número de cobros activos."""
+        """charge_count en el tipo refleja el numero de cobros activos."""
         emp = self._emp('Test CType 72')
         initial_count = self.tipo_almuerzo.charge_count
 
@@ -816,11 +816,11 @@ class TestChargeTypeCatalog(TestEmployeeChargesBase):
             self.assertTrue(tipo, f"Tipo de cobro {code} no encontrado en BD")
 
     def test_74_deduction_code_cobro_emp_present(self):
-        """El código COBRO_EMP existe en planilla.deduction.code."""
+        """El codigo COBRO_EMP existe en planilla.deduction.code."""
         dc = self.env['planilla.deduction.code'].search(
             [('code', '=', 'COBRO_EMP')], limit=1
         )
-        self.assertTrue(dc, "Código COBRO_EMP debe existir en deduction.code")
+        self.assertTrue(dc, "Codigo COBRO_EMP debe existir en deduction.code")
 
     def test_75_action_view_charges_returns_domain(self):
         """action_view_charges retorna action con domain filtrado por tipo."""
@@ -830,9 +830,9 @@ class TestChargeTypeCatalog(TestEmployeeChargesBase):
         self.assertIn(str(self.tipo_almuerzo.id), domain_str)
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# 9. INTEGRACIÓN — employee_charge_ids en hr.employee
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# 9. INTEGRACION -- employee_charge_ids en hr.employee
+# =======================================================================
 
 class TestEmployeeChargeIntegration(TestEmployeeChargesBase):
 
@@ -851,7 +851,7 @@ class TestEmployeeChargeIntegration(TestEmployeeChargesBase):
         self.assertIn(charge, emp.employee_charge_ids)
 
     def test_82_multiple_charges_per_employee(self):
-        """Un empleado puede tener múltiples cobros activos."""
+        """Un empleado puede tener multiples cobros activos."""
         emp = self._emp('Test Emp 82')
         c1 = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31')
         c2 = self._charge(emp, self.tipo_dias,     '2026-03-01', '2026-03-31',
@@ -860,22 +860,22 @@ class TestEmployeeChargeIntegration(TestEmployeeChargesBase):
         self.assertIn(c2, emp.employee_charge_ids)
 
     def test_83_create_payslip_auto_syncs_approved_charges(self):
-        """Al crear boleta se sincronizan automáticamente los cobros aprobados."""
+        """Al crear boleta se sincronizan automaticamente los cobros aprobados."""
         emp = self._emp('Test Emp 83')
         charge = self._charge(emp, self.tipo_almuerzo, '2026-03-01', '2026-03-31',
                               unit_price=25_000, state='approved')
-        # Crear boleta — el create() llama _sync_employee_charges()
+        # Crear boleta -- el create() llama _sync_employee_charges()
         slip = self._slip(emp)
         lines = slip.deduction_line_ids.filtered(
             lambda l: l.employee_charge_id == charge.id
         )
         self.assertEqual(len(lines), 1,
-                         "La boleta debe tener la línea del cobro al crearse")
+                         "La boleta debe tener la linea del cobro al crearse")
 
 
-# ═══════════════════════════════════════════════════════════════════════
-# 10. REPORTE — action_print_charge
-# ═══════════════════════════════════════════════════════════════════════
+# =======================================================================
+# 10. REPORTE -- action_print_charge
+# =======================================================================
 
 class TestChargeReport(TestEmployeeChargesBase):
 
@@ -888,7 +888,7 @@ class TestChargeReport(TestEmployeeChargesBase):
         self.assertEqual(action.get('type'), 'ir.actions.report')
 
     def test_91_report_action_exists_in_db(self):
-        """El action del reporte está registrado en ir.actions.report."""
+        """El action del reporte esta registrado en ir.actions.report."""
         report = self.env.ref(
             'planilla_cr.action_report_employee_charge',
             raise_if_not_found=False
@@ -897,7 +897,7 @@ class TestChargeReport(TestEmployeeChargesBase):
                         "action_report_employee_charge debe existir en BD")
 
     def test_92_summary_report_action_exists_in_db(self):
-        """El action del reporte resumen está registrado."""
+        """El action del reporte resumen esta registrado."""
         report = self.env.ref(
             'planilla_cr.action_report_employee_charge_summary',
             raise_if_not_found=False

@@ -4,7 +4,7 @@
         <field name="name">planilla.termination.list</field>
         <field name="model">planilla.termination</field>
         <field name="arch" type="xml">
-            <list string="Liquidaciones / Finiquitos"
+            <list string="Liquidaciónes / Finiquitos"
                   decoration-success="state=='paid'"
                   decoration-warning="state=='confirmed'"
                   decoration-muted="state=='cancelled'">
@@ -34,6 +34,9 @@
                             invisible="state != 'confirmed'" class="btn-success"/>
                     <button name="action_print_termination" type="object" string="Imprimir Finiquito"
                             invisible="state == 'draft'"/>
+                    <button name="action_print_carta_despido" type="object" string="Carta de Despido"
+                            invisible="state == 'draft' or termination_reason not in ('despido_justif','despido_injust','renuncia')"
+                            class="btn-secondary" icon="fa-file-text-o"/>
                     <button name="action_view_accounting_entry" type="object" string="Ver Asiento"
                             invisible="not move_id"/>
                     <field name="move_id" invisible="1"/>
@@ -114,7 +117,7 @@
                             <field name="cesantia_amount" string="Monto cesantía (₡)" readonly="1"
                                    invisible="not cesantia_applies"/>
                             <div invisible="cesantia_applies" style="color:#888; font-size:12px;">
-                                No aplica según el motivo de salida seleccionado.
+                                No aplica según el motivo de salida selecciónado.
                             </div>
                         </group>
 
@@ -127,7 +130,7 @@
 
                         <!-- Aguinaldo -->
                         <group string="Aguinaldo Proporcional (Art. 228 CT)">
-                            <field name="aguinaldo_months" string="Meses del periodo" readonly="1"/>
+                            <field name="aguinaldo_months" string="Meses del período" readonly="1"/>
                             <field name="aguinaldo_amount" string="Monto aguinaldo (₡)" readonly="1"/>
                         </group>
                     </group>
@@ -147,7 +150,7 @@
                                    invisible="not other_payments"
                                    placeholder="Ej: Bono, comisión pendiente..."/>
                         </group>
-                        <group string="Deducciones">
+                        <group string="Deducciónes">
                             <field name="deductions" string="Monto a deducir (₡)"/>
                             <field name="deductions_note" string="Descripción"
                                    invisible="not deductions"
@@ -174,7 +177,7 @@
                                 </div>
                             </div>
                             <div style="text-align:right;">
-                                <div style="font-size:13px; opacity:0.8;">(-) Otras Deducciones</div>
+                                <div style="font-size:13px; opacity:0.8;">(-) Otras Deducciónes</div>
                                 <div style="font-size:16px;">
                                     ₡ <field name="deductions" nolabel="1" readonly="1"
                                               style="color:#fff; font-size:16px;"/>
@@ -191,10 +194,20 @@
                     </div>
 
                     <!-- Notas -->
-                    <group style="margin-top:16px;">
-                        <field name="note" string="Observaciones"
-                               placeholder="Observaciones adicionales..." nolabel="1"/>
-                    </group>
+                    <div style="margin-top:16px; padding:0 16px;"
+                         invisible="termination_reason not in ('despido_justif','despido_injust','renuncia','mutuo')">
+                        <div invisible="termination_reason not in ('despido_justif','despido_injust')"
+                             class="alert alert-info" role="alert" style="margin-bottom:8px;">
+                            <i class="fa fa-info-circle"/> El texto ingresado en <strong>Motivo del Despido</strong>
+                            aparecera automaticamente en la carta de despido al imprimirla.
+                        </div>
+                        <field name="note"
+                               string="Motivo del Despido"
+                               placeholder="Describa el motivo del despido (absencias, incumplimientos, etc.)"
+                               nolabel="1"
+                               required="termination_reason in ('despido_justif', 'despido_injust')"
+                               style="width:100%;"/>
+                    </div>
 
                 </sheet>
                 <chatter/>
@@ -203,7 +216,7 @@
     </record>
 
     <record id="action_termination" model="ir.actions.act_window">
-        <field name="name">Liquidaciones / Finiquitos</field>
+        <field name="name">Liquidaciónes / Finiquitos</field>
         <field name="res_model">planilla.termination</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
@@ -217,7 +230,7 @@
 
     <!-- Server action que abre el formulario en pantalla completa -->
     <record id="action_termination_form_full" model="ir.actions.act_window">
-        <field name="name">Liquidaciones / Finiquitos</field>
+        <field name="name">Liquidaciónes / Finiquitos</field>
         <field name="res_model">planilla.termination</field>
         <field name="view_mode">form,list</field>
         <field name="target">current</field>

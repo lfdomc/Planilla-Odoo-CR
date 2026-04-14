@@ -20,7 +20,7 @@ class PayrollDashboard(models.TransientModel):
     date_to = fields.Date(string='Hasta', required=True,
                           default=lambda self: date.today())
 
-    # Métricas
+    # Metricas
     active_employees = fields.Integer(compute='_compute_metrics', string='Empleados Activos')
     payslips_count = fields.Integer(compute='_compute_metrics', string='Boletas Pagadas')
     total_gross = fields.Monetary(compute='_compute_metrics', string='Salario Bruto Total', currency_field='currency_id')
@@ -30,7 +30,7 @@ class PayrollDashboard(models.TransientModel):
     pending_payrolls = fields.Integer(compute='_compute_metrics', string='Planillas Pendientes')
     paid_payrolls = fields.Integer(compute='_compute_metrics', string='Planillas Pagadas')
 
-    # ── KPIs de RRHH ─────────────────────────────────────────────────
+    # -- KPIs de RRHH -------------------------------------------------
     employees_anniversary = fields.Integer(
         compute='_compute_hr_kpis', string='Aniversarios este mes'
     )
@@ -38,14 +38,14 @@ class PayrollDashboard(models.TransientModel):
         compute='_compute_hr_kpis', string='Empleados con vacaciones negativas'
     )
     active_loans_count = fields.Integer(
-        compute='_compute_hr_kpis', string='Préstamos Activos'
+        compute='_compute_hr_kpis', string='Prestamos Activos'
     )
     active_loans_amount = fields.Monetary(
-        compute='_compute_hr_kpis', string='Saldo Préstamos Pendiente (₡)',
+        compute='_compute_hr_kpis', string='Saldo Prestamos Pendiente (CRC)',
         currency_field='currency_id'
     )
     # Comparativo mes anterior
-    # ── Alertas urgentes ──────────────────────────────────────────────
+    # -- Alertas urgentes ----------------------------------------------
     urgent_overdue_loans = fields.Integer(
         compute='_compute_urgent_alerts', string='Cuotas Vencidas'
     )
@@ -56,28 +56,28 @@ class PayrollDashboard(models.TransientModel):
         compute='_compute_urgent_alerts', string='Incapacidades Activas'
     )
 
-    # ── Comparación períodos ─────────────────────────────────────────
-    compare_date_from = fields.Date(string='Período Anterior Desde')
-    compare_date_to   = fields.Date(string='Período Anterior Hasta')
-    show_comparison   = fields.Boolean(string='Comparar Períodos', default=False)
+    # -- Comparacion periodos -----------------------------------------
+    compare_date_from = fields.Date(string='Periodo Anterior Desde')
+    compare_date_to   = fields.Date(string='Periodo Anterior Hasta')
+    show_comparison   = fields.Boolean(string='Comparar Periodos', default=False)
 
     # Deltas computed
-    delta_gross   = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Δ Bruto')
-    delta_net     = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Δ Neto')
-    delta_cost    = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Δ Costo Empresa')
-    delta_emp     = fields.Integer(compute='_compute_comparison', string='Δ Empleados')
-    compare_gross = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Bruto Período Anterior')
-    compare_net   = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Neto Período Anterior')
-    compare_cost  = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Costo Período Anterior')
+    delta_gross   = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string=' Bruto')
+    delta_net     = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string=' Neto')
+    delta_cost    = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string=' Costo Empresa')
+    delta_emp     = fields.Integer(compute='_compute_comparison', string=' Empleados')
+    compare_gross = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Bruto Periodo Anterior')
+    compare_net   = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Neto Periodo Anterior')
+    compare_cost  = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Costo Periodo Anterior')
     new_employees = fields.Char(compute='_compute_comparison', string='Nuevos Ingresos')
     left_employees = fields.Char(compute='_compute_comparison', string='Salidas')
 
     prev_total_gross = fields.Monetary(
-        compute='_compute_hr_kpis', string='Nómina Mes Anterior (₡)',
+        compute='_compute_hr_kpis', string='Nomina Mes Anterior (CRC)',
         currency_field='currency_id'
     )
     variation_pct = fields.Float(
-        compute='_compute_hr_kpis', string='Variación vs mes anterior (%)',
+        compute='_compute_hr_kpis', string='Variacion vs mes anterior (%)',
         digits=(5, 2)
     )
 
@@ -120,12 +120,12 @@ class PayrollDashboard(models.TransientModel):
             left_ids = prev['emps'] - curr['emps']
             if new_ids:
                 new_names = self.env['hr.employee'].browse(list(new_ids)).mapped('name')
-                rec.new_employees = ', '.join(new_names[:5]) + (f' (+{len(new_names)-5} más)' if len(new_names) > 5 else '')
+                rec.new_employees = ', '.join(new_names[:5]) + (f' (+{len(new_names)-5} mas)' if len(new_names) > 5 else '')
             else:
                 rec.new_employees = 'Ninguno'
             if left_ids:
                 left_names = self.env['hr.employee'].browse(list(left_ids)).mapped('name')
-                rec.left_employees = ', '.join(left_names[:5]) + (f' (+{len(left_names)-5} más)' if len(left_names) > 5 else '')
+                rec.left_employees = ', '.join(left_names[:5]) + (f' (+{len(left_names)-5} mas)' if len(left_names) > 5 else '')
             else:
                 rec.left_employees = 'Ninguno'
 
@@ -137,7 +137,7 @@ class PayrollDashboard(models.TransientModel):
         for rec in self:
             company = rec.company_id
 
-            # 1. Cuotas de préstamos vencidas (due_date < hoy, state=pending)
+            # 1. Cuotas de prestamos vencidas (due_date < hoy, state=pending)
             overdue = self.env['planilla.loan.installment'].search_count([
                 ('loan_id.employee_id.company_id', '=', company.id),
                 ('state', '=', 'pending'),
@@ -145,7 +145,7 @@ class PayrollDashboard(models.TransientModel):
             ])
             rec.urgent_overdue_loans = overdue
 
-            # 2. Empleados con vacaciones próximas a prescribir (Art. 156 CT)
+            # 2. Empleados con vacaciones proximas a prescribir (Art. 156 CT)
             # Acumuladas hace >22 meses y sin tomar vacaciones recientes
             employees_at_risk = 0
             # L2 FIX: batch query en vez de N+1
@@ -157,7 +157,7 @@ class PayrollDashboard(models.TransientModel):
             ])
             if employees:
                 emp_ids = employees.ids
-                # Traer la última vacación de TODOS los empleados en una sola query
+                # Traer la ultima vacacion de TODOS los empleados en una sola query
                 # FIX v53: campo correcto es date_start, no date_from (no existe en vacation.payment)
                 last_vacs = self.env['planilla.vacation.payment'].read_group(
                     domain=[
@@ -255,7 +255,7 @@ class PayrollDashboard(models.TransientModel):
         for rec in self:
             company = rec.company_id
 
-            # ── Aniversarios laborales este mes ──────────────────────
+            # -- Aniversarios laborales este mes ----------------------
             emp_all = self.env['hr.employee'].search([
                 ('company_id', '=', company.id),
                 ('active', '=', True),
@@ -267,14 +267,14 @@ class PayrollDashboard(models.TransientModel):
                 and emp.entry_date.year < today.year
             )
 
-            # ── Vacaciones negativas ──────────────────────────────────
+            # -- Vacaciones negativas ----------------------------------
             rec.employees_negative_vacation = self.env['hr.employee'].search_count([
                 ('company_id', '=', company.id),
                 ('active', '=', True),
                 ('vacation_days_available', '<', 0),
             ])
 
-            # ── Prestamos activos ─────────────────────────────────────
+            # -- Prestamos activos -------------------------------------
             loans = self.env['planilla.employee.loan'].search([
                 ('employee_id.company_id', '=', company.id),
                 ('state', 'in', ('approved', 'active')),
@@ -282,7 +282,7 @@ class PayrollDashboard(models.TransientModel):
             rec.active_loans_count  = len(loans)
             rec.active_loans_amount = round(sum(loans.mapped('amount_pending')), 2)
 
-            # ── Nomina mes anterior y variacion ───────────────────────
+            # -- Nomina mes anterior y variacion -----------------------
             rec.prev_total_gross = 0.0
             rec.variation_pct    = 0.0
             if rec.date_from and rec.date_to:
@@ -386,7 +386,7 @@ class PayrollDashboard(models.TransientModel):
                and (today.year - e.entry_date.year) > 0]
         return {
             'type': 'ir.actions.act_window',
-            'name': f'Aniversarios — {today.strftime("%B %Y")}',
+            'name': f'Aniversarios -- {today.strftime("%B %Y")}',
             'res_model': 'hr.employee',
             'view_mode': 'list,form',
             'domain': [('id', 'in', ids)],
@@ -407,10 +407,10 @@ class PayrollDashboard(models.TransientModel):
         }
 
     def action_open_active_loans(self):
-        """Abre lista de préstamos activos."""
+        """Abre lista de prestamos activos."""
         return {
             'type': 'ir.actions.act_window',
-            'name': 'Préstamos Activos',
+            'name': 'Prestamos Activos',
             'res_model': 'planilla.employee.loan',
             'view_mode': 'list,form',
             'domain': [
@@ -453,7 +453,7 @@ class PayrollDashboard(models.TransientModel):
         }
 
     def action_refresh(self):
-        """Recalcula las métricas con el rango actual."""
+        """Recalcula las metricas con el rango actual."""
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'planilla.dashboard',

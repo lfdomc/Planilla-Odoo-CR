@@ -12,6 +12,20 @@
         <field name="description">Cuota obrera CCSS: 5.5% SEM + 2.5% IVM + 1% IMAS + 0.5% Banco Popular + 0.17% Asignaciones Familiares + 1.0% FODESAF</field>
     </record>
 
+    <!-- CCSS Obrero Pensionado Sector Público (6.50%) — Art. 4 Ley Const. CCSS -->
+    <!-- Exonerado del IVM obrero (4.33%). Solo paga SEM 5.50% + otros 1.00%.  -->
+    <!-- Aplica cuando pensioner_type = 'estado'. Ajustar si CCSS modifica tasa.-->
+    <record id="deduction_ccss_pensionado" model="planilla.deduction.code">
+        <field name="name">CCSS - Obrero Pensionado Sector Público (6.50%)</field>
+        <field name="code">CCSS_OBR_PENSIONADO</field>
+        <field name="deduction_type">employee</field>
+        <field name="calculation_type">percentage</field>
+        <field name="employee_percentage">6.50</field>
+        <field name="employer_percentage">0.0</field>
+        <field name="is_ccss">True</field>
+        <field name="description">Cuota obrera CCSS para pensionado sector público (Art. 4 Ley Const. CCSS). Exonerado IVM 4.33%. Composición: SEM 5.50% + BPOP + LPT + ASFA + FODESAF + INA 1.00% = 6.50%.</field>
+    </record>
+
     <!-- CCSS Patronal (26.83%) -->
     <record id="deduction_ccss_employer" model="planilla.deduction.code">
         <field name="name">CCSS - Seguro Social (Patronal)</field>

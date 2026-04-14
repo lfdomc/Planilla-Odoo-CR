@@ -6,9 +6,9 @@ class EmployeeType(models.Model):
     _description = 'Tipo de Empleado'
 
     name = fields.Char(string='Tipo', required=True)
-    code = fields.Char(string='Código')
+    code = fields.Char(string='Codigo')
     active = fields.Boolean(default=True)
-    description = fields.Text(string='Descripción')
+    description = fields.Text(string='Descripcion')
     contract_type = fields.Selection([
         ('indefinido', 'Contrato Indefinido'),
         ('fijo', 'Contrato a Plazo Fijo'),

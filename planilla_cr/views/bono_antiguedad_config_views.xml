@@ -5,13 +5,13 @@
         <field name="name">planilla.bono.antiguedad.config.list</field>
         <field name="model">planilla.bono.antiguedad.config</field>
         <field name="arch" type="xml">
-            <list string="Configuración Bono de Antigüedad" editable="bottom">
+            <list string="Configuración Bono de Antiguedad" editable="bottom">
                 <field name="name"/>
-                <field name="years_from" string="Desde (años)"/>
-                <field name="years_to"   string="Hasta (años)" optional="show"/>
+                <field name="years_from" string="Desde (anos)"/>
+                <field name="years_to"   string="Hasta (anos)" optional="show"/>
                 <field name="amount_type" string="Cálculo"/>
                 <field name="percentage"    string="%" optional="show"/>
-                <field name="fixed_amount"  string="Monto (₡)" optional="show"/>
+                <field name="fixed_amount"  string="Monto (CRC)" optional="show"/>
                 <field name="active" widget="boolean_toggle"/>
             </list>
         </field>
@@ -21,7 +21,7 @@
         <field name="name">planilla.bono.antiguedad.config.form</field>
         <field name="model">planilla.bono.antiguedad.config</field>
         <field name="arch" type="xml">
-            <form string="Bono de Antigüedad — Configuración">
+            <form string="Bono de Antiguedad -- Configuración">
                 <sheet>
                     <group>
                         <group string="Empresa y Tramo">
@@ -38,9 +38,9 @@
                         </group>
                     </group>
                     <div class="alert alert-info" role="alert">
-                        <strong>Antigüedad:</strong> Es salarial según el Art. 162 CT — afecta base CCSS y Renta.
-                        El bono se crea automáticamente el día del aniversario laboral del empleado
-                        con vigencia hasta el último día del mes del aniversario.
+                        <strong>Antiguedad:</strong> Es salarial según el Art. 162 CT -- afecta base CCSS y Renta.
+                        El bono se crea automáticamente el dia del aniversario laboral del empleado
+                        con vigencia hasta el último dia del mes del aniversario.
                     </div>
                 </sheet>
             </form>
@@ -48,16 +48,16 @@
     </record>
 
     <record id="action_bono_antiguedad_config" model="ir.actions.act_window">
-        <field name="name">Bono de Antigüedad — Tabla</field>
+        <field name="name">Bono de Antiguedad -- Tabla</field>
         <field name="res_model">planilla.bono.antiguedad.config</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                No hay configuración de bono de antigüedad.
+                No hay configuración de bono de antiguedad.
             </p>
             <p>
-                Configure los tramos de años y el porcentaje o monto a pagar.
-                El sistema creará automáticamente el bono cada aniversario laboral.
+                Configure los tramos de anos y el porcentaje o monto a pagar.
+                El sistema creara automáticamente el bono cada aniversario laboral.
             </p>
         </field>
     </record>

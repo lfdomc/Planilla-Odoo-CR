@@ -24,7 +24,7 @@
                                     <h4 style="margin:2px 0 0 0; color:#555;"><t t-esc="company.name"/></h4>
                                 </td>
                                 <td width="35%" style="text-align:right; vertical-align:top; font-size:12px; color:#555;">
-                                    <div><strong>Periodo:</strong> <t t-esc="doc.date_from"/> al <t t-esc="doc.date_to"/></div>
+                                    <div><strong>Período:</strong> <t t-esc="doc.date_from"/> al <t t-esc="doc.date_to"/></div>
                                     <div><strong>Frecuencia:</strong>
                                         <t t-if="doc.frequency == 'monthly'"> Mensual</t>
                                         <t t-elif="doc.frequency == 'biweekly'"> Quincenal</t>
@@ -41,7 +41,7 @@
                                 <th style="padding:4px; border:1px solid #ccc;">#</th>
                                 <th style="padding:4px; border:1px solid #ccc;">Nombre</th>
                                 <th style="padding:4px; border:1px solid #ccc;">Primer Apellido</th>
-                                <th style="padding:4px; border:1px solid #ccc;">Segundo Apellido</th>
+                                <th style="padding:4px; border:1px solid #ccc;">Segúndo Apellido</th>
                                 <th style="padding:4px; border:1px solid #ccc;">Identificacion</th>
                                 <th style="padding:4px; border:1px solid #ccc;">Tipo ID</th>
                                 <th style="padding:4px; border:1px solid #ccc;">Nacionalidad</th>
@@ -73,7 +73,7 @@
                                     <td style="padding:3px; border:1px solid #ddd;"><t t-esc="emp.ins_second_lastname or ''"/></td>
                                     <td style="padding:3px; border:1px solid #ddd;"><t t-esc="emp.identification_id or ''"/></td>
                                     <td style="padding:3px; border:1px solid #ddd;">
-                                        <t t-if="emp.ins_id_type == '01'">Cedula CR</t>
+                                        <t t-if="emp.ins_id_type == '01'">Cédula CR</t>
                                         <t t-elif="emp.ins_id_type == '02'">Residencia</t>
                                         <t t-elif="emp.ins_id_type == '03'">Permiso</t>
                                         <t t-elif="emp.ins_id_type == '04'">Pasaporte</t>
@@ -121,11 +121,11 @@
 
                     <div style="margin-top:10px; font-size:8px; color:#888; border-top:1px solid #ddd; padding-top:5px;">
                         <strong>Tasas INS:</strong> Clase I: 0.87% | Clase II: 1.49% | Clase III: 2.47% | Clase IV: 4.13% | Clase V: 6.88%
-                        (Ley N.° 6727 - Riesgos del Trabajo. Tasa segun clase asignada por el INS)
+                        (Ley N.° 6727 - Riesgos del Trabajo. Tasa según clase asignada por el INS)
                     </div>
                     <div style="margin-top:5px; font-size:8px; color:#888;">
                         <t t-esc="company.name"/> | Planilla INS Riesgos del Trabajo |
-                        Periodo: <t t-esc="doc.date_from"/> al <t t-esc="doc.date_to"/> |
+                        Período: <t t-esc="doc.date_from"/> al <t t-esc="doc.date_to"/> |
                         Presentar antes del dia 10 de cada mes via RT-Virtual (rtvirtual.grupoins.com)
                     </div>
                 </div>

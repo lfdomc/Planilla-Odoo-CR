@@ -8,8 +8,8 @@ _logger = logging.getLogger(__name__)
 
 class PlanillaScheduledActions(models.AbstractModel):
     """
-    Acciones programadas (cron jobs) del módulo Planilla CR.
-    Se ejecutan automáticamente según la frecuencia configurada.
+    Acciones programadas (cron jobs) del modulo Planilla CR.
+    Se ejecutan automaticamente segun la frecuencia configurada.
     """
     _name = 'planilla.scheduled.actions'
     _description = 'Acciones Programadas Planilla CR'
@@ -18,7 +18,7 @@ class PlanillaScheduledActions(models.AbstractModel):
     def cron_check_anniversaries(self):
         """
         Detecta empleados que cumplen aniversario laboral HOY y
-        envía notificación al correo de la empresa (RRHH).
+        envia notificacion al correo de la empresa (RRHH).
         Corre: diariamente a las 7am.
         """
         today = date.today()
@@ -36,13 +36,13 @@ class PlanillaScheduledActions(models.AbstractModel):
 
         count = 0
         for emp in employees:
-            # Cumple aniversario si hoy es el mismo mes/día que su fecha de ingreso
+            # Cumple aniversario si hoy es el mismo mes/dia que su fecha de ingreso
             if (emp.entry_date.month == today.month and
                     emp.entry_date.day == today.day and
                     emp.entry_date.year < today.year):
                 years = today.year - emp.entry_date.year
                 _logger.info(
-                    'Planilla CR: aniversario %s — %s cumple %d año(s)',
+                    'Planilla CR: aniversario %s -- %s cumple %d ano(s)',
                     emp.name, today, years
                 )
                 try:
@@ -51,12 +51,12 @@ class PlanillaScheduledActions(models.AbstractModel):
                 except Exception as e:
                     _logger.error('Planilla CR: error enviando email aniversario %s: %s', emp.name, e)
 
-        _logger.info('Planilla CR: cron_check_anniversaries — %d notificaciones enviadas.', count)
+        _logger.info('Planilla CR: cron_check_anniversaries -- %d notificaciones enviadas.', count)
 
     @api.model
     def cron_close_completed_loans(self):
         """
-        Marca como pagados los préstamos donde todas las cuotas
+        Marca como pagados los prestamos donde todas las cuotas
         ya fueron descontadas. Corre: diariamente.
         """
         loans = self.env['planilla.employee.loan'].search([
@@ -69,11 +69,11 @@ class PlanillaScheduledActions(models.AbstractModel):
             ):
                 loan.action_check_paid()
                 closed += 1
-                _logger.info('Planilla CR: préstamo cerrado automáticamente — %s / %s',
+                _logger.info('Planilla CR: prestamo cerrado automaticamente -- %s / %s',
                              loan.employee_id.name, loan.name)
 
 
-        _logger.info('Planilla CR: cron_close_completed_loans — %d préstamos cerrados.', closed)
+        _logger.info('Planilla CR: cron_close_completed_loans -- %d prestamos cerrados.', closed)
 
     @api.model
     def cron_alert_embargo_expiry(self):
@@ -107,12 +107,12 @@ class PlanillaScheduledActions(models.AbstractModel):
             if not company.email:
                 continue
             lines = '\n'.join(
-                f'  • {e.employee_id.name}: expediente {e.numero_expediente} '
-                f'— vence {e.date_end} ({e.juzgado})'
+                f'   {e.employee_id.name}: expediente {e.numero_expediente} '
+                f'-- vence {e.date_end} ({e.juzgado})'
                 for e in embs
             )
             body = (
-                f'<p><strong>Alerta de Embargos Judiciales por Vencer — {company.name}</strong></p>'
+                f'<p><strong>Alerta de Embargos Judiciales por Vencer -- {company.name}</strong></p>'
                 f'<p>Los siguientes <strong>{len(embs)}</strong> embargo(s) vencen '
                 f'en los proximos 30 dias (Art. 172 CT):</p>'
                 f'<pre style="background:#FFF3CD;padding:10px;">{lines}</pre>'
@@ -120,7 +120,7 @@ class PlanillaScheduledActions(models.AbstractModel):
             )
             try:
                 self.env['mail.mail'].create({
-                    'subject': f'⚖️ Embargos por vencer — {company.name}',
+                    'subject': f' Embargos por vencer -- {company.name}',
                     'email_to': company.email,
                     'body_html': body,
                     'auto_delete': True,
@@ -155,7 +155,7 @@ class PlanillaScheduledActions(models.AbstractModel):
 
         created = 0
         for emp in employees:
-            # Solo los que cumplen aniversario HOY y llevan >= 1 año
+            # Solo los que cumplen aniversario HOY y llevan >= 1 ano
             if not (emp.entry_date.month == today.month and
                     emp.entry_date.day == today.day and
                     emp.entry_date.year < today.year):
@@ -164,23 +164,23 @@ class PlanillaScheduledActions(models.AbstractModel):
             years = today.year - emp.entry_date.year
             company_id = emp.company_id.id if emp.company_id else self.env.company.id
 
-            # Buscar configuracion de antigüedad aplicable
+            # Buscar configuracion de antiguedad aplicable
             cfg = BonoConfig.get_config_for_years(company_id, years)
             if not cfg:
-                continue  # No hay configuracion para este tramo — no crear bono
+                continue  # No hay configuracion para este tramo -- no crear bono
 
             base_salary = emp.base_salary or 0.0
             if not base_salary:
-                _logger.warning('Planilla CR: bono antiguedad — %s no tiene salario base', emp.name)
+                _logger.warning('Planilla CR: bono antiguedad -- %s no tiene salario base', emp.name)
                 continue
 
             monto = cfg.compute_bono_amount(base_salary, years)
             if monto <= 0:
                 continue
 
-            # Verificar si ya existe un bono de antigüedad para este aniversario
+            # Verificar si ya existe un bono de antiguedad para este aniversario
             # (evitar duplicados si el cron corre dos veces)
-            bono_name = f'Bono Antiguedad — {years} año(s)'
+            bono_name = f'Bono Antiguedad -- {years} ano(s)'
             year_start = today.replace(month=1, day=1)
             existing = BonoModel.search([
                 ('employee_id', '=', emp.id),
@@ -200,27 +200,134 @@ class PlanillaScheduledActions(models.AbstractModel):
                     'amount':        monto if cfg.amount_type == 'fixed' else 0.0,
                     'percentage':    cfg.percentage if cfg.amount_type == 'percentage' else 0.0,
                     'is_recurring':  False,  # Es puntual: solo en el mes del aniversario
-                    'afecto_ccss':   True,   # Antigüedad es salarial (Art. 162 CT)
+                    'afecto_ccss':   True,   # Antiguedad es salarial (Art. 162 CT)
                     'afecto_renta':  True,
                     'date_start':    today,
                     'date_end':      today.replace(day=28) if today.month == 2 else
                                      today.replace(day=30) if today.month in (4,6,9,11) else
                                      today.replace(day=31),
                     'state':         'active',
-                    'note':          f'Creado automaticamente por el sistema al cumplir {years} año(s) de servicio.',
+                    'note':          f'Creado automaticamente por el sistema al cumplir {years} ano(s) de servicio.',
                 })
                 created += 1
-                _logger.info('Planilla CR: bono antiguedad creado para %s — %d año(s), ₡%s',
+                _logger.info('Planilla CR: bono antiguedad creado para %s -- %d ano(s), CRC%s',
                              emp.name, years, f'{monto:,.2f}')
             except Exception as e:
                 _logger.error('Planilla CR: error creando bono antiguedad para %s: %s', emp.name, e)
 
-        _logger.info('Planilla CR: cron_bono_antiguedad — %d bonos creados.', created)
+        _logger.info('Planilla CR: cron_bono_antiguedad -- %d bonos creados.', created)
+
+
+    @api.model
+    def cron_recompute_vacation_balances(self):
+        """
+        Recomputa el saldo de vacaciones de todos los empleados activos.
+        Necesario porque _compute_vacation_balance usa date.today() que
+        cambia diariamente pero no es un campo de Odoo que dispare @api.depends.
+        Corre: diariamente para que el saldo sea correcto cada dia laboral.
+        Art. 153 CT: 12 dias habiles por cada 50 semanas laboradas.
+        """
+        employees = self.env['hr.employee'].search([('active', '=', True)])
+        if not employees:
+            return
+        employees.invalidate_recordset(['vacation_days_accrued',
+                                        'vacation_days_taken',
+                                        'vacation_days_available',
+                                        'vacation_balance_alert'])
+        _ = employees.mapped('vacation_days_available')
+        _logger.info('Planilla CR: cron_recompute_vacation_balances -- %d empleados actualizados.', len(employees))
+
+
+    @api.model
+    def cron_extra_vacation_days_new_year(self):
+        """
+        Acredita dias adicionales de vacaciones el 1 de enero de cada anio.
+        Soporta dos modalidades (Art. 58 CT):
+
+        MODALIDAD FIJA ('fixed'):
+          Todos los empleados activos reciben la misma cantidad de dias.
+          Ej: 2 dias para todos -> Maria 2 dias, Juan 2 dias.
+
+        MODALIDAD POR ANO LABORADO ('per_year'):
+          Cada empleado recibe N dias x sus anos COMPLETOS de servicio.
+          Ej: 2 dias/anio, Juan tiene 3 anos -> Juan recibe 6 dias.
+               Si Juan tiene 0 anos completos (menos de 1 anio) -> 0 dias.
+
+        El campo extra_vacation_last_applied_year garantiza que el beneficio
+        se aplique una sola vez por anio aunque el cron corra diariamente.
+        """
+        from datetime import date as _date
+        today = _date.today()
+
+        # Solo actua en enero
+        if today.month != 1:
+            return
+
+        configs = self.env['planilla.accounting.config'].search([
+            ('extra_vacation_days_enabled', '=', True),
+        ])
+
+        for config in configs:
+            # Proteccion contra doble aplicacion en el mismo anio
+            if config.extra_vacation_last_applied_year >= today.year:
+                _logger.info(
+                    'Planilla CR: dias extra vacaciones ya aplicado para %s en %s.',
+                    config.company_id.name, today.year
+                )
+                continue
+
+            base_days = config.extra_vacation_days_amount
+            mode      = config.extra_vacation_days_mode or 'fixed'
+            if base_days <= 0:
+                continue
+
+            employees = self.env['hr.employee'].search([
+                ('company_id', '=', config.company_id.id),
+                ('active',     '=', True),
+            ])
+
+            applied = 0
+            details = []
+
+            for emp in employees:
+                if mode == 'per_year':
+                    # Anos completos de servicio al 1 de enero
+                    if not emp.entry_date:
+                        continue
+                    jan1 = _date(today.year, 1, 1)
+                    years_served = (jan1 - emp.entry_date).days // 365
+                    if years_served <= 0:
+                        # Menos de 1 anio completo: no aplica
+                        continue
+                    days_to_add = round(base_days * years_served, 2)
+                else:
+                    # Modalidad fija: mismo monto para todos
+                    days_to_add = base_days
+
+                current = emp.vacation_initial_balance or 0.0
+                emp.write({
+                    'vacation_initial_balance': round(current + days_to_add, 2),
+                    'vacation_initial_balance_date': (
+                        emp.vacation_initial_balance_date
+                        if emp.vacation_initial_balance_date
+                        else _date(today.year, 1, 1)
+                    ),
+                })
+                applied += 1
+                details.append(f'{emp.name}: +{days_to_add}d')
+
+            config.write({'extra_vacation_last_applied_year': today.year})
+
+            _logger.info(
+                'Planilla CR: cron_extra_vacation_days_new_year -- %s [%s]: %d empleados. %s',
+                config.company_id.name, mode, applied,
+                ' | '.join(details[:10]) + ('...' if len(details) > 10 else '')
+            )
 
     @api.model
     def cron_alert_negative_vacations(self):
         """
-        Envía un resumen semanal a cada empresa sobre empleados
+        Envia un resumen semanal a cada empresa sobre empleados
         con saldo de vacaciones negativo. Corre: lunes a las 8am.
         """
         companies = self.env['res.company'].search([])
@@ -241,7 +348,7 @@ class PlanillaScheduledActions(models.AbstractModel):
 
             # Construir resumen en texto
             lines = '\n'.join(
-                f"  • {e.name}: {e.vacation_days_available:.1f} días "
+                f"   {e.name}: {e.vacation_days_available:.1f} dias "
                 f"(acumulados: {e.vacation_days_accrued:.1f}, tomados: {e.vacation_days_taken:.1f})"
                 for e in employees_neg
             )
@@ -250,11 +357,11 @@ class PlanillaScheduledActions(models.AbstractModel):
                 f"<p>Los siguientes <strong>{len(employees_neg)}</strong> empleado(s) tienen "
                 f"saldo de vacaciones <strong style='color:#E74C3C;'>negativo</strong>:</p>"
                 f"<pre style='background:#FDE8E8;padding:10px;border-radius:4px;'>{lines}</pre>"
-                f"<p>Por favor revise y tome las acciones necesarias según el Art. 153 CT CR.</p>"
+                f"<p>Por favor revise y tome las acciones necesarias segun el Art. 153 CT CR.</p>"
             )
             try:
                 self.env['mail.mail'].create({
-                    'subject': f'⚠️ Alerta: {len(employees_neg)} empleado(s) con vacaciones negativas — {company.name}',
+                    'subject': f'WARN Alerta: {len(employees_neg)} empleado(s) con vacaciones negativas -- {company.name}',
                     'email_to': company.email,
                     'body_html': body,
                     'auto_delete': True,
@@ -269,12 +376,12 @@ class PlanillaScheduledActions(models.AbstractModel):
     @api.model
     def cron_alert_prescribing_vacations(self):
         """
-        Alerta sobre empleados con vacaciones próximas a prescribir.
-        Art. 156 CT CR: vacaciones prescriben a los 2 años de ganadas.
-        Corre: primer día de cada mes.
+        Alerta sobre empleados con vacaciones proximas a prescribir.
+        Art. 156 CT CR: vacaciones prescriben a los 2 anos de ganadas.
+        Corre: primer dia de cada mes.
         """
         today = date.today()
-        threshold = today + relativedelta(months=2)  # Alerta con 2 meses de anticipación
+        threshold = today + relativedelta(months=2)  # Alerta con 2 meses de anticipacion
 
         companies = self.env['res.company'].search([])
         for company in companies:
@@ -283,7 +390,7 @@ class PlanillaScheduledActions(models.AbstractModel):
                 ('active', '=', True),
                 ('entry_date', '!=', False),
             ])
-            # L2 FIX: batch query — traer última vacación de todos los empleados en 1 query
+            # L2 FIX: batch query -- traer ultima vacacion de todos los empleados en 1 query
             emp_ids = employees.filtered(lambda e: e.vacation_days_available > 0).ids
             last_vacs = {}
             if emp_ids:
@@ -294,7 +401,7 @@ class PlanillaScheduledActions(models.AbstractModel):
                         ('vacation_type', '=', 'disfrutadas'),
                     ],
                     # FIX M-05 v51: el campo correcto es date_start, no date_from
-                    # (date_from no existe en planilla.vacation.payment → error silencioso)
+                    # (date_from no existe en planilla.vacation.payment -> error silencioso)
                     fields=['employee_id', 'date_start:max'],
                     groupby=['employee_id'],
                 )
@@ -315,22 +422,22 @@ class PlanillaScheduledActions(models.AbstractModel):
                 continue
 
             lines = '\n'.join(
-                f"  • {name}: {days:.1f} días disponibles (sin tomar hace ~{months:.0f} meses)"
+                f"   {name}: {days:.1f} dias disponibles (sin tomar hace ~{months:.0f} meses)"
                 for name, days, months in at_risk
             )
             body = (
-                f"<p>Alerta de prescripción de vacaciones — <strong>{company.name}</strong></p>"
+                f"<p>Alerta de prescripcion de vacaciones -- <strong>{company.name}</strong></p>"
                 f"<p><strong>{len(at_risk)}</strong> empleado(s) tienen vacaciones en riesgo de prescribir "
-                f"(Art. 156 CT CR — prescriben a los 2 años):</p>"
+                f"(Art. 156 CT CR -- prescriben a los 2 anos):</p>"
                 f"<pre style='background:#FFF3CD;padding:10px;border-radius:4px;'>{lines}</pre>"
                 f"<p>Se recomienda programar sus vacaciones antes de que prescriban.</p>"
             )
             try:
                 self.env['mail.mail'].create({
-                    'subject': f'📅 Vacaciones próximas a prescribir — {company.name}',
+                    'subject': f' Vacaciones proximas a prescribir -- {company.name}',
                     'email_to': company.email,
                     'body_html': body,
                     'auto_delete': True,
                 }).send()
             except Exception as e:
-                _logger.error('Planilla CR: error alerta prescripción %s: %s', company.name, e)
+                _logger.error('Planilla CR: error alerta prescripcion %s: %s', company.name, e)

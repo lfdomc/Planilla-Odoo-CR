@@ -11,23 +11,23 @@ class SalaryIncreaseWizard(models.TransientModel):
     )
     increase_type = fields.Selection([
         ('percent', 'Porcentaje (%)'),
-        ('fixed',   'Monto Fijo (₡)'),
+        ('fixed',   'Monto Fijo (CRC)'),
     ], string='Tipo de Incremento', required=True, default='percent')
 
     percent = fields.Float(string='Porcentaje (%)', digits=(5, 2))
     fixed_amount = fields.Monetary(
-        string='Monto Fijo (₡)', currency_field='currency_id'
+        string='Monto Fijo (CRC)', currency_field='currency_id'
     )
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.ref('base.CRC')
     )
 
-    # ── Filtros ────────────────────────────────────────────────
+    # -- Filtros ------------------------------------------------
     filter_type = fields.Selection([
         ('all',        'Todos los empleados activos'),
         ('department', 'Por Departamento'),
         ('branch',     'Por Sucursal'),
-        ('employee',   'Empleados específicos'),
+        ('employee',   'Empleados especificos'),
     ], string='Aplicar a', required=True, default='all')
 
     department_id = fields.Many2one('hr.department', string='Departamento')
@@ -40,9 +40,9 @@ class SalaryIncreaseWizard(models.TransientModel):
     effective_date = fields.Date(
         string='Fecha Efectiva', required=True, default=fields.Date.today
     )
-    note = fields.Char(string='Motivo / Referencia', help='Ej: Aumento salario mínimo 2026')
+    note = fields.Char(string='Motivo / Referencia', help='Ej: Aumento salario minimo 2026')
 
-    # ── Preview ────────────────────────────────────────────────
+    # -- Preview ------------------------------------------------
     preview_line_ids = fields.One2many(
         'planilla.salary.increase.preview', 'wizard_id', string='Vista Previa'
     )
@@ -98,12 +98,12 @@ class SalaryIncreaseWizard(models.TransientModel):
             new_salary = self._calc_new_salary(current)
             if new_salary != current:
                 # FIX-Q5: pasar reason y note via contexto para que hr_employee_extension.write()
-                # use la razón correcta en el historial salarial que crea automáticamente.
-                # La versión anterior creaba UN SEGUNDO registro de historial salarial aquí,
+                # use la razon correcta en el historial salarial que crea automaticamente.
+                # La version anterior creaba UN SEGUNDO registro de historial salarial aqui,
                 # duplicando cada incremento masivo en planilla.salary.history.
                 reason_text = (
                     f'Incremento masivo: {self.percent}%' if self.increase_type == 'percent'
-                    else f'Incremento masivo: ₡{self.fixed_amount:,.0f}'
+                    else f'Incremento masivo: CRC{self.fixed_amount:,.0f}'
                 )
                 emp.with_context(
                     salary_history_reason=self.note or reason_text,
@@ -119,7 +119,7 @@ class SalaryIncreaseWizard(models.TransientModel):
             'tag': 'display_notification',
             'params': {
                 'title': 'Incremento Aplicado',
-                'message': f'Se actualizó el salario de {count} empleado(s) exitosamente.',
+                'message': f'Se actualizo el salario de {count} empleado(s) exitosamente.',
                 'type': 'success',
                 'sticky': False,
             }

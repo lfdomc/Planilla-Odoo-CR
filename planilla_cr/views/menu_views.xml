@@ -40,7 +40,7 @@
 
     <!-- ── NOVEDADES ──────────────────────────────────────────────── -->
     <menuitem id="menu_planilla_cr_novedades"
-              name="Acción de Personal"
+              name="Accion de Personal"
               parent="menu_planilla_cr_root"
               sequence="20"/>
 
@@ -70,7 +70,7 @@
               sequence="30"/>
 
     <menuitem id="menu_employee_loan"
-              name="Préstamos y Adelantos"
+              name="Prestamos y Adelantos"
               parent="menu_planilla_cr_novedades"
               action="action_employee_loan"
               sequence="35"
@@ -90,7 +90,7 @@
               sequence="45"/>
 
     <menuitem id="menu_termination_simulator"
-              name="Simulador de Liquidación"
+              name="Simulador de Liquidacion"
               parent="menu_planilla_cr_novedades"
               action="planilla_cr.action_termination_simulator"
               sequence="50"
@@ -128,7 +128,7 @@
               sequence="7"/>
 
     <menuitem id="menu_eddi7_export"
-              name="📋 Declaración EDDI-7 CCSS"
+              name=" Declaracion EDDI-7 CCSS"
               parent="menu_planilla_cr_reports"
               action="planilla_cr.action_eddi7_export"
               sequence="8"/>
@@ -167,21 +167,21 @@
               groups="planilla_cr.group_planilla_aprobador"/>
 
     <menuitem id="menu_mtss_export"
-              name="Exportación MTSS"
+              name="Exportacion MTSS"
               parent="menu_planilla_cr_reports"
               action="planilla_cr.action_mtss_export_wizard"
               sequence="75"
               groups="planilla_cr.group_planilla_aprobador"/>
 
     <menuitem id="menu_audit_zip"
-              name="Paquete Auditoría (ZIP)"
+              name="Paquete Auditoria (ZIP)"
               parent="menu_planilla_cr_reports"
               action="planilla_cr.action_audit_zip_wizard"
               sequence="90"
               groups="planilla_cr.group_planilla_aprobador"/>
 
     <menuitem id="menu_aguinaldo_wizard"
-              name="Décimo Mes (Aguinaldo)"
+              name="Decimo Mes (Aguinaldo)"
               parent="menu_planilla_cr_reports"
               action="action_aguinaldo_wizard"
               sequence="45"
@@ -195,15 +195,31 @@
               groups="planilla_cr.group_planilla_admin"/>
 
         <menuitem id="menu_import_template_wizard"
-              name="Machote de Importación (Excel)"
+              name="Machote de Importacion (Excel)"
               parent="menu_planilla_cr_reports"
               action="planilla_cr.action_import_template_wizard"
               sequence="95"
               groups="planilla_cr.group_planilla_admin"/>
 
-    <!-- ── CONFIGURACIÓN ─────────────────────────────────────────── -->
+
+    <menuitem id="menu_amonestacion"
+              name="Amonestaciones Escritas"
+              parent="menu_planilla_cr_novedades"
+              action="planilla_cr.planilla_amonestacion_action"
+              sequence="92"/>
+
+    <!-- Sincronizacion masiva HR -->
+    <menuitem id="menu_sync_hr_wizard"
+              name="Sincronizar Empleados a Nomina HR"
+              parent="menu_planilla_cr_config"
+              action="planilla_cr.action_sync_hr_wizard"
+              sequence="99"/>
+
+    <!-- Constancia Laboral: disponible desde la ficha del empleado, no desde este menu -->
+
+    <!-- CONFIGURACION -->
     <menuitem id="menu_planilla_cr_config"
-              name="Configuración"
+              name="Configuracion"
               parent="menu_planilla_cr_root"
               sequence="90"/>
 
@@ -220,7 +236,7 @@
               sequence="20"/>
 
     <menuitem id="menu_deduction_code"
-              name="Códigos de Deducción (Tasas CCSS / INS)"
+              name="Codigos de Deduccion (Tasas CCSS / INS)"
               parent="menu_planilla_cr_config"
               action="action_deduction_code"
               sequence="30"/>
@@ -244,7 +260,7 @@
               sequence="60"/>
 
     <menuitem id="menu_identification_type"
-              name="Tipos de Identificación"
+              name="Tipos de Identificacion"
               parent="menu_planilla_cr_config"
               action="action_identification_type"
               sequence="70"/>
@@ -263,7 +279,7 @@
               groups="planilla_cr.group_planilla_admin"/>
 
     <menuitem id="menu_minimum_salary"
-              name="Salarios Mínimos MTSS"
+              name="Salarios Minimos MTSS"
               parent="menu_planilla_cr_config"
               action="action_minimum_salary"
               sequence="83"
@@ -312,10 +328,27 @@
               groups="planilla_cr.group_planilla_operador"/>
 
     <menuitem id="menu_bono_antiguedad_config"
-              name="Bono de Antigüedad (Tabla)"
+              name="Bono de Antiguedad (Tabla)"
               action="action_bono_antiguedad_config"
               parent="menu_planilla_cr_config"
               sequence="65"
               groups="planilla_cr.group_planilla_admin"/>
+
+    <!-- Herramienta de saneamiento de cobros huerfanos -->
+    <record id="action_sanear_cobros_menu" model="ir.actions.server">
+        <field name="name">Sanear Cobros Huerfanos</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_employee_charge"/>
+        <field name="state">code</field>
+        <field name="code">
+action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
+        </field>
+    </record>
+
+    <menuitem id="menu_sanear_cobros_huerfanos"
+              name="Sanear Cobros Huerfanos"
+              action="action_sanear_cobros_menu"
+              parent="menu_planilla_cr_config"
+              sequence="70"
+              groups="planilla_cr.group_planilla_aprobador"/>
 
 </odoo>

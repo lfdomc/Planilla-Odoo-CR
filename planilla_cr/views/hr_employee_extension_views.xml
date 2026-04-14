@@ -12,16 +12,66 @@
                         class="oe_stat_button" icon="fa-money">
                     <field name="salary_history_count" widget="statinfo" string="Historial Salarial"/>
                 </button>
+                <button name="action_view_amonestaciones" type="object"
+                        class="oe_stat_button" icon="fa-warning"
+                        title="Amonestaciones emitidas">
+                    <field name="amonestacion_count" widget="statinfo" string="Amonestaciones"/>
+                </button>
+                <button name="action_print_constancia_laboral" type="object"
+                        class="oe_stat_button" icon="fa-file-text-o"
+                        title="Generar Constancia Laboral en PDF">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Constancia</span>
+                        <span class="o_stat_text">Laboral</span>
+                    </div>
+                </button>
+                <button name="action_sync_to_native_hr" type="object"
+                        class="oe_stat_button" icon="fa-refresh"
+                        title="Sincronizar datos de Planilla CR al contrato nativo de HR (salario, fecha ingreso, puesto)">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Sincronizar</span>
+                        <span class="o_stat_text">a HR</span>
+                    </div>
+                </button>
             </xpath>
 
-            <!-- Nueva pestaña: Planilla CR -->
+            <!-- Nueva pestana: Planilla CR -->
             <xpath expr="//page[@name='hr_settings']" position="after">
                 <page name="planilla_cr" string="Planilla CR">
+                    <!-- Panel informativo: campos clave del módulo HR nativo -->
+                    <group string="Datos Sincronizados con Módulo HR">
+                        <group>
+                            <field name="job_id" readonly="1"
+                                   help="Puesto definido en el módulo Empleados. Editar desde la pestaña Información del Trabajo."/>
+                            <field name="department_id" readonly="1"
+                                   help="Departamento definido en el módulo Empleados."/>
+                            <field name="parent_id" readonly="1" string="Jefe Directo"
+                                   help="Manager definido en el módulo Empleados."/>
+                        </group>
+                        <group>
+                            <field name="work_email" readonly="1"
+                                   help="Email de trabajo definido en el módulo Empleados."/>
+                            <field name="work_phone" readonly="1"
+                                   help="Teléfono laboral definido en el módulo Empleados."/>
+                            <field name="resource_calendar_id" readonly="1"
+                                   string="Horario de Trabajo (Nativo)"
+                                   help="Horario del módulo HR nativo. Planilla CR usa el campo Tipo de Horario más abajo."/>
+                        </group>
+                        <div class="alert alert-info" role="alert">
+                            <i class="fa fa-info-circle" title="Información"/>
+                            Los campos <strong>Puesto</strong>, <strong>Departamento</strong>
+                            y <strong>Email</strong> se leen desde las pestañas nativas de Odoo.
+                            El <strong>Salario Base</strong> oficial está en esta pestaña (Planilla CR).
+                            La pestaña Nómina mostrará Salario ₡0 — esto es normal en Odoo Community
+                            sin el módulo hr_contract instalado.
+                        </div>
+                    </group>
+
                     <group string="Método de Cálculo">
                         <field name="payroll_calculation_method" widget="radio"/>
                     </group>
                     <group>
-                        <group string="Clasificación">
+                        <group string="Clasificacion">
                             <field name="identification_type_id"/>
                             <field name="employee_status_id"/>
                             <field name="employee_type_id"/>
@@ -35,13 +85,13 @@
                             <field name="payroll_calendar_id"/>
                         <field name="rop_applies"
                                widget="boolean_toggle"
-                               help="DESACTIVADO por defecto. Activar solo si el contador confirma que el ROP se procesará desde este módulo. Por defecto los contadores lo manejan con su propio proceso."/>
+                               help="DESACTIVADO por defecto. Activar solo si el contador confirma que el ROP se procesara desde este módulo. Por defecto los contadores lo manejan con su propio proceso."/>
                             <field name="base_salary"/>
                             <field name="salary_effective_date"/>
                             <field name="has_variable_income"
                                    widget="boolean_toggle"
                                    string="Salario Variable (comisiones / HE recurrentes)"
-                                   help="Active si el empleado recibe comisiones, horas extras recurrentes u otros ingresos variables. El sistema usará automáticamente el promedio de las últimas 4 semanas (Art. 153 CT) al calcular vacaciones y liquidaciones, en lugar del salario base fijo."/>
+                                   help="Active si el empleado recibe comisiones, horas extras recurrentes u otros ingresos variables. El sistema usara automáticamente el promedio de las ultimas 4 semanas (Art. 153 CT) al calcular vacaciones y liquidaciónes, en lugar del salario base fijo."/>
                         </group>
                     </group>
                     <group>
@@ -49,11 +99,35 @@
                             <field name="ccss_number"/>
                             <field name="ccss_insured"/>
                         </group>
+                        <group string="Créditos Fiscales (Art. 34 LIR)">
+                            <field name="income_tax_children"
+                                   string="Hijos con crédito fiscal"
+                                   help="Cantidad de hijos menores o dependientes. Crédito 2026: CRC1,710/hijo/mes (Art. 34 LIR)."/>
+                            <field name="income_tax_spouse_credit"
+                                   widget="boolean_toggle"
+                                   string="Crédito por conyuge (CRC2,590/mes)"
+                                   help="Solo uno de los dos conyuges puede aplicarlo. Requiere constancia de matrimonio vigente."/>
+                        </group>
+                        <group string="Clasificacion de pensionado">
+                            <field name="pensioner_type" widget="radio"/>
+                            <field name="pension_resolution_number"
+                                   invisible="pensioner_type != 'estado'"
+                                   required="pensioner_type == 'estado'"
+                                   placeholder="Ej: CCSS-2024-00123 / JP-2023-00456"/>
+                            <div class="alert alert-warning col-12" role="alert"
+                                 invisible="pensioner_type != 'estado'">
+                                <i class="fa fa-exclamation-triangle"/> Pensionado sector público: CCSS obrero 6.50% (exonerado IVM). ROP desactivado. N° resolución obligatorio para auditoría CCSS.
+                            </div>
+                            <div class="alert alert-info col-12" role="alert"
+                                 invisible="pensioner_type != 'ivm'">
+                                <i class="fa fa-info-circle" title="Información"/> Pensionado IVM activo: cotiza CCSS completa 10.83% (Art. 7 Regl. IVM). ROP desactivado automáticamente.
+                            </div>
+                        </group>
                         <group string="Datos Bancarios">
                             <field name="bank_name"/>
                             <field name="bank_iban" placeholder="CR15200001121513215152"/>
                             <field name="sinpe_phone" placeholder="88001234"
-                                   help="8 dígitos, sin espacios ni guiones"/>
+                                   help="8 digitos, sin espacios ni guiones"/>
                             <field name="bank_account_number"/>
                             <field name="bank_account_type"/>
                         </group>
@@ -69,6 +143,24 @@
                         </group>
                     </group>
 
+                    <!-- Aguinaldo pre-implementacion (Art. 228 CT) -->
+                    <group string="Aguinaldo Acumulado Inicial (Art. 228 CT)">
+                        <group string="Pre-Implementación" col="2">
+                            <field name="aguinaldo_initial_amount"
+                                   string="Acumulado a la Fecha (CRC)"
+                                   help="Monto de aguinaldo acumulado antes de usar el sistema. Se suma al aguinaldo calculado con las boletas del sistema."/>
+                            <field name="aguinaldo_initial_date"
+                                   string="Fecha de Corte"
+                                   help="Fecha hasta la cual fue calculado el acumulado. Ej: 31/03/2026 si arrancaron en abril 2026."/>
+                        </group>
+                        <div class="alert alert-info col-12" role="alert"
+                             invisible="aguinaldo_initial_amount == 0">
+                            <i class="fa fa-info-circle" title="Información"/>
+                            El aguinaldo de diciembre incluirá este acumulado más
+                            lo calculado por el sistema a partir de la fecha de corte.
+                        </div>
+                    </group>
+
                     <!-- Saldo de Vacaciones -->
                     <group string="Saldo de Vacaciones (Art. 153 CT)">
                         <!-- Saldo inicial pre-implementación -->
@@ -79,7 +171,7 @@
                                    help="Días disponibles al momento de arrancar el sistema. Use este campo para empleados pre-existentes cuyo saldo real difiere del calculado desde la fecha de ingreso."/>
                             <field name="vacation_initial_balance_date"
                                    string="Fecha de Corte del Saldo"
-                                   help="Fecha hasta la cual se calculó el saldo inicial. El sistema acumulará días adicionales solo a partir de esta fecha."/>
+                                   help="Fecha hasta la cual se cálculo el saldo inicial. El sistema acumulara días adicionales solo a partir de esta fecha."/>
                         </group>
                         <div class="alert alert-info col-12" role="alert"
                              invisible="vacation_initial_balance == 0">
@@ -94,22 +186,22 @@
                         </group>
                         <div invisible="not vacation_balance_alert"
                              style="background:#f8d7da; border-radius:4px; padding:8px; color:#721c24; font-size:12px;">
-                            <i class="fa fa-exclamation-triangle" title="Exclamación"/> Este empleado tiene saldo negativo de vacaciones.
-                            Ha tomado más días de los disponibles.
+                            <i class="fa fa-exclamation-triangle" title="Exclamacion"/> Este empleado tiene saldo negativo de vacaciones.
+                            Ha tomado mas días de los disponibles.
                         </div>
                     </group>
                 </page>
 
-                <!-- Pestaña INS -->
+                <!-- Pestana INS -->
                 <page name="ins_data" string="INS - Riesgos del Trabajo">
                     <div class="alert alert-info" role="alert">
                         <strong>Referencias normativas:</strong>
                         Ocupaciones: <em>Clasificacion de Ocupaciones de Costa Rica COCR-2023 (INEC), basada en CIUO-08 OIT.</em>
                         Clase de Riesgo: <em>Manual de Clasificacion de Riesgos del Trabajo, INS Costa Rica.</em>
-                        Jornadas y tipos de identificacion: <em>Codigo de Trabajo de Costa Rica y formularios oficiales INS.</em>
+                        Jornadas y tipos de identificacion: <em>Código de Trabajo de Costa Rica y formularios oficiales INS.</em>
                     </div>
                     <group>
-                        <group string="Configuracion INS">
+                        <group string="Configuración INS">
                             <field name="ins_include"/>
                             <field name="ins_policy_number"
                                    invisible="not ins_include"/>
@@ -133,23 +225,23 @@
                             <field name="ins_occupation"/>
                             <field name="ins_risk_class"/>
                         </group>
-                        <group string="Datos Médicos">
+                        <group string="Datos Medicos">
                             <field name="blood_type"/>
                         </group>
                     </group>
                     <group invisible="not ins_include">
                         <field name="medical_notes"
-                               placeholder="Diagnósticos, alergias, condiciones crónicas, medicamentos, notas de emergencia..."/>
+                               placeholder="Diagnosticos, alergias, condiciónes cronicas, medicamentos, notas de emergencia..."/>
                     </group>
                 </page>
 
-                <!-- Pestaña préstamos y adelantos -->
+                <!-- Pestana préstamos y adelantos -->
                 <page name="loans" string="Préstamos y Adelantos">
-                    <!-- Resumen rápido -->
+                    <!-- Resumen rapido -->
                     <group>
                         <group string="Resumen">
                             <field name="loan_active_count" string="Préstamos Activos"/>
-                            <field name="loan_pending_amount" string="Saldo Total Pendiente (₡)"/>
+                            <field name="loan_pending_amount" string="Saldo Total Pendiente (CRC)"/>
                         </group>
                     </group>
                     <field name="loan_ids" readonly="1">
@@ -158,10 +250,10 @@
                               decoration-muted="state=='cancelled'">
                             <field name="name" string="Referencia"/>
                             <field name="loan_type" string="Tipo"/>
-                            <field name="amount_total" string="Monto Total (₡)"/>
+                            <field name="amount_total" string="Monto Total (CRC)"/>
                             <field name="installments" string="Cuotas"/>
-                            <field name="amount_paid" string="Pagado (₡)"/>
-                            <field name="amount_pending" string="Saldo (₡)"/>
+                            <field name="amount_paid" string="Pagado (CRC)"/>
+                            <field name="amount_pending" string="Saldo (CRC)"/>
                             <field name="date_granted" string="Otorgado"/>
                             <field name="state" widget="badge"
                                    decoration-success="state=='paid'"
@@ -171,7 +263,7 @@
                     </field>
                 </page>
 
-                <!-- Pestaña historial de salarios -->
+                <!-- Pestana historial de salarios -->
                 <page name="salary_history" string="Historial de Salarios">
                     <field name="salary_history_ids" readonly="1">
                         <list>
@@ -188,11 +280,11 @@
                     </div>
                 </page>
 
-                <!-- Pestaña embargos judiciales -->
-                <page name="embargos" string="⚖️ Embargos Judiciales">
+                <!-- Pestana embargos judiciales -->
+                <page name="embargos" string="⚖ Embargos Judiciales">
                     <div class="alert alert-warning" role="alert">
                         <strong>Art. 172 CT:</strong> El embargo no puede superar el
-                        <strong>25 % del neto disponible</strong> (después de CCSS, renta y pensiones alimentarias).
+                        <strong>25 % del neto disponible</strong> (despues de CCSS, renta y pensiónes alimentarias).
                     </div>
                     <field name="embargo_ids">
                         <list decoration-success="state=='active'"
@@ -202,7 +294,7 @@
                             <field name="juzgado"/>
                             <field name="beneficiario_nombre"/>
                             <field name="calculation_type" string="Cálculo"/>
-                            <field name="fixed_amount" string="Monto (₡)" optional="show"/>
+                            <field name="fixed_amount" string="Monto (CRC)" optional="show"/>
                             <field name="percentage" string="%" optional="show"/>
                             <field name="date_start"/>
                             <field name="date_end" optional="show"/>
@@ -214,8 +306,8 @@
                     </field>
                 </page>
 
-                <!-- Pestaña bonos e incentivos -->
-                <page name="bonos" string="🎯 Bonos y Beneficios">
+                <!-- Pestana bonos e incentivos -->
+                <page name="bonos" string=" Bonos y Beneficios">
                     <div class="alert alert-info" role="alert">
                         Los bonos se aplican automáticamente en cada boleta.
                         Los <strong>bonos recurrentes activos</strong> se sincronizan al generar la planilla.
@@ -227,7 +319,7 @@
                             <field name="name" string="Concepto"/>
                             <field name="bono_type" string="Tipo"/>
                             <field name="amount_type" string="Cálculo"/>
-                            <field name="amount" string="Monto (₡)" optional="show"/>
+                            <field name="amount" string="Monto (CRC)" optional="show"/>
                             <field name="percentage" string="%" optional="show"/>
                             <field name="afecto_ccss" string="CCSS"/>
                             <field name="afecto_renta" string="Renta"/>
@@ -242,12 +334,12 @@
                     </field>
                 </page>
 
-                <!-- Pestaña cobros al empleado -->
-                <page name="cobros_empleado" string="🛒 Cobros al Empleado">
+                <!-- Pestana cobros al empleado -->
+                <page name="cobros_empleado" string=" Cobros al Empleado">
                     <div class="alert alert-info" role="alert">
                         Los cobros aprobados se descuentan automáticamente en cada boleta.
                         Los <strong>cobros recurrentes</strong> se aplican cada período
-                        mientras estén vigentes sin intervención manual.
+                        mientras esten vigentes sin intervencion manual.
                     </div>
                     <field name="employee_charge_ids">
                         <list decoration-success="state == 'applied'"
@@ -259,18 +351,32 @@
                             <field name="date_to" string="Hasta"/>
                             <field name="is_recurring" string="Recurrente"/>
                             <field name="recurrence_end" string="Fin Recurrencia" optional="show"/>
-                            <field name="employee_amount" string="Cargo (₡)"/>
+                            <field name="employee_amount" string="Cargo (CRC)"/>
                             <field name="subsidy_pct" string="Subsidio %" optional="show"/>
                             <field name="state" widget="badge"
                                    decoration-success="state == 'applied'"
                                    decoration-warning="state == 'approved'"
                                    decoration-danger="state == 'cancelled'"
                                    decoration-info="state == 'draft'"/>
-                            <field name="payslip_id" string="Última Boleta" optional="show"/>
+                            <field name="payslip_id" string="Ultima Boleta" optional="show"/>
                         </list>
                     </field>
                 </page>
             </xpath>
         </field>
     </record>
+
+    <!-- Acción masiva: Sincronizar seleccionados al contrato HR -->
+    <record id="action_mass_sync_hr" model="ir.actions.server">
+        <field name="name">Sincronizar a Nómina HR (contrato)</field>
+        <field name="model_id" ref="hr.model_hr_employee"/>
+        <field name="binding_model_id" ref="hr.model_hr_employee"/>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    records.action_sync_to_native_hr()
+        </field>
+    </record>
+
 </odoo>

@@ -4,9 +4,9 @@ import base64, io, zipfile
 
 
 class AuditZipWizard(models.TransientModel):
-    """Genera un ZIP con todos los documentos del período para auditoría externa."""
+    """Genera un ZIP con todos los documentos del periodo para auditoria externa."""
     _name = 'planilla.audit.zip.wizard'
-    _description = 'Exportación ZIP para Auditoría'
+    _description = 'Exportacion ZIP para Auditoria'
 
     company_id     = fields.Many2one('res.company', required=True,
                                       default=lambda self: self.env.company)
@@ -86,7 +86,7 @@ class AuditZipWizard(models.TransientModel):
                     wb = xlsxwriter.Workbook(out, {'in_memory': True})
                     ws = wb.add_worksheet('MTSS')
                     hdr = wb.add_format({'bold': True, 'bg_color': '#1F4E79', 'font_color': 'white'})
-                    for col, nm in enumerate(['Nombre', 'Cédula', 'Jornada', 'Ingreso', 'Salario', 'CCSS']):
+                    for col, nm in enumerate(['Nombre', 'Cedula', 'Jornada', 'Ingreso', 'Salario', 'CCSS']):
                         ws.write(0, col, nm, hdr)
                     for i, emp in enumerate(employees, 1):
                         ws.write(i, 0, emp.name or '')
@@ -103,17 +103,17 @@ class AuditZipWizard(models.TransientModel):
                     zf.writestr('03_MTSS/ERROR.txt', str(e))
 
             # 4. README del ZIP
-            readme = f"""AUDITORÍA PLANILLA CR
+            readme = f"""AUDITORIA PLANILLA CR
 Empresa: {self.company_id.name}
-Período: {self.date_from} al {self.date_to}
+Periodo: {self.date_from} al {self.date_to}
 Sucursal: {self.branch_id.name if self.branch_id else 'Todas'}
 Generado: {fields.Datetime.now()}
 Archivos incluidos: {file_count}
 
 Estructura:
-  01_Boletas/    — Boletas de pago individuales en PDF
-  02_CostosPatronales/ — CCSS patronal, INS y provisiones en Excel
-  03_MTSS/       — Planilla para inspecciones MTSS en Excel
+  01_Boletas/    -- Boletas de pago individuales en PDF
+  02_CostosPatronales/ -- CCSS patronal, INS y provisiones en Excel
+  03_MTSS/       -- Planilla para inspecciones MTSS en Excel
 """
             zf.writestr('README.txt', readme)
 
@@ -127,4 +127,4 @@ Estructura:
             'datas': base64.b64encode(zip_buffer.getvalue()),
             'mimetype': 'application/zip',
         })
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}?download=true', 'target': 'self'}
+        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}download=true', 'target': 'self'}

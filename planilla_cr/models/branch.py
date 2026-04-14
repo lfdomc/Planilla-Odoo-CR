@@ -7,12 +7,12 @@ class Branch(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
 
     name = fields.Char(string='Nombre', required=True, tracking=True)
-    code = fields.Char(string='Código', required=True, tracking=True)
-    address = fields.Char(string='Dirección')
-    phone = fields.Char(string='Teléfono')
+    code = fields.Char(string='Codigo', required=True, tracking=True)
+    address = fields.Char(string='Direccion')
+    phone = fields.Char(string='Telefono')
     email = fields.Char(string='Correo')
     company_id = fields.Many2one(
-        'res.company', string='Compañía',
+        'res.company', string='Compania',
         required=True, default=lambda self: self.env.company
     )
     active = fields.Boolean(default=True)

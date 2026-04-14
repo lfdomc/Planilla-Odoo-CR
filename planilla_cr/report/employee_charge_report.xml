@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='UTF-8'?>
 <odoo>
 
     <!-- ════════════════════════════════════════════
@@ -6,7 +6,9 @@
     ════════════════════════════════════════════ -->
 
     <template id="report_employee_charge_document">
+        <t t-call="web.html_container"><t t-set="company" t-value="o.employee_id.company_id or env.company"/>
         <t t-call="web.external_layout">
+            <main>
             <div class="page">
                 <div class="row mb-4">
                     <div class="col-8">
@@ -59,23 +61,23 @@
                                 </t>
                                 <t t-else="">—</t>
                             </td>
-                            <td class="text-end">&#x20A1;<t t-esc="'{:,.2f}'.format(o.unit_price)"/></td>
-                            <td class="text-end">&#x20A1;<t t-esc="'{:,.2f}'.format(o.total_amount)"/></td>
+                            <td class="text-end">₡<t t-esc="'{:,.2f}'.format(o.unit_price)"/></td>
+                            <td class="text-end">₡<t t-esc="'{:,.2f}'.format(o.total_amount)"/></td>
                             <td class="text-end">
-                                &#x20A1;<t t-esc="'{:,.2f}'.format(o.employer_amount)"/>
+                                ₡<t t-esc="'{:,.2f}'.format(o.employer_amount)"/>
                                 (<t t-esc="'%.0f' % o.subsidy_pct"/>%)
                             </td>
                             <td class="text-end">
-                                <strong>&#x20A1;<t t-esc="'{:,.2f}'.format(o.employee_amount)"/></strong>
+                                <strong>₡<t t-esc="'{:,.2f}'.format(o.employee_amount)"/></strong>
                             </td>
                         </tr>
                     </tbody>
                     <tfoot class="table-light">
                         <tr>
                             <td colspan="3"><strong>Totales</strong></td>
-                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(o.total_amount)"/></strong></td>
-                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(o.employer_amount)"/></strong></td>
-                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(o.employee_amount)"/></strong></td>
+                            <td class="text-end"><strong>₡<t t-esc="'{:,.2f}'.format(o.total_amount)"/></strong></td>
+                            <td class="text-end"><strong>₡<t t-esc="'{:,.2f}'.format(o.employer_amount)"/></strong></td>
+                            <td class="text-end"><strong>₡<t t-esc="'{:,.2f}'.format(o.employee_amount)"/></strong></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -104,15 +106,17 @@
                     </div>
                 </div>
             </div>
-        </t>
-    </template>
+        </main></t>
+    </t></template>
 
     <!-- ════════════════════════════════════════════
          REPORTE PDF — Resumen (multi-registro)
     ════════════════════════════════════════════ -->
 
     <template id="report_employee_charge_summary_document">
+        <t t-call="web.html_container"><t t-set="company" t-value="docs[0].company_id if docs else env.company"/>
         <t t-call="web.external_layout">
+            <main>
             <div class="page">
                 <h2>Resumen de Cobros a Empleados</h2>
                 <p class="text-muted">
@@ -142,9 +146,9 @@
                                     <t t-if="charge.is_recurring">R</t>
                                     <t t-else="">—</t>
                                 </td>
-                                <td class="text-end">&#x20A1;<t t-esc="'{:,.2f}'.format(charge.total_amount)"/></td>
-                                <td class="text-end">&#x20A1;<t t-esc="'{:,.2f}'.format(charge.employer_amount)"/></td>
-                                <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(charge.employee_amount)"/></strong></td>
+                                <td class="text-end">₡<t t-esc="'{:,.2f}'.format(charge.total_amount)"/></td>
+                                <td class="text-end">₡<t t-esc="'{:,.2f}'.format(charge.employer_amount)"/></td>
+                                <td class="text-end"><strong>₡<t t-esc="'{:,.2f}'.format(charge.employee_amount)"/></strong></td>
                                 <td><t t-esc="charge.state"/></td>
                             </tr>
                         </t>
@@ -152,10 +156,10 @@
                     <tfoot class="table-secondary">
                         <tr>
                             <td colspan="4"><strong>TOTALES</strong></td>
-                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(sum(docs.mapped('total_amount')))"/></strong></td>
-                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(sum(docs.mapped('employer_amount')))"/></strong></td>
-                            <td class="text-end"><strong>&#x20A1;<t t-esc="'{:,.2f}'.format(sum(docs.mapped('employee_amount')))"/></strong></td>
-                            <td></td>
+                            <td class="text-end"><strong>₡<t t-esc="'{:,.2f}'.format(sum(docs.mapped('total_amount')))"/></strong></td>
+                            <td class="text-end"><strong>₡<t t-esc="'{:,.2f}'.format(sum(docs.mapped('employer_amount')))"/></strong></td>
+                            <td class="text-end"><strong>₡<t t-esc="'{:,.2f}'.format(sum(docs.mapped('employee_amount')))"/></strong></td>
+                            <td/>
                         </tr>
                     </tfoot>
                 </table>
@@ -169,10 +173,10 @@
                     </div>
                 </div>
             </div>
-        </t>
-    </template>
+        </main></t>
+    </t></template>
 
-    <!-- Acciones de reporte -->
+    <!-- Acciónes de reporte -->
     <record id="action_report_employee_charge" model="ir.actions.report">
         <field name="name">Cobro al Empleado</field>
         <field name="model">planilla.employee.charge</field>

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- ══════════════════════════════════════════════════════════════════════
+    <!-- ======================================================================
          WIZARD: Machote de Importación de Empleados
-         ══════════════════════════════════════════════════════════════════════ -->
+         ====================================================================== -->
 
     <record id="view_import_template_wizard_form" model="ir.ui.view">
         <field name="name">planilla.import.template.wizard.form</field>
@@ -15,11 +15,11 @@
                 <div class="alert alert-info" role="alert">
                     <i class="fa fa-file-excel-o me-2" title="Excel"/>
                     <strong>Machote de carga masiva de empleados</strong><br/>
-                    Descargue este archivo Excel, compártalo con su cliente y
-                    devuélvalo completo para realizar la importación inicial
+                    Descargue este archivo Excel, compartalo con su cliente y
+                    devuelvalo completo para realizar la importación inicial
                     al sistema. <br/>
                     <small>
-                        Incluye hojas para empleados, préstamos, pensiones
+                        Incluye hojas para empleados, préstamos, pensiónes
                         alimentarias, beneficios recurrentes, incapacidades
                         y saldo de vacaciones.
                     </small>
@@ -33,13 +33,13 @@
                     <group>
                         <field name="include_employees"
                                widget="boolean_toggle"
-                               string="👤  Empleados (datos principales)"/>
+                               string="  Empleados (datos principales)"/>
                         <field name="include_loans"
                                widget="boolean_toggle"
-                               string="💰  Préstamos y Adelantos"/>
+                               string="$  Préstamos y Adelantos"/>
                         <field name="include_pension"
                                widget="boolean_toggle"
-                               string="👨‍👧  Pensiones Alimentarias"/>
+                               string="‍  Pensiónes Alimentarias"/>
                     </group>
                     <group>
                         <field name="include_benefits"
@@ -47,35 +47,41 @@
                                string="➕  Otros Descuentos (Sindical, Coop, Ahorro…)"/>
                         <field name="include_disabilities"
                                widget="boolean_toggle"
-                               string="🏥  Incapacidades"/>
+                               string="  Incapacidades"/>
                         <field name="include_overtime"
                                widget="boolean_toggle"
-                               string="⏱️  Horas Extras (histórico)"/>
+                               string="⏱  Horas Extras (histórico)"/>
                         <field name="include_vacations"
                                widget="boolean_toggle"
-                               string="🏖️  Saldo de Vacaciones"/>
+                               string="  Saldo de Vacaciones"/>
                         <field name="include_embargos"
                                widget="boolean_toggle"
-                               string="⚖️  Embargos Judiciales"/>
+                               string="⚖  Embargos Judiciales"/>
                         <field name="include_bonos"
                                widget="boolean_toggle"
-                               string="🎯  Bonos y Beneficios"/>
+                               string="  Bonos y Beneficios"/>
+                        <field name="include_acumulados"
+                               widget="boolean_toggle"
+                               string="  Acumulados Provisiónes (aguinaldo/cesantía/vacaciones)"/>
+                        <field name="include_config"
+                               widget="boolean_toggle"
+                               string="  Lista de verificacion configuración inicial"/>
                     </group>
                 </group>
 
                 <div class="text-muted small mt-2">
                     <i class="fa fa-info-circle me-1" title="Información"/>
                     La hoja <strong>INSTRUCCIONES</strong> y la hoja
-                    <strong>CATÁLOGOS</strong> siempre se incluyen automáticamente.
+                    <strong>CATALOGOS</strong> siempre se incluyen automáticamente.
                 </div>
 
-                <group string="🧪 Datos de Prueba">
+                <group string=" Datos de Prueba">
                     <field name="include_sample_data"
                            widget="boolean_toggle"
-                           string="🧪  Incluir fila de prueba (cédula 1-0000-0001)"/>
+                           string="  Incluir fila de prueba (cédula 1-0000-0001)"/>
                     <div class="text-muted small" colspan="2">
                         La fila naranja (EMPLEADO PRUEBA) permite verificar que la importación
-                        funciona correctamente. Importe, verifique y luego elimine ese empleado.
+                        funcióna correctamente. Importe, verifique y luego elimine ese empleado.
                     </div>
                 </group>
 

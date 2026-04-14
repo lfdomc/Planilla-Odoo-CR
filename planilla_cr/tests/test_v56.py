@@ -1,18 +1,18 @@
 """
-Tests unitarios v5.6 — Sistema Planilla CR
+Tests unitarios v5.6 -- Sistema Planilla CR
 ==========================================
 Cobertura nueva para:
   - Constantes (planilla_const.py)
-  - ROP automático (_sync_rop)
+  - ROP automatico (_sync_rop)
   - Fix duplicado vacaciones/ausencias
-  - Bono de antigüedad (config + cron)
+  - Bono de antiguedad (config + cron)
   - Asiento contable modo per_run
-  - Liquidación completa (3 causales)
-  - Incapacidad CCSS días 1-3 patrono
+  - Liquidacion completa (3 causales)
+  - Incapacidad CCSS dias 1-3 patrono
   - Disability tipo maternidad
   - Timezone CR UTC-6 en asistencias
   - Record rules multi-empresa
-  - Cron cierre préstamos
+  - Cron cierre prestamos
 
 Ejecutar:
   docker compose run --rm web odoo -d prueba --test-enable \\
@@ -26,7 +26,7 @@ import unittest
 
 
 class TestPlanillaConst(TransactionCase):
-    """Tests para planilla_const.py — constantes CR 2026."""
+    """Tests para planilla_const.py -- constantes CR 2026."""
 
     def test_01_ccss_emp_rate(self):
         """CCSS obrera = 10.83%."""
@@ -49,19 +49,19 @@ class TestPlanillaConst(TransactionCase):
             msg='ROP patronal debe ser 3.25% (Ley 7983 Art. 6)')
 
     def test_04_renta_exento(self):
-        """Monto exento renta 2026 = ₡941,000."""
+        """Monto exento renta 2026 = CRC941,000."""
         from odoo.addons.planilla_cr.models import planilla_const as K
         self.assertEqual(K.RENTA_EXENTO, 941_000,
-            msg='Exento renta 2026 = ₡941,000 (DGT-R-016-2026)')
+            msg='Exento renta 2026 = CRC941,000 (DGT-R-016-2026)')
 
     def test_05_tope_transporte(self):
-        """Tope exento subsidio transporte = ₡74,000."""
+        """Tope exento subsidio transporte = CRC74,000."""
         from odoo.addons.planilla_cr.models import planilla_const as K
         self.assertEqual(K.TOPE_TRANSPORTE, 74_000,
-            msg='Tope exento transporte 2026 = ₡74,000')
+            msg='Tope exento transporte 2026 = CRC74,000')
 
     def test_06_provisiones_suman_1782_pct(self):
-        """Aguinaldo + Cesantía + Vacaciones = 17.82%."""
+        """Aguinaldo + Cesantia + Vacaciones = 17.82%."""
         from odoo.addons.planilla_cr.models import planilla_const as K
         total = K.PROV_AGUINALDO + K.PROV_CESANTIA + K.PROV_VACACIONES
         self.assertAlmostEqual(total, 0.1782, places=3,
@@ -76,7 +76,7 @@ class TestPlanillaConst(TransactionCase):
         self.assertGreater(K.FREQ_FACTORS['bimonthly'], 1.0)
 
     def test_08_ins_tasas_dict(self):
-        """INS tiene 5 clases de riesgo y están en orden ascendente."""
+        """INS tiene 5 clases de riesgo y estan en orden ascendente."""
         from odoo.addons.planilla_cr.models import planilla_const as K
         self.assertEqual(set(K.INS_TASAS.keys()), {'I','II','III','IV','V'})
         tasas = [K.INS_TASAS[c] for c in ['I','II','III','IV','V']]
@@ -84,18 +84,18 @@ class TestPlanillaConst(TransactionCase):
             msg='Tasas INS deben estar en orden ascendente I < II < III < IV < V')
 
     def test_09_max_embargo_pct(self):
-        """Límite embargo = 25% (Art. 172 CT)."""
+        """Limite embargo = 25% (Art. 172 CT)."""
         from odoo.addons.planilla_cr.models import planilla_const as K
         self.assertEqual(K.MAX_PCT_EMBARGO, 25.0)
 
     def test_10_dias_mes_laboral(self):
-        """Días laborales en un mes = 30 (Art. 163 CT)."""
+        """Dias laborales en un mes = 30 (Art. 163 CT)."""
         from odoo.addons.planilla_cr.models import planilla_const as K
         self.assertEqual(K.DIAS_MES, 30)
 
 
 class TestRopSync(TransactionCase):
-    """Tests para _sync_rop() — ROP automático (Ley 7983)."""
+    """Tests para _sync_rop() -- ROP automatico (Ley 7983)."""
 
     @classmethod
     def setUpClass(cls):
@@ -133,14 +133,14 @@ class TestRopSync(TransactionCase):
         return slip
 
     def test_11_rop_crea_linea_deduccion(self):
-        """_sync_rop debe crear línea de deducción tipo 'rop'."""
+        """_sync_rop debe crear linea de deduccion tipo 'rop'."""
         slip = self._make_slip()
         slip._sync_rop()
         rop_lines = slip.deduction_line_ids.filtered(
             lambda l: l.deduction_category == 'rop' and l.line_type == 'deduction'
         )
         self.assertTrue(rop_lines,
-            'Debe existir al menos una línea de deducción ROP')
+            'Debe existir al menos una linea de deduccion ROP')
 
     def test_12_rop_monto_correcto(self):
         """ROP obrero = 1% del gross_salary."""
@@ -153,10 +153,10 @@ class TestRopSync(TransactionCase):
         expected = round(slip.gross_salary * K.ROP_EMP, 2)
         total_rop = sum(rop_lines.mapped('amount'))
         self.assertAlmostEqual(total_rop, expected, delta=1,
-            msg=f'ROP obrero debe ser ₡{expected:,.2f}, obtenido: ₡{total_rop:,.2f}')
+            msg=f'ROP obrero debe ser CRC{expected:,.2f}, obtenido: CRC{total_rop:,.2f}')
 
     def test_13_rop_no_aplica_si_flag_false(self):
-        """Si rop_applies=False, no se crea línea de deducción."""
+        """Si rop_applies=False, no se crea linea de deduccion."""
         self.employee.rop_applies = False
         try:
             slip = self._make_slip()
@@ -170,7 +170,7 @@ class TestRopSync(TransactionCase):
             self.employee.rop_applies = True
 
     def test_14_rop_no_duplica_en_resync(self):
-        """Re-sincronizar no debe duplicar líneas de ROP."""
+        """Re-sincronizar no debe duplicar lineas de ROP."""
         slip = self._make_slip()
         slip._sync_rop()
         slip._sync_rop()  # segunda llamada
@@ -178,7 +178,7 @@ class TestRopSync(TransactionCase):
             lambda l: l.deduction_category == 'rop'
         )
         self.assertEqual(len(rop_lines), 1,
-            'Re-sync no debe crear líneas ROP duplicadas')
+            'Re-sync no debe crear lineas ROP duplicadas')
 
 
 class TestVacationHolidayNoOverlap(TransactionCase):
@@ -209,7 +209,7 @@ class TestVacationHolidayNoOverlap(TransactionCase):
         })
 
     def test_15_ausencia_sin_vac_payment_se_deduce(self):
-        """Una ausencia sin goce sin vacation.payment sí genera deducción."""
+        """Una ausencia sin goce sin vacation.payment si genera deduccion."""
         # This just tests that _sync_ausencias doesn't erroneously skip
         slip = self.env['planilla.payslip.cr'].create({
             'employee_id': self.employee.id,
@@ -217,7 +217,7 @@ class TestVacationHolidayNoOverlap(TransactionCase):
             'date_to': '2026-04-30',
             'company_id': self.company.id,
         })
-        # No vacation.payment exists → ausencia should NOT be skipped
+        # No vacation.payment exists -> ausencia should NOT be skipped
         # We verify the cross-check logic path exists without runtime hr.leave
         self.assertTrue(slip.employee_id.id == self.employee.id)
 
@@ -260,16 +260,16 @@ class TestBonoAntiguedadConfig(TransactionCase):
         cls.company = cls.env.ref('base.main_company')
 
     def test_17_config_creacion_valida(self):
-        """Crear configuración de antigüedad válida."""
+        """Crear configuracion de antiguedad valida."""
         cfg = self.env['planilla.bono.antiguedad.config'].create({
             'company_id': self.company.id,
-            'name': 'Test 1-3 años — 2%',
+            'name': 'Test 1-3 anos -- 2%',
             'years_from': 1,
             'years_to': 3,
             'amount_type': 'percentage',
             'percentage': 2.0,
         })
-        self.assertTrue(cfg.id, 'Debería crear la configuración sin error')
+        self.assertTrue(cfg.id, 'Deberia crear la configuracion sin error')
         cfg.unlink()
 
     def test_18_config_porcentaje_cero_falla(self):
@@ -278,7 +278,7 @@ class TestBonoAntiguedadConfig(TransactionCase):
                 msg='Porcentaje 0 debe rechazarse'):
             self.env['planilla.bono.antiguedad.config'].create({
                 'company_id': self.company.id,
-                'name': 'Config Inválida',
+                'name': 'Config Invalida',
                 'years_from': 1,
                 'amount_type': 'percentage',
                 'percentage': 0.0,
@@ -289,7 +289,7 @@ class TestBonoAntiguedadConfig(TransactionCase):
         with self.assertRaises(ValidationError):
             self.env['planilla.bono.antiguedad.config'].create({
                 'company_id': self.company.id,
-                'name': 'Config años 0',
+                'name': 'Config anos 0',
                 'years_from': 0,
                 'amount_type': 'percentage',
                 'percentage': 2.0,
@@ -306,7 +306,7 @@ class TestBonoAntiguedadConfig(TransactionCase):
         })
         monto = cfg.compute_bono_amount(500_000, 3)
         self.assertAlmostEqual(monto, 10_000, delta=1,
-            msg='2% de ₡500,000 = ₡10,000')
+            msg='2% de CRC500,000 = CRC10,000')
         cfg.unlink()
 
     def test_21_compute_bono_amount_fijo(self):
@@ -320,7 +320,7 @@ class TestBonoAntiguedadConfig(TransactionCase):
         })
         monto = cfg.compute_bono_amount(500_000, 6)
         self.assertEqual(monto, 25_000,
-            msg='Monto fijo debe retornar ₡25,000 independiente del salario')
+            msg='Monto fijo debe retornar CRC25,000 independiente del salario')
         cfg.unlink()
 
     def test_22_get_config_for_years_tramo_correcto(self):
@@ -343,14 +343,14 @@ class TestBonoAntiguedadConfig(TransactionCase):
         result_5 = self.env['planilla.bono.antiguedad.config'].get_config_for_years(
             self.company.id, 5
         )
-        self.assertEqual(result_2.id, cfg1.id, 'Año 2 debe caer en tramo 1-3')
-        self.assertEqual(result_5.id, cfg2.id, 'Año 5 debe caer en tramo 4+')
+        self.assertEqual(result_2.id, cfg1.id, 'Ano 2 debe caer en tramo 1-3')
+        self.assertEqual(result_5.id, cfg2.id, 'Ano 5 debe caer en tramo 4+')
         cfg1.unlink()
         cfg2.unlink()
 
 
 class TestTerminacionCompleta(TransactionCase):
-    """Tests para liquidación completa con los 3 escenarios principales."""
+    """Tests para liquidacion completa con los 3 escenarios principales."""
 
     @classmethod
     def setUpClass(cls):
@@ -376,31 +376,31 @@ class TestTerminacionCompleta(TransactionCase):
         return term
 
     def test_23_renuncia_sin_cesantia(self):
-        """Renuncia voluntaria NO genera cesantía (Art. 29 CT)."""
+        """Renuncia voluntaria NO genera cesantia (Art. 29 CT)."""
         term = self._make_termination('renuncia')
         self.assertFalse(term.cesantia_applies,
-            'Renuncia no genera cesantía (Art. 29 CT solo aplica a despido injust.)')
+            'Renuncia no genera cesantia (Art. 29 CT solo aplica a despido injust.)')
         self.assertEqual(term.cesantia_amount, 0,
-            'Monto cesantía debe ser 0 en renuncia')
+            'Monto cesantia debe ser 0 en renuncia')
 
     def test_24_despido_injustificado_tiene_cesantia(self):
-        """Despido sin causa tiene cesantía y preaviso."""
+        """Despido sin causa tiene cesantia y preaviso."""
         term = self._make_termination('despido_injust', years=5)
         self.assertTrue(term.cesantia_applies,
-            'Despido injustificado debe generar cesantía')
+            'Despido injustificado debe generar cesantia')
         self.assertGreater(term.cesantia_amount, 0,
-            'Monto cesantía debe ser > 0 en despido injustificado')
+            'Monto cesantia debe ser > 0 en despido injustificado')
         self.assertGreater(term.preaviso_amount, 0,
             'Preaviso debe ser > 0 en despido injustificado')
 
     def test_25_total_liquidacion_mayor_que_cero(self):
-        """Total neto liquidación debe ser > 0 en despido injustificado."""
+        """Total neto liquidacion debe ser > 0 en despido injustificado."""
         term = self._make_termination('despido_injust', years=3, salary=500_000)
         self.assertGreater(term.total_net, 0,
-            'Total neto liquidación debe ser positivo')
+            'Total neto liquidacion debe ser positivo')
 
     def test_26_liquidacion_con_menos_1_ano_no_cesantia(self):
-        """Menos de 1 año de servicio: no hay cesantía según tabla."""
+        """Menos de 1 ano de servicio: no hay cesantia segun tabla."""
         entry = date.today() - relativedelta(months=6)
         emp = self.env['hr.employee'].create({
             'name': 'Empleado 6 meses',
@@ -417,8 +417,8 @@ class TestTerminacionCompleta(TransactionCase):
             'termination_reason': 'despido_injust',
             'last_salary': 400_000,
         })
-        # Con menos de 1 año, tabla da 0 días de cesantía
-        # (primeros días son proporcionales, Art. 29 CT)
+        # Con menos de 1 ano, tabla da 0 dias de cesantia
+        # (primeros dias son proporcionales, Art. 29 CT)
         self.assertGreaterEqual(term.total_gross, 0,
             'Total bruto debe ser >= 0')
 
@@ -428,14 +428,14 @@ class TestTerminacionCompleta(TransactionCase):
         term = self._make_termination('renuncia', years=2, salary=500_000)
         if 6 <= today.month <= 11:
             self.assertGreater(term.aguinaldo_amount, 0,
-                f'Aguinaldo debe ser > 0 en mes {today.month} (período jun-nov)')
+                f'Aguinaldo debe ser > 0 en mes {today.month} (periodo jun-nov)')
         elif today.month == 12:
             self.assertEqual(term.aguinaldo_months, 0,
-                'En diciembre ya cobró aguinaldo, meses = 0')
+                'En diciembre ya cobro aguinaldo, meses = 0')
 
 
 class TestDisabilityPatrono(TransactionCase):
-    """Tests para incapacidad — días 1-3 a cargo del patrono."""
+    """Tests para incapacidad -- dias 1-3 a cargo del patrono."""
 
     @classmethod
     def setUpClass(cls):
@@ -450,19 +450,19 @@ class TestDisabilityPatrono(TransactionCase):
         })
 
     def test_28_incapacidad_3_dias_cargo_patrono(self):
-        """Incapacidad CCSS de 3 días: todo es cargo del patrono (Art. 79 Regl.)."""
+        """Incapacidad CCSS de 3 dias: todo es cargo del patrono (Art. 79 Regl.)."""
         dis = self.env['planilla.disability'].create({
             'employee_id': self.employee.id,
             'disability_type': 'ccss',
             'date_start': '2026-05-05',
-            'date_end': '2026-05-07',  # 3 días
+            'date_end': '2026-05-07',  # 3 dias
             'subsidy_percentage': 60.0,
             'employer_percentage': 40.0,
         })
         dis._compute_costs()
-        # 3 días → todos a cargo del patrono (Art. 79 Regl. CCSS)
+        # 3 dias -> todos a cargo del patrono (Art. 79 Regl. CCSS)
         self.assertGreater(dis.employer_cost, 0,
-            'Días 1-3 de incapacidad CCSS son 100% cargo patrono (Art. 79 Regl.)')
+            'Dias 1-3 de incapacidad CCSS son 100% cargo patrono (Art. 79 Regl.)')
         dis.unlink()
 
     def test_29_incapacidad_ins_no_costo_patrono(self):
@@ -475,28 +475,28 @@ class TestDisabilityPatrono(TransactionCase):
         })
         dis._compute_costs()
         self.assertEqual(dis.employer_cost, 0,
-            'Incapacidad INS: el INS cubre desde día 1 (Art. 218 CT), patrono = 0')
+            'Incapacidad INS: el INS cubre desde dia 1 (Art. 218 CT), patrono = 0')
         dis.unlink()
 
     def test_30_incapacidad_mas_3_dias_ccss_paga_del_4(self):
-        """Incapacidad CCSS de 10 días: días 1-3 patrono, días 4-10 CCSS."""
+        """Incapacidad CCSS de 10 dias: dias 1-3 patrono, dias 4-10 CCSS."""
         dis = self.env['planilla.disability'].create({
             'employee_id': self.employee.id,
             'disability_type': 'ccss',
             'date_start': '2026-06-01',
-            'date_end': '2026-06-10',  # 10 días
+            'date_end': '2026-06-10',  # 10 dias
             'subsidy_percentage': 60.0,
             'employer_percentage': 40.0,
         })
         dis._compute_costs()
         self.assertGreater(dis.employer_cost, 0,
-            'Días 1-3 tienen costo para el patrono')
+            'Dias 1-3 tienen costo para el patrono')
         self.assertGreater(dis.ccss_subsidy, 0,
-            'Días 4+ deben tener subsidio CCSS')
+            'Dias 4+ deben tener subsidio CCSS')
         dis.unlink()
 
 
-@unittest.skip("Crear segunda empresa falla en Odoo 19.0-20260217 por group_on NOT NULL — omitido")
+@unittest.skip("Crear segunda empresa falla en Odoo 19.0-20260217 por group_on NOT NULL -- omitido")
 class TestMultiEmpresaRecordRules(TransactionCase):
     """Tests para record rules multi-empresa."""
 
@@ -543,12 +543,12 @@ class TestMultiEmpresaRecordRules(TransactionCase):
         bono_a.unlink()
 
     def test_32_embargo_requiere_expediente(self):
-        """Embargo judicial requiere número de expediente."""
+        """Embargo judicial requiere numero de expediente."""
         with self.assertRaises(Exception,
                 msg='Embargo sin expediente debe fallar'):
             self.env['planilla.embargo'].create({
                 'employee_id': self.emp_a.id,
-                'numero_expediente': '',  # Vacío — debe fallar (required=True)
+                'numero_expediente': '',  # Vacio -- debe fallar (required=True)
                 'juzgado': 'Juzgado Test',
                 'beneficiario_nombre': 'Acreedor',
                 'calculation_type': 'fixed',
@@ -686,7 +686,7 @@ class TestPerRunAccounting(TransactionCase):
             msg=f'Asiento per_run debe cuadrar: DEBE={debit:,.2f} HABER={credit:,.2f}')
 
     def test_34_per_run_tiene_lineas_cuenta_salarios(self):
-        """Asiento per_run debe tener línea de cuenta de sueldos."""
+        """Asiento per_run debe tener linea de cuenta de sueldos."""
         run = self.env['planilla.run.cr'].search([
             ('name', 'like', 'perRun Test v56'),
         ], limit=1)
@@ -696,11 +696,11 @@ class TestPerRunAccounting(TransactionCase):
             lambda l: l.account_id.id == self.acc_salary_exp.id
         )
         self.assertTrue(salary_lines,
-            'Asiento per_run debe tener línea de cuenta de sueldos')
+            'Asiento per_run debe tener linea de cuenta de sueldos')
 
 
 class TestCronLoanClose(TransactionCase):
-    """Test para cron cierre automático de préstamos."""
+    """Test para cron cierre automatico de prestamos."""
 
     @classmethod
     def setUpClass(cls):
@@ -715,7 +715,7 @@ class TestCronLoanClose(TransactionCase):
         })
 
     def test_35_prestamo_con_todas_cuotas_deducted_se_cierra(self):
-        """Préstamo cuyas cuotas están 'deducted' debe cerrarse al correr el cron."""
+        """Prestamo cuyas cuotas estan 'deducted' debe cerrarse al correr el cron."""
         loan = self.env['planilla.employee.loan'].create({
             'employee_id': self.employee.id,
             'loan_type': 'loan',
@@ -733,10 +733,10 @@ class TestCronLoanClose(TransactionCase):
         self.env['planilla.scheduled.actions'].sudo().cron_close_completed_loans()
         loan.invalidate_recordset()
         self.assertEqual(loan.state, 'paid',
-            'Préstamo con cuotas deducted debe pasar a estado paid')
+            'Prestamo con cuotas deducted debe pasar a estado paid')
 
     def test_36_prestamo_con_cuotas_pendientes_no_se_cierra(self):
-        """Préstamo con cuotas pendientes NO debe cerrarse."""
+        """Prestamo con cuotas pendientes NO debe cerrarse."""
         loan = self.env['planilla.employee.loan'].create({
             'employee_id': self.employee.id,
             'loan_type': 'advance',
@@ -753,4 +753,4 @@ class TestCronLoanClose(TransactionCase):
         self.env['planilla.scheduled.actions'].sudo().cron_close_completed_loans()
         loan.invalidate_recordset()
         self.assertIn(loan.state, ('approved', 'active'),
-            'Préstamo con cuotas pendientes NO debe cerrarse')
+            'Prestamo con cuotas pendientes NO debe cerrarse')

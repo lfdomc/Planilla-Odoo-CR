@@ -5,8 +5,8 @@
         <field name="model">planilla.minimum.salary</field>
         <field name="arch" type="xml">
             <list string="Salarios Mínimos MTSS" editable="bottom">
-                <field name="category" string="Categoría Ocupacional"/>
-                <field name="amount" string="Mínimo Mensual (₡)"/>
+                <field name="category" string="Categoria Ocupacional"/>
+                <field name="amount" string="Mínimo Mensual (CRC)"/>
                 <field name="valid_from" string="Vigente desde"/>
                 <field name="decree_ref" string="Decreto"/>
                 <field name="active"/>
@@ -21,13 +21,13 @@
             <form string="Salario Mínimo MTSS">
                 <sheet>
                     <div style="background:#d1ecf1; border-radius:6px; padding:10px; margin-bottom:12px; font-size:12px; color:#0c5460;">
-                        <strong>ℹ Salarios Mínimos MTSS</strong> — El sistema advertirá si un empleado
+                        <strong>i Salarios Mínimos MTSS</strong> -- El sistema advertira si un empleado
                         tiene un salario por debajo del mínimo vigente. Actualice esta tabla cada vez que
                         el Ministerio de Trabajo publique nuevos decretos (generalmente enero y julio).
                     </div>
                     <group>
                         <group>
-                            <field name="category" placeholder="Ej: Trabajador no calificado genérico"/>
+                            <field name="category" placeholder="Ej: Trabajador no calificado generico"/>
                             <field name="amount"/>
                         </group>
                         <group>
@@ -46,8 +46,8 @@
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Configure los salarios mínimos del MTSS</p>
-            <p>Agregue una entrada por cada categoría ocupacional con el decreto vigente.
-            El sistema alertará si un salario está por debajo del mínimo configurado.</p>
+            <p>Agregue una entrada por cada categoria ocupacional con el decreto vigente.
+            El sistema alertara si un salario esta por debajo del mínimo configurado.</p>
         </field>
     </record>
 </odoo>

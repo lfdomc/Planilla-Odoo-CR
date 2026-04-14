@@ -48,10 +48,33 @@ class Disability(models.Model):
         help='Porcentaje que paga la CCSS del salario durante la incapacidad'
     )
     employer_percentage = fields.Float(
-        string='% Complemento Patronal (días 4+)', default=0.0,
-        help='Porcentaje adicional que el patrono paga a partir del día 4. '
-             'Por defecto 0 %% — NO es obligatorio (Art. 79 Regl. CCSS). '
-             'Active solo si su empresa tiene política voluntaria de complemento.'
+        string='% Complemento Patronal (dias 4+)', default=0.0,
+        help='Porcentaje adicional que el patrono paga a partir del dia 4. '
+             'Por defecto 0 %% -- NO es obligatorio (Art. 79 Regl. CCSS). '
+             'Active solo si su empresa tiene politica voluntaria de complemento.'
+    )
+
+    # -- Opciones especiales maternidad --------------------------------------
+    maternity_split_50 = fields.Boolean(
+        string='CCSS 50% + Patrono 50%',
+        default=True,
+        help='Modalidad especial: el patrono paga el 50%% del salario y la CCSS '
+             'paga el otro 50%%. Aplica cuando la empresa tiene convenio o politica '
+             'de mantener el salario completo durante la licencia de maternidad. '
+             'Si no esta activo: CCSS paga el 100%% (Art. 94 CT estandar).'
+    )
+    maternity_ccss_on_employer = fields.Boolean(
+        string='Cobrar CCSS obrera (10.83%%) sobre subsidio patronal',
+        default=False,
+        help='Al monto que paga el patrono (50%% del salario) se descuenta el '
+             '10.83%% de CCSS obrera, igual que cualquier salario ordinario. '
+             'El empleado recibe el 50%% patronal menos la cota de caja.'
+    )
+    maternity_ccss_deduction = fields.Monetary(
+        string='CCSS obrera sobre subsidio patronal (10.83%%)',
+        currency_field='currency_id',
+        compute='_compute_costs', store=True,
+        help='Monto de CCSS obrera descontado sobre el 50%% patronal en modalidad 50/50.'
     )
 
     daily_salary = fields.Monetary(
@@ -68,7 +91,7 @@ class Disability(models.Model):
         string='Costo Patrono', currency_field='currency_id',
         compute='_compute_costs', store=True,
         help='Costo a cargo del patrono durante la incapacidad.\n'
-             '- CCSS (enfermedad): dias 1-3 → 50%% patrono + 50%% CCSS (Art. 79 CT). '
+             '- CCSS (enfermedad): dias 1-3 -> 50%% patrono + 50%% CCSS (Art. 79 CT). '
              'A partir del dia 4 la CCSS paga el 60%%, patrono puede complementar voluntariamente.\n'
              '- INS (riesgo laboral / accidente): el INS cubre desde el DIA 1 (Art. 218 '
              'Codigo de Trabajo y Reglamento del Seguro de Riesgos del Trabajo). '
@@ -80,7 +103,7 @@ class Disability(models.Model):
         compute='_compute_costs', store=True
     )
 
-    # Campos Maternidad (Art. 94 CT) — un solo registro cubre prenatal + postnatal
+    # Campos Maternidad (Art. 94 CT) -- un solo registro cubre prenatal + postnatal
     fecha_parto = fields.Date(
         string='Fecha de Parto', tracking=True,
         help='Fecha real o estimada del parto.\n'
@@ -100,6 +123,28 @@ class Disability(models.Model):
     diagnosis = fields.Char(string='Diagnostico')
     note = fields.Text(string='Observaciones')
 
+    # -- Prorroga / Continuidad ----------------------------------------
+    is_prorroga = fields.Boolean(
+        string='Es Prorroga',
+        default=False,
+        tracking=True,
+        help='Marque si esta incapacidad es una PRORROGA (continuacion) de una '
+             'incapacidad inmediatamente anterior del mismo empleado.\n\n'
+             'Regla legal CR (CCSS): cuando una incapacidad inicia el dia siguiente '
+             'a que termina otra del mismo empleado, es prorroga del mismo evento. '
+             'Los 3 dias del tramo patronal (Art. 79 CT) NO se reinician -- ya se '
+             'agotaron en el certificado original.\n\n'
+             'Si es prorroga: employer_cost = CRC0, todo el subsidio es a cargo de '
+             'la CCSS (60%). El sistema detecta automaticamente si el registro '
+             'inicia el dia siguiente a uno existente y activa esta bandera.'
+    )
+    prorroga_de_id = fields.Many2one(
+        'planilla.disability',
+        string='Prorroga de',
+        help='Referencia a la incapacidad original de la que este registro es prorroga.',
+        ondelete='set null'
+    )
+
     state = fields.Selection([
         ('draft',     'Borrador'),
         ('confirmed', 'Confirmado'),
@@ -107,7 +152,28 @@ class Disability(models.Model):
         ('cancelled', 'Cancelado'),
     ], string='Estado', default='draft', tracking=True)
 
-    payslip_id = fields.Many2one('planilla.payslip.cr', string='Boleta de Pago')
+    payslip_ids = fields.Many2many(
+        'planilla.payslip.cr',
+        'planilla_disability_payslip_rel',
+        'disability_id', 'payslip_id',
+        string='Boletas de Pago',
+        help='Todas las boletas en las que se proceso esta incapacidad '
+             '(puede ser mas de una cuando la incapacidad cruza varios periodos).'
+    )
+    # Compatibilidad: apunta a la primera boleta que proceso esta incapacidad.
+    payslip_id = fields.Many2one(
+        'planilla.payslip.cr',
+        string='Primera Boleta',
+        compute='_compute_payslip_id_compat',
+        store=True,
+        help='Primera boleta que proceso esta incapacidad (solo lectura).'
+    )
+
+    @api.depends('payslip_ids')
+    def _compute_payslip_id_compat(self):
+        for rec in self:
+            rec.payslip_id = rec.payslip_ids[:1] if rec.payslip_ids else False
+
 
     @api.depends('employee_id', 'date_start')
     def _compute_name(self):
@@ -142,54 +208,167 @@ class Disability(models.Model):
                 rec.maternity_avg_salary = 0.0
                 continue
 
-            rec.daily_salary = round(rec.employee_id.base_salary / 30, 2)
+            # FIX SALARIO-VARIABLE: usar promedio de ultimas 3 boletas confirmadas.
+            # Captura comisiones, bonos y horas extra. Fallback: base_salary / 30.
+            # Base legal: la CCSS calcula sobre el salario efectivamente cotizado
+            # (Reglamento del Seguro de Salud, Art. 6).
+            from odoo.fields import Date as _Date
+            ultimas_boletas = rec.env['planilla.payslip.cr'].search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('state', 'in', ('confirmed', 'paid')),
+                ('date_to', '<=', rec.date_start or _Date.context_today(rec)),
+            ], order='date_to desc', limit=3)
+
+            if ultimas_boletas:
+                from .. import planilla_const as _K
+                gross_list = []
+                for bol in ultimas_boletas:
+                    freq = bol._get_effective_freq()
+                    periodos = _K.PERIODOS_POR_MES.get(freq, 2)
+                    gross_list.append(bol.gross_salary * periodos)
+                avg_monthly = sum(gross_list) / len(gross_list)
+                rec.daily_salary = round(avg_monthly / 30, 2)
+            else:
+                rec.daily_salary = round(rec.employee_id.base_salary / 30, 2)
 
             if rec.disability_type == 'maternity':
                 history = rec.env['planilla.salary.history'].search([
                     ('employee_id', '=', rec.employee_id.id),
-                    ('effective_date', '<=', rec.date_start or fields.Date.context_today(rec)),
-                    # FIX-F6: filtrar solo registros autorizados para consistencia
-                    # con _compute_avg_last_4_weeks y _onchange_employee.
-                    # Sin este filtro podían entrar registros en 'draft' o 'rejected'
-                    # que distorsionarían el promedio de maternidad (Regl. CCSS).
+                    ('effective_date', '<=', rec.date_start or _Date.context_today(rec)),
                     ('state', '=', 'authorized'),
                 ], order='effective_date desc', limit=3)
                 if history:
-                    # Promedio de ultimos 3 salarios brutos cotizados (Reglamento CCSS)
                     avg = sum(history.mapped('gross_salary')) / len(history)
                     rec.maternity_avg_salary = round(avg / 30, 2)
                 else:
-                    # Sin historial previo: usa salario base actual del empleado
-                    rec.maternity_avg_salary = round(rec.employee_id.base_salary / 30, 2)
+                    rec.maternity_avg_salary = round(rec.daily_salary, 2)
             else:
                 rec.maternity_avg_salary = 0.0
 
     @api.depends('days', 'daily_salary', 'maternity_avg_salary',
-                 'subsidy_percentage', 'employer_percentage', 'disability_type')
+                 'subsidy_percentage', 'employer_percentage',
+                 'disability_type', 'is_prorroga',
+                 'maternity_split_50', 'maternity_ccss_on_employer')
     def _compute_costs(self):
         for rec in self:
             if rec.disability_type == 'maternity':
-                # Art. 94 CT: 100% CCSS desde dia 1, patrono NO paga salario
                 daily = rec.maternity_avg_salary or rec.daily_salary
-                rec.employer_cost = 0.0
-                rec.ccss_subsidy = round(rec.days * daily, 2)
+                total = round(rec.days * daily, 2)
+                rec.maternity_ccss_deduction = 0.0  # default
+
+                if rec.maternity_split_50:
+                    # Modalidad 50/50: patrono paga 50%, CCSS paga 50%
+                    mitad = round(total * 0.50, 2)
+                    if rec.maternity_ccss_on_employer:
+                        # Al 50% del patrono se le aplica CCSS obrera (10.83%%)
+                        # igual que cualquier pago de salario ordinario.
+                        # El empleado recibe: 50%% patronal - 10.83%% CCSS
+                        ccss_sobre_patrono = round(mitad * 0.1083, 2)
+                        rec.maternity_ccss_deduction = ccss_sobre_patrono
+                        rec.employer_cost = mitad          # patrono paga el 50%%
+                        rec.ccss_subsidy  = round(total * 0.50, 2)  # CCSS paga su 50%%
+                    else:
+                        # CCSS paga su 50%%, patrono absorbe su 50%% sin deduccion
+                        rec.employer_cost = mitad
+                        rec.ccss_subsidy  = mitad
+                        rec.maternity_ccss_deduction = 0.0
+                else:
+                    # Art. 94 CT estandar: 100%% CCSS, patrono NO paga salario
+                    rec.employer_cost = 0.0
+                    rec.ccss_subsidy  = total
             elif rec.disability_type == 'ins':
+                # INS - Riesgo Laboral (Art. 218 CT / Regl. Seguro Riesgos del Trabajo):
+                #  El INS cubre desde el DIA 1 (sin periodo de carencia patronal).
+                #  El INS paga 60% del salario asegurado (igual que CCSS dias 4+).
+                #  El patrono NO paga ningun subsidio -- employer_cost = CRC0.
+                #  El INS paga DIRECTAMENTE al empleado, fuera de planilla.
+                #  En planilla solo se registra el subsidio como referencia informativa.
+                #  Tasa: 60% del salario diario (subsidy_percentage configurado en 100
+                #   por defecto -- CORRECCION: debe ser 60% para INS ordinario).
                 rec.employer_cost = 0.0
-                rec.ccss_subsidy = round(rec.days * rec.daily_salary, 2)
+                ins_rate = (rec.subsidy_percentage or 60.0) / 100.0
+                rec.ccss_subsidy = round(rec.days * rec.daily_salary * ins_rate, 2)
+            elif rec.is_prorroga:
+                # Prorroga: los 3 dias del tramo patronal ya se agotaron en el
+                # certificado original. Todo el subsidio es a cargo de la CCSS.
+                # Base legal: Art. 79 CT / Circular CCSS sobre continuidad de
+                # incapacidades (sin brecha entre certificados = mismo evento).
+                rec.employer_cost = 0.0
+                rec.ccss_subsidy = round(
+                    rec.days * rec.daily_salary * rec.subsidy_percentage / 100, 2
+                )
             else:
-                # Art. 79 CT: días 1-3 → 50% patrono + 50% CCSS (mandato legal fijo).
-                # días 4+ → 60% CCSS (subsidy_percentage), patrono puede complementar
-                # voluntariamente (employer_percentage, default 0%).
-                first_days = min(rec.days, 3)
+                # Art. 79 CT: dias 1-3 -> 50% patrono + 50% CCSS.
+                # dias 4+ -> subsidy_percentage% CCSS, patrono puede complementar.
+                first_days    = min(rec.days, 3)
                 remaining_days = max(rec.days - 3, 0)
                 rec.employer_cost = round(
-                    (first_days * rec.daily_salary * 0.50) +          # 50% patrono días 1-3 (Art. 79 CT)
-                    (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2  # complemento voluntario
+                    (first_days * rec.daily_salary * 0.50) +
+                    (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2
                 )
                 rec.ccss_subsidy = round(
-                    (first_days * rec.daily_salary * 0.50) +           # 50% CCSS días 1-3 (Art. 79 CT)
+                    (first_days * rec.daily_salary * 0.50) +
                     (remaining_days * rec.daily_salary * rec.subsidy_percentage / 100), 2
                 )
+
+    @api.depends('employee_id', 'date_start', 'disability_type')
+    def _compute_is_prorroga(self):
+        """Detecta automaticamente si esta incapacidad es prorroga de otra.
+        Condicion: existe una incapacidad del mismo empleado cuyo date_end
+        es exactamente el dia anterior a este date_start.
+        """
+        from datetime import timedelta
+        for rec in self:
+            if not rec.employee_id or not rec.date_start or rec.disability_type == 'maternity':
+                rec.is_prorroga = False
+                rec.prorroga_de_id = False
+                continue
+            fecha_anterior = rec.date_start - timedelta(days=1)
+            anterior = self.search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('date_end', '=', fecha_anterior),
+                ('disability_type', '!=', 'maternity'),
+                ('state', 'not in', ['cancelled']),
+                ('id', '!=', rec.id),
+            ], limit=1)
+            if anterior:
+                rec.is_prorroga = True
+                rec.prorroga_de_id = anterior.id
+            else:
+                # No forzar is_prorroga=False si ya fue marcado manualmente
+                if not rec.is_prorroga:
+                    rec.prorroga_de_id = False
+
+    @api.onchange('employee_id', 'date_start')
+    def _onchange_detect_prorroga(self):
+        """Al ingresar empleado o fecha inicio, detectar si es prorroga."""
+        from datetime import timedelta
+        for rec in self:
+            if not rec.employee_id or not rec.date_start or rec.disability_type == 'maternity':
+                continue
+            fecha_anterior = rec.date_start - timedelta(days=1)
+            anterior = self.env['planilla.disability'].search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('date_end', '=', fecha_anterior),
+                ('disability_type', '!=', 'maternity'),
+                ('state', 'not in', ['cancelled']),
+            ], limit=1)
+            if anterior and not rec.is_prorroga:
+                rec.is_prorroga = True
+                rec.prorroga_de_id = anterior.id
+                return {
+                    'warning': {
+                        'title': 'WARN Prorroga detectada',
+                        'message': (
+                            f'Esta incapacidad inicia el dia siguiente a "{anterior.name}" '
+                            f'({anterior.date_start} -> {anterior.date_end}).\n\n'
+                            f'Se marco automaticamente como PRORROGA. El patrono no '
+                            f'paga los primeros 3 dias (ya se agotaron en el certificado '
+                            f'original). Todo el subsidio es a cargo de la CCSS (60%).'
+                        )
+                    }
+                }
+
 
     @api.onchange('disability_type')
     def _onchange_disability_type(self):
@@ -200,12 +379,12 @@ class Disability(models.Model):
             self.subsidy_percentage = 60.0
             self.employer_percentage = 0.0  # FIX v512 AUD: complemento patronal NO obligatorio
         elif self.disability_type == 'ins':
-            self.subsidy_percentage = 100.0
+            self.subsidy_percentage = 60.0   # INS paga 60% del salario (Art. 218 CT)
             self.employer_percentage = 0.0
 
     @api.constrains('date_start', 'date_end')
     def _check_disability_dates(self):
-        """FIX B-02 v53: Validar que la incapacidad tenga al menos 1 día y fechas coherentes."""
+        """FIX B-02 v53: Validar que la incapacidad tenga al menos 1 dia y fechas coherentes."""
         for rec in self:
             if rec.date_start and rec.date_end:
                 if rec.date_end < rec.date_start:
@@ -216,7 +395,48 @@ class Disability(models.Model):
                 days = (rec.date_end - rec.date_start).days + 1
                 if days <= 0:
                     raise ValidationError(
-                        'La incapacidad debe tener al menos 1 día.'
+                        'La incapacidad debe tener al menos 1 dia.'
+                    )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Garantizar que subsidy_percentage sea correcto segun el tipo
+        # cuando se crea desde el wizard de importacion o desde el operador
+        for vals in vals_list:
+            dtype = vals.get('disability_type', 'ccss')
+            if 'subsidy_percentage' not in vals or vals['subsidy_percentage'] == 0:
+                if dtype == 'maternity':
+                    vals['subsidy_percentage'] = 100.0
+                else:
+                    vals['subsidy_percentage'] = 60.0
+        return super().create(vals_list)
+
+    @api.constrains('subsidy_percentage', 'disability_type')
+    def _check_subsidy_percentage(self):
+        """
+        Validar que el % de subsidio sea legalmente correcto segun el tipo.
+        Art. 79 CT: CCSS paga 60% a partir del dia 4.
+        Ley 6727 + Art. 218 CT: INS paga minimo 60%.
+        Art. 94 CT: Maternidad 100%.
+        """
+        for rec in self:
+            if rec.disability_type in ('ccss', 'ccss_accident', 'ins'):
+                if rec.subsidy_percentage < 60.0:
+                    raise ValidationError(
+                        f'El % de subsidio no puede ser menor al 60% para incapacidades '
+                        f'CCSS/INS (Art. 79 CT / Ley 6727). Valor ingresado: {rec.subsidy_percentage}%.\n'
+                        f'El minimo legal es 60%. Si su empresa tiene un convenio especial, '
+                        f'use el campo "% Complemento Patronal" para el excedente.'
+                    )
+                if rec.subsidy_percentage > 100.0:
+                    raise ValidationError(
+                        f'El % de subsidio no puede exceder el 100%. Valor: {rec.subsidy_percentage}%.'
+                    )
+            elif rec.disability_type == 'maternity':
+                if rec.subsidy_percentage != 100.0:
+                    raise ValidationError(
+                        f'La licencia de maternidad siempre es al 100% (Art. 94 CT). '
+                        f'Valor ingresado: {rec.subsidy_percentage}%. Corrija a 100%.'
                     )
 
     @api.constrains('date_start', 'date_end', 'fecha_parto', 'disability_type',
@@ -239,27 +459,46 @@ class Disability(models.Model):
                     f'La Fecha de Parto ({rec.fecha_parto}) debe ser anterior o igual '
                     f'a la Fecha Fin ({rec.date_end}).'
                 )
+            # Los limites del Art. 94 CT (30 prenatal, 90 postnatal, 120 total)
+            # son los estandares, pero la CCSS puede autorizar dias adicionales por
+            # complicaciones, partos multiples, cesarea, prorroga medica, etc.
+            # Por eso se muestra una advertencia en lugar de bloquear el registro.
+            # El usuario debe validar con el certificado CCSS correspondiente.
             if rec.days > 120:
-                raise ValidationError(
-                    f'La licencia de maternidad no puede exceder 120 dias naturales '
-                    f'(Art. 94 CT). Dias ingresados: {rec.days}.'
+                rec._log_warning_maternidad(
+                    f'La licencia de maternidad supera los 120 dias naturales del Art. 94 CT '
+                    f'({rec.days} dias ingresados). Verifique que cuenta con la autorizacion '
+                    f'de la CCSS (prorroga por complicaciones, parto multiple, etc.).'
                 )
             if rec.prenatal_days > 30:
-                raise ValidationError(
-                    f'El prenatal no puede exceder 30 dias (Art. 94 CT). '
-                    f'Dias prenatales: {rec.prenatal_days}. '
-                    f'Ajuste la Fecha Inicio para que sea maximo 30 dias antes del parto.'
+                rec._log_warning_maternidad(
+                    f'El prenatal supera los 30 dias del Art. 94 CT '
+                    f'({rec.prenatal_days} dias). Verifique la autorizacion CCSS.'
                 )
             if rec.postnatal_days > 90:
-                raise ValidationError(
-                    f'El postnatal no puede exceder 90 dias (Art. 94 CT). '
-                    f'Dias postnatales: {rec.postnatal_days}. '
-                    f'Ajuste la Fecha Fin para que sea maximo 90 dias despues del parto.'
+                rec._log_warning_maternidad(
+                    f'El postnatal supera los 90 dias del Art. 94 CT '
+                    f'({rec.postnatal_days} dias). Verifique la autorizacion CCSS.'
                 )
+
+    def _log_warning_maternidad(self, mensaje):
+        """
+        Registra una advertencia en el chatter del registro de maternidad.
+        Se usa en lugar de ValidationError para dias que superan los limites
+        del Art. 94 CT pero que la CCSS puede autorizar (prorrogas, complicaciones,
+        partos multiples, etc.). El registro se guarda correctamente y el usuario
+        ve la advertencia en el historial para documentar la justificacion.
+        """
+        self.ensure_one()
+        self.message_post(
+            body=f'<strong>Advertencia Art. 94 CT:</strong> {mensaje}',
+            message_type='comment',
+            subtype_xmlid='mail.mt_note',
+        )
 
     def action_recompute(self):
         """
-        FIX B-03 v51: Fuerza el recálculo usando ORM write() en vez de SQL directo.
+        FIX B-03 v51: Fuerza el recalculo usando ORM write() en vez de SQL directo.
         El SQL directo (env.cr.execute) dejaba inconsistencias en el cache ORM de Odoo 19:
         los campos se actualizaban en BD pero el recordset en memoria no se invalidaba
         correctamente, causando que la vista mostrara valores desactualizados.
@@ -279,7 +518,7 @@ class Disability(models.Model):
             else:
                 avg_daily = daily
 
-            # Calcular costos según el tipo de incapacidad (misma lógica que _compute_costs)
+            # Calcular costos segun el tipo de incapacidad (misma logica que _compute_costs)
             days = rec.days or 0
             if rec.disability_type == 'maternity':
                 employer_cost = 0.0
@@ -288,7 +527,7 @@ class Disability(models.Model):
                 employer_cost = 0.0
                 ccss_subsidy = round(days * daily, 2)
             else:
-                # Días 1-3: 50% patrono + 50% CCSS (Art. 79 CT). Días 4+: según porcentajes configurados.
+                # Dias 1-3: 50% patrono + 50% CCSS (Art. 79 CT). Dias 4+: segun porcentajes configurados.
                 first_days = min(days, 3)
                 remaining_days = max(days - 3, 0)
                 employer_cost = round(
@@ -300,7 +539,7 @@ class Disability(models.Model):
                     (remaining_days * daily * (rec.subsidy_percentage or 60.0) / 100), 2
                 )
 
-            # Usar write() ORM — actualiza BD e invalida cache correctamente en Odoo 19
+            # Usar write() ORM -- actualiza BD e invalida cache correctamente en Odoo 19
             rec.write({
                 'daily_salary': daily,
                 'maternity_avg_salary': avg_daily,
@@ -311,7 +550,7 @@ class Disability(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
-        # Si cambia el empleado o tipo, forzar recálculo del salario promedio
+        # Si cambia el empleado o tipo, forzar recalculo del salario promedio
         if any(f in vals for f in ('employee_id', 'disability_type', 'date_start', 'fecha_parto')):
             self._compute_daily_salary()
             self._compute_costs()

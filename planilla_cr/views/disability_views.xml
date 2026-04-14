@@ -16,7 +16,8 @@
                 <field name="fecha_parto" optional="show"/>
                 <field name="prenatal_days" optional="show"/>
                 <field name="postnatal_days" optional="show"/>
-                <field name="employer_cost"/>
+                <field name="is_prorroga" string="Prorroga" widget="boolean_toggle" optional="show"/>
+                <field name="employer_cost" decoration-success="employer_cost == 0 and is_prorroga"/>
                 <field name="ccss_subsidy"/>
                 <field name="state"/>
             </list>
@@ -47,18 +48,18 @@
                             <field name="disability_type"/>
                         </group>
 
-                        <!-- Nota: maternidad se gestiona aquí (subsidio CCSS) -->
+                        <!-- Nota: maternidad se gestióna aqui (subsidio CCSS) -->
                         <div class="alert alert-info col-12" role="alert"
                              invisible="disability_type != 'maternity'">
-                            <strong>ℹ️ ¿Por qué la maternidad está en Incapacidades?</strong><br/>
-                            La licencia de maternidad se gestiona aquí porque involucra
-                            un <strong>subsidio económico de la CCSS</strong> (Art. 94 CT):
+                            <strong>i ¿Por que la maternidad esta en Incapacidades?</strong><br/>
+                            La licencia de maternidad se gestióna aqui porque involucra
+                            un <strong>subsidio economico de la CCSS</strong> (Art. 94 CT):
                             la CCSS paga el 100% del salario promedio directamente.
-                            El sistema calcula el monto del subsidio y registra el costo patronal (₡0).<br/>
+                            El sistema calcula el monto del subsidio y registra el costo patronal (CRC0).<br/>
                             <strong>Licencias sin subsidio</strong> (paternidad, duelo, matrimonio, etc.)
-                            se gestionan en
+                            se gestiónan en
                             <a href="/odoo/planilla-cr/licencias" target="_blank">
-                                <strong>Novedades → Licencias Especiales</strong>
+                                <strong>Novedades -> Licencias Especiales</strong>
                             </a>.
                         </div>
                         <group string="Período">
@@ -87,23 +88,71 @@
                             <field name="prenatal_days" readonly="1"/>
                             <field name="postnatal_days" readonly="1"/>
                         </group>
-                        <div class="alert alert-info col-12" role="alert">
-                            <strong>Art. 94 CT — Licencia de Maternidad:</strong>
-                            Un solo registro cubre todo el período (prenatal + postnatal).
-                            <br/>• <strong>Fecha Inicio:</strong> Inicio de licencia prenatal (máx 30 días antes del parto).
-                            <br/>• <strong>Fecha Parto:</strong> Fecha real o estimada del parto.
-                            <br/>• <strong>Fecha Fin:</strong> Fin de licencia postnatal = Fecha Parto + 90 días.
-                            <br/>• <strong>Total máximo:</strong> 120 días naturales.
-                            <br/>La CCSS subsidia el 100% desde el día 1. El patrono NO paga salario durante este período.
-                            <br/>Si el Salario Diario Base muestra 0, presione <strong>Recalcular Montos</strong>.
-                        </div>
+                    </group>
+
+                    <!-- Alerta dias extra maternidad (Art. 94 CT) -->
+                    <div invisible="disability_type != 'maternity' or days &lt;= 120"
+                         style="margin:4px 0 8px;padding:10px 14px;background:#FFF8E1;border-left:4px solid #F59E0B;border-radius:4px;font-size:13px;">
+                        <strong>&#9888; Advertencia Art. 94 CT:</strong>
+                        Esta licencia supera los 120 dias naturales estandar
+                        (<field name="days" readonly="1" nolabel="1" style="display:inline;font-weight:bold;"/> dias).
+                        Asegurese de contar con la autorizacion de la CCSS
+                        (prorroga por complicaciones, cesarea, parto multiple, etc.)
+                        y adjunte el numero de certificado en Documentacion.
+                    </div>
+
+                    <!-- Modalidad de pago maternidad -->
+                    <group string="Modalidad de Subsidio"
+                           invisible="disability_type != 'maternity'">
+                        <group>
+                            <field name="maternity_split_50" widget="boolean_toggle"/>
+                            <field name="maternity_ccss_on_employer"
+                                   widget="boolean_toggle"
+                                   invisible="not maternity_split_50"/>
+                        </group>
+                        <group>
+                            <!-- Descripción dinamica según selección -->
+                            <div class="alert alert-success col-12" role="alert"
+                                 invisible="maternity_split_50">
+                                <strong>Modalidad estandar (Art. 94 CT):</strong>
+                                La CCSS paga el <strong>100%</strong> del salario.
+                                El patrono NO tiene costo de salario durante la licencia.
+                            </div>
+                            <div class="alert alert-warning col-12" role="alert"
+                                 invisible="not maternity_split_50 or maternity_ccss_on_employer">
+                                <strong>Modalidad 50/50 — Costo compartido:</strong>
+                                El patrono paga el <strong>50%</strong> del salario y la CCSS paga el otro <strong>50%</strong>.
+                                El <strong>costo neto del patrono es el 50%</strong>.
+                                Use esta opcion si la empresa tiene politica de mantener el salario completo.
+                            </div>
+                            <div class="alert alert-info col-12" role="alert"
+                                 invisible="not maternity_split_50 or not maternity_ccss_on_employer">
+                                <strong>Modalidad 50/50 — Recuperacion via CCSS:</strong>
+                                El patrono adelanta el <strong>50%</strong>, pero lo recupera descontandolo
+                                del subsidio que paga la CCSS. La CCSS cubre el 100% total.
+                                El <strong>costo neto del patrono es CRC 0</strong>.
+                            </div>
+                        </group>
                     </group>
 
                     <!-- Sección CCSS / INS (no maternidad) -->
                     <group invisible="disability_type == 'maternity'">
                         <group string="Subsidio CCSS (aplica días 4+)">
-                            <field name="subsidy_percentage" string="% Subsidio CCSS (días 4+)" groups="planilla_cr.group_planilla_admin"/>
-                            <field name="employer_percentage" groups="planilla_cr.group_planilla_admin"/>
+                            <!-- subsidy_percentage: visible a todos (para que onchange funcióne),
+                                 editable solo por administradores. Sin esta visibilidad el
+                                 operador no recibe el valor del onchange y el campo queda
+                                 en un valor incorrecto que dispara el constrains. -->
+                            <!-- Readonly visible to all: onchange fires correctly for operators -->
+                            <field name="subsidy_percentage"
+                                   string="% Subsidio CCSS (días 4+)"
+                                   readonly="1"
+                                   groups="planilla_cr.group_planilla_operador"/>
+                            <!-- Editable only for admins -->
+                            <field name="subsidy_percentage"
+                                   string="% Subsidio CCSS (días 4+)"
+                                   groups="planilla_cr.group_planilla_admin"/>
+                            <field name="employer_percentage"
+                                   groups="planilla_cr.group_planilla_admin"/>
                             <field name="daily_salary" readonly="1"/>
                         </group>
                         <group string="Montos">
@@ -114,18 +163,31 @@
 
                     <!-- Montos maternidad -->
                     <group invisible="disability_type != 'maternity'">
-                        <group string="Montos (100% CCSS)">
+                        <group string="Montos">
                             <field name="employer_cost" readonly="1"
-                                   string="Costo Patrono (debe ser 0)"/>
+                                   string="Costo Patrono"/>
                             <field name="ccss_subsidy" readonly="1"
-                                   string="Subsidio CCSS (100%)"/>
+                                   string="Subsidio CCSS"/>
+                            <field name="maternity_ccss_deduction" readonly="1"
+                                   invisible="not maternity_split_50 or not maternity_ccss_on_employer"
+                                   string="CCSS obrera sobre subsidio patronal (10.83%)"
+                                   decoration-warning="maternity_ccss_deduction > 0"/>
                         </group>
                     </group>
 
-                    <group string="Documentación">
+                    <group string="Documentacion">
                         <field name="certificate_number"/>
                         <field name="diagnosis"/>
+                        <field name="is_prorroga" widget="boolean_toggle"/>
+                        <field name="prorroga_de_id" readonly="1"
+                               invisible="not is_prorroga"/>
                     </group>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not is_prorroga">
+                        <i class="fa fa-info-circle" title="Información sobre prorroga"/> <strong>Prorroga del mismo evento:</strong>
+                        Los 3 días del tramo patronal (Art. 79 CT) ya se agotaron en el certificado original.
+                        El patrono NO paga subsidio en esta incapacidad -- todo el costo es a cargo de la CCSS (60%).
+                    </div>
                     <field name="note" placeholder="Observaciones..."/>
                 </sheet>
                 <chatter/>

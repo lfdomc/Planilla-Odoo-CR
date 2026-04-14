@@ -9,9 +9,9 @@
                 <sheet>
                     <div class="alert alert-info" role="alert"
                          invisible="state != 'draft'">
-                        <strong><i class="fa fa-clipboard" title="Clipboard"/> Cómo funciona:</strong>
+                        <strong><i class="fa fa-clipboard" title="Clipboard"/> Cómo funcióna:</strong>
                         Se analizan las asistencias registradas en Odoo (Check-in / Check-out)
-                        del periodo seleccionado. Por cada día donde el empleado trabajó más horas
+                        del período selecciónado. Por cada día donde el empleado trabajó más horas
                         que el umbral configurado, se genera un registro de horas extras pendiente
                         de revisión antes de importar.
                     </div>
@@ -62,7 +62,7 @@
                             string="Analizar Asistencias" class="btn-primary"
                             invisible="state != 'draft'"/>
                     <button name="action_import" type="object"
-                            string="Importar Horas Extras Seleccionadas" class="btn-success"
+                            string="Importar Horas Extras Selecciónadas" class="btn-success"
                             invisible="state != 'preview'"/>
                     <button string="Cancelar" class="btn-secondary" special="cancel"/>
                 </footer>

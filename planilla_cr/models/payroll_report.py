@@ -27,7 +27,7 @@ class PayrollReportWizard(models.TransientModel):
         string='Moneda del Reporte',
         default=lambda self: self.env.company.currency_id,
         required=True,
-        help='Moneda en que se mostrarán los montos del reporte. Los salarios en otras monedas serán convertidos.'
+        help='Moneda en que se mostraran los montos del reporte. Los salarios en otras monedas seran convertidos.'
     )
 
     def action_generate_report(self):
@@ -77,7 +77,7 @@ class PayrollReportWizard(models.TransientModel):
         wb = xlsxwriter.Workbook(output, {'in_memory': True})
         ws = wb.add_worksheet('Planilla Detalle')
 
-        # ── Formatos ────────────────────────────────────────────────
+        # -- Formatos ------------------------------------------------
         hdr = wb.add_format({
             'bold': True, 'bg_color': '#1F4E79', 'font_color': 'white',
             'border': 1, 'align': 'center', 'valign': 'vcenter', 'text_wrap': True
@@ -91,24 +91,24 @@ class PayrollReportWizard(models.TransientModel):
             'bold': True, 'bg_color': '#D9E1F2', 'num_format': '#,##0.00', 'border': 1
         })
 
-        # ── Encabezado del reporte ───────────────────────────────────
+        # -- Encabezado del reporte -----------------------------------
         title_fmt = wb.add_format({'bold': True, 'font_size': 14, 'color': '#1F4E79'})
-        ws.write(0, 0, 'PLANILLA DETALLADA — PLANILLA CR', title_fmt)
+        ws.write(0, 0, 'PLANILLA DETALLADA -- PLANILLA CR', title_fmt)
         ws.write(1, 0, f'Periodo: {self.date_from} al {self.date_to}')
         ws.write(2, 0, f'Empresa: {self.company_id.name}')
         ws.write(3, 0, f'Sucursal: {self.branch_id.name if self.branch_id else "Todas"}')
 
-        # ── Columnas ────────────────────────────────────────────────
+        # -- Columnas ------------------------------------------------
         columns = [
-            ('Empleado', 28), ('Sucursal', 16), ('Cédula', 14),
-            ('Salario Base (₡)', 16), ('H. Extras (₡)', 14), ('Vacaciones (₡)', 14),
-            ('Otros Ingresos (₡)', 16), ('Salario Bruto (₡)', 16),
-            ('CCSS Obrero (₡)', 14), ('Impuesto Renta (₡)', 15),
-            ('Otras Ded. (₡)', 14), ('Total Ded. Obrero (₡)', 16),
-            ('Salario Neto (₡)', 16),
-            ('CCSS Patronal (₡)', 15), ('INS (₡)', 12),
-            ('Prov. Aguinaldo (₡)', 16), ('Prov. Cesantía (₡)', 15),
-            ('Prov. Vacaciones (₡)', 16), ('Costo Total Empresa (₡)', 18),
+            ('Empleado', 28), ('Sucursal', 16), ('Cedula', 14),
+            ('Salario Base (CRC)', 16), ('H. Extras (CRC)', 14), ('Vacaciones (CRC)', 14),
+            ('Otros Ingresos (CRC)', 16), ('Salario Bruto (CRC)', 16),
+            ('CCSS Obrero (CRC)', 14), ('Impuesto Renta (CRC)', 15),
+            ('Otras Ded. (CRC)', 14), ('Total Ded. Obrero (CRC)', 16),
+            ('Salario Neto (CRC)', 16),
+            ('CCSS Patronal (CRC)', 15), ('INS (CRC)', 12),
+            ('Prov. Aguinaldo (CRC)', 16), ('Prov. Cesantia (CRC)', 15),
+            ('Prov. Vacaciones (CRC)', 16), ('Costo Total Empresa (CRC)', 18),
         ]
         row = 5
         for col, (name, width) in enumerate(columns):
@@ -116,7 +116,7 @@ class PayrollReportWizard(models.TransientModel):
             ws.set_column(col, col, width)
         ws.set_row(row, 30)
 
-        # ── Datos por boleta ─────────────────────────────────────────
+        # -- Datos por boleta -----------------------------------------
         row = 6
         totals = [0.0] * len(columns)
         for slip in payslips.sorted(key=lambda s: s.employee_id.name):
@@ -150,7 +150,7 @@ class PayrollReportWizard(models.TransientModel):
                     ws.write(row, col, val, normal)
             row += 1
 
-        # ── Fila de totales ─────────────────────────────────────────
+        # -- Fila de totales -----------------------------------------
         ws.write(row, 0, 'TOTALES', total_lbl)
         ws.write(row, 1, '', total_lbl)
         ws.write(row, 2, '', total_lbl)
@@ -169,7 +169,7 @@ class PayrollReportWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}?download=true',
+            'url': f'/web/content/{attachment.id}download=true',
             'target': 'self',
         }
 

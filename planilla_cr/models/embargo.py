@@ -1,7 +1,7 @@
 """
-planilla.embargo — Embargos Judiciales
-Legislación CR: Art. 172 Código de Trabajo.
-Límite: 25 % del salario neto disponible después de CCSS obrera, renta
+planilla.embargo -- Embargos Judiciales
+Legislacion CR: Art. 172 Codigo de Trabajo.
+Limite: 25 % del salario neto disponible despues de CCSS obrera, renta
 y pensiones alimentarias (prioridad superior).
 El patrono tiene responsabilidad solidaria si no aplica el embargo.
 """
@@ -20,7 +20,7 @@ class Embargo(models.Model):
         string='Referencia', compute='_compute_name', store=True
     )
 
-    # ── Relaciones ─────────────────────────────────────────────────────────
+    # -- Relaciones ---------------------------------------------------------
     employee_id = fields.Many2one(
         'hr.employee', string='Empleado', required=True,
         ondelete='cascade', tracking=True,
@@ -36,52 +36,52 @@ class Embargo(models.Model):
         related='employee_id.currency_id', store=True
     )
 
-    # ── Datos judiciales ───────────────────────────────────────────────────
+    # -- Datos judiciales ---------------------------------------------------
     numero_expediente = fields.Char(
-        string='N° Expediente Judicial', required=True, tracking=True,
-        help='Número de expediente del juzgado que ordenó el embargo.'
+        string='Ndeg Expediente Judicial', required=True, tracking=True,
+        help='Numero de expediente del juzgado que ordeno el embargo.'
     )
     juzgado = fields.Char(
         string='Juzgado / Tribunal', required=True, tracking=True
     )
     fecha_resolucion = fields.Date(
-        string='Fecha de Resolución', tracking=True
+        string='Fecha de Resolucion', tracking=True
     )
 
-    # ── Beneficiario ───────────────────────────────────────────────────────
+    # -- Beneficiario -------------------------------------------------------
     beneficiario_nombre = fields.Char(
         string='Nombre del Beneficiario / Acreedor', required=True
     )
     beneficiario_cuenta = fields.Char(
         string='IBAN / Cuenta del Beneficiario',
-        help='IBAN costarricense o número de cuenta del acreedor.'
+        help='IBAN costarricense o numero de cuenta del acreedor.'
     )
 
-    # ── Monto ──────────────────────────────────────────────────────────────
+    # -- Monto --------------------------------------------------------------
     calculation_type = fields.Selection([
-        ('fixed',      'Monto Fijo (₡)'),
+        ('fixed',      'Monto Fijo (CRC)'),
         ('percentage', 'Porcentaje del Neto Disponible'),
-    ], string='Tipo de Cálculo', required=True, default='fixed', tracking=True)
+    ], string='Tipo de Calculo', required=True, default='fixed', tracking=True)
 
     fixed_amount = fields.Monetary(
-        string='Monto Fijo (₡)', currency_field='currency_id',
+        string='Monto Fijo (CRC)', currency_field='currency_id',
         help='Monto fijo mensual a descontar.'
     )
     percentage = fields.Float(
         string='Porcentaje (%)', digits=(5, 2),
-        help='Porcentaje del neto disponible. Máximo legal: 25 % (Art. 172 CT).'
+        help='Porcentaje del neto disponible. Maximo legal: 25 % (Art. 172 CT).'
     )
 
-    # ── Vigencia ───────────────────────────────────────────────────────────
+    # -- Vigencia -----------------------------------------------------------
     date_start = fields.Date(
         string='Vigente Desde', required=True, tracking=True
     )
     date_end = fields.Date(
         string='Vigente Hasta', tracking=True,
-        help='Dejar vacío si no tiene fecha de vencimiento.'
+        help='Dejar vacio si no tiene fecha de vencimiento.'
     )
 
-    # ── Estado ─────────────────────────────────────────────────────────────
+    # -- Estado -------------------------------------------------------------
     state = fields.Selection([
         ('active',     'Activo'),
         ('suspended',  'Suspendido'),
@@ -92,16 +92,16 @@ class Embargo(models.Model):
 
     note = fields.Text(string='Observaciones')
 
-    # ── Computed ───────────────────────────────────────────────────────────
+    # -- Computed -----------------------------------------------------------
     @api.depends('employee_id', 'numero_expediente', 'beneficiario_nombre')
     def _compute_name(self):
         for rec in self:
             emp  = rec.employee_id.name or ''
             exp  = rec.numero_expediente or ''
             ben  = rec.beneficiario_nombre or ''
-            rec.name = f'{emp} — {exp} ({ben})'
+            rec.name = f'{emp} -- {exp} ({ben})'
 
-    # ── Validaciones ───────────────────────────────────────────────────────
+    # -- Validaciones -------------------------------------------------------
     @api.constrains('percentage', 'calculation_type')
     def _check_percentage(self):
         for rec in self:
@@ -112,9 +112,9 @@ class Embargo(models.Model):
                     )
                 if rec.percentage > 25:
                     raise ValidationError(
-                        f'El porcentaje del embargo ({rec.percentage:.2f} %) '
-                        f'no puede superar el 25 % del salario neto disponible '
-                        f'(Art. 172 Código de Trabajo CR).'
+                        'El porcentaje del embargo (%.2f %%) '
+                        'no puede superar el 25 %% del salario neto disponible '
+                        '(Art. 172 Codigo de Trabajo CR).' % rec.percentage
                     )
 
     @api.constrains('fixed_amount', 'calculation_type')
@@ -122,7 +122,7 @@ class Embargo(models.Model):
         for rec in self:
             if rec.calculation_type == 'fixed' and rec.fixed_amount <= 0:
                 raise ValidationError(
-                    'El monto fijo del embargo debe ser mayor a ₡0.'
+                    'El monto fijo del embargo debe ser mayor a CRC0.'
                 )
 
     @api.constrains('date_start', 'date_end')
@@ -133,13 +133,13 @@ class Embargo(models.Model):
                     '"Vigente Hasta" debe ser posterior a "Vigente Desde".'
                 )
 
-    # ── Helpers ────────────────────────────────────────────────────────────
+    # -- Helpers ------------------------------------------------------------
     def compute_amount(self, neto_disponible):
         """
         Calcula el monto a descontar dado el neto disponible.
         neto_disponible = salario bruto - CCSS obrera - renta - pensiones alim.
-        FIX P-02 v59: Aplicar tope 25% también para monto fijo.
-        Si fixed_amount > 25% del neto, se cobra solo el máximo legal.
+        FIX P-02 v59: Aplicar tope 25% tambien para monto fijo.
+        Si fixed_amount > 25% del neto, se cobra solo el maximo legal.
         """
         self.ensure_one()
         from . import planilla_const as K
@@ -150,7 +150,7 @@ class Embargo(models.Model):
         monto = round(neto_disponible * self.percentage / 100.0, 2)
         return min(monto, tope)
 
-    # ── Acciones de estado ─────────────────────────────────────────────────
+    # -- Acciones de estado -------------------------------------------------
     def action_suspend(self):
         self.write({'state': 'suspended'})
 
