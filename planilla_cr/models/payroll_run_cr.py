@@ -589,6 +589,17 @@ class PayrollRunCR(models.Model):
 
         employees = self.env['hr.employee'].search(domain)
 
+        # Excluir empleados cuya fecha de ingreso sea posterior al fin del periodo
+        # Ej: empleado ingresa el 6 de abril no debe aparecer en planilla 16-31 marzo
+        employees = employees.filtered(
+            lambda e: not e.entry_date or e.entry_date <= self.date_end
+        )
+
+        # Excluir empleados cuya fecha de salida sea anterior al inicio del periodo
+        employees = employees.filtered(
+            lambda e: not e.departure_date or e.departure_date >= self.date_start
+        )
+
         # Advertir sobre empleados sin employee_status_id
         without_status = employees.filtered(lambda e: not e.employee_status_id)
         employees_active = employees.filtered(
@@ -670,11 +681,30 @@ class PayrollRunCR(models.Model):
             vals_to_create = []
             for employee in batch:
                 if employee.id not in emp_ids_con_boleta:
+                    # Calcular proporcionalidad por ingreso o salida en el periodo
+                    slip_date_from = self.date_start
+                    slip_date_to   = self.date_end
+                    is_prop        = False
+                    days_worked    = (self.date_end - self.date_start).days + 1
+
+                    # Ingreso a mitad del periodo: empezar desde la fecha de ingreso
+                    if employee.entry_date and self.date_start <= employee.entry_date <= self.date_end:
+                        is_prop     = True
+                        days_worked = (self.date_end - employee.entry_date).days + 1
+
+                    # Salida a mitad del periodo: terminar en la fecha de salida
+                    exit_d = getattr(employee, 'exit_date', None) or getattr(employee, 'departure_date', None)
+                    if exit_d and self.date_start <= exit_d <= self.date_end:
+                        is_prop     = True
+                        days_worked = (exit_d - slip_date_from).days + 1
+
                     vals_to_create.append({
-                        'employee_id':    employee.id,
-                        'payroll_run_id': self.id,
-                        'date_from':      self.date_start,
-                        'date_to':        self.date_end,
+                        'employee_id':       employee.id,
+                        'payroll_run_id':    self.id,
+                        'date_from':         slip_date_from,
+                        'date_to':           slip_date_to,
+                        'is_proportional':   is_prop,
+                        'days_worked':       days_worked,
                     })
                 else:
                     skipped_count += 1
