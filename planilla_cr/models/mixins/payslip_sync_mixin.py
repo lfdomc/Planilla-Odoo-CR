@@ -833,19 +833,15 @@ class PayslipSyncMixin(models.AbstractModel):
                 and l.description == f'Bono: {b.name}'
             )
             if existing:
-                # FIX I-02 v54: Para bonos porcentuales usar employee.base_salary
-                # (salario mensual configurado en el empleado) en vez de self.gross_salary.
-                # Razon: gross_salary ahora incluye bono_salarial_amount, que a su vez
-                # depende de las deduction_line_ids -- generaria una dependencia circular
-                # y los porcentajes se calcularian sobre una base que ya los incluye.
-                # En practica CR, los bonos % siempre se calculan sobre el salario base,
-                # no sobre el bruto total que incluye otros pluses.
+                # Recalcular monto para actualizar si el bono cambio desde que se creo la linea
                 if bono.amount_type == 'percentage':
                     base_ref = self.employee_id.base_salary or 0.0
-                    monto = round(base_ref * bono.percentage / 100.0, 2)
-                    for line in existing:
-                        if line.amount != monto:
-                            line.amount = monto
+                    monto_actual = round(base_ref * bono.percentage / 100.0, 2)
+                else:
+                    monto_actual = bono.amount
+                for line in existing:
+                    if line.amount != monto_actual:
+                        line.amount = monto_actual
                 continue
 
             # Para el calculo inicial tambien usamos base_salary del empleado
