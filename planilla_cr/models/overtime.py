@@ -151,6 +151,39 @@ class Overtime(models.Model):
             factor = factors.get(rec.overtime_type, 1.5)
             rec.amount = rec.hours * rec.hourly_rate * factor
 
+    def action_recalculate_all_rates(self):
+        """Recalcula la tarifa horaria y monto de TODAS las HE no pagadas.
+        Se llama desde el boton en la vista lista para corregir tarifas historicas incorrectas."""
+        domain = [('state', 'in', ('draft', 'approved'))]
+        all_he = self.env['planilla.overtime'].search(domain)
+        count = 0
+        for rec in all_he:
+            old_rate = rec.hourly_rate
+            # Forzar recomputacion leyendo base_salary directamente
+            base_salary = rec.employee_id.base_salary or 0.0
+            hours_per_day = 8.0
+            if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
+                hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
+            new_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
+            if new_rate != old_rate:
+                factors = {'simple': 1.5, 'double': 2.0, 'holiday': 2.0}
+                factor = factors.get(rec.overtime_type, 1.5)
+                rec.write({
+                    'hourly_rate': new_rate,
+                    'amount': round(rec.hours * new_rate * factor, 2),
+                })
+                count += 1
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Recalculo completado',
+                'message': f'Se corrigieron {count} registros de horas extra con tarifa incorrecta.',
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
     def action_approve(self):
         self.ensure_one()
         from datetime import timedelta

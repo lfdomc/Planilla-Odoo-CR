@@ -165,10 +165,17 @@ class PayslipActionMixin(models.AbstractModel):
                     line.loan_installment_id.write({'state': 'deducted', 'payslip_id': rec.id})
                     line.loan_installment_id.loan_id.action_activate()
                     line.loan_installment_id.loan_id.action_check_paid()
+                # gross_salary en historial = salario MENSUAL del empleado.
+                # NO usar rec.gross_salary (es el bruto del periodo: quincenal, semanal, etc.)
+                # porque los calculos de HE, Art.153 vacaciones y liquidaciones
+                # necesitan el salario mensual para dividir entre 30 dias.
+                # Ej: quincenal 215,000 / 30 / 8 = 895.83/h (incorrecto)
+                #     mensual   430,000 / 30 / 8 = 1,791.67/h (correcto)
+                _gross_mensual = rec.employee_id.base_salary or rec.gross_salary
                 self.env['planilla.salary.history'].create({
                     'employee_id':    rec.employee_id.id,
                     'salary':         rec.net_salary,
-                    'gross_salary':   rec.gross_salary,
+                    'gross_salary':   _gross_mensual,
                     'effective_date': rec.date_to,
                     'payslip_id':     rec.id,
                     'reason':         f'Planilla {rec.name}',
