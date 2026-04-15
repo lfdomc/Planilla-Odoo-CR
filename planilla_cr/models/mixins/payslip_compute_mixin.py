@@ -174,7 +174,13 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.overtime_holiday_hours  = round(sum(
                 o.hours for o in approved_ot if o.overtime_type == 'holiday'
             ), 2)
-            rec.vacation_amount  = sum(v.total_amount for v in rec.vacation_ids if v.state == 'approved')
+            # Solo sumar al bruto las vacaciones pagadas en DINERO (Art. 156 CT).
+            # Las vacaciones DISFRUTADAS no se suman: el salario base del periodo
+            # ya cubre esos dias -- sumarlas generaria pago doble.
+            rec.vacation_amount = sum(
+                v.total_amount for v in rec.vacation_ids
+                if v.state == 'approved' and v.payment_method in ('dinero', 'mixto')
+            )
             active_dis = rec.disability_ids.filtered(lambda d: d.state in ('confirmed', 'paid'))
             rec.disability_days          = 0  # se actualiza abajo tras calcular disability_days_in_period
             # FIX COST-PERIODO: employer_cost en el modelo disability es el costo TOTAL

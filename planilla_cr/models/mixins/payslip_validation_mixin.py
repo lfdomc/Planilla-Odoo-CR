@@ -133,6 +133,12 @@ class PayslipValidationMixin(models.AbstractModel):
                     l.deduction_category == 'bonus'
                     and (l.description or '').replace('Bono: ', '').strip() in nombres_salariales
                 )
+                # Licencias CON goce NO se suman al neto del empleado:
+                # el salario base ya cubre esos dias. La linea existe solo para
+                # contabilidad y reporte de costo patronal (total_employer_cost).
+                and l.deduction_category != 'licencia_con_goce'
+                # Vacaciones DISFRUTADAS tampoco (ya cubiertas por salario base)
+                and l.deduction_category != 'vacation'
             )
             # Deducciones adicionales: sindicato, cooperativa, embargo, prestamos, licencias sin goce
             extra_deductions = sum(
@@ -526,7 +532,11 @@ class PayslipValidationMixin(models.AbstractModel):
                 rec.gross_salary
                 + (rec.ccss_subsidy_total or 0.0)
                 + (rec.paternity_amount or 0.0)
-                + sum(l.amount for l in rec.deduction_line_ids if l.line_type == 'income'), 2
+                + sum(
+                    l.amount for l in rec.deduction_line_ids
+                    if l.line_type == 'income'
+                    and l.deduction_category not in ('licencia_con_goce', 'vacation')
+                ), 2
             )
             if rec.net_salary > max_net_expected + 1.0:  # tolerancia CRC1 por redondeo
                 errors.append(
