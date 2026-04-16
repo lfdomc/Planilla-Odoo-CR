@@ -39,7 +39,7 @@
     <!-- Menu en Configuracion -->
     <menuitem id="menu_migrate_codes"
               name="Asignar Codigos a Novedades"
-              parent="planilla_cr.menu_planilla_config"
+              parent="planilla_cr.menu_planilla_cr_config"
               action="action_migrate_codes_wizard"
               sequence="99"/>
 </odoo>
