@@ -73,6 +73,23 @@ class PayslipComputeMixin(models.AbstractModel):
             date_str = str(rec.date_to)[:7] if rec.date_to else ''
             rec.name = f'BOL - {emp} - {date_str}'
 
+    def _get_salary_for_date(self, emp, ref_date):
+        """
+        Retorna el salario mensual vigente para el empleado en ref_date.
+        Consulta planilla.salary.history (state=authorized, effective_date <= ref_date)
+        ordenado por fecha descendente. Si no hay historial, retorna emp.base_salary.
+        """
+        if not emp or not ref_date:
+            return emp.base_salary if emp else 0.0
+        hist = self.env['planilla.salary.history'].search([
+            ('employee_id', '=', emp.id),
+            ('state', '=', 'authorized'),
+            ('effective_date', '<=', ref_date),
+        ], order='effective_date desc', limit=1)
+        if hist:
+            return hist.gross_salary or emp.base_salary
+        return emp.base_salary or 0.0
+
     @api.depends('employee_id', 'date_from', 'date_to', 'attendance_hours',
                  'is_proportional', 'proportional_factor', 'payroll_calendar_id',
                  'days_in_period',
@@ -97,9 +114,11 @@ class PayslipComputeMixin(models.AbstractModel):
                 hourly_rate       = emp.base_salary / monthly_hours if monthly_hours else 0.0
                 rec.base_salary   = round(hourly_rate * (rec.attendance_hours or 0.0), 2)
             else:
-                raw  = emp.base_salary or 0.0
+                # Usar salario vigente en la fecha de inicio de la boleta
+                # Si hay historial autorizado, se usa ese; si no, el salario actual
+                ref_date = rec.date_from or fields.Date.today()
+                raw  = rec._get_salary_for_date(emp, ref_date)
                 freq = rec._get_effective_freq()
-                # FIX P-02 v58: usar K.FREQ_FACTORS centralizado en planilla_const
                 freq_factor = K.FREQ_FACTORS.get(freq, 1.0)
                 prop_factor = rec.proportional_factor if rec.is_proportional else 1.0
                 rec.base_salary = round(raw * freq_factor * prop_factor, 2)
@@ -345,7 +364,9 @@ class PayslipComputeMixin(models.AbstractModel):
             # -- Salario cotizable por periodo --------------------------------
             emp = rec.employee_id
             if emp and emp.base_salary and dias_incap_periodo > 0:
-                salario_diario  = round(emp.base_salary / K.DIAS_MES, 4)
+                # Usar salario historico vigente en la fecha de la boleta
+                _sal_hist = rec._get_salary_for_date(emp, rec.date_from)
+                salario_diario  = round(_sal_hist / K.DIAS_MES, 4)
                 dias_periodo    = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else K.DIAS_MES
                 dias_trabajados = max(dias_periodo - dias_incap_periodo, 0)
 
@@ -409,7 +430,7 @@ class PayslipComputeMixin(models.AbstractModel):
                     freq = rec._get_effective_freq()
                     ff = K.FREQ_FACTORS.get(freq, 1.0)
                     prop = rec.proportional_factor if rec.is_proportional else 1.0
-                    base_quincenal = round(emp.base_salary * ff * prop, 2)
+                    base_quincenal = round(_sal_hist * ff * prop, 2)
                     rec.salario_cotizable = round(
                         base_quincenal
                         - (dias_incap_periodo * salario_diario)
@@ -424,7 +445,8 @@ class PayslipComputeMixin(models.AbstractModel):
                     freq = rec._get_effective_freq()
                     freq_factor = K.FREQ_FACTORS.get(freq, 1.0)
                     prop_factor = rec.proportional_factor if rec.is_proportional else 1.0
-                    rec.salario_cotizable = round(emp.base_salary * freq_factor * prop_factor, 2)
+                    _sal_base = rec._get_salary_for_date(emp, rec.date_from)
+                    rec.salario_cotizable = round(_sal_base * freq_factor * prop_factor, 2)
                 else:
                     rec.salario_cotizable = 0.0
 
