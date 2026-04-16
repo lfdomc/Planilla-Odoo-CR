@@ -5,19 +5,31 @@ def post_init_hook(env):
     _create_email_templates(env)
     _setup_accounting_config(env)
     _ensure_schedule_types(env)
-    from .models.migrate_codes import migrate_codes
-    migrate_codes(env)
+    try:
+        from .models.migrate_codes import migrate_codes
+        migrate_codes(env)
+    except Exception as _e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'planilla_cr.migrate_codes (init): %s (no critico)', _e
+        )
 
 
 def post_migrate_hook(env):
-    from .models.migrate_codes import migrate_codes
-    migrate_codes(env)
     """
     L3 FIX -- Hook de migracion entre versiones.
     Se ejecuta automaticamente al hacer -u planilla_cr.
     Garantiza que la configuracion contable este actualizada
     con las cuentas nuevas agregadas en cada version.
     """
+    try:
+        from .models.migrate_codes import migrate_codes
+        migrate_codes(env)
+    except Exception as _e:
+        import logging
+        logging.getLogger(__name__).warning(
+            'planilla_cr.migrate_codes: %s (no critico)', _e
+        )
     _setup_accounting_config(env)
     _ensure_deduction_codes(env)
     _ensure_schedule_types(env)

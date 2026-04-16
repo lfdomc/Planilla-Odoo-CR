@@ -12,10 +12,7 @@
                             class="btn-warning"
                             confirm="Esto recalculara la tarifa horaria y monto de todas las HE en estado Borrador y Aprobado usando el salario mensual actual de cada empleado. Continuar?"/>
                 </header>
-<<<<<<< HEAD
                 <field name="code" string="Codigo" readonly="1"/>
-=======
->>>>>>> 4d2235667466d4fcec2634c1f4461d8509029f5d
                 <field name="date"/>
                 <field name="employee_id"/>
                 <field name="branch_id"/>
