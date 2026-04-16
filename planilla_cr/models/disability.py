@@ -199,7 +199,6 @@ class Disability(models.Model):
             date_str = str(rec.date_start) if rec.date_start else ''
             rec.name = f'INC - {emp} - {date_str}'
 
-    @api.depends('date_start', 'date_end')
     @staticmethod
     def _next_code_inc(env):
         env.cr.execute(
@@ -223,6 +222,7 @@ class Disability(models.Model):
                 vals['code'] = self._next_code_inc(self.env)
         return super().create(vals_list)
 
+    @api.depends('date_start', 'date_end', 'extra_half_day')
     def _compute_days(self):
         for rec in self:
             if rec.date_start and rec.date_end:
