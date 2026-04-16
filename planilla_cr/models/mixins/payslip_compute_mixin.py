@@ -247,6 +247,12 @@ class PayslipComputeMixin(models.AbstractModel):
                         if overlap_end < overlap_start:
                             continue
                         dias_overlap = (overlap_end - overlap_start).days + 1
+                        # Aplicar medio dia extra del primer dia si esta activo
+                        if getattr(dis, 'extra_half_day', False):
+                            # El medio dia extra aplica solo si el inicio de la incapacidad
+                            # cae dentro del periodo de esta boleta
+                            if rec.date_from <= dis.date_start <= rec.date_to:
+                                dias_overlap += 0.5
                         dias_incap_periodo += dias_overlap
 
                         if dis.disability_type == 'maternity':

@@ -10,6 +10,7 @@ def migrate_codes(env):
         ('planilla.leave.cr',        'planilla_leave_cr',        'LIC'),
         ('planilla.overtime',        'planilla_overtime',        'HE'),
         ('planilla.employee.charge', 'planilla_employee_charge', 'COB'),
+        ('planilla.disability',      'planilla_disability',      'INC'),
     ]
     for model_name, table, prefix in migrations:
         env.cr.execute(

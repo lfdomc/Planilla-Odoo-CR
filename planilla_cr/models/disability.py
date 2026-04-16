@@ -14,6 +14,11 @@ class Disability(models.Model):
 
 
 
+    code = fields.Char(
+        string='Codigo',
+        readonly=True, copy=False, index=True,
+        help='Codigo autogenerado. Formato: INC-XXXX'
+    )
     name = fields.Char(string='Referencia', compute='_compute_name', store=True)
     employee_id = fields.Many2one(
         'hr.employee', string='Empleado', required=True, tracking=True, index=True
@@ -42,6 +47,18 @@ class Disability(models.Model):
         help='Para maternidad: fin de licencia postnatal (max 90 dias despues del parto)'
     )
     days = fields.Integer(string='Dias Totales', compute='_compute_days', store=True)
+    extra_half_day = fields.Boolean(
+        string='Aplicar medio dia extra (primer dia)',
+        default=False,
+        help='Politica interna: agrega 0.5 dias al calculo del primer dia de incapacidad. '
+             'Util cuando el empleado llega hasta medio dia y luego es incapacitado. '
+             'Activo = se descuentan 0.5 dias adicionales del salario del primer dia.'
+    )
+    days_effective = fields.Float(
+        string='Dias Efectivos (con ajuste)',
+        compute='_compute_days', store=True,
+        help='Dias totales + 0.5 si extra_half_day esta activo.'
+    )
 
     subsidy_percentage = fields.Float(
         string='% Subsidio CCSS', default=60.0,
@@ -183,12 +200,37 @@ class Disability(models.Model):
             rec.name = f'INC - {emp} - {date_str}'
 
     @api.depends('date_start', 'date_end')
+    @staticmethod
+    def _next_code_inc(env):
+        env.cr.execute(
+            'SELECT code FROM planilla_disability WHERE code LIKE %s ORDER BY code DESC LIMIT 1',
+            ('INC-%',)
+        )
+        row = env.cr.fetchone()
+        if row and row[0]:
+            try:
+                num = int(row[0].split('-')[-1]) + 1
+            except (ValueError, IndexError):
+                num = 1
+        else:
+            num = 1
+        return f'INC-{num:04d}'
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if not vals.get('code'):
+                vals['code'] = self._next_code_inc(self.env)
+        return super().create(vals_list)
+
     def _compute_days(self):
         for rec in self:
             if rec.date_start and rec.date_end:
                 rec.days = (rec.date_end - rec.date_start).days + 1
             else:
                 rec.days = 0
+            # Dias efectivos incluye el medio dia extra si esta activo
+            rec.days_effective = rec.days + (0.5 if rec.extra_half_day else 0.0)
 
     @api.depends('date_start', 'date_end', 'fecha_parto', 'disability_type')
     def _compute_maternity_days(self):

@@ -15,6 +15,7 @@ class MigrateCodesWizard(models.TransientModel):
             ('planilla_leave_cr',        'LIC'),
             ('planilla_overtime',        'HE'),
             ('planilla_employee_charge', 'COB'),
+            ('planilla_disability',      'INC'),
         ]
         total = 0
         detalles = []
