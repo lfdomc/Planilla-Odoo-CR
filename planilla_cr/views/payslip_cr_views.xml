@@ -542,7 +542,7 @@
                                         </tr>
 
                                         <!-- ① Neto por el Patrono -->
-                                        <tr invisible="disability_days_in_period == 0" style="font-size:15px;font-weight:500;">
+                                        <tr invisible="disability_days_in_period == 0" style="font-size:17px;font-weight:700;">
                                             <td style="padding:4px 0;" invisible="effective_frequency != 'monthly'">
                                                 ① Neto Mensual — pago del Patrono
                                                 <span invisible="dias_laborados_periodo == 0 or ccss_subsidy_total == 0" style="font-size:11px;font-weight:400;color:var(--color-text-secondary);">
@@ -567,10 +567,10 @@
                                                     (salario <field name="dias_laborados_periodo" readonly="1" nolabel="1"/> días laborados neto + 50% subsidio maternidad)
                                                 </span>
                                             </td>
-                                            <td style="text-align:right;color:var(--color-text-success);"><field name="neto_por_patrono" readonly="1" nolabel="1"/></td>
+                                            <td style="text-align:right;color:var(--color-text-success);font-size:18px;font-weight:700;"><field name="neto_por_patrono" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <!-- ② Subsidio CCSS — con nota si es ₡0 (días 1-3 únicamente) -->
-                                        <tr invisible="disability_days_in_period == 0" style="font-size:15px;font-weight:500;">
+                                        <tr invisible="disability_days_in_period == 0" style="font-size:13px;font-weight:400;color:var(--color-text-secondary);">
                                             <td style="padding:4px 0;" invisible="effective_frequency != 'monthly'">
                                                 ② Subsidio Mensual — pago de la CCSS
                                                 <span invisible="neto_por_ccss != 0" style="font-size:11px;font-weight:400;opacity:.75;"> (₡0 — días 1–3 a cargo del patrono, Art. 79 CT)</span>
@@ -594,7 +594,7 @@
                                             <td style="text-align:right;color:var(--color-text-info);"><field name="neto_por_ccss" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <!-- Total — con nota de verificación de la suma -->
-                                        <tr invisible="disability_days_in_period == 0" style="font-size:16px;font-weight:500;border-top:1.5px solid var(--color-border-secondary);">
+                                        <tr invisible="disability_days_in_period == 0" style="font-size:12px;font-weight:400;border-top:1px solid var(--color-border-tertiary);color:var(--color-text-secondary);">
                                             <td style="padding:10px 0 4px;" invisible="effective_frequency != 'monthly'">
                                                 Total Neto Mensual a Recibir
                                                 <div invisible="ccss_subsidy_total == 0" style="font-size:11px;font-weight:400;color:var(--color-text-secondary);">
@@ -619,7 +619,7 @@
                                                     (① pago del patrono + ② subsidio CCSS)
                                                 </div>
                                             </td>
-                                            <td style="text-align:right;vertical-align:top;padding-top:10px;color:var(--color-text-success);"><field name="net_salary" readonly="1" nolabel="1"/></td>
+                                            <td style="text-align:right;vertical-align:top;padding-top:6px;color:var(--color-text-secondary);font-size:12px;"><field name="net_salary" readonly="1" nolabel="1"/></td>
                                         </tr>
 
                                         <tr invisible="salary_payable == net_salary" style="font-size:15px;font-weight:500;">
@@ -881,10 +881,12 @@
                             </div>
                             <field name="overtime_ids">
                                 <list decoration-warning="state == 'draft' and source == 'attendance'"
-                                      decoration-success="state == 'approved'">
+                                      decoration-success="state == 'approved'"
+                                      decoration-muted="state == 'paid'">
                                     <field name="date"/>
                                     <field name="overtime_type"/>
                                     <field name="hours"/>
+                                    <field name="hourly_rate" string="Tarifa/Hora" optional="show"/>
                                     <field name="source"/>
                                     <field name="amount"/>
                                     <field name="state"/>

@@ -6,11 +6,19 @@
         <field name="arch" type="xml">
             <list string="Horas Extras" decoration-success="state=='approved'"
                   decoration-muted="state=='paid'" decoration-danger="state=='cancelled'">
+                <header>
+                    <button name="action_recalculate_all_rates" type="object"
+                            string="Recalcular Tarifas (corregir errores)"
+                            class="btn-warning"
+                            confirm="Esto recalculara la tarifa horaria y monto de todas las HE en estado Borrador y Aprobado usando el salario mensual actual de cada empleado. Continuar?"/>
+                </header>
+                <field name="code" string="Codigo" readonly="1"/>
                 <field name="date"/>
                 <field name="employee_id"/>
                 <field name="branch_id"/>
                 <field name="overtime_type"/>
                 <field name="hours"/>
+                <field name="hourly_rate" string="Tarifa/Hora" optional="show"/>
                 <field name="amount"/>
                 <field name="state"/>
             </list>

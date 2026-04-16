@@ -95,7 +95,11 @@ class SendPayslipWizard(models.TransientModel):
                 errors.append(f'{employee.name}: error generando PDF - {str(e)}')
                 continue
 
-            period = f'{payslip.date_from} al {payslip.date_to}'
+            period = (
+                payslip.date_from.strftime('%d-%m-%Y')
+                + ' al '
+                + payslip.date_to.strftime('%d-%m-%Y')
+            )
             company_name = payslip.company_id.name or self.env.company.name
             subject = self.email_subject.replace('{period}', period)
 

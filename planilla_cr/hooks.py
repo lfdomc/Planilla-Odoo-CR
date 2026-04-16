@@ -5,9 +5,13 @@ def post_init_hook(env):
     _create_email_templates(env)
     _setup_accounting_config(env)
     _ensure_schedule_types(env)
+    from .models.migrate_codes import migrate_codes
+    migrate_codes(env)
 
 
 def post_migrate_hook(env):
+    from .models.migrate_codes import migrate_codes
+    migrate_codes(env)
     """
     L3 FIX -- Hook de migracion entre versiones.
     Se ejecuta automaticamente al hacer -u planilla_cr.

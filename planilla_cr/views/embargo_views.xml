@@ -36,7 +36,8 @@
 
                     <group>
                         <group string="Empleado">
-                            <field name="employee_id"/>
+                            <field name="code" string="Codigo" readonly="1"/>
+                <field name="employee_id"/>
                             <field name="branch_id" readonly="1"/>
                             <field name="company_id" readonly="1" groups="base.group_multi_company"/>
                         </group>

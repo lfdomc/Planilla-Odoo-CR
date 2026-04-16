@@ -14,6 +14,11 @@ class Overtime(models.Model):
 
 
 
+    code = fields.Char(
+        string='Codigo',
+        readonly=True, copy=False, index=True,
+        help='Codigo autogenerado. Formato: HE-XXXX'
+    )
     name = fields.Char(
         string='Referencia', compute='_compute_name', store=True
     )
@@ -151,6 +156,39 @@ class Overtime(models.Model):
             factor = factors.get(rec.overtime_type, 1.5)
             rec.amount = rec.hours * rec.hourly_rate * factor
 
+    def action_recalculate_all_rates(self):
+        """Recalcula la tarifa horaria y monto de TODAS las HE no pagadas.
+        Se llama desde el boton en la vista lista para corregir tarifas historicas incorrectas."""
+        domain = [('state', 'in', ('draft', 'approved'))]
+        all_he = self.env['planilla.overtime'].search(domain)
+        count = 0
+        for rec in all_he:
+            old_rate = rec.hourly_rate
+            # Forzar recomputacion leyendo base_salary directamente
+            base_salary = rec.employee_id.base_salary or 0.0
+            hours_per_day = 8.0
+            if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
+                hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
+            new_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
+            if new_rate != old_rate:
+                factors = {'simple': 1.5, 'double': 2.0, 'holiday': 2.0}
+                factor = factors.get(rec.overtime_type, 1.5)
+                rec.write({
+                    'hourly_rate': new_rate,
+                    'amount': round(rec.hours * new_rate * factor, 2),
+                })
+                count += 1
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Recalculo completado',
+                'message': f'Se corrigieron {count} registros de horas extra con tarifa incorrecta.',
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
     def action_approve(self):
         self.ensure_one()
         from datetime import timedelta
@@ -208,6 +246,30 @@ class Overtime(models.Model):
                     f'Verifique en Planilla -> Feriados Nacionales o use tipo Simple/Doble.'
                 )
         self.write({'state': 'approved'})
+
+    @staticmethod
+    def _next_code(env, prefix):
+        env.cr.execute(
+            'SELECT code FROM planilla_overtime '
+            'WHERE code LIKE %s ORDER BY code DESC LIMIT 1',
+            (prefix + '-%',)
+        )
+        row = env.cr.fetchone()
+        if row and row[0]:
+            try:
+                num = int(row[0].split('-')[-1]) + 1
+            except (ValueError, IndexError):
+                num = 1
+        else:
+            num = 1
+        return f'{prefix}-{num:04d}'
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if not vals.get('code'):
+                vals['code'] = self._next_code(self.env, 'HE')
+        return super().create(vals_list)
 
     def action_cancel(self):
         self.write({'state': 'cancelled'})

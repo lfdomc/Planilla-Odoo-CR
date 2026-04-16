@@ -64,11 +64,17 @@ class PayslipActionMixin(models.AbstractModel):
 
     def action_sync_novedades(self) -> bool:
         """Boton manual: re-sincroniza novedades del periodo en la boleta.
-        FIX-N2: agrega _sync_loan_deductions que faltaba. Sin este metodo,
-        al presionar el boton "Sincronizar" las cuotas de prestamos no se
-        actualizaban en la boleta aunque el prestamo estuviera activo.
+        Solo funciona en estado Borrador. Las boletas Confirmadas o Pagadas
+        estan bloqueadas para proteger la integridad del pago.
         """
         for rec in self:
+            if rec.state in ('confirmed', 'paid'):
+                from odoo.exceptions import UserError
+                raise UserError(
+                    f'La boleta "{rec.name}" esta en estado '
+                    f'"{rec.state}" y no puede modificarse. '
+                    f'Para editarla, primero cancelela y vuelva a Borrador.'
+                )
             if rec.state == 'draft':
                 rec._sync_novedades()        # incluye _sync_licencias() internamente
                 rec._sync_recurring_benefits()
@@ -165,10 +171,17 @@ class PayslipActionMixin(models.AbstractModel):
                     line.loan_installment_id.write({'state': 'deducted', 'payslip_id': rec.id})
                     line.loan_installment_id.loan_id.action_activate()
                     line.loan_installment_id.loan_id.action_check_paid()
+                # gross_salary en historial = salario MENSUAL del empleado.
+                # NO usar rec.gross_salary (es el bruto del periodo: quincenal, semanal, etc.)
+                # porque los calculos de HE, Art.153 vacaciones y liquidaciones
+                # necesitan el salario mensual para dividir entre 30 dias.
+                # Ej: quincenal 215,000 / 30 / 8 = 895.83/h (incorrecto)
+                #     mensual   430,000 / 30 / 8 = 1,791.67/h (correcto)
+                _gross_mensual = rec.employee_id.base_salary or rec.gross_salary
                 self.env['planilla.salary.history'].create({
                     'employee_id':    rec.employee_id.id,
                     'salary':         rec.net_salary,
-                    'gross_salary':   rec.gross_salary,
+                    'gross_salary':   _gross_mensual,
                     'effective_date': rec.date_to,
                     'payslip_id':     rec.id,
                     'reason':         f'Planilla {rec.name}',

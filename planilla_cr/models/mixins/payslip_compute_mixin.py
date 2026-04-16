@@ -169,12 +169,20 @@ class PayslipComputeMixin(models.AbstractModel):
     def _compute_extras(self):
         for rec in self:
             approved_ot = [o for o in rec.overtime_ids if o.state == 'approved']
-            rec.overtime_amount         = sum(o.amount for o in approved_ot)
-            rec.overtime_hours_total    = round(sum(o.hours  for o in approved_ot), 2)
+            # Incluir HE aprobadas Y pagadas (las pagadas ya pertenecen a esta boleta)
+            billable_ot = [o for o in rec.overtime_ids if o.state in ('approved', 'paid')]
+            rec.overtime_amount         = sum(o.amount for o in billable_ot)
+            rec.overtime_hours_total    = round(sum(o.hours  for o in billable_ot), 2)
             rec.overtime_holiday_hours  = round(sum(
-                o.hours for o in approved_ot if o.overtime_type == 'holiday'
+                o.hours for o in billable_ot if o.overtime_type == 'holiday'
             ), 2)
-            rec.vacation_amount  = sum(v.total_amount for v in rec.vacation_ids if v.state == 'approved')
+            # Solo sumar al bruto las vacaciones pagadas en DINERO (Art. 156 CT).
+            # Las vacaciones DISFRUTADAS no se suman: el salario base del periodo
+            # ya cubre esos dias -- sumarlas generaria pago doble.
+            rec.vacation_amount = sum(
+                v.total_amount for v in rec.vacation_ids
+                if v.state == 'approved' and v.payment_method in ('dinero', 'mixto')
+            )
             active_dis = rec.disability_ids.filtered(lambda d: d.state in ('confirmed', 'paid'))
             rec.disability_days          = 0  # se actualiza abajo tras calcular disability_days_in_period
             # FIX COST-PERIODO: employer_cost en el modelo disability es el costo TOTAL

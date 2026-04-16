@@ -833,19 +833,15 @@ class PayslipSyncMixin(models.AbstractModel):
                 and l.description == f'Bono: {b.name}'
             )
             if existing:
-                # FIX I-02 v54: Para bonos porcentuales usar employee.base_salary
-                # (salario mensual configurado en el empleado) en vez de self.gross_salary.
-                # Razon: gross_salary ahora incluye bono_salarial_amount, que a su vez
-                # depende de las deduction_line_ids -- generaria una dependencia circular
-                # y los porcentajes se calcularian sobre una base que ya los incluye.
-                # En practica CR, los bonos % siempre se calculan sobre el salario base,
-                # no sobre el bruto total que incluye otros pluses.
+                # Recalcular monto para actualizar si el bono cambio desde que se creo la linea
                 if bono.amount_type == 'percentage':
                     base_ref = self.employee_id.base_salary or 0.0
-                    monto = round(base_ref * bono.percentage / 100.0, 2)
-                    for line in existing:
-                        if line.amount != monto:
-                            line.amount = monto
+                    monto_actual = round(base_ref * bono.percentage / 100.0, 2)
+                else:
+                    monto_actual = bono.amount
+                for line in existing:
+                    if line.amount != monto_actual:
+                        line.amount = monto_actual
                 continue
 
             # Para el calculo inicial tambien usamos base_salary del empleado
@@ -1370,6 +1366,9 @@ class PayslipSyncMixin(models.AbstractModel):
                     'percentage':         bono.percentage if bono.amount_type == 'percentage' else 0.0,
                     'is_recurring_bono':  bono.is_recurring,
                 })
+                # Marcar como ya procesado para evitar duplicados si hay dos bonos
+                # con el mismo nombre pero diferente vigencia o monto
+                existing_desc.add(desc)
         if lines_to_create:
             self.env['planilla.payslip.deduction.line'].create(lines_to_create)
 
@@ -1564,10 +1563,20 @@ class PayslipSyncMixin(models.AbstractModel):
                 if charge._is_period_already_applied(self.date_from):
                     continue
             else:
+                # Deduplicacion en boleta actual
                 existing = self.deduction_line_ids.filtered(
                     lambda l, c=charge: l.employee_charge_id == c.id
                 )
                 if existing:
+                    continue
+                # Deduplicacion cross-boleta: si ya fue aplicado en otra boleta
+                # activa (no cancelada), no duplicar
+                applied_elsewhere = self.env['planilla.payslip.deduction.line'].search([
+                    ('employee_charge_id', '=', charge.id),
+                    ('payslip_id', '!=', self.id),
+                    ('payslip_id.state', 'in', ('confirmed', 'paid')),
+                ], limit=1)
+                if applied_elsewhere:
                     continue
 
             ded_code = charge.charge_type_id.deduction_code_id or default_code
@@ -1669,7 +1678,14 @@ class PayslipSyncMixin(models.AbstractModel):
                 if charge.is_recurring:
                     if charge._is_period_already_applied(slip.date_from):
                         continue
-                # (cobros unicos: no hay lineas aun en la boleta recien creada)
+                # cobros unicos: verificar que no hayan sido aplicados en otra boleta confirmada
+                if not charge.is_recurring:
+                    already_applied = self.env['planilla.payslip.deduction.line'].search([
+                        ('employee_charge_id', '=', charge.id),
+                        ('payslip_id.state', 'in', ('confirmed', 'paid')),
+                    ], limit=1)
+                    if already_applied:
+                        continue
 
                 ded_code = charge.charge_type_id.deduction_code_id or default_code
                 if not ded_code:
