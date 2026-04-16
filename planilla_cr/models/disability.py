@@ -287,15 +287,19 @@ class Disability(models.Model):
             else:
                 rec.maternity_avg_salary = 0.0
 
-    @api.depends('days', 'daily_salary', 'maternity_avg_salary',
+    @api.depends('days', 'days_effective', 'extra_half_day',
+                 'daily_salary', 'maternity_avg_salary',
                  'subsidy_percentage', 'employer_percentage',
                  'disability_type', 'is_prorroga',
                  'maternity_split_50', 'maternity_ccss_on_employer')
     def _compute_costs(self):
         for rec in self:
+            # Calcular dias efectivos directamente (sin depender del campo computed)
+            # Esto garantiza que el calculo es inmediato al activar el toggle
+            d = float(rec.days or 0) + (0.5 if rec.extra_half_day else 0.0)
             if rec.disability_type == 'maternity':
                 daily = rec.maternity_avg_salary or rec.daily_salary
-                total = round(rec.days * daily, 2)
+                total = round(d * daily, 2)
                 rec.maternity_ccss_deduction = 0.0  # default
 
                 if rec.maternity_split_50:
@@ -329,7 +333,7 @@ class Disability(models.Model):
                 #   por defecto -- CORRECCION: debe ser 60% para INS ordinario).
                 rec.employer_cost = 0.0
                 ins_rate = (rec.subsidy_percentage or 60.0) / 100.0
-                rec.ccss_subsidy = round(rec.days * rec.daily_salary * ins_rate, 2)
+                rec.ccss_subsidy = round(d * rec.daily_salary * ins_rate, 2)
             elif rec.is_prorroga:
                 # Prorroga: los 3 dias del tramo patronal ya se agotaron en el
                 # certificado original. Todo el subsidio es a cargo de la CCSS.
@@ -337,13 +341,13 @@ class Disability(models.Model):
                 # incapacidades (sin brecha entre certificados = mismo evento).
                 rec.employer_cost = 0.0
                 rec.ccss_subsidy = round(
-                    rec.days * rec.daily_salary * rec.subsidy_percentage / 100, 2
+                    d * rec.daily_salary * rec.subsidy_percentage / 100, 2
                 )
             else:
                 # Art. 79 CT: dias 1-3 -> 50% patrono + 50% CCSS.
                 # dias 4+ -> subsidy_percentage% CCSS, patrono puede complementar.
-                first_days    = min(rec.days, 3)
-                remaining_days = max(rec.days - 3, 0)
+                first_days    = min(d, 3)
+                remaining_days = max(d - 3, 0)
                 rec.employer_cost = round(
                     (first_days * rec.daily_salary * 0.50) +
                     (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2
