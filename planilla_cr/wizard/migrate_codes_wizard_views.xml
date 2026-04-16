@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_migrate_codes_wizard_form" model="ir.ui.view">
+        <field name="name">planilla.migrate.codes.wizard.form</field>
+        <field name="model">planilla.migrate.codes.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Asignar Codigos a Novedades Existentes">
+                <div class="alert alert-info" invisible="result_message">
+                    Este asistente asigna codigos consecutivos (EMB-0001, BON-0001, etc.)
+                    a todos los registros de Embargos, Bonos, Licencias, Horas Extras
+                    y Cobros que aun no tienen codigo asignado.
+                </div>
+                <field name="result_message" invisible="not result_message"
+                       readonly="1" style="white-space:pre-line; font-family:monospace;"/>
+                <footer>
+                    <button name="action_run" type="object"
+                            string="Asignar Codigos Ahora"
+                            class="btn-primary"
+                            invisible="result_message"/>
+                    <button special="cancel"
+                            string="Cerrar"
+                            invisible="not result_message"
+                            class="btn-primary"/>
+                    <button special="cancel" string="Cancelar"
+                            invisible="result_message"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Accion para abrir el wizard desde Configuracion -->
+    <record id="action_migrate_codes_wizard" model="ir.actions.act_window">
+        <field name="name">Asignar Codigos a Novedades</field>
+        <field name="res_model">planilla.migrate.codes.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Menu en Configuracion -->
+    <menuitem id="menu_migrate_codes"
+              name="Asignar Codigos a Novedades"
+              parent="planilla_cr.menu_planilla_config"
+              action="action_migrate_codes_wizard"
+              sequence="99"/>
+</odoo>

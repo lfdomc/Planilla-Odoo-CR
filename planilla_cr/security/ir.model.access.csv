@@ -103,3 +103,4 @@ access_planilla_sync_hr_wizard,planilla.sync.hr.wizard,model_planilla_sync_hr_wi
 access_planilla_sync_hr_wizard_aprobador,planilla.sync.hr.wizard aprobador,model_planilla_sync_hr_wizard,planilla_cr.group_planilla_aprobador,1,1,1,0
 access_planilla_sync_hr_wizard_operador,planilla.sync.hr.wizard operador,model_planilla_sync_hr_wizard,planilla_cr.group_planilla_operador,1,1,1,0
 access_planilla_test_email_wizard,planilla.test.email.wizard,model_planilla_test_email_wizard,planilla_cr.group_planilla_operador,1,1,1,1
+access_planilla_migrate_codes_wizard,planilla.migrate.codes.wizard,model_planilla_migrate_codes_wizard,planilla_cr.group_planilla_admin,1,1,1,1

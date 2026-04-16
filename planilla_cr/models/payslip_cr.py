@@ -667,6 +667,18 @@ class PayslipDeductionLine(models.Model):
              'Los bonos puntuales NO se anualizan para calcular renta, '
              'evitando pagar impuesto por ingresos proyectados que no se repetiran.'
     )
+    bono_id = fields.Many2one(
+        'planilla.bono',
+        string='Bono de Origen',
+        readonly=True, ondelete='set null',
+        help='Bono especifico que origino esta linea. Permite deduplicacion por ID unico.'
+    )
+    embargo_id = fields.Many2one(
+        'planilla.embargo',
+        string='Embargo de Origen',
+        readonly=True, ondelete='set null',
+        help='Embargo judicial que origino esta linea. Trazabilidad directa al registro.'
+    )
 
     @api.constrains('amount', 'deduction_category', 'payslip_id')
     def _check_deduction_limits(self):

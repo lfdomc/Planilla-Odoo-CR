@@ -442,7 +442,10 @@ class PayslipSyncMixin(models.AbstractModel):
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':          self.id,
                     'deduction_code_id':   code_con_goce.id,
-                    'description':         f'Licencia: {tipo_label} ({periodo_desc})',
+                    'description':         (
+                        f'[{lic.code}] {tipo_label} ({periodo_desc})'
+                        if lic.code else f'Licencia: {tipo_label} ({periodo_desc})'
+                    ),
                     'line_type':           'income',
                     'deduction_category':  'licencia_con_goce',
                     'amount':              monto,
@@ -453,7 +456,10 @@ class PayslipSyncMixin(models.AbstractModel):
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':          self.id,
                     'deduction_code_id':   code_sin_goce.id,
-                    'description':         f'Licencia sin goce: {tipo_label} ({periodo_desc})',
+                    'description':         (
+                        f'[{lic.code}] Sin goce: {tipo_label} ({periodo_desc})'
+                        if lic.code else f'Licencia sin goce: {tipo_label} ({periodo_desc})'
+                    ),
                     'line_type':           'deduction',
                     'deduction_category':  'licencia_sin_goce',
                     'amount':              monto,
@@ -766,7 +772,8 @@ class PayslipSyncMixin(models.AbstractModel):
         for embargo in embargos:
             existing = self.deduction_line_ids.filtered(
                 lambda l, e=embargo: l.deduction_category == 'embargo'
-                and l.numero_resolucion == e.numero_expediente
+                and (l.embargo_id and l.embargo_id.id == e.id
+                     or l.numero_resolucion == e.numero_expediente)
             )
             if existing:
                 continue
@@ -778,17 +785,22 @@ class PayslipSyncMixin(models.AbstractModel):
             if monto <= 0:
                 continue
 
+            desc_emb = (
+                f'[{embargo.code}] {embargo.beneficiario_nombre} ({embargo.numero_expediente})'
+                if embargo.code
+                else f'Embargo Judicial -- {embargo.beneficiario_nombre} ({embargo.numero_expediente})'
+            )
             self.env['planilla.payslip.deduction.line'].create({
                 'payslip_id':         self.id,
                 'deduction_code_id':  embargo_code.id,
-                'description':        (f'Embargo Judicial -- {embargo.beneficiario_nombre} '
-                                       f'({embargo.numero_expediente})'),
+                'description':        desc_emb,
                 'line_type':          'deduction',
                 'deduction_category': 'embargo',
                 'amount_type':        embargo.calculation_type,
                 'amount':             monto,
                 'percentage':         embargo.percentage if embargo.calculation_type == 'percentage' else 0.0,
                 'numero_resolucion':  embargo.numero_expediente,
+                'embargo_id':         embargo.id,
             })
             ya_embargado += monto
             _logger.info(
@@ -827,13 +839,23 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
 
         for bono in bonos:
-            # Evitar duplicados (por concepto)
+            # Deduplicacion por bono_id (ID unico) -- inmune a bonos con mismo nombre
             existing = self.deduction_line_ids.filtered(
-                lambda l, b=bono: l.line_type == 'income'
-                and l.description == f'Bono: {b.name}'
+                lambda l, b=bono: l.bono_id and l.bono_id.id == b.id
             )
+            # Fallback: si la linea fue creada antes del campo bono_id, buscar por descripcion
+            if not existing:
+                existing = self.deduction_line_ids.filtered(
+                    lambda l, b=bono: l.line_type == 'income'
+                    and l.deduction_category == 'bonus'
+                    and l.description == f'Bono: {b.name}'
+                    and not l.bono_id
+                )
+                # Migrar: asignar bono_id retroactivamente
+                if existing:
+                    existing.write({'bono_id': bono.id})
             if existing:
-                # Recalcular monto para actualizar si el bono cambio desde que se creo la linea
+                # Recalcular monto si el bono cambio
                 if bono.amount_type == 'percentage':
                     base_ref = self.employee_id.base_salary or 0.0
                     monto_actual = round(base_ref * bono.percentage / 100.0, 2)
@@ -860,13 +882,14 @@ class PayslipSyncMixin(models.AbstractModel):
             self.env['planilla.payslip.deduction.line'].create({
                 'payslip_id':         self.id,
                 'deduction_code_id':  bono_code.id,
-                'description':        f'Bono: {bono.name}',
+                'description':        f'[{bono.code}] {bono.name}' if bono.code else f'Bono: {bono.name}',
                 'line_type':          'income',
                 'deduction_category': 'bonus',
                 'amount_type':        bono.amount_type,
                 'amount':             monto,
                 'percentage':         bono.percentage if bono.amount_type == 'percentage' else 0.0,
                 'is_recurring_bono':  bono.is_recurring,
+                'bono_id':            bono.id,
             })
 
     # ======================================================================
@@ -1345,10 +1368,21 @@ class PayslipSyncMixin(models.AbstractModel):
                     lambda l: l.line_type == 'income' and l.deduction_category == 'bonus'
                 ).mapped('description')
             )
+            # Set de bono_ids ya en esta boleta (dedup por ID unico)
+            existing_bono_ids = set(
+                slip.deduction_line_ids.filtered(
+                    lambda l: l.line_type == 'income' and l.deduction_category == 'bonus' and l.bono_id
+                ).mapped('bono_id.id')
+            )
             for bono in bono_list:
-                desc = f'Bono: {bono.name}'
-                if desc in existing_desc:
-                    continue  # ya sincronizado -> omitir
+                desc = f'[{bono.code}] {bono.name}' if bono.code else f'Bono: {bono.name}'
+                # Dedup por ID unico del bono
+                if bono.id in existing_bono_ids:
+                    continue
+                # Fallback por descripcion para lineas creadas antes del campo bono_id
+                if desc in existing_desc and bono.id not in existing_bono_ids:
+                    existing_bono_ids.add(bono.id)
+                    continue
                 if bono.amount_type == 'fixed':
                     monto = bono.amount
                 else:
@@ -1365,9 +1399,9 @@ class PayslipSyncMixin(models.AbstractModel):
                     'amount':             monto,
                     'percentage':         bono.percentage if bono.amount_type == 'percentage' else 0.0,
                     'is_recurring_bono':  bono.is_recurring,
+                    'bono_id':            bono.id,
                 })
-                # Marcar como ya procesado para evitar duplicados si hay dos bonos
-                # con el mismo nombre pero diferente vigencia o monto
+                existing_bono_ids.add(bono.id)
                 existing_desc.add(desc)
         if lines_to_create:
             self.env['planilla.payslip.deduction.line'].create(lines_to_create)
@@ -1603,7 +1637,10 @@ class PayslipSyncMixin(models.AbstractModel):
             lines_to_create.append({
                 'payslip_id':          self.id,
                 'deduction_code_id':   ded_code.id,
-                'description':         desc,
+                'description':         (
+                    f'[{charge.code}] {desc}'
+                    if getattr(charge, 'code', None) else desc
+                ),
                 'line_type':           'deduction',
                 'deduction_category':  'other',
                 'amount_type':         'fixed',
