@@ -1366,6 +1366,9 @@ class PayslipSyncMixin(models.AbstractModel):
                     'percentage':         bono.percentage if bono.amount_type == 'percentage' else 0.0,
                     'is_recurring_bono':  bono.is_recurring,
                 })
+                # Marcar como ya procesado para evitar duplicados si hay dos bonos
+                # con el mismo nombre pero diferente vigencia o monto
+                existing_desc.add(desc)
         if lines_to_create:
             self.env['planilla.payslip.deduction.line'].create(lines_to_create)
 
