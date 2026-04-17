@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Vista Lista -->
     <record id="view_employee_movement_list" model="ir.ui.view">
         <field name="name">planilla.employee.movement.list</field>
         <field name="model">planilla.employee.movement</field>
@@ -22,7 +21,6 @@
         </field>
     </record>
 
-    <!-- Vista Formulario -->
     <record id="view_employee_movement_form" model="ir.ui.view">
         <field name="name">planilla.employee.movement.form</field>
         <field name="model">planilla.employee.movement</field>
@@ -57,7 +55,6 @@
         </field>
     </record>
 
-    <!-- Filtros de busqueda -->
     <record id="view_employee_movement_search" model="ir.ui.view">
         <field name="name">planilla.employee.movement.search</field>
         <field name="model">planilla.employee.movement</field>
@@ -66,30 +63,27 @@
                 <field name="employee_id"/>
                 <field name="movement_type"/>
                 <field name="reason"/>
-                <separator/>
                 <filter string="Ingresos" name="ingresos"
                         domain="[('movement_type','=','ingreso')]"/>
                 <filter string="Reingresos" name="reingresos"
                         domain="[('movement_type','=','reingreso')]"/>
                 <filter string="Salidas" name="salidas"
                         domain="[('movement_type','=','salida')]"/>
-                <filter string="Aumentos Salariales" name="aumentos"
+                <filter string="Aumentos" name="aumentos"
                         domain="[('movement_type','=','aumento')]"/>
-                <group expand="0" string="Agrupar por">
-                    <filter string="Empleado" name="by_employee"
-                            context="{'group_by': 'employee_id'}"/>
-                    <filter string="Tipo" name="by_type"
-                            context="{'group_by': 'movement_type'}"/>
-                    <filter string="Mes" name="by_month"
-                            context="{'group_by': 'movement_date:month'}"/>
-                    <filter string="Sucursal" name="by_branch"
-                            context="{'group_by': 'branch_id'}"/>
-                </group>
+                <separator/>
+                <filter string="Por Empleado" name="by_employee"
+                        context="{'group_by': 'employee_id'}"/>
+                <filter string="Por Tipo" name="by_type"
+                        context="{'group_by': 'movement_type'}"/>
+                <filter string="Por Mes" name="by_month"
+                        context="{'group_by': 'movement_date:month'}"/>
+                <filter string="Por Sucursal" name="by_branch"
+                        context="{'group_by': 'branch_id'}"/>
             </search>
         </field>
     </record>
 
-    <!-- Accion ventana -->
     <record id="action_employee_movement" model="ir.actions.act_window">
         <field name="name">Movimientos de Personal</field>
         <field name="res_model">planilla.employee.movement</field>
@@ -97,10 +91,9 @@
         <field name="search_view_id" ref="view_employee_movement_search"/>
     </record>
 
-    <!-- Menu en Reportes -->
     <menuitem id="menu_employee_movement"
               name="Movimientos de Personal"
-              parent="planilla_cr.menu_planilla_reportes"
+              parent="planilla_cr.menu_planilla_cr_reports"
               action="action_employee_movement"
               sequence="25"/>
 </odoo>
