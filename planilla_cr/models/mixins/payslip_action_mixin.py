@@ -136,15 +136,8 @@ class PayslipActionMixin(models.AbstractModel):
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('La boleta %s no esta en borrador.' % rec.name)
-        # FIX SYNC-BEFORE-CONFIRM: re-sincronizar novedades antes de validar.
-        # Garantiza que disability_ids (M2M) este actualizado, especialmente
-        # para boletas creadas antes del fix M2M (v5.28.74) que no tenian la
-        # maternidad u otras incapacidades vinculadas. Sin este sync, la
-        # validacion no detecta has_maternity y bloquea con error de salario minimo.
-        try:
-            self._sync_novedades()
-        except Exception:
-            pass  # si el sync falla, continuar con la validacion de todas formas
+        # NO re-sincronizar novedades aqui -- causaria recalculo de boletas
+        # ya revisadas y ajustadas manualmente, perdiendo correcciones aplicadas.
         self._validate_before_confirm()
         self.write({'state': 'confirmed'})
         _logger.info(
