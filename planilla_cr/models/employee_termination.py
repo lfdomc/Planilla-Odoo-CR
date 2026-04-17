@@ -496,6 +496,19 @@ class EmployeeTermination(models.Model):
                 'state': 'paid',
                 'move_id': move.id if move else False,
             })
+            # Registrar movimiento de salida
+            self.env['planilla.employee.movement'].create({
+                'employee_id':    self.employee_id.id,
+                'movement_date':  self.termination_date or fields.Date.today(),
+                'movement_type':  'salida',
+                'reason':         dict(self._fields['termination_reason'].selection).get(
+                    self.termination_reason, self.termination_reason
+                ),
+                'salary_before':  self.last_salary,
+                'company_id':     self.company_id.id,
+                'termination_id': self.id,
+                'note':           self.note or False,
+            })
             # FIX-AUD-08: cancelar prestamos activos del empleado al pagar la liquidacion.
             # Si las deducciones ya contemplaban el saldo, los prestamos deben cerrarse
             # para que no sigan apareciendo como activos ni generen cuotas futuras.

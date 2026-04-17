@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Vista Lista -->
+    <record id="view_employee_movement_list" model="ir.ui.view">
+        <field name="name">planilla.employee.movement.list</field>
+        <field name="model">planilla.employee.movement</field>
+        <field name="arch" type="xml">
+            <list string="Movimientos de Personal"
+                  decoration-success="movement_type == 'ingreso' or movement_type == 'reingreso'"
+                  decoration-danger="movement_type == 'salida'"
+                  decoration-info="movement_type == 'aumento'"
+                  decoration-warning="movement_type == 'suspension'">
+                <field name="movement_date" string="Fecha"/>
+                <field name="employee_id" string="Empleado"/>
+                <field name="branch_id" string="Sucursal" optional="show"/>
+                <field name="movement_type" string="Tipo"/>
+                <field name="reason" string="Motivo"/>
+                <field name="salary_before" string="Salario Anterior" optional="show"/>
+                <field name="salary_after" string="Salario Nuevo" optional="show"/>
+                <field name="registered_by" string="Registrado por" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista Formulario -->
+    <record id="view_employee_movement_form" model="ir.ui.view">
+        <field name="name">planilla.employee.movement.form</field>
+        <field name="model">planilla.employee.movement</field>
+        <field name="arch" type="xml">
+            <form string="Movimiento de Personal">
+                <sheet>
+                    <group string="Datos del Movimiento">
+                        <group>
+                            <field name="employee_id"/>
+                            <field name="branch_id" readonly="1"/>
+                            <field name="movement_type"/>
+                            <field name="movement_date"/>
+                        </group>
+                        <group>
+                            <field name="reason"/>
+                            <field name="salary_before"
+                                   invisible="movement_type not in ('salida','aumento')"/>
+                            <field name="salary_after"
+                                   invisible="movement_type not in ('ingreso','reingreso','aumento')"/>
+                            <field name="registered_by" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Referencias">
+                        <field name="termination_id" readonly="1"
+                               invisible="not termination_id"/>
+                        <field name="salary_history_id" readonly="1"
+                               invisible="not salary_history_id"/>
+                    </group>
+                    <field name="note" placeholder="Observaciones adicionales..."/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Filtros de busqueda -->
+    <record id="view_employee_movement_search" model="ir.ui.view">
+        <field name="name">planilla.employee.movement.search</field>
+        <field name="model">planilla.employee.movement</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Movimientos">
+                <field name="employee_id"/>
+                <field name="movement_type"/>
+                <field name="reason"/>
+                <separator/>
+                <filter string="Ingresos" name="ingresos"
+                        domain="[('movement_type','=','ingreso')]"/>
+                <filter string="Reingresos" name="reingresos"
+                        domain="[('movement_type','=','reingreso')]"/>
+                <filter string="Salidas" name="salidas"
+                        domain="[('movement_type','=','salida')]"/>
+                <filter string="Aumentos Salariales" name="aumentos"
+                        domain="[('movement_type','=','aumento')]"/>
+                <separator/>
+                <filter string="Este mes" name="este_mes"
+                        domain="[('movement_date','&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Este ano" name="este_ano"
+                        domain="[('movement_date','&gt;=', (context_today() + relativedelta(month=1,day=1)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter string="Empleado" name="by_employee"
+                            context="{'group_by': 'employee_id'}"/>
+                    <filter string="Tipo" name="by_type"
+                            context="{'group_by': 'movement_type'}"/>
+                    <filter string="Mes" name="by_month"
+                            context="{'group_by': 'movement_date:month'}"/>
+                    <filter string="Sucursal" name="by_branch"
+                            context="{'group_by': 'branch_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Accion ventana -->
+    <record id="action_employee_movement" model="ir.actions.act_window">
+        <field name="name">Movimientos de Personal</field>
+        <field name="res_model">planilla.employee.movement</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_employee_movement_search"/>
+    </record>
+
+    <!-- Menu en Reportes -->
+    <menuitem id="menu_employee_movement"
+              name="Movimientos de Personal"
+              parent="planilla_cr.menu_planilla_reportes"
+              action="action_employee_movement"
+              sequence="25"/>
+</odoo>

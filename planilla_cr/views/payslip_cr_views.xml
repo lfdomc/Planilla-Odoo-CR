@@ -881,10 +881,12 @@
                             </div>
                             <field name="overtime_ids">
                                 <list decoration-warning="state == 'draft' and source == 'attendance'"
-                                      decoration-success="state == 'approved'">
+                                      decoration-success="state == 'approved'"
+                                      decoration-muted="state == 'paid'">
                                     <field name="date"/>
                                     <field name="overtime_type"/>
                                     <field name="hours"/>
+                                    <field name="hourly_rate" string="Tarifa/Hora" optional="show"/>
                                     <field name="source"/>
                                     <field name="amount"/>
                                     <field name="state"/>

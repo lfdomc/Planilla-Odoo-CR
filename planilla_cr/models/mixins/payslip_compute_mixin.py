@@ -73,6 +73,23 @@ class PayslipComputeMixin(models.AbstractModel):
             date_str = str(rec.date_to)[:7] if rec.date_to else ''
             rec.name = f'BOL - {emp} - {date_str}'
 
+    def _get_salary_for_date(self, emp, ref_date):
+        """
+        Retorna el salario mensual vigente para el empleado en ref_date.
+        Consulta planilla.salary.history (state=authorized, effective_date <= ref_date)
+        ordenado por fecha descendente. Si no hay historial, retorna emp.base_salary.
+        """
+        if not emp or not ref_date:
+            return emp.base_salary if emp else 0.0
+        hist = self.env['planilla.salary.history'].search([
+            ('employee_id', '=', emp.id),
+            ('state', '=', 'authorized'),
+            ('effective_date', '<=', ref_date),
+        ], order='effective_date desc', limit=1)
+        if hist:
+            return hist.gross_salary or emp.base_salary
+        return emp.base_salary or 0.0
+
     @api.depends('employee_id', 'date_from', 'date_to', 'attendance_hours',
                  'is_proportional', 'proportional_factor', 'payroll_calendar_id',
                  'days_in_period',
@@ -97,9 +114,11 @@ class PayslipComputeMixin(models.AbstractModel):
                 hourly_rate       = emp.base_salary / monthly_hours if monthly_hours else 0.0
                 rec.base_salary   = round(hourly_rate * (rec.attendance_hours or 0.0), 2)
             else:
-                raw  = emp.base_salary or 0.0
+                # Usar salario vigente en la fecha de inicio de la boleta
+                # Si hay historial autorizado, se usa ese; si no, el salario actual
+                ref_date = rec.date_from or fields.Date.today()
+                raw  = rec._get_salary_for_date(emp, ref_date)
                 freq = rec._get_effective_freq()
-                # FIX P-02 v58: usar K.FREQ_FACTORS centralizado en planilla_const
                 freq_factor = K.FREQ_FACTORS.get(freq, 1.0)
                 prop_factor = rec.proportional_factor if rec.is_proportional else 1.0
                 rec.base_salary = round(raw * freq_factor * prop_factor, 2)
@@ -169,10 +188,12 @@ class PayslipComputeMixin(models.AbstractModel):
     def _compute_extras(self):
         for rec in self:
             approved_ot = [o for o in rec.overtime_ids if o.state == 'approved']
-            rec.overtime_amount         = sum(o.amount for o in approved_ot)
-            rec.overtime_hours_total    = round(sum(o.hours  for o in approved_ot), 2)
+            # Incluir HE aprobadas Y pagadas (las pagadas ya pertenecen a esta boleta)
+            billable_ot = [o for o in rec.overtime_ids if o.state in ('approved', 'paid')]
+            rec.overtime_amount         = sum(o.amount for o in billable_ot)
+            rec.overtime_hours_total    = round(sum(o.hours  for o in billable_ot), 2)
             rec.overtime_holiday_hours  = round(sum(
-                o.hours for o in approved_ot if o.overtime_type == 'holiday'
+                o.hours for o in billable_ot if o.overtime_type == 'holiday'
             ), 2)
             # Solo sumar al bruto las vacaciones pagadas en DINERO (Art. 156 CT).
             # Las vacaciones DISFRUTADAS no se suman: el salario base del periodo
@@ -245,6 +266,12 @@ class PayslipComputeMixin(models.AbstractModel):
                         if overlap_end < overlap_start:
                             continue
                         dias_overlap = (overlap_end - overlap_start).days + 1
+                        # Aplicar medio dia extra del primer dia si esta activo
+                        if getattr(dis, 'extra_half_day', False):
+                            # El medio dia extra aplica solo si el inicio de la incapacidad
+                            # cae dentro del periodo de esta boleta
+                            if rec.date_from <= dis.date_start <= rec.date_to:
+                                dias_overlap += 0.5
                         dias_incap_periodo += dias_overlap
 
                         if dis.disability_type == 'maternity':
@@ -337,7 +364,9 @@ class PayslipComputeMixin(models.AbstractModel):
             # -- Salario cotizable por periodo --------------------------------
             emp = rec.employee_id
             if emp and emp.base_salary and dias_incap_periodo > 0:
-                salario_diario  = round(emp.base_salary / K.DIAS_MES, 4)
+                # Usar salario historico vigente en la fecha de la boleta
+                _sal_hist = rec._get_salary_for_date(emp, rec.date_from)
+                salario_diario  = round(_sal_hist / K.DIAS_MES, 4)
                 dias_periodo    = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else K.DIAS_MES
                 dias_trabajados = max(dias_periodo - dias_incap_periodo, 0)
 
@@ -401,7 +430,7 @@ class PayslipComputeMixin(models.AbstractModel):
                     freq = rec._get_effective_freq()
                     ff = K.FREQ_FACTORS.get(freq, 1.0)
                     prop = rec.proportional_factor if rec.is_proportional else 1.0
-                    base_quincenal = round(emp.base_salary * ff * prop, 2)
+                    base_quincenal = round(_sal_hist * ff * prop, 2)
                     rec.salario_cotizable = round(
                         base_quincenal
                         - (dias_incap_periodo * salario_diario)
@@ -416,7 +445,8 @@ class PayslipComputeMixin(models.AbstractModel):
                     freq = rec._get_effective_freq()
                     freq_factor = K.FREQ_FACTORS.get(freq, 1.0)
                     prop_factor = rec.proportional_factor if rec.is_proportional else 1.0
-                    rec.salario_cotizable = round(emp.base_salary * freq_factor * prop_factor, 2)
+                    _sal_base = rec._get_salary_for_date(emp, rec.date_from)
+                    rec.salario_cotizable = round(_sal_base * freq_factor * prop_factor, 2)
                 else:
                     rec.salario_cotizable = 0.0
 
@@ -437,18 +467,10 @@ class PayslipComputeMixin(models.AbstractModel):
         if not self:
             return
 
-        # Pre-cargar todos los bonos activos de TODOS los empleados del recordset
-        # en UNA sola query. Elimina el N+1 anterior (1 query por boleta).
-        emp_ids = self.mapped('employee_id.id')
-        all_bonos = self.env['planilla.bono'].search([
-            ('employee_id', 'in', emp_ids),
-            ('state', '=', 'active'),
-        ])
-        # Indice: emp_id -> {bono_name: bono_rec}
-        bono_index: dict = {}
-        for b in all_bonos:
-            bono_index.setdefault(b.employee_id.id, {})[b.name] = b
-
+        # FIX BP-06: usar bono_id (ID unico) en lugar de parsear la descripcion.
+        # La descripcion ahora tiene formato '[BON-XXXX] Nombre' que no coincide
+        # con el indice por nombre. bono_id es el enlace directo y es inmune
+        # a cambios de formato en la descripcion.
         for rec in self:
             bonus_lines = rec.deduction_line_ids.filtered(
                 lambda l: l.line_type == 'income' and l.deduction_category == 'bonus'
@@ -457,14 +479,22 @@ class PayslipComputeMixin(models.AbstractModel):
                 rec.bono_salarial_amount = 0.0
                 continue
 
-            emp_bonos = bono_index.get(rec.employee_id.id, {})
             total = 0.0
             for line in bonus_lines:
-                concepto = (line.description or '').replace('Bono: ', '').strip()
-                bono_rec = emp_bonos.get(concepto)
-                # FIX BP-05: solo sumar si el bono existe Y tiene afecto_ccss=True.
-                # La logica anterior (not bono_rec OR afecto_ccss) era incorrecta:
-                # sumaba bonos no encontrados como si fueran salariales (fiscalmente erroneo).
+                # Preferir bono_id (enlace directo) sobre busqueda por nombre
+                bono_rec = line.bono_id
+                if not bono_rec:
+                    # Fallback para lineas sin bono_id (creadas antes del campo)
+                    emp_ids_fb = [rec.employee_id.id]
+                    nombre = (line.description or '').replace('Bono: ', '').strip()
+                    # Quitar prefijo [BON-XXXX] si existe
+                    import re as _re
+                    nombre = _re.sub(r'^\[\w+-\d+\]\s*', '', nombre).strip()
+                    bono_rec = self.env['planilla.bono'].search([
+                        ('employee_id', '=', rec.employee_id.id),
+                        ('name', '=', nombre),
+                        ('state', '=', 'active'),
+                    ], limit=1)
                 if bono_rec and bono_rec.afecto_ccss:
                     total += line.amount
             rec.bono_salarial_amount = round(total, 2)

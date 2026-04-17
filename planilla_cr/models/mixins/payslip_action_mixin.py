@@ -64,11 +64,17 @@ class PayslipActionMixin(models.AbstractModel):
 
     def action_sync_novedades(self) -> bool:
         """Boton manual: re-sincroniza novedades del periodo en la boleta.
-        FIX-N2: agrega _sync_loan_deductions que faltaba. Sin este metodo,
-        al presionar el boton "Sincronizar" las cuotas de prestamos no se
-        actualizaban en la boleta aunque el prestamo estuviera activo.
+        Solo funciona en estado Borrador. Las boletas Confirmadas o Pagadas
+        estan bloqueadas para proteger la integridad del pago.
         """
         for rec in self:
+            if rec.state in ('confirmed', 'paid'):
+                from odoo.exceptions import UserError
+                raise UserError(
+                    f'La boleta "{rec.name}" esta en estado '
+                    f'"{rec.state}" y no puede modificarse. '
+                    f'Para editarla, primero cancelela y vuelva a Borrador.'
+                )
             if rec.state == 'draft':
                 rec._sync_novedades()        # incluye _sync_licencias() internamente
                 rec._sync_recurring_benefits()

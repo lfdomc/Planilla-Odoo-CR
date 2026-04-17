@@ -12,7 +12,7 @@
                 <field name="disability_type"/>
                 <field name="date_start"/>
                 <field name="date_end"/>
-                <field name="days"/>
+                <field name="days" string="Dias Totales" readonly="1"/>
                 <field name="fecha_parto" optional="show"/>
                 <field name="prenatal_days" optional="show"/>
                 <field name="postnatal_days" optional="show"/>
@@ -43,7 +43,8 @@
                 <sheet>
                     <group>
                         <group string="Empleado">
-                            <field name="employee_id"/>
+                            <field name="code" string="Codigo" readonly="1"/>
+                  <field name="employee_id"/>
                             <field name="branch_id" readonly="1"/>
                             <field name="disability_type"/>
                         </group>
@@ -74,6 +75,14 @@
                             <field name="date_end"
                                    invisible="disability_type == 'maternity'"/>
                             <field name="days" readonly="1"/>
+                            <field name="extra_half_day"
+                                   string="+ Medio dia (primer dia)"
+                                   widget="boolean_toggle"
+                                   help="El empleado trabajo medio dia antes de ser incapacitado. Suma 0.5 dias adicionales al descuento en la boleta."/>
+                            <field name="days_effective"
+                                   string="Dias Efectivos"
+                                   readonly="1"
+                                   invisible="not extra_half_day"/>
                         </group>
                     </group>
 

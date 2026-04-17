@@ -117,6 +117,7 @@
                   decoration-warning="state == 'approved'"
                   decoration-muted="state == 'cancelled'"
                   decoration-info="state == 'draft'">
+                <field name="code" string="Codigo" readonly="1"/>
                 <field name="name"/>
                 <field name="employee_id"/>
                 <field name="branch_id" optional="show"/>

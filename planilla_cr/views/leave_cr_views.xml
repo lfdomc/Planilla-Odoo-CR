@@ -12,6 +12,7 @@
                   decoration-success="state=='approved'"
                   decoration-info="state=='paid'"
                   decoration-muted="state=='cancelled'">
+                <field name="code" string="Codigo" readonly="1"/>
                 <field name="employee_id"/>
                 <field name="branch_id" optional="show"/>
                 <field name="leave_type"/>

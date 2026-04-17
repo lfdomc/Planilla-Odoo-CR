@@ -1038,6 +1038,15 @@ class HrEmployeeExtension(models.Model):
                     'authorized_by': self.env.user.id,
                     'authorized_date': fields.Datetime.now(),
                 })
+        for employee in employees:
+            self.env['planilla.employee.movement'].create({
+                'employee_id':   employee.id,
+                'movement_date': employee.entry_date or fields.Date.context_today(self),
+                'movement_type': 'ingreso',
+                'reason':        'Ingreso de empleado',
+                'salary_after':  employee.base_salary or 0.0,
+                'company_id':    employee.company_id.id,
+            })
         return employees
 
     def write(self, vals):

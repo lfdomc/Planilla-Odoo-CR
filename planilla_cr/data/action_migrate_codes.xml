@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Accion de servidor: asignar codigos a novedades existentes -->
+    <record id="action_migrate_codes_server" model="ir.actions.server">
+        <field name="name">Planilla CR: Asignar Codigos a Novedades Existentes</field>
+        <field name="model_id" ref="base.model_res_company"/>
+        <field name="state">code</field>
+        <field name="code">
+migrations = [
+    ("planilla_embargo",         "EMB"),
+    ("planilla_bono",            "BON"),
+    ("planilla_leave_cr",        "LIC"),
+    ("planilla_overtime",        "HE"),
+    ("planilla_employee_charge", "COB"),
+]
+total = 0
+for table, prefix in migrations:
+    try:
+        env.cr.execute(
+            "SELECT id FROM " + table + " WHERE code IS NULL OR code = \'\' ORDER BY id ASC"
+        )
+        ids_sin_codigo = [row[0] for row in env.cr.fetchall()]
+        if not ids_sin_codigo:
+            continue
+        env.cr.execute(
+            "SELECT code FROM " + table + " WHERE code LIKE %s ORDER BY code DESC LIMIT 1",
+            (prefix + "-%",)
+        )
+        row = env.cr.fetchone()
+        start = 1
+        if row and row[0]:
+            try:
+                start = int(row[0].split("-")[-1]) + 1
+            except Exception:
+                start = 1
+        for i, rec_id in enumerate(ids_sin_codigo):
+            code = prefix + "-" + str(start + i).zfill(4)
+            env.cr.execute("UPDATE " + table + " SET code = %s WHERE id = %s", (code, rec_id))
+            total += 1
+    except Exception as e:
+        raise UserError("Error en tabla " + table + ": " + str(e))
+raise UserError("Completado: se asignaron codigos a " + str(total) + " registros. Recargue la pagina.")
+        </field>
+        <field name="binding_model_id" ref="base.model_res_company"/>
+        <field name="binding_type">action</field>
+    </record>
+</odoo>

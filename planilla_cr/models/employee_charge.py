@@ -156,6 +156,11 @@ class PlanillaEmployeeCharge(models.Model):
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'date_from desc, employee_id'
 
+    code = fields.Char(
+        string='Codigo',
+        readonly=True, copy=False, index=True,
+        help='Codigo autogenerado. Formato: COB-XXXX'
+    )
     name = fields.Char(
         string='Referencia', compute='_compute_name', store=True
     )
@@ -556,6 +561,30 @@ class PlanillaEmployeeCharge(models.Model):
                 'sticky': True,
             },
         }
+
+    @staticmethod
+    def _next_code(env, prefix):
+        env.cr.execute(
+            'SELECT code FROM planilla_employee_charge '
+            'WHERE code LIKE %s ORDER BY code DESC LIMIT 1',
+            (prefix + '-%',)
+        )
+        row = env.cr.fetchone()
+        if row and row[0]:
+            try:
+                num = int(row[0].split('-')[-1]) + 1
+            except (ValueError, IndexError):
+                num = 1
+        else:
+            num = 1
+        return f'{prefix}-{num:04d}'
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if not vals.get('code'):
+                vals['code'] = self._next_code(self.env, 'COB')
+        return super().create(vals_list)
 
     def action_print_charge(self):
         """Imprimir reporte PDF del cobro."""
