@@ -1122,10 +1122,6 @@ class HrEmployeeExtension(models.Model):
                     pass  # No bloquear el guardado
         return result
 
-    @api.depends('entry_date', 'exit_date',
-                 'vacation_initial_balance', 'vacation_initial_balance_date',
-                 'planilla_vacation_ids.state', 'planilla_vacation_ids.days',
-                 'planilla_vacation_ids.vacation_type')
     @api.depends('entry_date')
     def _compute_years_of_service(self):
         from datetime import date as _date
@@ -1159,6 +1155,10 @@ class HrEmployeeExtension(models.Model):
             else:
                 emp.next_anniversary_days = base
 
+    @api.depends('entry_date', 'exit_date',
+                 'vacation_initial_balance', 'vacation_initial_balance_date',
+                 'planilla_vacation_ids.state', 'planilla_vacation_ids.days',
+                 'planilla_vacation_ids.vacation_type')
     def _compute_vacation_balance(self):
         """
         Art. 153 CT CR: 12 dias habiles por cada 50 semanas laboradas.

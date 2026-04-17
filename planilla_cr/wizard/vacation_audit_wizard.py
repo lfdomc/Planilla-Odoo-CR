@@ -184,6 +184,9 @@ class VacationAuditWizard(models.TransientModel):
                 'vacation_initial_balance_date':  line.cutoff_date or self.reference_date,
                 'vacation_last_anniversary_year': self.reference_date.year,
             })
+            # Forzar recompute inmediato para que la ficha muestre el valor correcto
+            emp._compute_vacation_balance()
+            emp.flush_recordset()
             emp.message_post(
                 body=(
                     f"<b>Auditoria de vacaciones {self.reference_date}:</b> "
