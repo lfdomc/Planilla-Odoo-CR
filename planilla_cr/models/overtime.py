@@ -129,22 +129,8 @@ class Overtime(models.Model):
             if not rec.employee_id:
                 rec.hourly_rate = 0.0
                 continue
-            base_salary = 0.0
-            if rec.date:
-                # Buscar salario historico vigente en la fecha de las HE
-                # FIX: excluir snapshots de pago (payslip_id != False)
-                # que contienen el salario del PERIODO (quincenal) no el mensual
-                history = self.env['planilla.salary.history'].search([
-                    ('employee_id', '=', rec.employee_id.id),
-                    ('effective_date', '<=', rec.date),
-                    ('state', '=', 'authorized'),
-                    ('payslip_id', '=', False),
-                ], order='effective_date desc', limit=1)
-                if history:
-                    base_salary = history.gross_salary
-            # Fallback: salario base actual
-            if not base_salary:
-                base_salary = rec.employee_id.base_salary or 0.0
+            # Salario mensual del empleado directamente -- sin historial
+            base_salary = rec.employee_id.base_salary or 0.0
             # Horas por dia segun jornada del empleado (fallback 8h jornada ordinaria)
             hours_per_day = 8.0
             if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
