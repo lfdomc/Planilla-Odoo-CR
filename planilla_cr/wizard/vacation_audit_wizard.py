@@ -104,11 +104,16 @@ class VacationAuditWizard(models.TransientModel):
             taken = round(sum(taken_recs.mapped('days')), 2)
 
             # --- 4. Saldo correcto esperado ---
-            saldo_correcto = int(base_calc + acum_post + dias_anni_pendientes - taken)
-            saldo_sistema  = int(emp.vacation_days_available or 0.0)
+            # Calcular el saldo 'real ahora' SIN aniversarios pendientes
+            # (esto es lo que el sistema calcularia si el cron corriera ahora)
+            saldo_real_ahora = int(base_calc + acum_post - taken)
 
-            discrepancia = saldo_correcto - saldo_sistema
-            tiene_disc = abs(discrepancia) > 0
+            # El saldo correcto INCLUYE los aniversarios que faltan aplicar
+            saldo_correcto = int(base_calc + acum_post + dias_anni_pendientes - taken)
+
+            # La discrepancia real = solo los dias de aniversario pendientes
+            discrepancia = dias_anni_pendientes
+            tiene_disc = discrepancia > 0
 
             if tiene_disc:
                 disc += 1
@@ -137,7 +142,7 @@ class VacationAuditWizard(models.TransientModel):
                 'aniversarios_pend':  anni_pend_desc,
                 'dias_anni_pend':     dias_anni_pendientes,
                 'dias_tomados':       taken,
-                'saldo_sistema':      saldo_sistema,
+                'saldo_sistema':      saldo_real_ahora,
                 'saldo_correcto':     saldo_correcto,
                 'discrepancia':       discrepancia,
                 'estado':             estado,
@@ -168,6 +173,9 @@ class VacationAuditWizard(models.TransientModel):
             # Ajustar el saldo_inicial para que el sistema calcule correctamente
             # El nuevo saldo_inicial = saldo_correcto - acum_proporcional + taken
             # (de modo que: saldo_inicial + acum - taken = saldo_correcto)
+            # Para que el sistema calcule el saldo correcto, ajustar saldo_inicial
+            # saldo_correcto = int(nuevo_inicial + acum_proporcional - tomados)
+            # nuevo_inicial = saldo_correcto + tomados - acum_proporcional
             nuevo_inicial = round(
                 line.saldo_correcto + line.dias_tomados - line.acum_proporcional, 2
             )
