@@ -407,8 +407,18 @@ class EmployeeTermination(models.Model):
             # en lugar de usar solo el salario base fijo.
             # Art. 153 CT: la liquidacion debe basarse en el salario real percibido.
             if getattr(emp, 'has_variable_income', False):
-                # Usar salario mensual del empleado directamente
-                avg_monthly = emp.base_salary or 0
+                history = self.env['planilla.salary.history'].search([
+                    ('employee_id', '=', emp.id),
+                    ('state', '=', 'authorized'),
+                    ('payslip_id', '=', False),
+                ], order='effective_date desc', limit=4)
+                if history:
+                    salaries = [h.gross_salary or h.salary or 0.0 for h in history]
+                    avg_monthly = round(sum(salaries) / len(salaries), 2)
+                    self.last_salary = avg_monthly
+                else:
+                    self.last_salary = emp.base_salary or 0
+            else:
                 self.last_salary = emp.base_salary or 0
 
     # -- Actions --------------------------------------------------

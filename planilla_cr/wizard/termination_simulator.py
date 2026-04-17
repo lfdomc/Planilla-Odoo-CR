@@ -91,8 +91,17 @@ class TerminationSimulator(models.TransientModel):
             # usar el promedio de los ultimos 4 meses del historial salarial.
             # Consistente con employee_termination._onchange_employee (Art. 153 CT).
             if getattr(emp, 'has_variable_income', False):
-                # Usar salario mensual del empleado directamente
-                avg_monthly = emp.base_salary or 0
+                history = self.env['planilla.salary.history'].search([
+                    ('employee_id', '=', emp.id),
+                    ('state', '=', 'authorized'),
+                    ('payslip_id', '=', False),
+                ], order='effective_date desc', limit=4)
+                if history:
+                    salaries = [h.gross_salary or h.salary or 0.0 for h in history]
+                    self.last_salary = round(sum(salaries) / len(salaries), 2)
+                else:
+                    self.last_salary = emp.base_salary or 0.0
+            else:
                 self.last_salary = emp.base_salary or 0.0
 
     def action_simulate(self):
