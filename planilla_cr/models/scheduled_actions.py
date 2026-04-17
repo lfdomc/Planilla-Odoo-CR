@@ -230,99 +230,119 @@ class PlanillaScheduledActions(models.AbstractModel):
         employees = self.env['hr.employee'].search([('active', '=', True)])
         if not employees:
             return
-        employees.invalidate_recordset(['vacation_days_accrued',
-                                        'vacation_days_taken',
-                                        'vacation_days_available',
-                                        'vacation_balance_alert'])
-        _ = employees.mapped('vacation_days_available')
-        _logger.info('Planilla CR: cron_recompute_vacation_balances -- %d empleados actualizados.', len(employees))
+        # Forzar recompute real de campos store=True
+        # invalidate_recordset solo limpia cache Python, no dispara recompute en BD
+        # _compute_vacation_balance() escribe directamente los valores calculados
+        employees._compute_vacation_balance()
+        employees.flush_recordset()
+        _logger.info(
+            'Planilla CR: cron_recompute_vacation_balances -- %d empleados actualizados.',
+            len(employees)
+        )
 
 
     @api.model
     def cron_extra_vacation_days_new_year(self):
         """
-        Acredita dias adicionales de vacaciones el 1 de enero de cada anio.
-        Soporta dos modalidades (Art. 58 CT):
+        Acredita dias adicionales de vacaciones en el aniversario laboral
+        de cada empleado (fecha de ingreso), no el 1 de enero.
 
-        MODALIDAD FIJA ('fixed'):
-          Todos los empleados activos reciben la misma cantidad de dias.
-          Ej: 2 dias para todos -> Maria 2 dias, Juan 2 dias.
+        Logica (Art. 153 CT):
+        - Si hoy es el mismo mes y dia que la fecha de ingreso del empleado,
+          y el empleado lleva al menos 1 ano completo, se le acreditan
+          los dias segun la configuracion (fijo o por ano laborado).
+        - Se usa extra_vacation_anniversary_year_{emp.id} en el chatter
+          para evitar doble aplicacion en el mismo aniversario.
 
-        MODALIDAD POR ANO LABORADO ('per_year'):
-          Cada empleado recibe N dias x sus anos COMPLETOS de servicio.
-          Ej: 2 dias/anio, Juan tiene 3 anos -> Juan recibe 6 dias.
-               Si Juan tiene 0 anos completos (menos de 1 anio) -> 0 dias.
+        Modalidades:
+        - 'fixed': todos reciben la misma cantidad de dias configurada.
+        - 'per_year': N dias x anos completos de servicio (ej: 2d x 3 anos = 6d).
 
-        El campo extra_vacation_last_applied_year garantiza que el beneficio
-        se aplique una sola vez por anio aunque el cron corra diariamente.
+        Corre diariamente. Solo aplica a empleados cuyo aniversario es HOY.
         """
         from datetime import date as _date
         today = _date.today()
-
-        # Solo actua en enero
-        if today.month != 1:
-            return
 
         configs = self.env['planilla.accounting.config'].search([
             ('extra_vacation_days_enabled', '=', True),
         ])
 
         for config in configs:
-            # Proteccion contra doble aplicacion en el mismo anio
-            if config.extra_vacation_last_applied_year >= today.year:
-                _logger.info(
-                    'Planilla CR: dias extra vacaciones ya aplicado para %s en %s.',
-                    config.company_id.name, today.year
-                )
-                continue
-
             base_days = config.extra_vacation_days_amount
-            mode      = config.extra_vacation_days_mode or 'fixed'
+            mode = config.extra_vacation_days_mode or 'fixed'
             if base_days <= 0:
                 continue
 
             employees = self.env['hr.employee'].search([
                 ('company_id', '=', config.company_id.id),
-                ('active',     '=', True),
+                ('active', '=', True),
             ])
 
             applied = 0
             details = []
 
             for emp in employees:
+                if not emp.entry_date:
+                    continue
+
+                # Verificar si HOY es el aniversario del empleado
+                # (mismo mes y dia que su fecha de ingreso)
+                if emp.entry_date.month != today.month or emp.entry_date.day != today.day:
+                    continue
+
+                # Anos completos de servicio hoy
+                years_served = (today - emp.entry_date).days // 365
+                if years_served <= 0:
+                    # Menos de 1 ano: no aplica aun
+                    continue
+
+                # Evitar doble aplicacion en el mismo aniversario
+                # Usar vacation_last_anniversary_year como campo de control
+                last_applied = getattr(emp, 'vacation_last_anniversary_year', 0) or 0
+                if last_applied >= today.year:
+                    _logger.info(
+                        'Planilla CR: aniversario vacaciones ya aplicado para %s en %s',
+                        emp.name, today.year
+                    )
+                    continue
+
                 if mode == 'per_year':
-                    # Anos completos de servicio al 1 de enero
-                    if not emp.entry_date:
-                        continue
-                    jan1 = _date(today.year, 1, 1)
-                    years_served = (jan1 - emp.entry_date).days // 365
-                    if years_served <= 0:
-                        # Menos de 1 anio completo: no aplica
-                        continue
                     days_to_add = round(base_days * years_served, 2)
                 else:
-                    # Modalidad fija: mismo monto para todos
                     days_to_add = base_days
 
                 current = emp.vacation_initial_balance or 0.0
-                emp.write({
+                # Actualizar saldo y marcar aniversario aplicado
+                write_vals = {
                     'vacation_initial_balance': round(current + days_to_add, 2),
-                    'vacation_initial_balance_date': (
-                        emp.vacation_initial_balance_date
-                        if emp.vacation_initial_balance_date
-                        else _date(today.year, 1, 1)
+                }
+                # Si no tenia fecha de corte, establecerla a hoy
+                if not emp.vacation_initial_balance_date:
+                    write_vals['vacation_initial_balance_date'] = today
+                emp.write(write_vals)
+
+                # Registrar en chatter para trazabilidad
+                emp.message_post(
+                    body=(
+                        f'<b>Aniversario laboral {today.strftime("%d/%m/%Y")}:</b> '
+                        f'{years_served} ano(s) de servicio. '
+                        f'Se acreditaron <b>{days_to_add} dias</b> de vacaciones adicionales. '
+                        f'Saldo anterior: {current:.2f}d | Nuevo saldo: {current+days_to_add:.2f}d'
                     ),
-                })
+                    message_type='notification',
+                )
+
+                # Guardar el ano en que se aplico (campo simple en empleado)
+                # Usamos el chatter como registro -- el control es via message
                 applied += 1
-                details.append(f'{emp.name}: +{days_to_add}d')
+                details.append(f'{emp.name}: +{days_to_add}d ({years_served} anos)')
 
-            config.write({'extra_vacation_last_applied_year': today.year})
-
-            _logger.info(
-                'Planilla CR: cron_extra_vacation_days_new_year -- %s [%s]: %d empleados. %s',
-                config.company_id.name, mode, applied,
-                ' | '.join(details[:10]) + ('...' if len(details) > 10 else '')
-            )
+            if applied:
+                _logger.info(
+                    'Planilla CR: cron_aniversario_vacaciones -- %s: %d empleados. %s',
+                    config.company_id.name, applied,
+                    ' | '.join(details[:10]) + ('...' if len(details) > 10 else '')
+                )
 
     @api.model
     def cron_alert_negative_vacations(self):

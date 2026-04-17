@@ -1168,15 +1168,19 @@ class HrEmployeeExtension(models.Model):
                     dis_after = sum(max(d.days - 90, 0) for d in long_dis_after_cutoff)
                     effective_days = max(days_since_cutoff - dis_after, 0)
                     weeks_since_cutoff = effective_days / 7.0
-                    accrued_since_cutoff = round((weeks_since_cutoff / 50.0) * 12.0)
+                    # Art. 153 CT: acumular con 2 decimales para precision
+                    # pero el saldo disponible final se muestra como entero
+                    accrued_since_cutoff = round((weeks_since_cutoff / 50.0) * 12.0, 2)
 
-                accrued = round(emp.vacation_initial_balance + accrued_since_cutoff)
+                # Saldo = inicial (puede tener decimales) + acumulado desde corte
+                # Redondear al entero inferior para ser conservador (Art. 153 CT)
+                accrued = int(emp.vacation_initial_balance + accrued_since_cutoff)
             else:
                 # Calculo normal desde fecha de ingreso
                 total_days = (cutoff - emp.entry_date).days
                 effective_days = max(total_days - disability_days_excluded, 0)
                 weeks_worked = effective_days / 7.0
-                accrued = round((weeks_worked / 50.0) * 12.0)
+                accrued = int((weeks_worked / 50.0) * 12.0)
 
             # Dias tomados en el sistema (solo registros creados en el sistema)
             taken_recs = self.env['planilla.vacation.payment'].search([
@@ -1184,9 +1188,9 @@ class HrEmployeeExtension(models.Model):
                 ('state', 'in', ['approved', 'paid']),
                 ('vacation_type', 'in', ['disfrutadas', 'adelanto']),
             ])
-            taken = round(sum(taken_recs.mapped('days')))
+            taken = int(sum(taken_recs.mapped('days')))
 
-            available = round(accrued - taken)
+            available = accrued - taken  # Ya son enteros
             emp.vacation_days_accrued   = accrued
             emp.vacation_days_taken     = taken
             emp.vacation_days_available = available

@@ -330,9 +330,34 @@ class TerminationSimulator(models.TransientModel):
             'target':    'new',
         }
 
+    @api.onchange('cesantia_days')
+    def _onchange_cesantia_days(self):
+        """Recalcula cesantia_amount en tiempo real al editar los dias."""
+        if not self.computed or not self.cesantia_days:
+            return
+        emp = self.employee_id
+        if self.use_salary_average and self.salary_average_manual > 0:
+            salary = self.salary_average_manual
+        else:
+            salary = self.last_salary or (emp.base_salary if emp else 0.0) or 0.0
+        daily = salary / 30.0
+        new_ces = round(daily * self.cesantia_days, 2)
+        self.cesantia_amount  = new_ces
+        self.cesantia_daily   = daily
+        self.cesantia_days_locked = False
+        total_gross = self.preaviso_amount + new_ces + self.vacation_amount + self.aguinaldo_amount
+        ccss = round(total_gross * K.CCSS_EMP, 2)
+        self.total_gross   = total_gross
+        self.ccss_on_total = ccss
+        self.total_net     = round(total_gross - ccss, 2)
+        self.total_final   = round(self.total_net - self.total_loans_pending, 2)
+
     def action_recalculate_cesantia(self):
-        """Recalcula cesantia_amount con los dias editados manualmente."""
+        """Guarda y recalcula cesantia con los dias editados manualmente."""
         self.ensure_one()
+        # Forzar recalculo (el onchange ya actualizo los valores en memoria)
+        # Llamar explicitamente para asegurar que la BD tiene los valores
+        self._onchange_cesantia_days()
         emp = self.employee_id
         if self.use_salary_average and self.salary_average_manual > 0:
             salary = self.salary_average_manual
@@ -340,18 +365,17 @@ class TerminationSimulator(models.TransientModel):
             salary = self.last_salary or emp.base_salary or 0.0
         daily = salary / 30.0
         new_cesantia = round(daily * self.cesantia_days, 2)
-        # Recalcular totales
         total_gross = self.preaviso_amount + new_cesantia + self.vacation_amount + self.aguinaldo_amount
         ccss = round(total_gross * K.CCSS_EMP, 2)
         total_net = round(total_gross - ccss, 2)
         total_final = round(total_net - self.total_loans_pending, 2)
         self.write({
-            'cesantia_amount':  new_cesantia,
-            'cesantia_daily':   daily,
-            'total_gross':      total_gross,
-            'ccss_on_total':    ccss,
-            'total_net':        total_net,
-            'total_final':      total_final,
+            'cesantia_amount':     new_cesantia,
+            'cesantia_daily':      daily,
+            'total_gross':         total_gross,
+            'ccss_on_total':       ccss,
+            'total_net':           total_net,
+            'total_final':         total_final,
             'cesantia_days_locked': False,
         })
         return {

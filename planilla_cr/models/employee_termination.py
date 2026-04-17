@@ -45,6 +45,17 @@ class EmployeeTermination(models.Model):
         string='Salario Bruto Mensual', currency_field='currency_id',
         required=True
     )
+    use_salary_average = fields.Boolean(
+        string='Usar Promedio Manual de Salarios',
+        default=False,
+        help='Active para ingresar el promedio de los ultimos 6 salarios (Art. 153 CT). '
+             'Se usara en lugar del salario actual para cesantia, preaviso y vacaciones.'
+    )
+    salary_average_manual = fields.Monetary(
+        string='Promedio 6 Meses (CRC)',
+        currency_field='currency_id',
+        help='Promedio mensual de los ultimos 6 salarios brutos (Art. 153 CT).'
+    )
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.ref('base.CRC')
     )
@@ -225,8 +236,13 @@ class EmployeeTermination(models.Model):
                 rec.aguinaldo_months = 0
                 continue
 
-            daily_salary = rec.last_salary / 30
-            monthly_salary = rec.last_salary
+            # Usar promedio manual si el usuario lo activo (Art. 153 CT)
+            if rec.use_salary_average and rec.salary_average_manual > 0:
+                daily_salary = rec.salary_average_manual / 30
+            else:
+                daily_salary = rec.last_salary / 30
+            monthly_salary_eff = daily_salary * 30
+            # monthly_salary se deriva de daily_salary_eff
 
             # -- Preaviso ------------------------------------------
             rec.preaviso_amount = daily_salary * rec.preaviso_days if rec.preaviso_applies else 0
