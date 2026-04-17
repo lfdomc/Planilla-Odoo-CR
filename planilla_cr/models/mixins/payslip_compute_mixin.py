@@ -453,7 +453,9 @@ class PayslipComputeMixin(models.AbstractModel):
 
 
     @api.depends('deduction_line_ids.amount', 'deduction_line_ids.line_type',
-                 'deduction_line_ids.deduction_category')
+                 'deduction_line_ids.deduction_category',
+                 'deduction_line_ids.bono_id',
+                 'deduction_line_ids.bono_id.afecto_ccss')
     def _compute_bono_salarial(self) -> None:
         """
         FIX C-01 v54: Suma de bonos con afecto_ccss=True para integrar al salario bruto.

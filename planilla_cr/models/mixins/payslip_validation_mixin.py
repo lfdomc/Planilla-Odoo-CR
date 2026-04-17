@@ -26,7 +26,9 @@ class PayslipValidationMixin(models.AbstractModel):
         'deduction_line_ids.deduction_category',
         'deduction_line_ids.employee_charge_id',
         'deduction_line_ids.description',
-        'bono_salarial_amount',          # FIX BUG-DOBLE-BONO: re-evaluar cuando cambia afecto_ccss
+        'deduction_line_ids.bono_id',
+        'deduction_line_ids.bono_id.afecto_ccss',
+        'bono_salarial_amount',
     )
     def _compute_deduction_summaries(self) -> None:
         """
@@ -115,6 +117,7 @@ class PayslipValidationMixin(models.AbstractModel):
         'ccss_employer', 'ins_employer', 'rop_employer', 'aguinaldo_provision',
         'cesantia_provision', 'vacation_provision', 'deduction_line_ids.amount',
         'deduction_line_ids.line_type', 'deduction_line_ids.deduction_category',
+        'deduction_line_ids.bono_id', 'deduction_line_ids.bono_id.afecto_ccss',
         'bono_salarial_amount',
     )
     def _compute_totals(self) -> None:
