@@ -333,8 +333,14 @@ class PayslipValidationMixin(models.AbstractModel):
                         #   TOTAL           = neto_por_patrono + neto_por_ccss = net_salary  OK
                         neto_laborado        = round((rec.gross_salary or 0.0) - (rec.ccss_employee or 0.0), 2)
                         mitad_sub            = round(ccss_sub / 2.0, 2)
+                        # Restar deducciones adicionales (cobros, embargos, prestamos)
+                        # que reducen lo que el patrono realmente deposita
+                        ded_adicionales = sum(
+                            l.amount for l in rec.deduction_line_ids
+                            if l.line_type == 'deduction'
+                        )
                         rec.neto_por_ccss    = mitad_sub
-                        rec.neto_por_patrono = round(neto_laborado + mitad_sub, 2)
+                        rec.neto_por_patrono = round(neto_laborado + mitad_sub - ded_adicionales, 2)
                     else:
                         # Caso 1: Maternidad TOTAL -- no hay dias laborados, solo subsidio maternidad
                         # Base cotizable = subsidio total (maternity_ccss_on_employer=True)
@@ -342,7 +348,11 @@ class PayslipValidationMixin(models.AbstractModel):
                         total_sub   = ccss_sub
                         ccss_obrera = rec.ccss_employee or 0.0
                         neto_real   = round(total_sub - ccss_obrera, 2)
-                        rec.neto_por_patrono = round(neto_real / 2.0, 2)
+                        ded_adicionales_t = sum(
+                            l.amount for l in rec.deduction_line_ids
+                            if l.line_type == 'deduction'
+                        )
+                        rec.neto_por_patrono = round(neto_real / 2.0 - ded_adicionales_t, 2)
                         rec.neto_por_ccss    = round(neto_real / 2.0, 2)
                 elif mat_dis_now and has_split_50 and not has_ccss_on_emp:
                     # Modalidad 50/50 sin CCSS obrera:
