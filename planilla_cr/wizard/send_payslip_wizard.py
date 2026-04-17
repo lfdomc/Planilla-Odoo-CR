@@ -68,10 +68,14 @@ class SendPayslipWizard(models.TransientModel):
         return self.env.user.email or self.env.company.email or ''
 
     def action_send(self):
-        """Envia las boletas por correo a cada empleado."""
+        """Envia las boletas por correo: genera PDFs y encola en el servidor de correo.
+        Los correos se procesan en background por el cron de Odoo (cada 1-5 min).
+        El UI responde de inmediato con el resumen de encolados.
+        """
         import base64
-        sent_count = 0
+        queued_count = 0
         errors = []
+        no_email = []
 
         report = self.env.ref('planilla_cr.action_report_payslip_cr')
 
@@ -80,25 +84,22 @@ class SendPayslipWizard(models.TransientModel):
             email = employee.work_email or employee.private_email
 
             if not email:
-                errors.append(f'{employee.name}: sin correo registrado')
+                no_email.append(employee.name)
                 continue
 
             try:
-                # FIX-I9: usar mismo patron que audit_zip_wizard -- pasar el record,
-                # no el xml_id del template. La firma correcta en Odoo 19 es:
-                # env['ir.actions.report']._render_qweb_pdf(report_record, res_ids)
                 pdf_content, _ = self.env['ir.actions.report']._render_qweb_pdf(
                     report, [payslip.id]
                 )
                 pdf_b64 = base64.b64encode(pdf_content).decode('utf-8')
             except Exception as e:
-                errors.append(f'{employee.name}: error generando PDF - {str(e)}')
+                errors.append(f'{employee.name}: error PDF - {str(e)[:60]}')
                 continue
 
             period = (
-                payslip.date_from.strftime('%d-%m-%Y')
+                payslip.date_from.strftime('%d/%m/%Y')
                 + ' al '
-                + payslip.date_to.strftime('%d-%m-%Y')
+                + payslip.date_to.strftime('%d/%m/%Y')
             )
             company_name = payslip.company_id.name or self.env.company.name
             subject = self.email_subject.replace('{period}', period)
@@ -110,6 +111,8 @@ class SendPayslipWizard(models.TransientModel):
                     .replace('{company}', company_name),
                 'email_to': email,
                 'email_from': self.email_from or self.env.user.email or self.env.company.email or '',
+                # auto_delete=False: mantener registro del correo enviado
+                'auto_delete': False,
                 'attachment_ids': [(0, 0, {
                     'name': f'Boleta_{employee.name}_{payslip.date_to}.pdf',
                     'datas': pdf_b64,
@@ -118,26 +121,48 @@ class SendPayslipWizard(models.TransientModel):
             }
             if self.mail_server_id:
                 mail_values['mail_server_id'] = self.mail_server_id.id
+
+            # Encolar sin enviar inmediatamente -- Odoo lo procesa en background
             mail = self.env['mail.mail'].create(mail_values)
             mail.send()
-            sent_count += 1
+            queued_count += 1
 
             payslip.message_post(
-                body=f'Boleta enviada por correo a {email}',
+                body=f'Boleta encolada para envio a {email}',
                 message_type='notification'
             )
 
-        message = f'Se enviaron {sent_count} boleta(s) correctamente.'
+        # Construir resumen detallado
+        lines = [f'<b>{queued_count} boleta(s) encoladas</b> para envio.']
+        if no_email:
+            lines.append(
+                f'<br/><b>{len(no_email)} sin correo:</b> '
+                + ', '.join(no_email)
+            )
         if errors:
-            message += f'\nErrores: {", ".join(errors)}'
+            lines.append(
+                f'<br/><b>{len(errors)} error(es) de PDF:</b><br/>'
+                + '<br/>'.join(errors)
+            )
+        total = len(self.payslip_ids)
+        lines.append(
+            f'<br/><small>Total procesadas: {queued_count + len(no_email) + len(errors)}'
+            f' / {total}</small>'
+        )
+
+        notif_type = 'success'
+        if errors:
+            notif_type = 'danger'
+        elif no_email:
+            notif_type = 'warning'
 
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': 'Envio de Boletas',
-                'message': message,
-                'type': 'success' if not errors else 'warning',
+                'title': f'Envio Boletas -- {queued_count}/{total} encoladas',
+                'message': ''.join(lines),
+                'type': notif_type,
                 'sticky': True,
             }
         }

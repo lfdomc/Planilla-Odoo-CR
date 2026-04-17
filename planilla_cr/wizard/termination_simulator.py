@@ -53,6 +53,19 @@ class TerminationSimulator(models.TransientModel):
     currency_id        = fields.Many2one('res.currency', readonly=True)
     years_service      = fields.Float(string='Anos de Servicio', readonly=True)
     last_salary        = fields.Monetary(string='Ultimo Salario Bruto', currency_field='currency_id', readonly=True)
+    # Promedio salarial manual (opcional -- Art. 153 CT para salario variable)
+    use_salary_average = fields.Boolean(
+        string='Usar Promedio Manual de Salarios',
+        default=False,
+        help='Active si desea ingresar manualmente el promedio de los ultimos 6 salarios '
+             'para calcular cesantia, preaviso y vacaciones (Art. 153 CT).'
+    )
+    salary_average_manual = fields.Monetary(
+        string='Promedio Salarios Ultimos 6 Meses (CRC)',
+        currency_field='currency_id',
+        help='Ingrese el promedio mensual de los ultimos 6 salarios brutos. '
+             'Deje en 0 para usar el salario base actual del empleado.'
+    )
     preaviso_days      = fields.Integer(string='Dias de Preaviso', readonly=True)
     preaviso_amount    = fields.Monetary(string='Preaviso (CRC)', currency_field='currency_id', readonly=True)
     preaviso_applies   = fields.Boolean(string='Preaviso Aplica', readonly=True)
@@ -71,7 +84,15 @@ class TerminationSimulator(models.TransientModel):
     aguinaldo_initial  = fields.Monetary(string='Aguinaldo Acumulado Inicial (CRC)', currency_field='currency_id', readonly=True)
     aguinaldo_system   = fields.Monetary(string='Aguinaldo del Sistema (CRC)', currency_field='currency_id', readonly=True)
     # Desglose cesantia
-    cesantia_days      = fields.Float(string='Dias de Cesantia', readonly=True)
+    cesantia_days      = fields.Float(
+        string='Dias de Cesantia',
+        help='Pre-calculado segun tabla Art. 29 CT. Puede editar este valor '
+             'si la empresa usa un criterio diferente (ej: 14 dias en lugar de 18.33).'
+    )
+    cesantia_days_locked = fields.Boolean(
+        string='Usar dias calculados automaticamente', default=True,
+        help='Desactive para ingresar manualmente los dias de cesantia.'
+    )
     cesantia_daily     = fields.Monetary(string='Salario Diario para Cesantia (CRC)', currency_field='currency_id', readonly=True)
     # Desglose CCSS
     ccss_rate          = fields.Float(string='Tasa CCSS Obrero (%)', readonly=True)
@@ -100,28 +121,36 @@ class TerminationSimulator(models.TransientModel):
         entry_date = emp.entry_date
         diff   = relativedelta(exit_date, entry_date)
         years  = diff.years + diff.months / 12.0 + diff.days / 365.0
-        # FIX-B2: usar last_salary (ya tiene el promedio si is variable income)
-        # en lugar de recalcular desde emp.base_salary
-        salary = self.last_salary or emp.base_salary or 0.0
-        daily  = salary / 30.0
+        # Determinar salario a usar: promedio manual > salario base actual
         notes_lines = []
-        if getattr(emp, 'has_variable_income', False) and self.last_salary != emp.base_salary:
+        if self.use_salary_average and self.salary_average_manual > 0:
+            salary = self.salary_average_manual
             notes_lines.append(
-                f'WARN  Empleado con salario variable: se usa promedio historico '
-                f'CRC{salary:,.2f} (salario base: CRC{emp.base_salary:,.2f}) -- Art. 153 CT'
+                f'Salario: promedio manual CRC{salary:,.2f} (ingresado por usuario -- Art. 153 CT)'
             )
+        else:
+            salary = self.last_salary or emp.base_salary or 0.0
+            if getattr(emp, 'has_variable_income', False):
+                notes_lines.append(
+                    f'WARN  Empleado con salario variable: considere ingresar promedio '
+                    f'manual de ultimos 6 meses (Art. 153 CT). Usando: CRC{salary:,.2f}'
+                )
+        daily = salary / 30.0
 
         # -- Preaviso (Art. 28 CT) --------------------------------------------
         preaviso_applies = self.termination_reason in ('dismissal', 'mutual')
+        # Art. 28 CT -- tabla oficial:
+        # < 3 meses (0.25 anos):  7 dias
+        # 3-6 meses (0.25-0.5):  14 dias
+        # 6-12 meses (0.5-1.0):  15 dias  <-- CORREGIDO (antes usaba 30)
+        # > 1 ano:               30 dias
         if years < 0.25:
             preaviso_days = 7
         elif years < 0.5:
             preaviso_days = 14
+        elif years < 1.0:
+            preaviso_days = 15
         else:
-            # FIX-O5: Art. 28 CT establece 1 mes (30 dias) tanto para 6-12 meses
-            # como para mas de 1 ano. La version anterior usaba 21 dias para el
-            # tramo 0.5-1.0 ano, que no corresponde a ningun tramo legal del Art. 28 CT.
-            # employee_termination.py ya tenia los 30 dias correctamente.
             preaviso_days = 30
         preaviso_amount = (daily * preaviso_days) if preaviso_applies else 0.0
         notes_lines.append(
@@ -148,11 +177,16 @@ class TerminationSimulator(models.TransientModel):
                 days_this_year = cesantia_days_table.get(years_int + 1, 22.0)
                 cesantia_days += days_this_year * fraction
             cesantia_amount = round(daily * cesantia_days, 2)
-            if years < 1:
+            # Art. 29 CT: la cesantia SI aplica para fracciones del primer ano
+            # (proporcional a los dias de la tabla). Solo si >= 3 meses (0.25 anos).
+            if years < 0.25:
                 cesantia_amount = 0.0
-                notes_lines.append('Cesantia Art.29 CT: menos de 1 ano -- no aplica')
+                notes_lines.append('Cesantia Art.29 CT: menos de 3 meses -- no aplica')
             else:
-                notes_lines.append(f'Cesantia Art.29 CT: {years:.2f} anos x {cesantia_days:.1f} dias (tabla Art. 29)')
+                notes_lines.append(
+                    f'Cesantia Art.29 CT: {years:.2f} anos x {cesantia_days:.1f} dias '
+                    f'(tabla Art. 29) = CRC{cesantia_amount:,.2f}'
+                )
         else:
             cesantia_amount = 0.0
             notes_lines.append('Cesantia Art.29 CT: no aplica para este tipo de salida')
@@ -264,6 +298,7 @@ class TerminationSimulator(models.TransientModel):
             'cesantia_amount':     cesantia_amount,
             'cesantia_applies':    cesantia_applies,
             'cesantia_days':       cesantia_days_disp,
+            'cesantia_days_locked': True,
             'cesantia_daily':      daily,
             'vacation_days':       vac_days,
             'vacation_amount':     vac_amount,
@@ -287,6 +322,38 @@ class TerminationSimulator(models.TransientModel):
             'notes':               '\n'.join(notes_lines),
         })
 
+        return {
+            'type':      'ir.actions.act_window',
+            'res_model': 'planilla.termination.simulator',
+            'res_id':    self.id,
+            'view_mode': 'form',
+            'target':    'new',
+        }
+
+    def action_recalculate_cesantia(self):
+        """Recalcula cesantia_amount con los dias editados manualmente."""
+        self.ensure_one()
+        emp = self.employee_id
+        if self.use_salary_average and self.salary_average_manual > 0:
+            salary = self.salary_average_manual
+        else:
+            salary = self.last_salary or emp.base_salary or 0.0
+        daily = salary / 30.0
+        new_cesantia = round(daily * self.cesantia_days, 2)
+        # Recalcular totales
+        total_gross = self.preaviso_amount + new_cesantia + self.vacation_amount + self.aguinaldo_amount
+        ccss = round(total_gross * K.CCSS_EMP, 2)
+        total_net = round(total_gross - ccss, 2)
+        total_final = round(total_net - self.total_loans_pending, 2)
+        self.write({
+            'cesantia_amount':  new_cesantia,
+            'cesantia_daily':   daily,
+            'total_gross':      total_gross,
+            'ccss_on_total':    ccss,
+            'total_net':        total_net,
+            'total_final':      total_final,
+            'cesantia_days_locked': False,
+        })
         return {
             'type':      'ir.actions.act_window',
             'res_model': 'planilla.termination.simulator',

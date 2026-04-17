@@ -74,6 +74,17 @@
                             <field name="simulated_date"/>
                             <field name="termination_reason"/>
                         </group>
+                        <group string="Salario para el Cálculo">
+                            <field name="use_salary_average"/>
+                            <field name="salary_average_manual"
+                                   invisible="not use_salary_average"
+                                   string="Promedio 6 meses (CRC)"/>
+                            <div colspan="2" class="text-muted" style="font-size:12px;"
+                                 invisible="not use_salary_average">
+                                Sume los últimos 6 salarios brutos y divida entre 6.
+                                Se usa para preaviso, cesantía y vacaciones (Art. 153 CT).
+                            </div>
+                        </group>
                         <group string="Datos del Empleado" invisible="not entry_date">
                             <field name="entry_date" readonly="1"/>
                             <field name="years_service" readonly="1" invisible="not computed"
@@ -96,9 +107,15 @@
 
                         <!-- Cesantía -->
                         <group string="Cesantía (Art. 29 CT)">
-                            <field name="cesantia_days" readonly="1" string="Días de Cesantía"/>
+                            <field name="cesantia_days" string="Días de Cesantía"
+                                   help="Pre-calculado por ley Art. 29 CT. Puede editar si la empresa usa criterio diferente (ej: 14 dias en lugar de 18.33)."/>
                             <field name="cesantia_daily" readonly="1" string="Salario Diario (CRC)"/>
                             <field name="cesantia_amount" readonly="1" string="Monto Cesantía (CRC)"/>
+                            <button name="action_recalculate_cesantia" type="object"
+                                    string="↻ Recalcular Cesantía con días editados"
+                                    class="btn-secondary"
+                                    invisible="cesantia_days_locked"
+                                    colspan="2"/>
                         </group>
 
                         <!-- Vacaciones -->
