@@ -82,11 +82,18 @@ class PayslipValidationMixin(models.AbstractModel):
             nombres_salariales = rec._get_bono_salarial_names()
             # 1. Bonos exentos de CCSS/Renta (afecto_ccss=False):
             #    transporte, representacion, incentivos no salariales
+            # FIX BP-06: usar bono_id directo si existe; fallback por nombre sin prefijo
+            def _es_exento(l):
+                if l.bono_id:
+                    return not l.bono_id.afecto_ccss
+                import re as _re
+                nombre = _re.sub(r'^\[\w+-\d+\]\s*', '', l.description or '').replace('Bono: ', '').strip()
+                return nombre not in nombres_salariales
             rec.amount_bonos_exentos = round(sum(
                 l.amount for l in lines
                 if l.line_type == 'income'
                 and l.deduction_category == 'bonus'
-                and (l.description or '').replace('Bono: ', '').strip() not in nombres_salariales
+                and _es_exento(l)
             ), 2)
             # 2. Licencias especiales con goce de sueldo:
             #    duelo, paternidad, matrimonio, adopcion, donacion de sangre
