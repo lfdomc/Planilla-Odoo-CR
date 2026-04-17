@@ -274,15 +274,9 @@ class Disability(models.Model):
                 rec.daily_salary = round(rec.employee_id.base_salary / 30, 2)
 
             if rec.disability_type == 'maternity':
-                history = rec.env['planilla.salary.history'].search([
-                    ('employee_id', '=', rec.employee_id.id),
-                    ('effective_date', '<=', rec.date_start or _Date.context_today(rec)),
-                    ('state', '=', 'authorized'),
-                    ('payslip_id', '=', False),
-                ], order='effective_date desc', limit=3)
-                if history:
-                    avg = sum(history.mapped('gross_salary')) / len(history)
-                    rec.maternity_avg_salary = round(avg / 30, 2)
+                # Usar salario mensual del empleado directamente
+                if rec.employee_id.base_salary:
+                    rec.maternity_avg_salary = round(rec.employee_id.base_salary / 30, 2)
                 else:
                     rec.maternity_avg_salary = round(rec.daily_salary, 2)
             else:
@@ -554,15 +548,9 @@ class Disability(models.Model):
             if not rec.employee_id or not rec.employee_id.base_salary:
                 continue
             daily = round(rec.employee_id.base_salary / 30, 2)
-            history = rec.env['planilla.salary.history'].search([
-                ('employee_id', '=', rec.employee_id.id),
-                ('effective_date', '<=', rec.date_start or fields.Date.context_today(rec)),
-                ('state', '=', 'authorized'),  # FIX-G3: solo registros autorizados
-                ('payslip_id', '=', False),
-            ], order='effective_date desc', limit=3)
-            if history:
-                avg = sum(history.mapped('gross_salary')) / len(history)
-                avg_daily = round(avg / 30, 2)
+            # Usar salario mensual del empleado directamente
+            if rec.employee_id.base_salary:
+                avg_daily = round(rec.employee_id.base_salary / 30, 2)
             else:
                 avg_daily = daily
 
