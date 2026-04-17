@@ -2,6 +2,7 @@ from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
 from datetime import date
 import logging
+from dateutil.relativedelta import relativedelta as rdelta
 from . import planilla_const as K
 
 _logger = logging.getLogger(__name__)
@@ -181,7 +182,6 @@ class VacationPayment(models.Model):
             if rec.employee_id and rec.date_start:
                 emp = rec.employee_id
                 entry = emp.entry_date or emp.create_date.date()
-                import dateutil.relativedelta as rdelta
                 rd = rdelta.relativedelta(rec.date_start, entry)
                 meses_servicio = rd.years * 12 + rd.months
                 if meses_servicio > K.MESES_PRESCRIPCION_VACACIONES:

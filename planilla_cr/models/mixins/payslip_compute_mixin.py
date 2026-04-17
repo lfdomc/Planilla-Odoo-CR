@@ -1,4 +1,5 @@
 import logging
+import re
 import datetime
 from odoo import models, fields, api
 from .. import planilla_const as K
@@ -488,8 +489,7 @@ class PayslipComputeMixin(models.AbstractModel):
                     emp_ids_fb = [rec.employee_id.id]
                     nombre = (line.description or '').replace('Bono: ', '').strip()
                     # Quitar prefijo [BON-XXXX] si existe
-                    import re as _re
-                    nombre = _re.sub(r'^\[\w+-\d+\]\s*', '', nombre).strip()
+                    nombre = re.sub(r'^\[\w+-\d+\]\s*', '', nombre).strip()
                     bono_rec = self.env['planilla.bono'].search([
                         ('employee_id', '=', rec.employee_id.id),
                         ('name', '=', nombre),

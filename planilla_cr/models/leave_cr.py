@@ -440,7 +440,6 @@ class LeaveCR(models.Model):
         info = LEAVE_LEGAL_MAP.get(self.leave_type, (0, False, ''))
         max_days = info[0]
         if max_days > 0 and self.date_start:
-            import datetime
             self.date_end = self.date_start + datetime.timedelta(days=max_days - 1)
         # Limpiar campos de pariente si no es duelo
         if self.leave_type not in ('duelo_primer_grado', 'duelo_otro'):
