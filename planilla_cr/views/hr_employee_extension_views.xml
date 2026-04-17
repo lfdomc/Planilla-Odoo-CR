@@ -173,8 +173,8 @@
                                    invisible="next_anniversary_days == 0"/>
                             <field name="vacation_last_anniversary_year"
                                    string="Último Aniversario Aplicado"
-                                   readonly="1"
-                                   invisible="vacation_last_anniversary_year == 0"/>
+                                   readonly="vacation_last_anniversary_year != 0"
+                                   help="Año del último bono de aniversario aplicado. Editable solo si está en 0 (nunca aplicado). Una vez escrito por el sistema queda bloqueado para evitar errores."/>
                         </group>
                     </group>
 
