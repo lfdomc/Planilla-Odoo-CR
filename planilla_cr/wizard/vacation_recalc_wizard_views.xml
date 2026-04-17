@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_vacation_recalc_wizard" model="ir.ui.view">
+        <field name="name">planilla.vacation.recalc.wizard.form</field>
+        <field name="model">planilla.vacation.recalc.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Recalcular Saldos de Vacaciones">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        <strong>Este wizard calcula el saldo inicial correcto de vacaciones</strong>
+                        para cada empleado, tomando en cuenta la acumulación proporcional
+                        (Art. 153 CT) y los días extra por aniversario laboral.
+                    </div>
+
+                    <group string="Parámetros">
+                        <group>
+                            <field name="cutoff_date" string="Fecha de Corte Global"/>
+                            <field name="base_days_anniversary" string="Días por Año Laborado"/>
+                        </group>
+                        <group>
+                            <field name="only_zero_balance"
+                                   string="Solo empleados con saldo inicial en 0 (desmarcar para recalcular todos)"/>
+                        </group>
+                    </group>
+
+                    <div invisible="computed">
+                        <button name="action_preview" type="object"
+                                string="Calcular y Ver Vista Previa"
+                                class="btn-primary"/>
+                    </div>
+
+                    <group string="Vista Previa — Empleados a Actualizar"
+                           invisible="not computed">
+                        <field name="preview_line_ids" nolabel="1">
+                            <list editable="top"
+                                  decoration-success="diferencia != 0 and apply"
+                                  decoration-muted="not apply or diferencia == 0">
+                                <field name="apply" string="✓"/>
+                                <field name="employee_id" readonly="1"/>
+                                <field name="entry_date" readonly="1"/>
+                                <field name="cutoff_date" readonly="1"/>
+                                <field name="saldo_actual" readonly="1"
+                                       string="Saldo Actual"/>
+                                <field name="acum_normal" readonly="1"
+                                       string="Acum. Normal"/>
+                                <field name="aniversarios_desc" readonly="1"
+                                       string="Aniversarios"/>
+                                <field name="saldo_correcto" readonly="1"
+                                       string="Saldo Correcto"
+                                       decoration-success="saldo_correcto != saldo_actual"/>
+                                <field name="diferencia" readonly="1"
+                                       string="Diferencia"
+                                       decoration-success="diferencia &gt; 0"
+                                       decoration-danger="diferencia &lt; 0"/>
+                            </list>
+                        </field>
+                    </group>
+                </sheet>
+                <footer invisible="not computed">
+                    <button name="action_apply" type="object"
+                            string="Aplicar Cambios Seleccionados"
+                            class="btn-primary"
+                            confirm="¿Confirma que desea actualizar los saldos de vacaciones de los empleados marcados?"/>
+                    <button name="action_preview" type="object"
+                            string="Recalcular"
+                            class="btn-secondary"/>
+                    <button special="cancel" string="Cerrar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_vacation_recalc_wizard" model="ir.actions.act_window">
+        <field name="name">Recalcular Saldos de Vacaciones</field>
+        <field name="res_model">planilla.vacation.recalc.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_vacation_recalc"
+              name="Recalcular Saldos Vacaciones"
+              parent="planilla_cr.menu_planilla_cr_config"
+              action="action_vacation_recalc_wizard"
+              sequence="45"/>
+</odoo>

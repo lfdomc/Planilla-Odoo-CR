@@ -161,6 +161,23 @@
                         </div>
                     </group>
 
+                    <!-- Anos de servicio y aniversario -->
+                    <group string="Antigüedad y Aniversario" invisible="not entry_date">
+                        <group>
+                            <field name="years_of_service" string="Años de Servicio"/>
+                            <field name="next_anniversary_date" string="Próximo Aniversario"/>
+                        </group>
+                        <group>
+                            <field name="next_anniversary_days"
+                                   string="Días Extra en Próximo Aniversario"
+                                   invisible="next_anniversary_days == 0"/>
+                            <field name="vacation_last_anniversary_year"
+                                   string="Último Aniversario Aplicado"
+                                   readonly="1"
+                                   invisible="vacation_last_anniversary_year == 0"/>
+                        </group>
+                    </group>
+
                     <!-- Saldo de Vacaciones -->
                     <group string="Saldo de Vacaciones (Art. 153 CT)">
                         <!-- Saldo inicial pre-implementación -->

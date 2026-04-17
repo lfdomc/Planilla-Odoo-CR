@@ -812,6 +812,26 @@ class HrEmployeeExtension(models.Model):
         compute='_compute_vacation_balance', store=True,
         help='True si el empleado tiene saldo negativo de vacaciones'
     )
+    vacation_last_anniversary_year = fields.Integer(
+        string='Ultimo Ano de Aniversario Vacaciones Aplicado',
+        default=0,
+        help='Ano en que se aplicaron por ultima vez los dias de vacaciones '
+             'por aniversario laboral. Evita doble aplicacion en el mismo ano.'
+    )
+    years_of_service = fields.Integer(
+        string='Anos de Servicio',
+        compute='_compute_years_of_service', store=False,
+        help='Anos completos trabajados desde la fecha de ingreso.'
+    )
+    next_anniversary_date = fields.Date(
+        string='Proximo Aniversario',
+        compute='_compute_years_of_service', store=False,
+    )
+    next_anniversary_days = fields.Float(
+        string='Dias Extra en Proximo Aniversario',
+        compute='_compute_years_of_service', store=False,
+        help='Dias de vacaciones adicionales a recibir en el proximo aniversario (anos x 2).'
+    )
 
     # -- Prestamos y Adelantos ---------------------------------------
     loan_ids = fields.One2many(
@@ -1106,6 +1126,39 @@ class HrEmployeeExtension(models.Model):
                  'vacation_initial_balance', 'vacation_initial_balance_date',
                  'planilla_vacation_ids.state', 'planilla_vacation_ids.days',
                  'planilla_vacation_ids.vacation_type')
+    @api.depends('entry_date')
+    def _compute_years_of_service(self):
+        from datetime import date as _date
+        today = _date.today()
+        for emp in self:
+            if not emp.entry_date:
+                emp.years_of_service = 0
+                emp.next_anniversary_date = False
+                emp.next_anniversary_days = 0
+                continue
+            anos = (today - emp.entry_date).days // 365
+            emp.years_of_service = anos
+            # Proximo aniversario
+            try:
+                next_ann = emp.entry_date.replace(year=today.year)
+                if next_ann <= today:
+                    next_ann = emp.entry_date.replace(year=today.year + 1)
+            except ValueError:  # 29 feb en anio no bisiesto
+                next_ann = _date(today.year + 1, 3, 1)
+            emp.next_anniversary_date = next_ann
+            next_years = (next_ann - emp.entry_date).days // 365
+            # Dias extra = config.base_days * anos, o 2 si no hay config
+            config = emp.env['planilla.accounting.config'].search(
+                [('company_id', '=', emp.company_id.id),
+                 ('extra_vacation_days_enabled', '=', True)], limit=1
+            )
+            base = config.extra_vacation_days_amount if config else 2
+            mode = config.extra_vacation_days_mode if config else 'per_year'
+            if mode == 'per_year':
+                emp.next_anniversary_days = base * next_years
+            else:
+                emp.next_anniversary_days = base
+
     def _compute_vacation_balance(self):
         """
         Art. 153 CT CR: 12 dias habiles por cada 50 semanas laboradas.

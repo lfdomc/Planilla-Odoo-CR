@@ -297,8 +297,7 @@ class PlanillaScheduledActions(models.AbstractModel):
                     continue
 
                 # Evitar doble aplicacion en el mismo aniversario
-                # Usar vacation_last_anniversary_year como campo de control
-                last_applied = getattr(emp, 'vacation_last_anniversary_year', 0) or 0
+                last_applied = emp.vacation_last_anniversary_year or 0
                 if last_applied >= today.year:
                     _logger.info(
                         'Planilla CR: aniversario vacaciones ya aplicado para %s en %s',
@@ -320,6 +319,9 @@ class PlanillaScheduledActions(models.AbstractModel):
                 if not emp.vacation_initial_balance_date:
                     write_vals['vacation_initial_balance_date'] = today
                 emp.write(write_vals)
+
+                # Actualizar el contador de aniversario
+                emp.write({'vacation_last_anniversary_year': today.year})
 
                 # Registrar en chatter para trazabilidad
                 emp.message_post(
