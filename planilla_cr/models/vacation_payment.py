@@ -131,6 +131,7 @@ class VacationPayment(models.Model):
                 ('employee_id', '=', rec.employee_id.id),
                 ('effective_date', '<=', rec.date_start),
                 ('state', '=', 'authorized'),
+                ('payslip_id', '=', False),
             ], order='effective_date desc', limit=4)
             if history:
                 salaries = [h.gross_salary or h.salary or 0.0 for h in history]

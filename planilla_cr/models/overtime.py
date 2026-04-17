@@ -132,10 +132,13 @@ class Overtime(models.Model):
             base_salary = 0.0
             if rec.date:
                 # Buscar salario historico vigente en la fecha de las HE
+                # FIX: excluir snapshots de pago (payslip_id != False)
+                # que contienen el salario del PERIODO (quincenal) no el mensual
                 history = self.env['planilla.salary.history'].search([
                     ('employee_id', '=', rec.employee_id.id),
                     ('effective_date', '<=', rec.date),
-                    ('state', '=', 'authorized'),  # FIX-G2: solo registros autorizados
+                    ('state', '=', 'authorized'),
+                    ('payslip_id', '=', False),
                 ], order='effective_date desc', limit=1)
                 if history:
                     base_salary = history.gross_salary

@@ -278,6 +278,7 @@ class Disability(models.Model):
                     ('employee_id', '=', rec.employee_id.id),
                     ('effective_date', '<=', rec.date_start or _Date.context_today(rec)),
                     ('state', '=', 'authorized'),
+                    ('payslip_id', '=', False),
                 ], order='effective_date desc', limit=3)
                 if history:
                     avg = sum(history.mapped('gross_salary')) / len(history)
@@ -557,6 +558,7 @@ class Disability(models.Model):
                 ('employee_id', '=', rec.employee_id.id),
                 ('effective_date', '<=', rec.date_start or fields.Date.context_today(rec)),
                 ('state', '=', 'authorized'),  # FIX-G3: solo registros autorizados
+                ('payslip_id', '=', False),
             ], order='effective_date desc', limit=3)
             if history:
                 avg = sum(history.mapped('gross_salary')) / len(history)

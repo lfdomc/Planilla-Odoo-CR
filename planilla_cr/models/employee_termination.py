@@ -410,6 +410,7 @@ class EmployeeTermination(models.Model):
                 history = self.env['planilla.salary.history'].search([
                     ('employee_id', '=', emp.id),
                     ('state', '=', 'authorized'),
+                    ('payslip_id', '=', False),
                 ], order='effective_date desc', limit=4)
                 if history:
                     salaries = [h.gross_salary or h.salary or 0.0 for h in history]
