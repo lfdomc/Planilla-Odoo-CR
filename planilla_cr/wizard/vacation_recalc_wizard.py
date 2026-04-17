@@ -34,7 +34,16 @@ class VacationRecalcWizard(models.TransientModel):
     computed = fields.Boolean(default=False)
 
     def action_preview(self):
-        """Calcula y muestra los saldos a actualizar sin guardar."""
+        """Calcula y muestra los saldos a actualizar sin guardar.
+
+        LOGICA CORRECTA:
+        El saldo_inicial que tiene cada empleado al corte ya refleja
+        toda la historia previa (acumulado + vacaciones tomadas + ajustes).
+        NO se recalcula ese saldo -- se respeta como la 'verdad' al corte.
+
+        Lo unico que se agrega son los dias de aniversario que cayeron
+        DESPUES de la fecha de corte y que el cron aun no aplico.
+        """
         self.ensure_one()
         self.preview_line_ids.unlink()
         lines = []
@@ -47,44 +56,51 @@ class VacationRecalcWizard(models.TransientModel):
                 continue
 
             cutoff = emp.vacation_initial_balance_date or self.cutoff_date
-
-            # Empleados que ingresaron EN O DESPUES de la fecha de corte:
-            # no tienen saldo pre-corte, pero si ingresaron antes del corte
-            # si tienen acumulado proporcional
-            if emp.entry_date >= cutoff:
-                continue
-
-            # Si no tiene fecha de corte configurada, asignar la global
-            if not emp.vacation_initial_balance_date:
-                cutoff = self.cutoff_date
-
-            # Si solo_zero y ya tiene saldo > 0, saltar
-            if self.only_zero_balance and (emp.vacation_initial_balance or 0) != 0:
-                continue
-
-            # Calcular saldo correcto
-            saldo_correcto, norm_days, annis = self._calc_saldo(
-                emp.entry_date, cutoff, self.base_days_anniversary
-            )
-
             saldo_actual = emp.vacation_initial_balance or 0.0
-            diferencia = round(saldo_correcto - saldo_actual, 2)
+
+            # Calcular SOLO los aniversarios que caen DESPUES del corte
+            # y ANTES o IGUAL a hoy (que el cron no pudo aplicar aun)
+            annis_post_corte = []
+            year = emp.entry_date.year + 1
+            while True:
+                try:
+                    ann = emp.entry_date.replace(year=year)
+                except ValueError:
+                    ann = _date(year, 3, 1)
+                if ann > today:
+                    break
+                # Solo los que caen despues del corte y hasta hoy
+                if ann > cutoff:
+                    anos = year - emp.entry_date.year
+                    dias_extra = self.base_days_anniversary * anos
+                    annis_post_corte.append((ann, anos, dias_extra))
+                year += 1
+
+            dias_aniversario = sum(a[2] for a in annis_post_corte)
+            saldo_correcto = round(saldo_actual + dias_aniversario, 2)
+            diferencia = round(dias_aniversario, 2)
+
+            # Solo mostrar si hay cambio real
+            if diferencia == 0 and self.only_zero_balance:
+                continue
+            if diferencia == 0:
+                continue  # Nada que agregar
 
             anni_desc = ', '.join([
                 f"{a[0].strftime('%d/%m/%y')}(+{a[2]:.0f}d)"
-                for a in annis
-            ]) if annis else 'ninguno'
+                for a in annis_post_corte
+            ]) if annis_post_corte else 'ninguno'
 
             lines.append((0, 0, {
-                'employee_id':      emp.id,
-                'entry_date':       emp.entry_date,
-                'cutoff_date':      cutoff,
-                'saldo_actual':     saldo_actual,
-                'acum_normal':      norm_days,
+                'employee_id':       emp.id,
+                'entry_date':        emp.entry_date,
+                'cutoff_date':       cutoff,
+                'saldo_actual':      saldo_actual,
+                'acum_normal':       0.0,
                 'aniversarios_desc': anni_desc,
-                'saldo_correcto':   saldo_correcto,
-                'diferencia':       diferencia,
-                'apply':            diferencia != 0,
+                'saldo_correcto':    saldo_correcto,
+                'diferencia':        diferencia,
+                'apply':             True,
             }))
 
         self.write({
