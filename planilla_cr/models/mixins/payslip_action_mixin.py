@@ -60,12 +60,19 @@ class PayslipActionMixin(models.AbstractModel):
                     rec._sync_embargos()
                     rec._sync_loan_deductions()
                     rec._sync_employee_charges()
-        # Forzar recompute completo despues del sync para garantizar
-        # que gross_salary, net_salary y deposito_patrono sean correctos
-        # desde el momento de creacion (sin necesitar Sincronizar manualmente)
+        # Forzar recompute completo despues del sync en modo batch.
+        # Los campos store=True (gross_salary, net_salary, deposito_patrono)
+        # pueden quedar con valores obsoletos si el recompute se ejecuta antes
+        # de que _sync_bonos_batch asigne los bono_id.
+        # Invalidar el cache fuerza que Odoo recalcule desde cero en el proximo acceso.
+        records.invalidate_recordset()
         records._compute_bono_salarial()
-        records.modified(['bono_salarial_amount'])
-        records.flush_recordset()
+        records.modified([
+            'bono_salarial_amount', 'base_salary', 'gross_salary',
+            'net_salary', 'salary_payable', 'deposito_patrono',
+            'total_employee_deductions', 'total_employer_cost',
+        ])
+        records.env['planilla.payslip.cr'].flush_model()
         return records
 
     def action_sync_novedades(self) -> bool:
