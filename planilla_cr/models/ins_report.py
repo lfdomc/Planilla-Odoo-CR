@@ -196,6 +196,6 @@ class InsReport(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}download=true',
+            'url': f'/web/content/{attachment.id}?download=true',
             'target': 'self',
         }

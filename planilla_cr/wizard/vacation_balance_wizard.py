@@ -79,7 +79,7 @@ class VacationBalanceWizard(models.TransientModel):
             'datas': base64.b64encode(output.getvalue()),
             'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}download=true', 'target': 'self'}
+        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}?download=true', 'target': 'self'}
 
     def _get_vacation_report_data(self):
         today = date.today()

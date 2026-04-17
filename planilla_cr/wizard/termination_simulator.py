@@ -87,13 +87,8 @@ class TerminationSimulator(models.TransientModel):
         if self.employee_id:
             emp = self.employee_id
             self.currency_id = emp.currency_id
-            # FIX-B2: para empleados con salario variable (comisiones, HE recurrentes),
-            # usar el promedio de los ultimos 4 meses del historial salarial.
-            # Consistente con employee_termination._onchange_employee (Art. 153 CT).
-            if getattr(emp, 'has_variable_income', False):
-                # Usar salario mensual del empleado directamente
-                avg_monthly = emp.base_salary or 0
-                self.last_salary = emp.base_salary or 0.0
+            # Siempre cargar el salario base del empleado
+            self.last_salary = emp.base_salary or 0.0
 
     def action_simulate(self):
         self.ensure_one()

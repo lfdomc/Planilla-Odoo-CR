@@ -197,5 +197,25 @@
         <field name="name">Planillas</field>
         <field name="res_model">planilla.run.cr</field>
         <field name="view_mode">list,form</field>
+        <field name="context">{"search_default_group_by_month": 1}</field>
+    </record>
+
+    <record id="view_payroll_run_search" model="ir.ui.view">
+        <field name="name">planilla.run.cr.search</field>
+        <field name="model">planilla.run.cr</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Planillas">
+                <field name="name"/>
+                <field name="company_id"/>
+                <filter string="Borrador" name="draft" domain="[('state','=','draft')]"/>
+                <filter string="Confirmadas" name="confirmed" domain="[('state','=','confirmed')]"/>
+                <filter string="Pagadas" name="done" domain="[('state','=','done')]"/>
+                <separator/>
+                <filter string="Por Mes" name="group_by_month"
+                        context="{'group_by': 'date_start:month'}"/>
+                <filter string="Por Año" name="group_by_year"
+                        context="{'group_by': 'date_start:year'}"/>
+            </search>
+        </field>
     </record>
 </odoo>
