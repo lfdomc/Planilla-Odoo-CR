@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_vacation_audit_wizard" model="ir.ui.view">
+        <field name="name">planilla.vacation.audit.wizard.form</field>
+        <field name="model">planilla.vacation.audit.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Auditoría de Saldos de Vacaciones">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        <strong>Auditoría completa:</strong> Revisa el saldo de vacaciones de cada
+                        empleado considerando todas las variables: saldo inicial, acumulación
+                        proporcional (Art. 153 CT), días de aniversario y días tomados.
+                    </div>
+
+                    <group string="Parámetros">
+                        <group>
+                            <field name="reference_date" string="Fecha de Referencia"/>
+                            <field name="base_days_anniversary" string="Días extra por año laborado"/>
+                        </group>
+                        <group>
+                            <field name="show_only_discrepancies"/>
+                        </group>
+                    </group>
+
+                    <!-- Resumen después de auditar -->
+                    <group string="Resumen" invisible="not computed">
+                        <group>
+                            <field name="total_employees" string="Total Empleados Auditados"/>
+                            <field name="ok_count" string="✅ Con saldo correcto"/>
+                        </group>
+                        <group>
+                            <field name="discrepancy_count" string="⚠️ Con discrepancias"/>
+                        </group>
+                    </group>
+
+                    <field name="line_ids" nolabel="1" invisible="not computed">
+                        <list editable="top"
+                              decoration-success="estado == 'ok'"
+                              decoration-warning="estado == 'bajo'"
+                              decoration-danger="estado == 'alto'">
+                            <field name="corregir" string="✓ Corregir"/>
+                            <field name="employee_id" readonly="1" string="Empleado"/>
+                            <field name="entry_date" readonly="1" string="Ingreso" optional="hide"/>
+                            <field name="cutoff_date" readonly="1" string="Corte" optional="show"/>
+                            <field name="saldo_inicial" readonly="1" string="Saldo Inicial" optional="show"/>
+                            <field name="acum_proporcional" readonly="1" string="Acum. Propocion." optional="show"/>
+                            <field name="aniversarios_pend" readonly="1" string="Aniversarios Pend." optional="show"/>
+                            <field name="dias_tomados" readonly="1" string="Tomados" optional="show"/>
+                            <field name="saldo_sistema" readonly="1" string="Saldo Sistema"/>
+                            <field name="saldo_correcto" readonly="1" string="Saldo Correcto"/>
+                            <field name="discrepancia" readonly="1" string="Diferencia"
+                                   decoration-warning="discrepancia &gt; 0"
+                                   decoration-danger="discrepancia &lt; 0"/>
+                            <field name="estado" readonly="1" string="Estado"/>
+                        </list>
+                    </field>
+                </sheet>
+                <footer>
+                    <button name="action_audit" type="object"
+                            string="🔍 Auditar Todos los Empleados"
+                            class="btn-primary"/>
+                    <button name="action_apply_corrections" type="object"
+                            string="✅ Aplicar Correcciones Marcadas"
+                            class="btn-success"
+                            invisible="not computed or discrepancy_count == 0"
+                            confirm="¿Confirma que desea corregir los saldos de los empleados marcados? Esta acción queda registrada en el historial de cada empleado."/>
+                    <button special="cancel" string="Cerrar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_vacation_audit_wizard" model="ir.actions.act_window">
+        <field name="name">Auditoría de Vacaciones</field>
+        <field name="res_model">planilla.vacation.audit.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <menuitem id="menu_vacation_audit"
+              name="Auditoría de Vacaciones"
+              parent="planilla_cr.menu_planilla_cr_reports"
+              action="action_vacation_audit_wizard"
+              sequence="30"/>
+</odoo>

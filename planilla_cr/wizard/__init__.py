@@ -17,3 +17,4 @@ from . import test_email_wizard
 from . import migrate_codes_wizard
 
 from . import vacation_recalc_wizard
+from . import vacation_audit_wizard

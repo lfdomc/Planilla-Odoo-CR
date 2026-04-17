@@ -1,6 +1,6 @@
 {
     'name': 'Sistema Planilla v5.28.51-PROD',
-    'version': '19.0.5.28.186',
+    'version': '19.0.5.28.188',
     
     'category': 'Human Resources/Payroll',
     'summary': 'Sistema de Planilla Costa Rica v5.14 - Legislacion CR 2026',
@@ -87,6 +87,7 @@
         'wizard/send_payslip_wizard_views.xml',
         'wizard/migrate_codes_wizard_views.xml',
         'wizard/vacation_recalc_wizard_views.xml',
+        'wizard/vacation_audit_wizard_views.xml',
         'wizard/test_email_wizard_views.xml',
         'wizard/salary_increase_wizard_views.xml',
         'views/import_overtime_wizard_views.xml',

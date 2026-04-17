@@ -70,10 +70,13 @@ class VacationRecalcWizard(models.TransientModel):
                 if ann > today:
                     break
                 # Solo los que caen despues del corte y hasta hoy
+                # Y que NO hayan sido ya aplicados en este ano
                 if ann > cutoff:
-                    anos = year - emp.entry_date.year
-                    dias_extra = self.base_days_anniversary * anos
-                    annis_post_corte.append((ann, anos, dias_extra))
+                    last_applied = emp.vacation_last_anniversary_year or 0
+                    if last_applied < ann.year:  # No aplicado aun
+                        anos = year - emp.entry_date.year
+                        dias_extra = self.base_days_anniversary * anos
+                        annis_post_corte.append((ann, anos, dias_extra))
                 year += 1
 
             dias_aniversario = sum(a[2] for a in annis_post_corte)
@@ -121,9 +124,11 @@ class VacationRecalcWizard(models.TransientModel):
         applied = 0
         for line in self.preview_line_ids.filtered(lambda l: l.apply):
             emp = line.employee_id
+            from datetime import date as _d
             emp.write({
-                'vacation_initial_balance': line.saldo_correcto,
-                'vacation_initial_balance_date': line.cutoff_date,
+                'vacation_initial_balance':       line.saldo_correcto,
+                'vacation_initial_balance_date':  line.cutoff_date,
+                'vacation_last_anniversary_year': _d.today().year,
             })
             emp.message_post(
                 body=(
