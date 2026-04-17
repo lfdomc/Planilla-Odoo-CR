@@ -133,12 +133,20 @@ class PayslipValidationMixin(models.AbstractModel):
                 if l.deduction_category == 'licencia_sin_goce' and l.line_type == 'deduction'
             )
 
+            def _es_salarial(l):
+                """True si el bono es afecto CCSS (ya incluido en gross_salary)."""
+                if l.bono_id:
+                    return l.bono_id.afecto_ccss
+                import re as _re2
+                nombre = _re2.sub(r'^\[\w+-\d+\]\s*', '', l.description or '').replace('Bono: ', '').strip()
+                return nombre in nombres_salariales
+
             extra_income = sum(
                 l.amount for l in rec.deduction_line_ids
                 if l.line_type == 'income'
                 and not (
                     l.deduction_category == 'bonus'
-                    and (l.description or '').replace('Bono: ', '').strip() in nombres_salariales
+                    and _es_salarial(l)
                 )
                 # Licencias CON goce NO se suman al neto del empleado:
                 # el salario base ya cubre esos dias. La linea existe solo para
