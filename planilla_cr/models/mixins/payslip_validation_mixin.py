@@ -545,12 +545,12 @@ class PayslipValidationMixin(models.AbstractModel):
             if total_embargos > 0 and rec.net_salary > 0:
                 max_embargo_legal = round(rec.net_salary * K.MAX_PCT_EMBARGO / 100, 2)
                 if total_embargos > max_embargo_legal + 0.5:  # tolerancia CRC0.50 por redondeo
-                    errors.append(
-                        f'{prefix} Los embargos judiciales (CRC{total_embargos:,.2f}) superan '
+                    warnings.append(
+                        f'{prefix} Aviso: Los embargos judiciales (CRC{total_embargos:,.2f}) superan '
                         f'el limite legal del {K.MAX_PCT_EMBARGO:.0f}% del salario neto '
                         f'(CRC{max_embargo_legal:,.2f}). '
-                        f'Base legal: Art. 172 Codigo de Trabajo CR. '
-                        f'Reduzca el monto del embargo a un maximo de CRC{max_embargo_legal:,.2f}.'
+                        f'Base legal: Art. 172 CT. '
+                        f'Se recomienda reducir el embargo a un maximo de CRC{max_embargo_legal:,.2f}.'
                     )
 
 
