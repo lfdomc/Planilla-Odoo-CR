@@ -117,7 +117,7 @@ class Overtime(models.Model):
             date_str = str(rec.date) if rec.date else ''
             rec.name = f'HE - {emp} - {date_str}'
 
-    @api.depends('employee_id', 'date')
+    @api.depends('employee_id', 'date', 'employee_id.base_salary')
     def _compute_hourly_rate(self):
         """
         BUG #6 FIX v50: Usa el salario historico vigente en la fecha de las HE.
