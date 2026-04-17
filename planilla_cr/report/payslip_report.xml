@@ -92,7 +92,7 @@
                                 </t>:
                             </td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-set="feriado_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state == 'approved')"/>
+                                <t t-set="feriado_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state in ('approved','paid'))"/>
                                 <t t-set="feriado_monto" t-value="sum(o.amount for o in feriado_lines)"/>
                                 <t t-if="feriado_monto &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(feriado_monto)"/></t>
                                 <t t-else="">-</t>
@@ -108,7 +108,7 @@
                                 </t>:
                             </td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-set="he_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type != 'holiday' and o.state == 'approved')"/>
+                                <t t-set="he_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type != 'holiday' and o.state in ('approved','paid'))"/>
                                 <t t-set="he_monto" t-value="sum(o.amount for o in he_lines)"/>
                                 <t t-if="he_monto &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(he_monto)"/></t>
                                 <t t-else="">-</t>
@@ -345,7 +345,7 @@
                         <tr>
                             <td style="padding:1px 8px 1px 20px; font-size:11px; color:#555;">Feriados trabajados:</td>
                             <td style="padding:1px 8px; text-align:right; font-size:11px; color:#555;">
-                                <t t-set="hol_ot2" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state == 'approved')"/>
+                                <t t-set="hol_ot2" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state in ('approved','paid'))"/>
                                 <t t-out="str(len(hol_ot2))"/> dia(s) (<t t-out="'{:.2f}'.format(doc.overtime_holiday_hours)"/> h)
                             </td>
                             <td/>
