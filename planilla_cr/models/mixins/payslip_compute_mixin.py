@@ -98,6 +98,8 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.base_salary')
     def _compute_base_salary(self):
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             emp = rec.employee_id
             if not emp:
                 rec.base_salary = 0.0
@@ -188,6 +190,8 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.base_salary')
     def _compute_extras(self):
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             approved_ot = [o for o in rec.overtime_ids if o.state == 'approved']
             # Incluir HE aprobadas Y pagadas (las pagadas ya pertenecen a esta boleta)
             billable_ot = [o for o in rec.overtime_ids if o.state in ('approved', 'paid')]
@@ -475,6 +479,8 @@ class PayslipComputeMixin(models.AbstractModel):
         # con el indice por nombre. bono_id es el enlace directo y es inmune
         # a cambios de formato en la descripcion.
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             bonus_lines = rec.deduction_line_ids.filtered(
                 lambda l: l.line_type == 'income' and l.deduction_category == 'bonus'
             )
@@ -510,6 +516,8 @@ class PayslipComputeMixin(models.AbstractModel):
                  'date_from', 'date_to')
     def _compute_gross(self) -> None:
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             # -- Base salarial segun incapacidad ------------------------------
             # REGLA LEGAL (Art. 79 y 94 CT):
             # - Sin incapacidad: gross = base_salary completo del periodo
@@ -567,6 +575,8 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.pensioner_type')
     def _compute_deductions(self) -> None:
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             rh       = rec.env['planilla.rate.helper'].with_company(rec.company_id)
             # F3: tasa CCSS obrero depende del tipo de pensionado
             pensioner = rec.employee_id.pensioner_type or 'none'

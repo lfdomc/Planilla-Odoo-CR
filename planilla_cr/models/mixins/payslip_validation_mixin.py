@@ -49,6 +49,8 @@ class PayslipValidationMixin(models.AbstractModel):
         una en "Bonos Salariales (afecto CCSS)" y otra en "Ingresos Adicionales".
         """
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             lines = rec.deduction_line_ids
             rec.amount_pension_alimentaria = round(sum(
                 l.amount for l in lines
@@ -122,6 +124,8 @@ class PayslipValidationMixin(models.AbstractModel):
     )
     def _compute_totals(self) -> None:
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             # FIX v54b N+1: cargamos el set de nombres salariales UNA vez para el loop.
             nombres_salariales = rec._get_bono_salarial_names()
 
