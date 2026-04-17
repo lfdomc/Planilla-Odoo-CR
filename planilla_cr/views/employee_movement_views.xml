@@ -6,7 +6,7 @@
         <field name="model">planilla.employee.movement</field>
         <field name="arch" type="xml">
             <list string="Movimientos de Personal"
-                  decoration-success="movement_type == 'ingreso' or movement_type == 'reingreso'"
+                  decoration-success="movement_type in ('ingreso','reingreso')"
                   decoration-danger="movement_type == 'salida'"
                   decoration-info="movement_type == 'aumento'"
                   decoration-warning="movement_type == 'suspension'">
@@ -75,11 +75,6 @@
                         domain="[('movement_type','=','salida')]"/>
                 <filter string="Aumentos Salariales" name="aumentos"
                         domain="[('movement_type','=','aumento')]"/>
-                <separator/>
-                <filter string="Este mes" name="este_mes"
-                        domain="[('movement_date','&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
-                <filter string="Este ano" name="este_ano"
-                        domain="[('movement_date','&gt;=', (context_today() + relativedelta(month=1,day=1)).strftime('%Y-%m-%d'))]"/>
                 <group expand="0" string="Agrupar por">
                     <filter string="Empleado" name="by_employee"
                             context="{'group_by': 'employee_id'}"/>
