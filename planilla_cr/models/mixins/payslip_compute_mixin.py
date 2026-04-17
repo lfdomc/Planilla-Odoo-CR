@@ -76,23 +76,13 @@ class PayslipComputeMixin(models.AbstractModel):
 
     def _get_salary_for_date(self, emp, ref_date):
         """
-        Retorna el salario mensual vigente para el empleado en ref_date.
-        Consulta planilla.salary.history (state=authorized, effective_date <= ref_date)
-        ordenado por fecha descendente. Si no hay historial, retorna emp.base_salary.
+        Retorna el salario mensual del empleado.
+        Usa emp.base_salary directamente -- es el salario mensual configurado
+        y siempre refleja el valor actual correcto para la boleta.
+        El historial de salarios se usa para HE y liquidaciones, no para boletas.
         """
-        if not emp or not ref_date:
-            return emp.base_salary if emp else 0.0
-        # Solo consultar registros de CAMBIOS de salario (no snapshots de pago)
-        # Los registros con payslip_id son snapshots creados al pagar -- no son
-        # cambios reales de salario y pueden contener el bruto del periodo (no mensual)
-        hist = self.env['planilla.salary.history'].search([
-            ('employee_id', '=', emp.id),
-            ('state', '=', 'authorized'),
-            ('effective_date', '<=', ref_date),
-            ('payslip_id', '=', False),
-        ], order='effective_date desc', limit=1)
-        if hist:
-            return hist.gross_salary or emp.base_salary
+        if not emp:
+            return 0.0
         return emp.base_salary or 0.0
 
     @api.depends('employee_id', 'date_from', 'date_to', 'attendance_hours',
