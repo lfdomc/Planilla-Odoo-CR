@@ -60,6 +60,12 @@ class PayslipActionMixin(models.AbstractModel):
                     rec._sync_embargos()
                     rec._sync_loan_deductions()
                     rec._sync_employee_charges()
+        # Forzar recompute completo despues del sync para garantizar
+        # que gross_salary, net_salary y deposito_patrono sean correctos
+        # desde el momento de creacion (sin necesitar Sincronizar manualmente)
+        records._compute_bono_salarial()
+        records.modified(['bono_salarial_amount'])
+        records.flush_recordset()
         return records
 
     def action_sync_novedades(self) -> bool:
