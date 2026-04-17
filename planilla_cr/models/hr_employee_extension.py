@@ -1122,6 +1122,16 @@ class HrEmployeeExtension(models.Model):
                     pass  # No bloquear el guardado
         return result
 
+    def action_mark_anniversary_applied(self):
+        """Marca el aniversario del ano actual como ya aplicado."""
+        self.ensure_one()
+        self.write({'vacation_last_anniversary_year': date.today().year})
+        self.message_post(
+            body=f'Aniversario {date.today().year} marcado como aplicado manualmente.',
+            message_type='notification',
+        )
+        return True
+
     @api.depends('entry_date')
     def _compute_years_of_service(self):
         from datetime import date as _date

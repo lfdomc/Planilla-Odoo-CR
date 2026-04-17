@@ -174,7 +174,13 @@
                             <field name="vacation_last_anniversary_year"
                                    string="Último Aniversario Aplicado"
                                    readonly="vacation_last_anniversary_year != 0"
-                                   help="Año del último bono de aniversario aplicado. Editable solo si está en 0 (nunca aplicado). Una vez escrito por el sistema queda bloqueado para evitar errores."/>
+                                   help="Año del último bono de aniversario aplicado."/>
+                            <button name="action_mark_anniversary_applied"
+                                    type="object"
+                                    string="✓ Marcar Aniversario 2026 Aplicado"
+                                    class="btn-secondary btn-sm"
+                                    invisible="vacation_last_anniversary_year != 0"
+                                    confirm="¿Confirma que el bono de aniversario 2026 ya fue aplicado a este empleado?"/>
                         </group>
                     </group>
 
