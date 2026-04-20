@@ -18,3 +18,4 @@ from . import migrate_codes_wizard
 
 from . import vacation_recalc_wizard
 from . import vacation_audit_wizard
+from . import payroll_accounting_review
