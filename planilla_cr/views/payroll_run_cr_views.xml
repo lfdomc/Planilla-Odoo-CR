@@ -105,6 +105,11 @@
                     <button name="action_view_accounting_entry" type="object"
                             string="Ver Asiento Contable" class="btn-secondary"
                             invisible="not move_id"/>
+                    <button name="action_regenerate_accounting_entry" type="object"
+                            string="&#x21BB; Regenerar Asiento"
+                            class="btn-warning"
+                            invisible="state != 'done' or not move_id"
+                            confirm="&#xBF;Confirma que desea revertir el asiento actual y generar uno nuevo con los c&#xE1;lculos corregidos? Esta acci&#xF3;n registra un asiento de reverso autom&#xE1;ticamente."/>
                     <button name="action_send_all_payslips" type="object"
                             string="Enviar Boletas"
                             invisible="state != 'done'"/>

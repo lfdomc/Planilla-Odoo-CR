@@ -868,9 +868,14 @@ class PayrollRunCR(models.Model):
         # paga al empleado (igual que vacaciones o paternidad). FIX-G4 las excluyo
         # de total_extra_income (evitar doble DEBE) pero deben seguir en el HABER
         # para que el empleado reciba el pago correcto.
+        # FIX-ACC-02: el neto solo agrega subsidios exentos y otros ingresos manuales
+        # porque bono_salarial_amount ya esta en total_gross.
+        # total_extra_income (= bonos_total + otros_ingresos) causaba doble conteo
+        # al incluir los bonos afectos que ya estaban en gross.
+        total_net_extras = round(total_subsidios_exentos + total_otros_ingresos, 2)
         total_net_for_accounting = round(
             total_gross - total_ccss_employee - total_income_tax
-            + total_subsidy + total_paternity + total_extra_income
+            + total_subsidy + total_paternity + total_net_extras
             + total_licencias_con_goce    # licencias con goce: el patrono las paga al empleado
             - total_pensiones - total_embargos - total_prestamos
             - total_ausencias - total_licencias_sin_goce - total_rop_obrero - total_otras_ded,
@@ -928,10 +933,10 @@ class PayrollRunCR(models.Model):
                      debit=total_rop_emp,
                      name=f'ROP Patronal 3.25% Ley 7983 -- Planilla {run_name}')
 
-        if total_bonos_salariales > 0:
-            bono_acct = config.account_bono_expense or config.account_salary_expense
-            add_line(bono_acct, debit=total_bonos_salariales,
-                     name=f'Bonos e Incentivos Salariales -- Planilla {run_name}')
+        # FIX-ACC-01: total_bonos_salariales YA esta incluido en total_gross
+        # (gross_salary = sal_base + overtime + vacation + other_income + bono_salarial)
+        # Agregar un DEBE separado causaba doble contabilizacion.
+        # Solo se registra como DEBE separado el subsidio exento (NO esta en gross).
         if total_subsidios_exentos > 0:
             subs_acct = config.account_subsidio_expense or config.account_salary_expense
             add_line(subs_acct, debit=total_subsidios_exentos,
@@ -1256,6 +1261,67 @@ class PayrollRunCR(models.Model):
             'res_model': 'account.move',
             'view_mode': 'form',
             'res_id': self.move_id.id,
+        }
+
+    def action_regenerate_accounting_entry(self):
+        """
+        Revierte el asiento contable existente y genera uno nuevo con los calculos
+        corregidos. Util para corregir asientos generados con versiones anteriores
+        que tenian el bug de doble contabilizacion de bonos (FIX-ACC-01/02).
+
+        IMPORTANTE: La planilla debe estar en estado 'done' (pagada).
+        El asiento anterior se revierte automaticamente antes de crear el nuevo.
+        """
+        self.ensure_one()
+        if self.state != 'done':
+            raise UserError(
+                'Solo se puede regenerar el asiento de planillas pagadas (estado: Pagado).'
+            )
+        if not self.move_id:
+            raise UserError(
+                'Esta planilla no tiene asiento contable. '
+                'Use el flujo normal de pago para generar el asiento.'
+            )
+
+        # 1. Revertir el asiento actual
+        old_move = self.move_id
+        if old_move.state == 'posted':
+            reversal = old_move._reverse_moves(
+                default_values_list=[{
+                    'date':    old_move.date,
+                    'journal_id': old_move.journal_id.id,
+                    'ref':    'REVERSO: ' + (old_move.ref or old_move.name),
+                }]
+            )
+            reversal.action_post()
+            _logger.info(
+                'planilla_cr: asiento %s revertido (%s) para regeneracion -- planilla %s',
+                old_move.name, reversal.name, self.name
+            )
+        elif old_move.state == 'draft':
+            old_move.unlink()
+
+        # 2. Desligar el asiento viejo del run para que generate_accounting_entry
+        #    pueda crear uno nuevo sin conflicto
+        self.write({'move_id': False})
+
+        # 3. Generar nuevo asiento con la logica corregida
+        self._create_consolidated_accounting_entry(self.payslip_ids.filtered(lambda p: p.state == 'paid'))
+
+        self.message_post(
+            body=(
+                f'<b>Asiento contable regenerado.</b> '
+                f'Asiento anterior: {old_move.name} (revertido). '
+                f'Nuevo asiento: {self.move_id.name if self.move_id else "N/A"}.'
+            ),
+            message_type='notification',
+        )
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Asiento Contable Regenerado',
+            'res_model': 'account.move',
+            'res_id': self.move_id.id,
+            'view_mode': 'form',
         }
 
 class AccountMovePayrollSync(models.Model):

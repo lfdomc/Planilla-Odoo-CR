@@ -191,10 +191,13 @@ class PayslipAccountingMixin(models.AbstractModel):
         if subsidy > 0 or ins_subsidy_local > 0:
             deposito_contable = round(self.neto_por_patrono or 0.0, 2)
         else:
+            # FIX-ACC-02: bono_salarial ya esta en gross, no incluirlo de nuevo
+            # extra_income = bonos + subsidios + otros -> usamos solo lo que no esta en gross
+            net_extras = round(subsidios_exentos + otros_ingresos, 2)
             deposito_contable = round(
                 gross - ccss_emp - renta
                 + pat_amount
-                + extra_income
+                + net_extras
                 + licencias_con_goce
                 - pensiones
                 - embargos
@@ -277,13 +280,9 @@ class PayslipAccountingMixin(models.AbstractModel):
                      debit=subsidy,
                      name=f'Subsidio CCSS por Cobrar (incapacidad) -- {emp}')
 
-        # FIX: Ingresos adicionales en boleta -- separados por tipo para CR
-        # Bonos salariales (productividad, asistencia, antiguedad): cuenta 630600
-        if bonos_salariales > 0:
-            bono_acct = config.account_bono_expense or config.account_salary_expense
-            add_line(bono_acct,
-                     debit=bonos_salariales,
-                     name=f'Bonos e Incentivos Salariales -- {emp}')
+        # FIX-ACC-01: bonos_salariales YA estan en gross (gross = sal_base + overtime + vacation + other_income + bono_salarial)
+        # Agregar DEBE separado causaba doble contabilizacion del gasto.
+        # Solo se registra como DEBE separado el subsidio exento (NO esta en gross).
         # Subsidios exentos (transporte hasta tope, representacion): cuenta 630700
         if subsidios_exentos > 0:
             subs_acct = config.account_subsidio_expense or config.account_salary_expense
