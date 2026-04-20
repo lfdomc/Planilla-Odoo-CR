@@ -1277,11 +1277,30 @@ class PayrollRunCR(models.Model):
             raise UserError(
                 'Solo se puede regenerar el asiento de planillas pagadas (estado: Pagado).'
             )
+        # Si no hay asiento previo, simplemente generar uno nuevo
         if not self.move_id:
-            raise UserError(
-                'Esta planilla no tiene asiento contable. '
-                'Use el flujo normal de pago para generar el asiento.'
+            config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
+            mode = config.accounting_entry_mode if config else 'per_employee'
+            if mode == 'per_run':
+                paid_slips = self.payslip_ids.filtered(lambda p: p.state == 'paid')
+                if not paid_slips:
+                    raise UserError('No hay boletas pagadas para generar el asiento.')
+                self._create_consolidated_accounting_entry(paid_slips)
+            else:
+                paid_slips = self.payslip_ids.filtered(lambda p: p.state == 'paid')
+                paid_slips.action_pay()
+            self.message_post(
+                body='<b>Asiento contable generado.</b> Asiento: %s' % (self.move_id.name if self.move_id else 'N/A'),
+                message_type='notification',
             )
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'Asiento Contable',
+                'res_model': 'account.move',
+                'res_id': self.move_id.id,
+                'view_mode': 'form',
+            } if self.move_id else {'type': 'ir.actions.client', 'tag': 'display_notification',
+                'params': {'title': 'Asiento generado', 'message': 'Asiento creado correctamente.', 'type': 'success'}}
 
         # 1. Revertir el asiento actual
         old_move = self.move_id

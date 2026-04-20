@@ -108,8 +108,8 @@
                     <button name="action_regenerate_accounting_entry" type="object"
                             string="&#x21BB; Regenerar Asiento"
                             class="btn-warning"
-                            invisible="state != 'done' or not move_id"
-                            confirm="&#xBF;Confirma que desea revertir el asiento actual y generar uno nuevo con los c&#xE1;lculos corregidos? Esta acci&#xF3;n registra un asiento de reverso autom&#xE1;ticamente."/>
+                            invisible="state != 'done'"
+                            confirm="&#xBF;Confirma regenerar el asiento contable? Si ya existe uno se revertir&#xE1; autom&#xE1;ticamente antes de crear el nuevo."/>
                     <button name="action_send_all_payslips" type="object"
                             string="Enviar Boletas"
                             invisible="state != 'done'"/>
