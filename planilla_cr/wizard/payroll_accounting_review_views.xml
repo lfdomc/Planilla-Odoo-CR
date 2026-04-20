@@ -56,7 +56,7 @@
                                    optional="show"/>
                             <field name="dif_salarios" string="Δ Salarios"
                                    widget="monetary" options="{'currency_field': 'currency_id'}"
-                                   decoration-danger="abs(dif_salarios) &gt; 1"/>
+                                   decoration-danger="dif_salarios &gt; 1 or dif_salarios &lt; -1"/>
                             <field name="planilla_ccss" string="CCSS Planilla"
                                    widget="monetary" options="{'currency_field': 'currency_id'}"
                                    optional="show"/>
@@ -65,7 +65,7 @@
                                    optional="show"/>
                             <field name="dif_ccss" string="Δ CCSS"
                                    widget="monetary" options="{'currency_field': 'currency_id'}"
-                                   decoration-danger="abs(dif_ccss) &gt; 1"/>
+                                   decoration-danger="dif_ccss &gt; 1 or dif_ccss &lt; -1"/>
                             <field name="planilla_neto" string="Neto Planilla"
                                    widget="monetary" options="{'currency_field': 'currency_id'}"
                                    optional="show"/>
@@ -74,7 +74,7 @@
                                    optional="show"/>
                             <field name="dif_neto" string="Δ Neto"
                                    widget="monetary" options="{'currency_field': 'currency_id'}"
-                                   decoration-danger="abs(dif_neto) &gt; 1"/>
+                                   decoration-danger="dif_neto &gt; 1 or dif_neto &lt; -1"/>
                             <field name="estado" string="Estado"
                                    decoration-success="estado == 'ok'"
                                    decoration-warning="estado == 'diferencia'"
