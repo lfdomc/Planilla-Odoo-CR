@@ -1282,13 +1282,15 @@ class PayrollRunCR(models.Model):
             config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
             mode = config.accounting_entry_mode if config else 'per_employee'
             if mode == 'per_run':
-                paid_slips = self.payslip_ids.filtered(lambda p: p.state == 'paid')
+                # Estado 'done' = pagado en boletas (no 'paid')
+                paid_slips = self.payslip_ids.filtered(lambda p: p.state == 'done')
                 if not paid_slips:
                     raise UserError('No hay boletas pagadas para generar el asiento.')
                 self._create_consolidated_accounting_entry(paid_slips)
             else:
-                paid_slips = self.payslip_ids.filtered(lambda p: p.state == 'paid')
-                paid_slips.action_pay()
+                paid_slips = self.payslip_ids.filtered(lambda p: p.state == 'done')
+                for slip in paid_slips:
+                    slip._generate_accounting_entry()
             self.message_post(
                 body='<b>Asiento contable generado.</b> Asiento: %s' % (self.move_id.name if self.move_id else 'N/A'),
                 message_type='notification',
@@ -1325,7 +1327,7 @@ class PayrollRunCR(models.Model):
         self.write({'move_id': False})
 
         # 3. Generar nuevo asiento con la logica corregida
-        self._create_consolidated_accounting_entry(self.payslip_ids.filtered(lambda p: p.state == 'paid'))
+        self._create_consolidated_accounting_entry(self.payslip_ids.filtered(lambda p: p.state == 'done'))
 
         self.message_post(
             body=(
