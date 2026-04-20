@@ -806,7 +806,10 @@ class PayrollRunCR(models.Model):
         # FIX v54: Separar bonos salariales, subsidios exentos y embargos
         # para asientos correctos en modo per_run (mismo criterio que per_employee)
         total_bonos_salariales = round(sum(p.bono_salarial_amount or 0.0 for p in payslips), 2)
-        total_rop_emp    = round(sum(p.rop_employer or 0.0 for p in payslips), 2)
+        # Usar total_rop_employer del run que ya esta calculado y persistido
+        # en lugar de sumar de payslips (que pueden tener el campo desactualizado)
+        total_rop_emp    = round(self.total_rop_employer or
+                                 sum(p.rop_employer or 0.0 for p in payslips), 2)
         total_rop_obrero = round(sum(
             l.amount for p in payslips
             for l in p.deduction_line_ids

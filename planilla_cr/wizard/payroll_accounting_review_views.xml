@@ -20,6 +20,12 @@
                         </group>
                     </group>
 
+                    <div class="mt8 mb8">
+                        <button name="action_review" type="object"
+                                string="🔍 Revisar Período"
+                                class="btn-primary"/>
+                    </div>
+
                     <!-- Resumen -->
                     <group string="Resumen" invisible="not computed">
                         <group>
@@ -81,12 +87,7 @@
                         </list>
                     </field>
                 </sheet>
-                <footer>
-                    <button name="action_review" type="object"
-                            string="🔍 Revisar Período"
-                            class="btn-primary"/>
-                    <button special="cancel" string="Cerrar"/>
-                </footer>
+
             </form>
         </field>
     </record>
