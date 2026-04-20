@@ -34,7 +34,7 @@
 
                     <!-- Detalle -->
                     <field name="line_ids" nolabel="1" invisible="not computed">
-                        <list editable="false"
+                        <list
                               decoration-success="estado == 'ok'"
                               decoration-warning="estado == 'diferencia'"
                               decoration-danger="estado == 'sin_asiento'">
