@@ -77,9 +77,4 @@
         <field name="target">new</field>
     </record>
 
-    <menuitem id="menu_vacation_recalc"
-              name="Recalcular Saldos Vacaciones"
-              parent="planilla_cr.menu_planilla_cr_config"
-              action="action_vacation_recalc_wizard"
-              sequence="45"/>
 </odoo>

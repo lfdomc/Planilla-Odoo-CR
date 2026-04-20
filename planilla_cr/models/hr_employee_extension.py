@@ -1231,13 +1231,20 @@ class HrEmployeeExtension(models.Model):
                     dis_after = sum(max(d.days - 90, 0) for d in long_dis_after_cutoff)
                     effective_days = max(days_since_cutoff - dis_after, 0)
                     weeks_since_cutoff = effective_days / 7.0
-                    # Art. 153 CT: acumular con 2 decimales para precision
-                    # pero el saldo disponible final se muestra como entero
-                    accrued_since_cutoff = round((weeks_since_cutoff / 50.0) * 12.0, 2)
-
-                # Saldo = inicial (puede tener decimales) + acumulado desde corte
-                # Redondear al entero inferior para ser conservador (Art. 153 CT)
-                accrued = int(emp.vacation_initial_balance + accrued_since_cutoff)
+                    # METODO CORRECTO: el ciclo de acumulacion esta anclado
+                    # a la fecha de ingreso del empleado, no a la fecha de corte.
+                    # Si entro el 1 ene, gana su dia N cuando (N*50*7/12) dias
+                    # hayan pasado desde el 1 ene -- independiente del corte.
+                    # Formula: dias_nuevos = int(teorico_hoy) - int(teorico_al_corte)
+                # Dias teoricos desde entry hasta el corte (para conocer la fase)
+                dias_entry_corte = max((accrual_start - emp.entry_date).days, 0)
+                teorico_al_corte = (dias_entry_corte / 7.0 / 50.0) * 12.0
+                # Dias teoricos desde entry hasta hoy
+                dias_entry_hoy = max((cutoff - emp.entry_date).days, 0)
+                teorico_hoy = (dias_entry_hoy / 7.0 / 50.0) * 12.0
+                # Dias enteros NUEVOS ganados entre el corte y hoy
+                dias_nuevos = int(teorico_hoy) - int(teorico_al_corte)
+                accrued = int(emp.vacation_initial_balance) + dias_nuevos
             else:
                 # Calculo normal desde fecha de ingreso
                 total_days = (cutoff - emp.entry_date).days
