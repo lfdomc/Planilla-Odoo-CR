@@ -67,8 +67,18 @@ class PayrollAccountingReview(models.TransientModel):
 
             # Leer lineas del asiento
             move_lines = move.line_ids
-            sal_debe   = round(sum(l.debit for l in move_lines if l.account_id.code and l.account_id.code.startswith('630000')), 2)
-            ccss_haber = round(sum(l.credit for l in move_lines if l.account_id.code and l.account_id.code.startswith('230300')), 2)
+            # Bruto: solo la linea principal de Salarios (excluye incap y subsidios exentos)
+            sal_debe   = round(sum(
+                l.debit for l in move_lines
+                if l.account_id.code and l.account_id.code.startswith('630000')
+                and 'Salarios --' in (l.name or '')
+            ), 2)
+            # CCSS: solo lineas especificas de CCSS y INS (excluye ROP de reconciliacion)
+            ccss_haber = round(sum(
+                l.credit for l in move_lines
+                if l.account_id.code and l.account_id.code.startswith('230300')
+                and 'ROP' not in (l.name or '')
+            ), 2)
             ins_haber  = round(sum(l.credit for l in move_lines if l.account_id.code and l.account_id.code.startswith('230400')), 2)
             neto_haber = round(sum(
                 l.credit for l in move_lines
@@ -77,11 +87,19 @@ class PayrollAccountingReview(models.TransientModel):
             ), 2)
 
             planilla_bruto  = round(run.total_gross or 0, 2)
-            planilla_ccss   = round((run.total_ccss_employee or 0) + (run.total_ccss_employer or 0), 2)
+            # CCSS planilla = obrero + patronal + INS patronal
+            planilla_ccss   = round(
+                (run.total_ccss_employee or 0)
+                + (run.total_ccss_employer or 0),
+                2
+            )
+            # Para comparar con el asiento, usar 230300 (CCSS) sin ROP
+            # El INS (230400) se compara por separado en asiento_ccss
             planilla_neto   = round(run.total_net or 0, 2)
 
             dif_sal  = round(sal_debe  - planilla_bruto, 2)
-            dif_ccss = round((ccss_haber + ins_haber) - planilla_ccss, 2)
+            # Comparar solo CCSS 230300 (sin INS) con planilla_ccss (obrero+patronal)
+            dif_ccss = round(ccss_haber - planilla_ccss, 2)
             dif_neto = round(neto_haber - planilla_neto, 2)
 
             tiene_dif = abs(dif_sal) > 1 or abs(dif_ccss) > 1 or abs(dif_neto) > 1
