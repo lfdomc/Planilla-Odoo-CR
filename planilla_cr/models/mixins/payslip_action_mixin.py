@@ -89,6 +89,16 @@ class PayslipActionMixin(models.AbstractModel):
                     f'Para editarla, primero cancelela y vuelva a Borrador.'
                 )
             if rec.state == 'draft':
+                # Limpiar lineas de incapacidad existentes para evitar duplicados
+                # al re-sincronizar en boletas que fueron re-procesadas
+                incap_lines = rec.deduction_line_ids.filtered(
+                    lambda l: l.deduction_category in ('incapacidad', 'licencia_con_goce')
+                              and l.line_type == 'deduction'
+                )
+                # Solo limpiar si hay incapacidades en el sistema para este periodo
+                # para no borrar entradas manuales
+                if incap_lines and rec.disability_ids:
+                    incap_lines.unlink()
                 rec._sync_novedades()        # incluye _sync_licencias() internamente
                 rec._sync_recurring_benefits()
                 rec._sync_rop()
