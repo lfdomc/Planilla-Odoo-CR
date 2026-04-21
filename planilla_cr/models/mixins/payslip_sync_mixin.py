@@ -1608,7 +1608,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 applied_elsewhere = self.env['planilla.payslip.deduction.line'].search([
                     ('employee_charge_id', '=', charge.id),
                     ('payslip_id', '!=', self.id),
-                    ('payslip_id.state', 'in', ('confirmed', 'paid')),
+                    ('payslip_id.state', 'in', ('confirmed', 'done')),
                 ], limit=1)
                 if applied_elsewhere:
                     continue
@@ -1719,7 +1719,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 if not charge.is_recurring:
                     already_applied = self.env['planilla.payslip.deduction.line'].search([
                         ('employee_charge_id', '=', charge.id),
-                        ('payslip_id.state', 'in', ('confirmed', 'paid')),
+                        ('payslip_id.state', 'in', ('confirmed', 'done')),
                     ], limit=1)
                     if already_applied:
                         continue
