@@ -191,10 +191,33 @@ class TerminationSimulator(models.TransientModel):
             cesantia_amount = 0.0
             notes_lines.append('Cesantia Art.29 CT: no aplica para este tipo de salida')
 
-        # -- Vacaciones pendientes --------------------------------------------
+        # -- Vacaciones pendientes (Art. 153 CT) ------------------------------
+        # Base: promedio salarios ultimas 50 semanas (aprox. ultimos 6 pagos disponibles)
+        # Si no hay historial, usa el salario configurado
         vac_days   = emp.vacation_days_available or 0.0
-        vac_amount = round(daily * vac_days, 2)
-        notes_lines.append(f'Vacaciones Art.153 CT: {vac_days:.1f} dias disponibles x CRC{daily:,.2f}/dia')
+        # Buscar boletas pagadas del empleado para calcular promedio real
+        paid_slips_vac = self.env['planilla.payslip.cr'].search([
+            ('employee_id', '=', emp.id),
+            ('state', '=', 'done'),
+            ('date_to', '<=', exit_date),
+        ], order='date_to desc', limit=6)
+        if len(paid_slips_vac) >= 2:
+            # Promedio de salarios brutos quincenal -> mensual -> diario
+            avg_gross = sum(paid_slips_vac.mapped('gross_salary')) / len(paid_slips_vac) * 2
+            daily_vac = round(avg_gross / 30.0, 4)
+            notes_lines.append(
+                f'Vacaciones Art.153 CT: promedio {len(paid_slips_vac)} boletas '
+                f'= CRC{avg_gross:,.2f}/mes -> CRC{daily_vac:,.2f}/dia'
+            )
+        else:
+            daily_vac = daily
+            notes_lines.append(
+                f'Vacaciones Art.153 CT: sin historial suficiente, usando salario base'
+            )
+        vac_amount = round(daily_vac * vac_days, 2)
+        notes_lines.append(
+            f'Vacaciones: {vac_days:.2f} dias x CRC{daily_vac:,.2f}/dia = CRC{vac_amount:,.2f}'
+        )
 
         # -- Aguinaldo proporcional (Art. 228 CT) ----------------------------
         # FIX: incluir acumulado pre-implementacion si existe
@@ -210,29 +233,54 @@ class TerminationSimulator(models.TransientModel):
 
         ag_init_amount = emp.aguinaldo_initial_amount or 0.0
         ag_init_date   = emp.aguinaldo_initial_date
-        if ag_init_amount and ag_init_date and ag_init_date >= period_start:
-            months_covered = (
-                (ag_init_date.year * 12 + ag_init_date.month) -
-                (period_start.year * 12 + period_start.month) + 1
-            )
-            months_from_system = max(0, total_months - months_covered)
-            aguinaldo_system   = round(salary * months_from_system / 12.0, 2)
-            months_worked      = total_months
-            aguinaldo          = round(ag_init_amount + aguinaldo_system, 2)
+        # FIX-LIQ-02: sumar salarios reales de boletas pagadas en el periodo dic-nov
+        # Art. 228 CT: aguinaldo = suma de salarios devengados en el periodo / 12
+        slips_in_period = self.env['planilla.payslip.cr'].search([
+            ('employee_id', '=', emp.id),
+            ('state', '=', 'done'),
+            ('date_from', '>=', period_start),
+            ('date_to', '<=', exit_date),
+        ])
+        sum_salaries_system = round(sum(slips_in_period.mapped('gross_salary')), 2)
+        if sum_salaries_system > 0:
+            # Usar suma real de salarios de las boletas del sistema
+            aguinaldo_from_system = round(sum_salaries_system / 12.0, 2)
+            if ag_init_amount and ag_init_date and ag_init_date >= period_start:
+                aguinaldo     = round(ag_init_amount + aguinaldo_from_system, 2)
+                months_worked = total_months
+                notes_lines.append(
+                    'Aguinaldo Art.228 CT: inicial CRC%s + sistema CRC%s (salarios reales/12)' % (
+                        '{:,.2f}'.format(ag_init_amount),
+                        '{:,.2f}'.format(aguinaldo_from_system))
+                )
+            else:
+                aguinaldo     = aguinaldo_from_system
+                months_worked = len(slips_in_period)
+                notes_lines.append(
+                    'Aguinaldo Art.228 CT: CRC%s salarios devengados / 12 (%s boletas)' % (
+                        '{:,.2f}'.format(sum_salaries_system),
+                        len(slips_in_period))
+                )
+        elif ag_init_amount and ag_init_date and ag_init_date >= period_start:
+            aguinaldo     = ag_init_amount
+            months_worked = total_months
             notes_lines.append(
-                'Aguinaldo Art.228 CT: acumulado inicial CRC%s + %s meses sistema' % (
-                    '{:,.2f}'.format(ag_init_amount), months_from_system)
+                'Aguinaldo Art.228 CT: solo acumulado inicial CRC%s (sin boletas sistema)' % (
+                    '{:,.2f}'.format(ag_init_amount),)
             )
         else:
             months_worked = total_months
             aguinaldo = round(salary * months_worked / 12.0, 2)
             notes_lines.append(
-                'Aguinaldo Art.228 CT: %s meses desde 1-dic' % months_worked
+                'Aguinaldo Art.228 CT: %s meses desde 1-dic (estimado)' % months_worked
             )
 
         # -- Totales ----------------------------------------------------------
         total_gross = preaviso_amount + cesantia_amount + vac_amount + aguinaldo
-        ccss        = round(total_gross * K.CCSS_EMP, 2)
+        # FIX-LIQ-01: CCSS solo sobre rubros AFECTOS (vacaciones + preaviso)
+        # Aguinaldo y cesantia estan EXENTOS de CCSS (Art. 35 Ley CCSS, Art. 173 CT)
+        base_ccss   = round((vac_amount or 0.0) + (preaviso_amount or 0.0), 2)
+        ccss        = round(base_ccss * K.CCSS_EMP, 2)
         total_net   = round(total_gross - ccss, 2)
 
         # -- Prestamos y adelantos pendientes ---------------------------------

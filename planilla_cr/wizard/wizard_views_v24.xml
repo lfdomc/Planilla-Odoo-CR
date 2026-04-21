@@ -149,12 +149,24 @@
 
                         <!-- Totales -->
                         <group string="Totales">
-                            <field name="total_gross" readonly="1"/>
-                            <field name="ccss_rate" readonly="1" string="Tasa CCSS Obrero (%)"/>
-                            <field name="ccss_on_total" readonly="1"/>
+                            <field name="total_gross" readonly="1"
+                                   string="Subtotal Bruto (CRC)"
+                                   help="Suma bruta: preaviso + cesantia + vacaciones + aguinaldo. Aguinaldo y cesantia estan exentos de CCSS y Renta."/>
+                            <field name="ccss_rate" readonly="1"
+                                   string="Tasa CCSS Obrero (%)"
+                                   help="CCSS se aplica SOLO sobre vacaciones y preaviso. Aguinaldo (Art.35 Ley CCSS) y cesantia (Art.173 CT) estan exentos."/>
+                            <field name="ccss_on_total" readonly="1"
+                                   string="CCSS Obrero (vac+preaviso)"/>
                             <field name="total_net" readonly="1"
-                                   style="font-weight:bold;color:#E67E22;"/>
+                                   string="Neto a Pagar (CRC)"
+                                   style="font-weight:bold;color:#27AE60;"/>
                         </group>
+                        <div class="alert alert-info" role="alert">
+                            <strong>Exenciones legales:</strong>
+                            Aguinaldo (Art. 35 Ley CCSS) y Cesant&#237;a (Art. 173 CT)
+                            est&#225;n exentos de CCSS y de Impuesto de Renta.
+                            La CCSS obrero se aplica &#250;nicamente sobre vacaciones y preaviso.
+                        </div>
 
                     </group>
 
