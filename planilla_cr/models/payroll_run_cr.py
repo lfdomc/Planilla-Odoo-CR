@@ -1013,23 +1013,31 @@ class PayrollRunCR(models.Model):
             return
 
         # ---------------------------------------------------------------
-        # RECONCILIACION: asegurar que el DEBE total coincida con
-        # sum(payslip.total_employer_cost) que es lo que muestra la planilla
-        # en 'Costo Total Patronal'. La diferencia suele ser ROP patronal
-        # u otros costos no capturados arriba.
+        # RECONCILIACION: asegurar que el DEBE de gastos coincida con
+        # sum(payslip.total_employer_cost). Se excluyen del calculo:
+        #   - Subsidio CCSS (va al activo 110604001, no es gasto patronal)
+        #   - Subsidios exentos (no estan en total_employer_cost)
+        # Solo se agrega linea si hay un gap POSITIVO (faltan debitos).
+        # Gap negativo significa que los debitos ya superan el costo, no se ajusta.
         target_employer_cost = round(sum(p.total_employer_cost or 0.0 for p in payslips), 2)
-        current_debit_before = round(sum(l[2]['debit'] for l in lines), 2)
-        gap = round(target_employer_cost - current_debit_before, 2)
-        if abs(gap) > 0.50:  # tolerancia de 50 centimos
-            # DEBE: costo patronal faltante (ROP u otros)
+        # Excluir subsidios del total de debitos para comparar manzanas con manzanas
+        subsidio_ccss_total = round(sum(p.ccss_subsidy_total or 0.0 for p in payslips), 2)
+        subsidios_exentos_total = round(total_subsidios_exentos, 2)
+        current_debit_comparable = round(
+            sum(l[2]['debit'] for l in lines)
+            - subsidio_ccss_total
+            - subsidios_exentos_total,
+            2
+        )
+        gap = round(target_employer_cost - current_debit_comparable, 2)
+        if gap > 0.50:  # solo si FALTAN debitos (gap positivo)
+            rop_acct = (getattr(config, 'account_rop_payable', None)
+                        or config.account_ccss_payable)
             add_line(
                 config.account_social_charges_expense,
                 debit=gap,
                 name=f'ROP Patronal y Otros Costos Laborales -- Planilla {run_name}'
             )
-            # HABER: contra la cuenta ROP por pagar (o cargas sociales si no existe)
-            rop_acct = (getattr(config, 'account_rop_payable', None)
-                        or config.account_ccss_payable)
             add_line(
                 rop_acct,
                 credit=gap,
