@@ -1271,9 +1271,12 @@ class PayrollRunCR(models.Model):
 
     def action_reset_to_draft(self):
         for rec in self:
-            if rec.state not in ('cancelled', 'confirmed'):
+            if rec.state not in ('cancelled', 'confirmed', 'done'):
                 raise UserError('Solo se puede resetear planillas canceladas o confirmadas.')
-            rec.payslip_ids.filtered(lambda p: p.state in ('cancelled', 'confirmed')).action_reset_to_draft()
+            # Revertir TODAS las boletas para limpiar incapacidades,
+            # licencias, cobros y HE vinculadas correctamente
+            all_slips = rec.payslip_ids.filtered(lambda p: p.state != 'draft')
+            all_slips.action_reset_to_draft()
             rec.state = 'draft'
 
     def action_view_accounting_entry(self):
@@ -1437,7 +1440,13 @@ class AccountMovePayrollSync(models.Model):
                 'cancelando planilla "%s" y %d boleta(s). Usuario: %s.',
                 run.name, len(slips_to_cancel), run.env.user.name
             )
-            slips_to_cancel.write({'state': 'cancelled'})
+            slips_done2 = slips_to_cancel.filtered(lambda p: p.state == 'done')
+            slips_other2 = slips_to_cancel.filtered(lambda p: p.state != 'done')
+            if slips_done2:
+                slips_done2.write({'state': 'confirmed'})
+                slips_done2.action_cancel()
+            if slips_other2:
+                slips_other2.action_cancel()
             run.write({'state': 'cancelled'})
             try:
                 run.message_post(
