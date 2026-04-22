@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Contenedores del menu principal - sin acciones, cargan primero -->
+    <menuitem id="menu_planilla_cr_root"
+              name="Sistema Planilla"
+              sequence="85"
+              web_icon="planilla_cr,static/description/icon.png"/>
+
+    <menuitem id="menu_planilla_cr_payroll"
+              name="Planillas"
+              parent="menu_planilla_cr_root"
+              sequence="10"/>
+
+    <menuitem id="menu_planilla_cr_novedades"
+              name="Accion de Personal"
+              parent="menu_planilla_cr_root"
+              sequence="20"/>
+
+    <menuitem id="menu_planilla_cr_reports"
+              name="Reportes"
+              parent="menu_planilla_cr_root"
+              sequence="30"/>
+
+    <menuitem id="menu_planilla_cr_config"
+              name="Configuracion"
+              parent="menu_planilla_cr_root"
+              sequence="90"/>
+</odoo>

@@ -161,26 +161,22 @@
                         </div>
                     </group>
 
-                    <!-- Anos de servicio y aniversario -->
+                    <!-- Antiguedad -->
                     <group string="Antigüedad y Aniversario" invisible="not entry_date">
                         <group>
-                            <field name="years_of_service" string="Años de Servicio"/>
-                            <field name="next_anniversary_date" string="Próximo Aniversario"/>
+                            <field name="years_of_service" string="Años de Servicio" readonly="1"/>
+                            <field name="next_anniversary_date" string="Próximo Aniversario" readonly="1"/>
                         </group>
                         <group>
-                            <field name="next_anniversary_days"
-                                   string="Días Extra en Próximo Aniversario"
-                                   invisible="next_anniversary_days == 0"/>
                             <field name="vacation_last_anniversary_year"
                                    string="Último Aniversario Aplicado"
-                                   readonly="vacation_last_anniversary_year != 0"
-                                   help="Año del último bono de aniversario aplicado."/>
+                                   readonly="vacation_last_anniversary_year != 0"/>
                             <button name="action_mark_anniversary_applied"
                                     type="object"
-                                    string="✓ Marcar Aniversario 2026 Aplicado"
+                                    string="Marcar Aniversario 2026"
                                     class="btn-secondary btn-sm"
                                     invisible="vacation_last_anniversary_year != 0"
-                                    confirm="¿Confirma que el bono de aniversario 2026 ya fue aplicado a este empleado?"/>
+                                    confirm="Confirma que el bono de aniversario 2026 ya fue aplicado?"/>
                         </group>
                     </group>
 

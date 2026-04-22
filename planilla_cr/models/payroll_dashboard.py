@@ -81,6 +81,123 @@ class PayrollDashboard(models.TransientModel):
         digits=(5, 2)
     )
 
+
+    # --- KPIs avanzados 2026 ---
+    cost_per_employee    = fields.Monetary(compute='_compute_advanced_kpis', currency_field='currency_id', string='Costo Promedio por Empleado')
+    net_gross_ratio      = fields.Float(compute='_compute_advanced_kpis', string='Ratio Neto/Bruto (%)', digits=(5,1))
+    overtime_hours_total = fields.Float(compute='_compute_advanced_kpis', string='Horas Extra Totales')
+    overtime_cost_total  = fields.Monetary(compute='_compute_advanced_kpis', currency_field='currency_id', string='Costo HE')
+    ccss_ratio           = fields.Float(compute='_compute_advanced_kpis', string='CCSS / Bruto (%)', digits=(5,1))
+    disability_days_total= fields.Float(compute='_compute_advanced_kpis', string='Dias Incapacidad')
+    disability_cost_total= fields.Monetary(compute='_compute_advanced_kpis', currency_field='currency_id', string='Costo Incapacidades')
+    headcount_current    = fields.Integer(compute='_compute_advanced_kpis', string='Headcount Actual')
+    headcount_prev_month = fields.Integer(compute='_compute_advanced_kpis', string='Headcount Mes Anterior')
+    turnover_exits       = fields.Integer(compute='_compute_advanced_kpis', string='Salidas')
+    turnover_entries     = fields.Integer(compute='_compute_advanced_kpis', string='Ingresos')
+    total_vacation_days_pending = fields.Float(compute='_compute_advanced_kpis', string='Dias Vac. Pendientes')
+    total_vacation_liability    = fields.Monetary(compute='_compute_advanced_kpis', currency_field='currency_id', string='Pasivo Vacaciones')
+    loan_recovery_rate   = fields.Float(compute='_compute_advanced_kpis', string='% Recuperacion Prestamos', digits=(5,1))
+    pending_charges_amount = fields.Monetary(compute='_compute_advanced_kpis', currency_field='currency_id', string='Cobros Pendientes')
+    prev_gross           = fields.Monetary(compute='_compute_advanced_kpis', currency_field='currency_id', string='Bruto Mes Anterior')
+    prev_net             = fields.Monetary(compute='_compute_advanced_kpis', currency_field='currency_id', string='Neto Mes Anterior')
+    prev_cost            = fields.Monetary(compute='_compute_advanced_kpis', currency_field='currency_id', string='Costo Mes Anterior')
+    delta_gross_pct      = fields.Float(compute='_compute_advanced_kpis', string='D Bruto (%)', digits=(5,1))
+    delta_net_pct        = fields.Float(compute='_compute_advanced_kpis', string='D Neto (%)', digits=(5,1))
+    delta_cost_pct       = fields.Float(compute='_compute_advanced_kpis', string='D Costo (%)', digits=(5,1))
+
+    @api.depends('company_id', 'date_from', 'date_to')
+    def _compute_advanced_kpis(self):
+        from dateutil.relativedelta import relativedelta
+        for rec in self:
+            co = rec.company_id.id
+            df = rec.date_from
+            dt2 = rec.date_to
+            zero = dict(cost_per_employee=0, net_gross_ratio=0, overtime_hours_total=0,
+                overtime_cost_total=0, ccss_ratio=0, disability_days_total=0,
+                disability_cost_total=0, headcount_current=0, headcount_prev_month=0,
+                turnover_exits=0, turnover_entries=0, total_vacation_days_pending=0,
+                total_vacation_liability=0, loan_recovery_rate=0, pending_charges_amount=0,
+                prev_gross=0, prev_net=0, prev_cost=0,
+                delta_gross_pct=0, delta_net_pct=0, delta_cost_pct=0)
+            if not df or not dt2:
+                rec.update(zero); continue
+
+            slips = rec.env['planilla.payslip.cr'].search([
+                ('company_id','=',co),('state','=','done'),
+                ('date_from','>=',df),('date_to','<=',dt2),
+            ])
+            gross = sum(slips.mapped('gross_salary'))
+            net   = sum(slips.mapped('net_salary'))
+            cost  = sum(slips.mapped('total_employer_cost'))
+            ccss  = sum(slips.mapped('ccss_employee')) + sum(slips.mapped('ccss_employer'))
+            emp_ids = set(slips.mapped('employee_id.id'))
+            n = len(emp_ids) or 1
+
+            rec.cost_per_employee = round(cost / n, 2)
+            rec.net_gross_ratio   = round(net / gross * 100, 1) if gross else 0
+            rec.ccss_ratio        = round(ccss / gross * 100, 1) if gross else 0
+
+            ot_lines = rec.env['planilla.payslip.deduction.line'].search([
+                ('payslip_id','in',slips.ids),
+                ('deduction_category','=','overtime'),
+                ('line_type','=','income'),
+            ])
+            rec.overtime_cost_total  = round(sum(ot_lines.mapped('amount')), 2)
+            rec.overtime_hours_total = round(sum(slips.mapped('attendance_hours')), 1)
+
+            dis = rec.env['planilla.disability'].search([
+                ('employee_id.company_id','=',co),
+                ('date_start','>=',df),('date_start','<=',dt2),
+            ])
+            rec.disability_days_total = sum(dis.mapped('days')) or 0
+            rec.disability_cost_total = 0
+
+            active_now = rec.env['hr.employee'].search_count([
+                ('company_id','=',co),('active','=',True),
+            ])
+            prev_end   = df - relativedelta(days=1)
+            prev_start = prev_end.replace(day=1)
+            prev_slips = rec.env['planilla.payslip.cr'].search([
+                ('company_id','=',co),('state','=','done'),
+                ('date_from','>=',prev_start),('date_to','<=',prev_end),
+            ])
+            prev_emp_ids = set(prev_slips.mapped('employee_id.id'))
+            rec.headcount_current    = active_now
+            rec.headcount_prev_month = len(prev_emp_ids)
+            rec.turnover_entries     = len(emp_ids - prev_emp_ids)
+            rec.turnover_exits       = len(prev_emp_ids - emp_ids)
+
+            all_emps = rec.env['hr.employee'].search([
+                ('company_id','=',co),('active','=',True),
+            ])
+            total_vac = sum(all_emps.mapped('vacation_days_available'))
+            avg_daily = gross / n / 30.0 if n and gross else 0
+            rec.total_vacation_days_pending = round(total_vac, 1)
+            rec.total_vacation_liability    = round(total_vac * avg_daily, 2)
+
+            all_loans = rec.env['planilla.employee.loan'].search([
+                ('employee_id.company_id','=',co),
+            ])
+            total_l = sum(all_loans.mapped('amount_total')) or 0
+            paid_l  = sum(all_loans.mapped('amount_paid')) or 0
+            rec.loan_recovery_rate = round(paid_l / total_l * 100, 1) if total_l else 0
+
+            pend = rec.env['planilla.employee.charge'].search([
+                ('employee_id.company_id','=',co),('state','=','approved'),
+            ])
+            rec.pending_charges_amount = round(sum(pend.mapped('employee_amount')), 2)
+
+            p_gross = sum(prev_slips.mapped('gross_salary'))
+            p_net   = sum(prev_slips.mapped('net_salary'))
+            p_cost  = sum(prev_slips.mapped('total_employer_cost'))
+            rec.prev_gross = p_gross
+            rec.prev_net   = p_net
+            rec.prev_cost  = p_cost
+            rec.delta_gross_pct = round((gross - p_gross) / p_gross * 100, 1) if p_gross else 0
+            rec.delta_net_pct   = round((net   - p_net)   / p_net   * 100, 1) if p_net   else 0
+            rec.delta_cost_pct  = round((cost  - p_cost)  / p_cost  * 100, 1) if p_cost  else 0
+
+
     @api.depends('company_id', 'date_from', 'date_to',
              'compare_date_from', 'compare_date_to', 'show_comparison')
     def _compute_comparison(self):

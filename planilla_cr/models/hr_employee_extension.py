@@ -819,30 +819,10 @@ class HrEmployeeExtension(models.Model):
              'por aniversario laboral. Evita doble aplicacion en el mismo ano.'
     )
 
-    def _auto_init(self):
-        """
-        Override para garantizar que las columnas de vacaciones existan
-        ANTES de que el ORM intente leerlas. Esto resuelve el error
-        'column does not exist' en BDs que vienen de versiones anteriores.
-        """
-        # Crear columnas faltantes antes de llamar al ORM
-        _cols = [
-            ('vacation_last_anniversary_year', 'INTEGER',  '0'),
-            ('vacation_balance_alert',         'BOOLEAN',  'FALSE'),
-            ('vacation_days_accrued',          'NUMERIC',  '0'),
-            ('vacation_days_taken',            'NUMERIC',  '0'),
-            ('vacation_days_available',        'NUMERIC',  '0'),
-            ('vacation_initial_balance',       'NUMERIC',  '0'),
-        ]
-        for col, typ, dflt in _cols:
-            self.env.cr.execute(
-                'ALTER TABLE hr_employee '
-                'ADD COLUMN IF NOT EXISTS %s %s DEFAULT %s' % (col, typ, dflt)
-            )
-        return super()._auto_init()
+
     years_of_service = fields.Integer(
         string='Anos de Servicio',
-        compute='_compute_years_of_service', store=False,
+        compute='_compute_years_of_service', store=True,
         help='Anos completos trabajados desde la fecha de ingreso.'
     )
     next_anniversary_date = fields.Date(

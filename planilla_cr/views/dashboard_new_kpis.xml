@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_planilla_dashboard_form_v2" model="ir.ui.view">
+    <field name="name">planilla.dashboard.form.v2</field>
+    <field name="model">planilla.dashboard</field>
+    <field name="priority">20</field>
+    <field name="arch" type="xml">
+      <form string="Dashboard de Planilla">
+        <sheet>
+          <!-- CABECERA -->
+          <div style="background:linear-gradient(135deg,#1F4E79 0%,#2E86C1 100%);border-radius:12px;padding:18px 24px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+            <div>
+              <div style="color:#A9CCE3;font-size:11px;letter-spacing:2px;text-transform:uppercase;">PLANILLA CR</div>
+              <div style="color:#fff;font-size:22px;font-weight:700;margin-top:2px;">Dashboard de Gestion</div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-end;background:rgba(255,255,255,0.1);border-radius:8px;padding:10px 16px;flex-wrap:wrap;">
+              <div>
+                <div style="color:#A9CCE3;font-size:10px;letter-spacing:1px;">DESDE</div>
+                <field name="date_from" nolabel="1" style="color:#fff;background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;width:110px;"/>
+              </div>
+              <div>
+                <div style="color:#A9CCE3;font-size:10px;letter-spacing:1px;">HASTA</div>
+                <field name="date_to" nolabel="1" style="color:#fff;background:rgba(255,255,255,0.15);border:none;border-radius:4px;padding:4px 8px;width:110px;"/>
+              </div>
+              <button name="action_refresh" type="object" string="Actualizar" class="btn-light btn-sm"/>
+            </div>
+          </div>
+
+          <!-- FILA 1: 5 KPIs principales -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;">
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;border-left:4px solid #1F4E79;">
+              <div style="font-size:10px;color:#6c757d;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Headcount</div>
+              <div style="font-size:28px;font-weight:800;color:#1F4E79;"><field name="headcount_current" readonly="1" nolabel="1"/></div>
+              <div style="font-size:11px;color:#6c757d;margin-top:4px;">
+                <span style="color:#27AE60;">+<field name="turnover_entries" readonly="1" nolabel="1"/> ing</span>
+                &#160;
+                <span style="color:#E74C3C;">-<field name="turnover_exits" readonly="1" nolabel="1"/> sal</span>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;border-left:4px solid #27AE60;">
+              <div style="font-size:10px;color:#6c757d;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Nomina Bruta</div>
+              <field name="total_gross" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:17px;font-weight:800;color:#27AE60;"/>
+              <div style="font-size:11px;margin-top:4px;color:#6c757d;">vs anterior: <field name="delta_gross_pct" readonly="1" nolabel="1"/>%</div>
+            </div>
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;border-left:4px solid #2ECC71;">
+              <div style="font-size:10px;color:#6c757d;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Nomina Neta</div>
+              <field name="total_net" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:17px;font-weight:800;color:#2ECC71;"/>
+              <div style="font-size:11px;margin-top:4px;color:#6c757d;">Ratio: <field name="net_gross_ratio" readonly="1" nolabel="1"/>%</div>
+            </div>
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;border-left:4px solid #E67E22;">
+              <div style="font-size:10px;color:#6c757d;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Costo Patronal</div>
+              <field name="total_employer_cost" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:17px;font-weight:800;color:#E67E22;"/>
+              <div style="font-size:11px;margin-top:4px;color:#6c757d;">vs anterior: <field name="delta_cost_pct" readonly="1" nolabel="1"/>%</div>
+            </div>
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;border-left:4px solid #8E44AD;">
+              <div style="font-size:10px;color:#6c757d;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Costo/Empleado</div>
+              <field name="cost_per_employee" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:17px;font-weight:800;color:#8E44AD;"/>
+              <div style="font-size:11px;margin-top:4px;color:#6c757d;">promedio mensual</div>
+            </div>
+          </div>
+
+          <!-- FILA 2: Comparativo + CCSS + HE -->
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#1F4E79;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #EBF5FB;">COMPARATIVO VS MES ANTERIOR</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                <div style="text-align:center;padding:10px;background:#F8F9FA;border-radius:6px;">
+                  <div style="font-size:10px;color:#6c757d;margin-bottom:4px;">BRUTO ANT.</div>
+                  <field name="prev_gross" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:12px;font-weight:600;"/>
+                  <div style="font-size:11px;margin-top:2px;"><field name="delta_gross_pct" readonly="1" nolabel="1"/>%</div>
+                </div>
+                <div style="text-align:center;padding:10px;background:#F8F9FA;border-radius:6px;">
+                  <div style="font-size:10px;color:#6c757d;margin-bottom:4px;">NETO ANT.</div>
+                  <field name="prev_net" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:12px;font-weight:600;"/>
+                  <div style="font-size:11px;margin-top:2px;"><field name="delta_net_pct" readonly="1" nolabel="1"/>%</div>
+                </div>
+                <div style="text-align:center;padding:10px;background:#F8F9FA;border-radius:6px;">
+                  <div style="font-size:10px;color:#6c757d;margin-bottom:4px;">COSTO ANT.</div>
+                  <field name="prev_cost" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:12px;font-weight:600;"/>
+                  <div style="font-size:11px;margin-top:2px;"><field name="delta_cost_pct" readonly="1" nolabel="1"/>%</div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#1F4E79;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #EBF5FB;">CARGAS SOCIALES</div>
+              <div style="margin-bottom:10px;">
+                <div style="font-size:10px;color:#6c757d;">CCSS TOTAL</div>
+                <field name="total_ccss" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:16px;font-weight:700;color:#C0392B;"/>
+              </div>
+              <div>
+                <div style="font-size:10px;color:#6c757d;">% SOBRE BRUTO</div>
+                <div style="font-size:16px;font-weight:700;color:#C0392B;"><field name="ccss_ratio" readonly="1" nolabel="1"/>%</div>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#1F4E79;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #EBF5FB;">HORAS EXTRA</div>
+              <div style="margin-bottom:10px;">
+                <div style="font-size:10px;color:#6c757d;">COSTO HE</div>
+                <field name="overtime_cost_total" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:16px;font-weight:700;color:#E67E22;"/>
+              </div>
+              <div>
+                <div style="font-size:10px;color:#6c757d;">HORAS TOTALES</div>
+                <div style="font-size:16px;font-weight:700;color:#E67E22;"><field name="overtime_hours_total" readonly="1" nolabel="1"/> hrs</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FILA 3: Alertas + Vacaciones + Prestamos + Incapacidades -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+            <div style="background:#FEF9E7;border:1px solid #F9E79F;border-radius:10px;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#B7950B;margin-bottom:12px;">ALERTAS URGENTES</div>
+              <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:11px;color:#6c757d;">Cuotas vencidas</span>
+                <span style="background:#E74C3C;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;"><field name="urgent_overdue_loans" readonly="1" nolabel="1"/></span>
+              </div>
+              <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:11px;color:#6c757d;">Vac. por prescribir</span>
+                <span style="background:#E67E22;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;"><field name="urgent_expiring_vacations" readonly="1" nolabel="1"/></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:11px;color:#6c757d;">Incapacidades activas</span>
+                <span style="background:#3498DB;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;"><field name="urgent_active_disabilities" readonly="1" nolabel="1"/></span>
+              </div>
+            </div>
+            <div style="background:#EBF5FB;border:1px solid #AED6F1;border-radius:10px;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#1A5276;margin-bottom:12px;">PASIVO VACACIONES</div>
+              <div style="margin-bottom:8px;">
+                <div style="font-size:10px;color:#6c757d;">DIAS PENDIENTES</div>
+                <div style="font-size:22px;font-weight:800;color:#1A5276;"><field name="total_vacation_days_pending" readonly="1" nolabel="1"/> <span style="font-size:13px;font-weight:400;">dias</span></div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:#6c757d;">PASIVO CRC</div>
+                <field name="total_vacation_liability" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:14px;font-weight:700;color:#1A5276;"/>
+              </div>
+            </div>
+            <div style="background:#EAFAF1;border:1px solid #A9DFBF;border-radius:10px;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#1E8449;margin-bottom:12px;">PRESTAMOS INTERNOS</div>
+              <div style="margin-bottom:8px;">
+                <div style="font-size:10px;color:#6c757d;">SALDO PENDIENTE</div>
+                <field name="active_loans_amount" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:14px;font-weight:700;color:#1E8449;"/>
+              </div>
+              <div>
+                <div style="font-size:10px;color:#6c757d;">% RECUPERADO</div>
+                <div style="font-size:16px;font-weight:700;color:#1E8449;"><field name="loan_recovery_rate" readonly="1" nolabel="1"/>%</div>
+              </div>
+            </div>
+            <div style="background:#FDEDEC;border:1px solid #F5B7B1;border-radius:10px;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#922B21;margin-bottom:12px;">INCAPACIDADES</div>
+              <div style="margin-bottom:8px;">
+                <div style="font-size:10px;color:#6c757d;">DIAS EN EL PERIODO</div>
+                <div style="font-size:22px;font-weight:800;color:#922B21;"><field name="disability_days_total" readonly="1" nolabel="1"/> <span style="font-size:13px;font-weight:400;">dias</span></div>
+              </div>
+              <div>
+                <div style="font-size:10px;color:#6c757d;">COBROS PENDIENTES</div>
+                <field name="pending_charges_amount" readonly="1" nolabel="1" widget="monetary" options="{'currency_field':'currency_id'}" style="font-size:14px;font-weight:700;color:#922B21;"/>
+              </div>
+            </div>
+          </div>
+
+          <!-- FILA 4: Estado planillas + Movimientos -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#1F4E79;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #EBF5FB;">ESTADO DE PLANILLAS</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div style="text-align:center;background:#EAFAF1;border-radius:6px;padding:12px;">
+                  <div style="font-size:10px;color:#6c757d;margin-bottom:4px;">PAGADAS</div>
+                  <div style="font-size:24px;font-weight:800;color:#27AE60;"><field name="paid_payrolls" readonly="1" nolabel="1"/></div>
+                </div>
+                <div style="text-align:center;background:#FEF9E7;border-radius:6px;padding:12px;">
+                  <div style="font-size:10px;color:#6c757d;margin-bottom:4px;">PENDIENTES</div>
+                  <div style="font-size:24px;font-weight:800;color:#E67E22;"><field name="pending_payrolls" readonly="1" nolabel="1"/></div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #E8ECF0;border-radius:10px;padding:16px;">
+              <div style="font-size:12px;font-weight:700;color:#1F4E79;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #EBF5FB;">MOVIMIENTOS Y ANIVERSARIOS</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                <div style="text-align:center;background:#F4F6F7;border-radius:6px;padding:10px;">
+                  <div style="font-size:10px;color:#6c757d;">ANIVERSARIOS</div>
+                  <div style="font-size:20px;font-weight:700;color:#1F4E79;"><field name="employees_anniversary" readonly="1" nolabel="1"/></div>
+                </div>
+                <div style="text-align:center;background:#EAFAF1;border-radius:6px;padding:10px;">
+                  <div style="font-size:10px;color:#6c757d;">INGRESOS</div>
+                  <div style="font-size:20px;font-weight:700;color:#27AE60;"><field name="turnover_entries" readonly="1" nolabel="1"/></div>
+                </div>
+                <div style="text-align:center;background:#FDEDEC;border-radius:6px;padding:10px;">
+                  <div style="font-size:10px;color:#6c757d;">SALIDAS</div>
+                  <div style="font-size:20px;font-weight:700;color:#E74C3C;"><field name="turnover_exits" readonly="1" nolabel="1"/></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </sheet>
+      </form>
+    </field>
+  </record>
+</odoo>

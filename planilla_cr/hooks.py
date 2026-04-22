@@ -1,6 +1,42 @@
 from odoo import api, SUPERUSER_ID
 
 
+def pre_init_hook(env):
+    """
+    Corre ANTES de que Odoo cargue los modelos del modulo.
+    Crea columnas faltantes en hr_employee para evitar error 500
+    en BDs que vienen de versiones anteriores del modulo.
+    En Odoo 19 recibe 'env' (no 'cr' directamente).
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+    cr = env.cr if hasattr(env, 'cr') else env
+    cols = [
+        ('vacation_last_anniversary_year', 'INTEGER', '0'),
+        ('vacation_balance_alert',         'BOOLEAN', 'FALSE'),
+        ('vacation_days_accrued',          'NUMERIC', '0'),
+        ('vacation_days_taken',            'NUMERIC', '0'),
+        ('vacation_days_available',        'NUMERIC', '0'),
+        ('vacation_initial_balance',       'NUMERIC', '0'),
+        ('years_of_service',               'INTEGER', '0'),
+        ('next_anniversary_date',          'DATE',    'NULL'),
+        ('next_anniversary_days',          'NUMERIC', '0'),
+    ]
+    created = []
+    for col, typ, dflt in cols:
+        cr.execute("""
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name='hr_employee' AND column_name=%s
+        """, (col,))
+        if not cr.fetchone():
+            cr.execute(
+                'ALTER TABLE hr_employee ADD COLUMN %s %s DEFAULT %s' % (col, typ, dflt)
+            )
+            created.append(col)
+    if created:
+        _logger.info('planilla_cr pre_init_hook: columnas creadas: %s', ', '.join(created))
+
+
 def post_init_hook(env):
     _create_email_templates(env)
     _setup_accounting_config(env)
@@ -272,19 +308,23 @@ def _ensure_schedule_types(env):
 
     for company in companies:
         for sched_vals in PART_TIME_SCHEDULES:
-            existing = ScheduleType.search([
-                ('code', '=', sched_vals['code']),
-                ('company_id', '=', company.id),
-            ], limit=1)
+            try:
+                existing = ScheduleType.search([
+                    ('code', '=', sched_vals['code']),
+                    ('company_id', '=', company.id),
+                ], limit=1)
+            except Exception:
+                existing = ScheduleType.search([
+                    ('code', '=', sched_vals['code']),
+                ], limit=1)
             if existing:
-                # Actualizar is_part_time si no estaba activado
                 if not existing.is_part_time:
-                    existing.with_company(company).write({'is_part_time': True})
+                    existing.write({'is_part_time': True})
             else:
-                ScheduleType.with_company(company).create({
-                    **sched_vals,
-                    'company_id': company.id,
-                })
+                create_vals = {k: v for k, v in sched_vals.items()}
+                if 'company_id' in ScheduleType._fields:
+                    create_vals['company_id'] = company.id
+                ScheduleType.create(create_vals)
 
 
 def _ensure_deduction_codes(env):
