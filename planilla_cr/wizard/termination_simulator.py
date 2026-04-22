@@ -142,7 +142,9 @@ class TerminationSimulator(models.TransientModel):
                 for s in slips:
                     key = s.date_to.strftime('%Y-%m') if s.date_to else ''
                     if key:
-                        monthly[key] += s.gross_salary or 0
+                        # Usar base_salary mensual / 2 (no gross que incluye incap/bonos)
+                        # Esto da el salario puro que el Excel usa en su calculo
+                        monthly[key] = (s.employee_id.base_salary or 0)
                 months_sorted = sorted(monthly.keys(), reverse=True)[:6]
                 sal_fields = ['sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6']
                 for i, key in enumerate(months_sorted):
@@ -185,18 +187,27 @@ class TerminationSimulator(models.TransientModel):
         years  = diff.years + diff.months / 12.0 + diff.days / 365.0
         # Determinar salario a usar: promedio manual > salario base actual
         notes_lines = []
-        if self.use_salary_average and self.salary_average_manual > 0:
+        # Calcular promedio desde los 6 campos (fuente unica de verdad)
+        sal_vals = [
+            self.sal_m1 or 0, self.sal_m2 or 0, self.sal_m3 or 0,
+            self.sal_m4 or 0, self.sal_m5 or 0, self.sal_m6 or 0,
+        ]
+        sal_nonzero = [v for v in sal_vals if v > 0]
+        if sal_nonzero:
+            salary = round(sum(sal_nonzero) / len(sal_nonzero), 2)
+            notes_lines.append(
+                f'Salario: promedio {len(sal_nonzero)} meses = CRC{salary:,.2f}/mes (Art. 153 CT)'
+            )
+            self.salary_average_manual = salary
+            self.use_salary_average = True
+        elif self.use_salary_average and self.salary_average_manual > 0:
             salary = self.salary_average_manual
             notes_lines.append(
-                f'Salario: promedio manual CRC{salary:,.2f} (ingresado por usuario -- Art. 153 CT)'
+                f'Salario: promedio manual CRC{salary:,.2f} (Art. 153 CT)'
             )
         else:
             salary = self.last_salary or emp.base_salary or 0.0
-            if getattr(emp, 'has_variable_income', False):
-                notes_lines.append(
-                    f'WARN  Empleado con salario variable: considere ingresar promedio '
-                    f'manual de ultimos 6 meses (Art. 153 CT). Usando: CRC{salary:,.2f}'
-                )
+            notes_lines.append(f'Salario: ultimo bruto CRC{salary:,.2f}')
         daily = salary / 30.0
 
         # -- Preaviso (Art. 28 CT) --------------------------------------------
@@ -254,36 +265,14 @@ class TerminationSimulator(models.TransientModel):
             notes_lines.append('Cesantia Art.29 CT: no aplica para este tipo de salida')
 
         # -- Vacaciones pendientes (Art. 153 CT) ------------------------------
-        # Base: promedio salarios ultimas 50 semanas (aprox. ultimos 6 pagos disponibles)
-        # Si no hay historial, usa el salario configurado
+        # Usar el mismo promedio de los 6 campos (fuente unica de verdad)
+        # igual que el Excel de RRHH
         vac_days   = emp.vacation_days_available or 0.0
-        # Buscar boletas pagadas del empleado para calcular promedio real
-        paid_slips_vac = self.env['planilla.payslip.cr'].search([
-            ('employee_id', '=', emp.id),
-            ('state', '=', 'done'),
-            ('date_to', '<=', exit_date),
-        ], order='date_to desc', limit=6)
-        if len(paid_slips_vac) >= 2:
-            # Promedio mensual: suma quincenal x2 / numero de periodos con salario
-            # (igual que el Excel de RRHH: promedia solo los meses con salario real)
-            gross_nonzero = [s.gross_salary for s in paid_slips_vac if s.gross_salary > 0]
-            if gross_nonzero:
-                avg_gross = sum(gross_nonzero) / len(gross_nonzero) * 2
-            else:
-                avg_gross = salary
-            daily_vac = round(avg_gross / 30.0, 4)
-            notes_lines.append(
-                f'Vacaciones Art.153 CT: promedio {len(paid_slips_vac)} boletas '
-                f'= CRC{avg_gross:,.2f}/mes -> CRC{daily_vac:,.2f}/dia'
-            )
-        else:
-            daily_vac = daily
-            notes_lines.append(
-                f'Vacaciones Art.153 CT: sin historial suficiente, usando salario base'
-            )
+        daily_vac  = daily  # ya calculado desde los 6 campos arriba
         vac_amount = round(daily_vac * vac_days, 2)
         notes_lines.append(
-            f'Vacaciones: {vac_days:.2f} dias x CRC{daily_vac:,.2f}/dia = CRC{vac_amount:,.2f}'
+            f'Vacaciones Art.153 CT: {vac_days:.2f} dias x CRC{daily_vac:,.2f}/dia '
+            f'(promedio {len(sal_nonzero) if sal_nonzero else 1} meses)'
         )
 
         # -- Aguinaldo proporcional (Art. 228 CT) ----------------------------
@@ -300,47 +289,56 @@ class TerminationSimulator(models.TransientModel):
 
         ag_init_amount = emp.aguinaldo_initial_amount or 0.0
         ag_init_date   = emp.aguinaldo_initial_date
-        # FIX-LIQ-02: sumar salarios reales de boletas pagadas en el periodo dic-nov
-        # Art. 228 CT: aguinaldo = suma de salarios devengados en el periodo / 12
-        slips_in_period = self.env['planilla.payslip.cr'].search([
-            ('employee_id', '=', emp.id),
-            ('state', '=', 'done'),
-            ('date_from', '>=', period_start),
-            ('date_to', '<=', exit_date),
-        ])
-        sum_salaries_system = round(sum(slips_in_period.mapped('gross_salary')), 2)
-        if sum_salaries_system > 0:
-            # Usar suma real de salarios de las boletas del sistema
-            aguinaldo_from_system = round(sum_salaries_system / 12.0, 2)
-            if ag_init_amount and ag_init_date and ag_init_date >= period_start:
-                aguinaldo     = round(ag_init_amount + aguinaldo_from_system, 2)
-                months_worked = total_months
-                notes_lines.append(
-                    'Aguinaldo Art.228 CT: inicial CRC%s + sistema CRC%s (salarios reales/12)' % (
-                        '{:,.2f}'.format(ag_init_amount),
-                        '{:,.2f}'.format(aguinaldo_from_system))
-                )
-            else:
-                aguinaldo     = aguinaldo_from_system
-                months_worked = len(slips_in_period)
-                notes_lines.append(
-                    'Aguinaldo Art.228 CT: CRC%s salarios devengados / 12 (%s boletas)' % (
-                        '{:,.2f}'.format(sum_salaries_system),
-                        len(slips_in_period))
-                )
-        elif ag_init_amount and ag_init_date and ag_init_date >= period_start:
-            aguinaldo     = ag_init_amount
-            months_worked = total_months
+        # FIX-LIQ-03: si el usuario ingreso los 6 salarios, calcular aguinaldo
+        # directamente como suma/12 (igual que Excel de RRHH).
+        # Ignorar acumulado inicial si los salarios ya cubren todo el periodo.
+        if sal_nonzero:
+            aguinaldo    = round(sum(sal_nonzero) / 12.0, 2)
+            months_worked = len(sal_nonzero)
             notes_lines.append(
-                'Aguinaldo Art.228 CT: solo acumulado inicial CRC%s (sin boletas sistema)' % (
-                    '{:,.2f}'.format(ag_init_amount),)
+                'Aguinaldo Art.228 CT: suma %s salarios / 12 = CRC%s' % (
+                    len(sal_nonzero), '{:,.2f}'.format(aguinaldo))
             )
         else:
-            months_worked = total_months
-            aguinaldo = round(salary * months_worked / 12.0, 2)
-            notes_lines.append(
-                'Aguinaldo Art.228 CT: %s meses desde 1-dic (estimado)' % months_worked
-            )
+            # Sin campos manuales: usar boletas del sistema
+            slips_in_period = self.env['planilla.payslip.cr'].search([
+                ('employee_id', '=', emp.id),
+                ('state', '=', 'done'),
+                ('date_from', '>=', period_start),
+                ('date_to', '<=', exit_date),
+            ])
+            sum_salaries_system = round(sum(slips_in_period.mapped('gross_salary')), 2)
+            if sum_salaries_system > 0:
+                aguinaldo_from_system = round(sum_salaries_system / 12.0, 2)
+                if ag_init_amount and ag_init_date and ag_init_date >= period_start:
+                    aguinaldo     = round(ag_init_amount + aguinaldo_from_system, 2)
+                    months_worked = total_months
+                    notes_lines.append(
+                        'Aguinaldo Art.228 CT: inicial CRC%s + sistema CRC%s' % (
+                            '{:,.2f}'.format(ag_init_amount),
+                            '{:,.2f}'.format(aguinaldo_from_system))
+                    )
+                else:
+                    aguinaldo     = aguinaldo_from_system
+                    months_worked = len(slips_in_period)
+                    notes_lines.append(
+                        'Aguinaldo Art.228 CT: CRC%s / 12 (%s boletas)' % (
+                            '{:,.2f}'.format(sum_salaries_system),
+                            len(slips_in_period))
+                    )
+            elif ag_init_amount:
+                aguinaldo     = ag_init_amount
+                months_worked = total_months
+                notes_lines.append(
+                    'Aguinaldo Art.228 CT: acumulado inicial CRC%s' % (
+                        '{:,.2f}'.format(ag_init_amount),)
+                )
+            else:
+                months_worked = total_months
+                aguinaldo = round(salary * months_worked / 12.0, 2)
+                notes_lines.append(
+                    'Aguinaldo Art.228 CT: %s meses estimado' % months_worked
+                )
 
         # -- Totales ----------------------------------------------------------
         total_gross = preaviso_amount + cesantia_amount + vac_amount + aguinaldo
