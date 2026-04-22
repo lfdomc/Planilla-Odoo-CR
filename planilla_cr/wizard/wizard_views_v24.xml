@@ -83,23 +83,58 @@
                                 se calcula solo sobre los meses con valor (igual
                                 que el Excel de RRHH).
                             </div>
-                            <group>
-                                <field name="sal_m1" string="Mes 1 (m&#225;s reciente)"/>
-                                <field name="sal_m2" string="Mes 2"/>
-                                <field name="sal_m3" string="Mes 3"/>
-                            </group>
-                            <group>
-                                <field name="sal_m4" string="Mes 4"/>
-                                <field name="sal_m5" string="Mes 5"/>
-                                <field name="sal_m6" string="Mes 6 (m&#225;s antiguo)"/>
-                            </group>
-                            <group>
-                                <field name="sal_meses_con_valor"
-                                       string="Meses con salario" readonly="1"/>
-                                <field name="sal_promedio_calc"
-                                       string="Promedio mensual calculado" readonly="1"
-                                       style="font-weight:bold;"/>
-                            </group>
+                            <!-- Fila 1: mes 1 y 2 -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                                <div>
+                                    <label for="sal_m1" style="font-size:12px;color:#666;">Mes 1 (m&#225;s reciente)</label>
+                                    <field name="sal_m1" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                                <div>
+                                    <label for="sal_m2" style="font-size:12px;color:#666;">Mes 2</label>
+                                    <field name="sal_m2" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                            </div>
+                            <!-- Fila 2: mes 3 y 4 -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                                <div>
+                                    <label for="sal_m3" style="font-size:12px;color:#666;">Mes 3</label>
+                                    <field name="sal_m3" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                                <div>
+                                    <label for="sal_m4" style="font-size:12px;color:#666;">Mes 4</label>
+                                    <field name="sal_m4" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                            </div>
+                            <!-- Fila 3: mes 5 y 6 -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                                <div>
+                                    <label for="sal_m5" style="font-size:12px;color:#666;">Mes 5</label>
+                                    <field name="sal_m5" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                                <div>
+                                    <label for="sal_m6" style="font-size:12px;color:#666;">Mes 6 (m&#225;s antiguo)</label>
+                                    <field name="sal_m6" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                            </div>
+                            <!-- Resumen -->
+                            <div style="background:#f0f7ff;border-radius:6px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+                                <span style="color:#555;font-size:13px;">
+                                    Meses con salario:
+                                    <field name="sal_meses_con_valor" nolabel="1"
+                                           style="display:inline;width:30px;font-weight:bold;border:none;background:transparent;"/>
+                                </span>
+                                <span style="font-size:15px;font-weight:bold;color:#1a73e8;">
+                                    Promedio:
+                                    <field name="sal_promedio_calc" nolabel="1"
+                                           style="display:inline;font-weight:bold;color:#1a73e8;border:none;background:transparent;font-size:15px;"/>
+                                </span>
+                            </div>
                             <field name="use_salary_average" invisible="1"/>
                             <field name="salary_average_manual" invisible="1"/>
                         </group>

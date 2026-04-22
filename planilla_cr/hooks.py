@@ -22,6 +22,8 @@ def post_migrate_hook(env):
     Garantiza que la configuracion contable este actualizada
     con las cuentas nuevas agregadas en cada version.
     """
+    # Garantizar que columnas nuevas existan aunque el ORM no las creara automaticamente
+    _ensure_missing_columns(env)
     try:
         from .models.migrate_codes import migrate_codes
         migrate_codes(env)
@@ -587,3 +589,33 @@ def _create_email_templates(env):
             'noupdate': True,
         })
 
+
+
+def _ensure_missing_columns(env):
+    """
+    Crea columnas que pueden faltar en BDs existentes cuando Odoo no las
+    agrega automaticamente en la actualizacion del modulo.
+    Usa ADD COLUMN IF NOT EXISTS para ser idempotente.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    columns = [
+        # (tabla, columna, tipo_sql, default_sql)
+        ('hr_employee', 'vacation_last_anniversary_year', 'INTEGER', '0'),
+        ('hr_employee', 'vacation_balance_alert',         'BOOLEAN', 'FALSE'),
+        ('hr_employee', 'vacation_days_accrued',          'NUMERIC', '0'),
+        ('hr_employee', 'vacation_days_taken',            'NUMERIC', '0'),
+        ('hr_employee', 'vacation_days_available',        'NUMERIC', '0'),
+        ('hr_employee', 'vacation_initial_balance',       'NUMERIC', '0'),
+    ]
+
+    for table, column, col_type, default in columns:
+        env.cr.execute("""
+            ALTER TABLE %(table)s
+            ADD COLUMN IF NOT EXISTS %(column)s %(type)s DEFAULT %(default)s
+        """ % {'table': table, 'column': column,
+               'type': col_type, 'default': default})
+
+    env.cr.execute("SELECT 1")  # flush
+    _logger.info('planilla_cr._ensure_missing_columns: verificacion completada.')
