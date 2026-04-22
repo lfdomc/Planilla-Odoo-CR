@@ -19,7 +19,8 @@ class BankPaymentWizard(models.TransientModel):
         ('bcr_dav', 'BCR - Archivo DAV (CSV)'),
         ('bncr_sin', 'BNCR - Archivo SINPE (.SIN)'),
         ('sinpe_movil', 'SINPE Movil -- Todos los bancos (CSV)'),
-        ('bac_csv', 'BAC Credomatic (CSV)'),
+        ('bac_csv',   'BAC Credomatic (CSV)'),
+        ('bac_excel', 'BAC Credomatic (Excel)'),
     ], string='Formato Bancario', required=True, default='bcr_dav')
 
     # Campos SINPE Movil
@@ -467,6 +468,93 @@ class BankPaymentWizard(models.TransientModel):
             'target': 'self',
         }
 
+    # -------------------------------------------------------------
+    #  BAC  CREDOMATIC  --  EXCEL  (.xlsx)
+    # -------------------------------------------------------------
+    def action_export_bac_excel(self):
+        """Genera Excel para pago masivo BAC Credomatic.
+        Columnas: Cedula | Nombre | Monto
+        """
+        self.ensure_one()
+        import io as _io
+        try:
+            import xlsxwriter
+        except ImportError:
+            from odoo.exceptions import UserError as _UE
+            raise _UE('xlsxwriter no esta instalado. Use el formato CSV.')
+
+        payslips = self._get_payslips()
+        if not payslips:
+            from odoo.exceptions import UserError as _UE
+            raise _UE('No hay boletas aprobadas en el periodo seleccionado.')
+
+        output = _io.BytesIO()
+        workbook  = xlsxwriter.Workbook(output, {'in_memory': True})
+        sheet     = workbook.add_worksheet('BAC Planilla')
+
+        # Formatos
+        fmt_title  = workbook.add_format({'bold': True, 'font_size': 13, 'font_color': '#FFFFFF', 'bg_color': '#C8102E', 'border': 1})
+        fmt_header = workbook.add_format({'bold': True, 'bg_color': '#C8102E', 'font_color': '#FFFFFF', 'border': 1, 'align': 'center'})
+        fmt_cedula = workbook.add_format({'align': 'left', 'border': 1, 'num_format': '@'})
+        fmt_nombre = workbook.add_format({'align': 'left', 'border': 1})
+        fmt_monto  = workbook.add_format({'num_format': '#,##0.00', 'border': 1, 'align': 'right'})
+        fmt_total  = workbook.add_format({'bold': True, 'bg_color': '#F5C6CB', 'num_format': '#,##0.00', 'border': 1, 'align': 'right'})
+        fmt_total_lbl = workbook.add_format({'bold': True, 'bg_color': '#F5C6CB', 'border': 1})
+
+        # Titulo
+        sheet.merge_range('A1:C1', f'Planilla BAC Credomatic -- {self.date_from} al {self.date_to}', fmt_title)
+        sheet.set_row(0, 20)
+
+        # Encabezados
+        sheet.write(1, 0, 'Cedula',  fmt_header)
+        sheet.write(1, 1, 'Nombre',  fmt_header)
+        sheet.write(1, 2, 'Monto',   fmt_header)
+
+        # Anchos de columna
+        sheet.set_column('A:A', 14)
+        sheet.set_column('B:B', 35)
+        sheet.set_column('C:C', 16)
+
+        row   = 2
+        total = 0.0
+        count = 0
+        errors = []
+
+        for payslip in payslips.sorted(key=lambda s: s.employee_id.name):
+            emp    = payslip.employee_id
+            cedula = (emp.identification_id or '').strip().replace('-', '')
+            if not cedula:
+                errors.append(f'{emp.name}: sin cedula registrada')
+                continue
+            net = round(payslip.salary_payable, 2)
+            sheet.write(row, 0, cedula,    fmt_cedula)
+            sheet.write(row, 1, emp.name,  fmt_nombre)
+            sheet.write(row, 2, net,       fmt_monto)
+            total += net
+            count += 1
+            row   += 1
+
+        # Fila de totales
+        sheet.write(row, 0, '',                           fmt_total_lbl)
+        sheet.write(row, 1, f'TOTAL ({count} empleados)', fmt_total_lbl)
+        sheet.write(row, 2, total,                        fmt_total)
+
+        workbook.close()
+        xlsx_bytes = output.getvalue()
+
+        filename = f'Planilla_BAC_{self.date_from}_{self.date_to}.xlsx'
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': __import__('base64').b64encode(xlsx_bytes),
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
     def action_export(self):
         self.ensure_one()
         if self.bank_format == 'bcr_dav':
@@ -477,4 +565,6 @@ class BankPaymentWizard(models.TransientModel):
             return self.action_export_sinpe_movil()
         elif self.bank_format == 'bac_csv':
             return self.action_export_bac_csv()
+        elif self.bank_format == 'bac_excel':
+            return self.action_export_bac_excel()
         raise UserError('Formato no implementado.')
