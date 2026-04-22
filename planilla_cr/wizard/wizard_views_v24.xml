@@ -74,16 +74,34 @@
                             <field name="simulated_date"/>
                             <field name="termination_reason"/>
                         </group>
-                        <group string="Salario para el Cálculo">
-                            <field name="use_salary_average"/>
-                            <field name="salary_average_manual"
-                                   invisible="not use_salary_average"
-                                   string="Promedio 6 meses (CRC)"/>
-                            <div colspan="2" class="text-muted" style="font-size:12px;"
-                                 invisible="not use_salary_average">
-                                Sume los últimos 6 salarios brutos y divida entre 6.
-                                Se usa para preaviso, cesantía y vacaciones (Art. 153 CT).
+                        <group string="Salarios &#250;ltimos 6 meses (Art. 153 CT)">
+                            <div colspan="2" class="alert alert-info" role="alert"
+                                 style="margin-bottom:8px;">
+                                Los salarios brutos se pre-cargan autom&#225;ticamente
+                                desde las boletas pagadas en el sistema. Puede
+                                editarlos o completar los que falten. El promedio
+                                se calcula solo sobre los meses con valor (igual
+                                que el Excel de RRHH).
                             </div>
+                            <group>
+                                <field name="sal_m1" string="Mes 1 (m&#225;s reciente)"/>
+                                <field name="sal_m2" string="Mes 2"/>
+                                <field name="sal_m3" string="Mes 3"/>
+                            </group>
+                            <group>
+                                <field name="sal_m4" string="Mes 4"/>
+                                <field name="sal_m5" string="Mes 5"/>
+                                <field name="sal_m6" string="Mes 6 (m&#225;s antiguo)"/>
+                            </group>
+                            <group>
+                                <field name="sal_meses_con_valor"
+                                       string="Meses con salario" readonly="1"/>
+                                <field name="sal_promedio_calc"
+                                       string="Promedio mensual calculado" readonly="1"
+                                       style="font-weight:bold;"/>
+                            </group>
+                            <field name="use_salary_average" invisible="1"/>
+                            <field name="salary_average_manual" invisible="1"/>
                         </group>
                         <group string="Datos del Empleado" invisible="not entry_date">
                             <field name="entry_date" readonly="1"/>

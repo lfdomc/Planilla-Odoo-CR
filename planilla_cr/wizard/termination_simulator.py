@@ -29,8 +29,8 @@ class TerminationSimulator(models.TransientModel):
                                       default=fields.Date.today)
     termination_reason = fields.Selection([
         ('voluntary',    'Renuncia Voluntaria'),
-        ('dismissal',    'Despido sin Causa Justa'),
-        ('just_cause',   'Despido con Causa Justa'),
+        ('dismissal',    'Despido con responsabilidad patronal (Art. 80 CT)'),
+        ('just_cause',   'Despido sin responsabilidad patronal (Art. 81 CT)'),
         ('mutual',       'Acuerdo Mutuo'),
         ('contract_end', 'Vencimiento de Contrato'),
     ], string='Motivo', required=True, default='voluntary')
@@ -63,8 +63,26 @@ class TerminationSimulator(models.TransientModel):
     salary_average_manual = fields.Monetary(
         string='Promedio Salarios Ultimos 6 Meses (CRC)',
         currency_field='currency_id',
-        help='Ingrese el promedio mensual de los ultimos 6 salarios brutos. '
-             'Deje en 0 para usar el salario base actual del empleado.'
+        help='Calculado automaticamente de los 6 salarios ingresados. '
+             'Se usa para preaviso, cesantia y vacaciones (Art. 153 CT).'
+    )
+    # Campos para ingresar los 6 salarios individuales
+    sal_m1 = fields.Monetary(string='Salario Mes 1', currency_field='currency_id',
+        help='Salario bruto del mes mas reciente antes de la salida')
+    sal_m2 = fields.Monetary(string='Salario Mes 2', currency_field='currency_id')
+    sal_m3 = fields.Monetary(string='Salario Mes 3', currency_field='currency_id')
+    sal_m4 = fields.Monetary(string='Salario Mes 4', currency_field='currency_id')
+    sal_m5 = fields.Monetary(string='Salario Mes 5', currency_field='currency_id')
+    sal_m6 = fields.Monetary(string='Salario Mes 6 (mas antiguo)', currency_field='currency_id')
+    sal_promedio_calc = fields.Monetary(
+        string='Promedio Calculado (CRC)',
+        currency_field='currency_id',
+        compute='_compute_sal_promedio', store=False,
+        help='Promedio de los meses con salario > 0 (igual que formula Excel de RRHH)'
+    )
+    sal_meses_con_valor = fields.Integer(
+        string='Meses con salario',
+        compute='_compute_sal_promedio', store=False
     )
     preaviso_days      = fields.Integer(string='Dias de Preaviso', readonly=True)
     preaviso_amount    = fields.Monetary(string='Preaviso (CRC)', currency_field='currency_id', readonly=True)
@@ -110,6 +128,50 @@ class TerminationSimulator(models.TransientModel):
             self.currency_id = emp.currency_id
             # Siempre cargar el salario base del empleado
             self.last_salary = emp.base_salary or 0.0
+            # Pre-cargar ultimas 6 quincenas del sistema (agrupadas en meses)
+            # Solo si NO hay datos manuales ya ingresados
+            if not any([self.sal_m1, self.sal_m2, self.sal_m3,
+                        self.sal_m4, self.sal_m5, self.sal_m6]):
+                slips = self.env['planilla.payslip.cr'].search([
+                    ('employee_id', '=', emp.id),
+                    ('state', '=', 'done'),
+                ], order='date_to desc', limit=12)
+                # Agrupar quincenas en meses (suma de las 2 quincenas del mes)
+                from collections import defaultdict
+                monthly = defaultdict(float)
+                for s in slips:
+                    key = s.date_to.strftime('%Y-%m') if s.date_to else ''
+                    if key:
+                        monthly[key] += s.gross_salary or 0
+                months_sorted = sorted(monthly.keys(), reverse=True)[:6]
+                sal_fields = ['sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6']
+                for i, key in enumerate(months_sorted):
+                    setattr(self, sal_fields[i], round(monthly[key], 2))
+
+    @api.depends('sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6')
+    def _compute_sal_promedio(self):
+        for rec in self:
+            vals = [rec.sal_m1 or 0, rec.sal_m2 or 0, rec.sal_m3 or 0,
+                    rec.sal_m4 or 0, rec.sal_m5 or 0, rec.sal_m6 or 0]
+            nonzero = [v for v in vals if v > 0]
+            if nonzero:
+                rec.sal_promedio_calc  = round(sum(nonzero) / len(nonzero), 2)
+                rec.sal_meses_con_valor = len(nonzero)
+            else:
+                rec.sal_promedio_calc  = 0.0
+                rec.sal_meses_con_valor = 0
+
+    @api.onchange('sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6')
+    def _onchange_sal_entries(self):
+        """Actualiza salary_average_manual en tiempo real al digitar los salarios."""
+        vals = [self.sal_m1 or 0, self.sal_m2 or 0, self.sal_m3 or 0,
+                self.sal_m4 or 0, self.sal_m5 or 0, self.sal_m6 or 0]
+        nonzero = [v for v in vals if v > 0]
+        if nonzero:
+            self.salary_average_manual = round(sum(nonzero) / len(nonzero), 2)
+            self.use_salary_average = True
+        else:
+            self.salary_average_manual = 0.0
 
     def action_simulate(self):
         self.ensure_one()
@@ -202,8 +264,13 @@ class TerminationSimulator(models.TransientModel):
             ('date_to', '<=', exit_date),
         ], order='date_to desc', limit=6)
         if len(paid_slips_vac) >= 2:
-            # Promedio de salarios brutos quincenal -> mensual -> diario
-            avg_gross = sum(paid_slips_vac.mapped('gross_salary')) / len(paid_slips_vac) * 2
+            # Promedio mensual: suma quincenal x2 / numero de periodos con salario
+            # (igual que el Excel de RRHH: promedia solo los meses con salario real)
+            gross_nonzero = [s.gross_salary for s in paid_slips_vac if s.gross_salary > 0]
+            if gross_nonzero:
+                avg_gross = sum(gross_nonzero) / len(gross_nonzero) * 2
+            else:
+                avg_gross = salary
             daily_vac = round(avg_gross / 30.0, 4)
             notes_lines.append(
                 f'Vacaciones Art.153 CT: promedio {len(paid_slips_vac)} boletas '
