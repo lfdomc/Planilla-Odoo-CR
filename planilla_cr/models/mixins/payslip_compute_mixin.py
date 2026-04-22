@@ -78,41 +78,38 @@ class PayslipComputeMixin(models.AbstractModel):
         """
         Retorna el salario mensual del empleado para una boleta.
 
-        LOGICA (prioridad a la ficha del empleado):
-        1. Parte del salario actual de la ficha (emp.base_salary) como valor por defecto.
-        2. Si NO hay historial salarial autorizado para el empleado -> retorna ficha.
-        3. Si el historial mas reciente ANTES o EN ref_date tiene el mismo salario
-           que la ficha -> no hubo cambio posterior, retorna ficha.
-        4. Si el historial tiene un salario DIFERENTE al de la ficha -> hubo un cambio
-           posterior al periodo. Retorna el salario del historial (el que estaba vigente
-           en ref_date).
-        5. Si hay un cambio DENTRO del periodo (effective_date en [date_from,date_to])
-           -> retorna el salario de ese cambio.
-        Esto garantiza: boleta mar con aumento en abr -> usa salario de mar.
-        Boleta apr con aumento en abr -> usa salario de abr.
-        Boleta sin cambios -> siempre usa ficha.
+        LOGICA SIMPLIFICADA (ficha del empleado es la fuente de verdad):
+        1. Siempre parte de base_salary de la ficha como valor por defecto.
+        2. Si hay una entrada de historial cuya effective_date cae DENTRO del
+           periodo de la boleta (date_from..date_to) -> usa ese salario.
+           Esto soporta cambios salariales que aplican en medio de un periodo.
+        3. En cualquier otro caso (historial antes o despues del periodo) ->
+           usa base_salary de la ficha.
+
+        Esta logica es mas robusta porque:
+        - Evita usar historiales obsoletos cuando la ficha fue actualizada
+          manualmente sin un registro formal de historial.
+        - Solo sobreescribe la ficha cuando hay un cambio salarial ESPECIFICO
+          que aplica exactamente en el periodo que se esta calculando.
         """
         if not emp:
             return 0.0
         base = emp.base_salary or 0.0
         if not ref_date:
             return base
-        # Buscar el historial vigente MAS RECIENTE en o antes de ref_date
-        history = self.env['planilla.salary.history'].search([
-            ('employee_id', '=', emp.id),
-            ('state', '=', 'authorized'),
-            ('effective_date', '<=', ref_date),
-        ], order='effective_date desc', limit=1)
-        if not history or not history.gross_salary:
-            # Sin historial antes de ref_date -> usa ficha
-            return base
-        hist_salary = history.gross_salary
-        # Si el historial coincide con la ficha -> no hay cambio posterior -> usa ficha
-        if abs(hist_salary - base) < 1.0:
-            return base
-        # El historial difiere de la ficha -> hubo un cambio salarial posterior
-        # al periodo de esta boleta. Usar el salario historico (el de ese periodo).
-        return hist_salary
+        # Buscar si hay un cambio salarial que aplica EXACTAMENTE en este periodo
+        # (solo sobreescribir la ficha si hay un cambio formal dentro del periodo)
+        if hasattr(self, 'date_from') and self.date_from and hasattr(self, 'date_to') and self.date_to:
+            history_in_period = self.env['planilla.salary.history'].search([
+                ('employee_id', '=', emp.id),
+                ('state', '=', 'authorized'),
+                ('effective_date', '>=', self.date_from),
+                ('effective_date', '<=', self.date_to),
+            ], order='effective_date desc', limit=1)
+            if history_in_period and history_in_period.gross_salary:
+                return history_in_period.gross_salary
+        # Sin cambio formal en el periodo -> usar ficha del empleado
+        return base
 
     @api.depends('employee_id', 'date_from', 'date_to', 'attendance_hours',
                  'is_proportional', 'proportional_factor', 'payroll_calendar_id',

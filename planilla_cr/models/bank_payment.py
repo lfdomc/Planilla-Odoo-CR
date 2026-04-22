@@ -19,6 +19,7 @@ class BankPaymentWizard(models.TransientModel):
         ('bcr_dav', 'BCR - Archivo DAV (CSV)'),
         ('bncr_sin', 'BNCR - Archivo SINPE (.SIN)'),
         ('sinpe_movil', 'SINPE Movil -- Todos los bancos (CSV)'),
+        ('bac_csv', 'BAC Credomatic (CSV)'),
     ], string='Formato Bancario', required=True, default='bcr_dav')
 
     # Campos SINPE Movil
@@ -407,6 +408,65 @@ class BankPaymentWizard(models.TransientModel):
             'target': 'self',
         }
 
+    # -------------------------------------------------------------
+    #  BAC  CREDOMATIC  --  CSV  cedula/nombre/monto
+    # -------------------------------------------------------------
+    def action_export_bac_csv(self):
+        """Genera CSV para pago masivo BAC Credomatic.
+        Formato: cedula, nombre_empleado, monto_neto
+        Compatible con el portal de pagos masivos de BAC Costa Rica.
+        """
+        self.ensure_one()
+        payslips = self._get_payslips()
+        if not payslips:
+            raise UserError('No hay boletas aprobadas en el periodo seleccionado.')
+
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator='\r\n')
+        writer.writerow(['Cedula', 'Nombre', 'Monto'])
+
+        errors = []
+        count = 0
+        total = 0.0
+
+        for payslip in payslips.sorted(key=lambda s: s.employee_id.name):
+            emp = payslip.employee_id
+            cedula = (emp.identification_id or '').strip().replace('-', '')
+            if not cedula:
+                errors.append(f'{emp.name}: sin cedula registrada')
+                continue
+            net = round(payslip.salary_payable, 2)
+            writer.writerow([cedula, emp.name or '', f'{net:.2f}'])
+            total += net
+            count += 1
+
+        if count == 0:
+            raise UserError(
+                'No se generaron registros. Errores:\n' + '\n'.join(errors)
+            )
+
+        # Fila de totales al final
+        writer.writerow(['', f'TOTAL ({count} empleados)', f'{total:.2f}'])
+
+        csv_content = output.getvalue()
+        if errors:
+            warn = '# ADVERTENCIA -- Empleados omitidos por falta de cedula:\n'
+            warn += '\n'.join(f'# - {e}' for e in errors) + '\n'
+            csv_content = warn + csv_content
+
+        filename = f'Planilla_BAC_{self.date_from}_{self.date_to}.csv'
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(csv_content.encode('utf-8')),
+            'mimetype': 'text/csv',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
     def action_export(self):
         self.ensure_one()
         if self.bank_format == 'bcr_dav':
@@ -415,4 +475,6 @@ class BankPaymentWizard(models.TransientModel):
             return self.action_export_bncr_sin()
         elif self.bank_format == 'sinpe_movil':
             return self.action_export_sinpe_movil()
+        elif self.bank_format == 'bac_csv':
+            return self.action_export_bac_csv()
         raise UserError('Formato no implementado.')
