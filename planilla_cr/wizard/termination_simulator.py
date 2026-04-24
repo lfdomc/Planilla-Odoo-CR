@@ -459,7 +459,10 @@ class TerminationSimulator(models.TransientModel):
         self.cesantia_daily   = daily
         self.cesantia_days_locked = False
         total_gross = self.preaviso_amount + new_ces + self.vacation_amount + self.aguinaldo_amount
-        ccss = round(total_gross * K.CCSS_EMP, 2)
+        # CCSS solo sobre rubros afectos: vacaciones + preaviso
+        # Cesantia (Art.173 CT) y Aguinaldo (Art.35 Ley CCSS) exentos
+        base_ccss = round((self.preaviso_amount or 0.0) + (self.vacation_amount or 0.0), 2)
+        ccss = round(base_ccss * K.CCSS_EMP, 2)
         self.total_gross   = total_gross
         self.ccss_on_total = ccss
         self.total_net     = round(total_gross - ccss, 2)
@@ -479,7 +482,8 @@ class TerminationSimulator(models.TransientModel):
         daily = salary / 30.0
         new_cesantia = round(daily * self.cesantia_days, 2)
         total_gross = self.preaviso_amount + new_cesantia + self.vacation_amount + self.aguinaldo_amount
-        ccss = round(total_gross * K.CCSS_EMP, 2)
+        base_ccss_rec = round((self.preaviso_amount or 0.0) + (self.vacation_amount or 0.0), 2)
+        ccss = round(base_ccss_rec * K.CCSS_EMP, 2)
         total_net = round(total_gross - ccss, 2)
         total_final = round(total_net - self.total_loans_pending, 2)
         self.write({

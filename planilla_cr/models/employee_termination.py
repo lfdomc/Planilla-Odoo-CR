@@ -54,8 +54,53 @@ class EmployeeTermination(models.Model):
     salary_average_manual = fields.Monetary(
         string='Promedio 6 Meses (CRC)',
         currency_field='currency_id',
-        help='Promedio mensual de los ultimos 6 salarios brutos (Art. 153 CT).'
+        help='Promedio mensual de los ultimos 6 salarios brutos (Art. 153 CT). '
+             'NOTA: el app paga quincenalmente, sume las dos quincenas de cada mes.'
     )
+    # Campos para ingresar los 6 salarios mensuales (suma de 2 quincenas cada uno)
+    sal_m1 = fields.Monetary(string='Salario Mes 1 (mas reciente)',
+        currency_field='currency_id',
+        help='Suma de las 2 quincenas del mes mas reciente antes de la salida.')
+    sal_m2 = fields.Monetary(string='Salario Mes 2', currency_field='currency_id')
+    sal_m3 = fields.Monetary(string='Salario Mes 3', currency_field='currency_id')
+    sal_m4 = fields.Monetary(string='Salario Mes 4', currency_field='currency_id')
+    sal_m5 = fields.Monetary(string='Salario Mes 5', currency_field='currency_id')
+    sal_m6 = fields.Monetary(string='Salario Mes 6 (mas antiguo)',
+        currency_field='currency_id')
+    sal_promedio_calc = fields.Monetary(
+        string='Promedio Calculado (CRC)',
+        currency_field='currency_id',
+        compute='_compute_sal_promedio_term', store=False,
+        help='Promedio de los meses con valor > 0 (igual que formula Excel RRHH)'
+    )
+    sal_meses_con_valor = fields.Integer(
+        string='Meses con salario',
+        compute='_compute_sal_promedio_term', store=False
+    )
+
+    @api.depends('sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6')
+    def _compute_sal_promedio_term(self):
+        for rec in self:
+            vals = [rec.sal_m1 or 0, rec.sal_m2 or 0, rec.sal_m3 or 0,
+                    rec.sal_m4 or 0, rec.sal_m5 or 0, rec.sal_m6 or 0]
+            nz = [v for v in vals if v > 0]
+            if nz:
+                rec.sal_promedio_calc  = round(sum(nz) / len(nz), 2)
+                rec.sal_meses_con_valor = len(nz)
+            else:
+                rec.sal_promedio_calc  = 0.0
+                rec.sal_meses_con_valor = 0
+
+    @api.onchange('sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6')
+    def _onchange_sal_term(self):
+        vals = [self.sal_m1 or 0, self.sal_m2 or 0, self.sal_m3 or 0,
+                self.sal_m4 or 0, self.sal_m5 or 0, self.sal_m6 or 0]
+        nz = [v for v in vals if v > 0]
+        if nz:
+            avg = round(sum(nz) / len(nz), 2)
+            self.salary_average_manual = avg
+            self.use_salary_average = True
+            self.last_salary = avg
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.ref('base.CRC')
     )
@@ -330,12 +375,12 @@ class EmployeeTermination(models.Model):
                     (period_start.year * 12 + period_start.month) + 1
                 )
                 months_from_system = max(0, total_months - months_covered)
-                aguinaldo_system   = round(monthly_salary / 12 * months_from_system, 2)
+                aguinaldo_system   = round(monthly_salary_eff / 12 * months_from_system, 2)
                 rec.aguinaldo_months = total_months
                 rec.aguinaldo_amount = round(ag_init_amount + aguinaldo_system, 2)
             else:
                 rec.aguinaldo_months = total_months
-                rec.aguinaldo_amount = round(monthly_salary / 12 * total_months, 2)
+                rec.aguinaldo_amount = round(monthly_salary_eff / 12 * total_months, 2)
 
     def _calc_income_tax(self, gross):
         """FIX NEW-02 v54: calcula renta sobre el total bruto de la liquidacion.
@@ -403,11 +448,15 @@ class EmployeeTermination(models.Model):
             )
             ccss_emp = round(liquidable_base * ccss_employee_rate, 2)
             # FIX NEW-02 v54: renta sobre el total bruto de la liquidacion
-            income_tax = round(rec._calc_income_tax(gross), 2)
+            # Base imponible renta: solo preaviso + vacaciones
+            # Cesantia (Art.29 CT) y Aguinaldo (Art.228 CT) estan exentos
+            # de CCSS (Art.173 CT / Art.35 Ley CCSS) y de Renta (Art.35 Ley ISR)
+            renta_base = liquidable_base  # preaviso + vacaciones unicamente
+            income_tax = round(rec._calc_income_tax(renta_base), 2)
             rec.total_gross = round(gross, 2)
             rec.ccss_employee_on_termination = ccss_emp
             rec.income_tax_on_termination = income_tax
-            # total_net = bruto  CCSS obrero  renta  otras deducciones
+            # total_net = bruto - CCSS obrero - renta - otras deducciones
             rec.total_net = round(gross - ccss_emp - income_tax - rec.deductions, 2)
 
     # -- Onchange para autocompletar desde empleado ----------------

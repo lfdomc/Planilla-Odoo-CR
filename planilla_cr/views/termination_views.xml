@@ -59,15 +59,62 @@
                     <group>
                         <group>
                             <field name="employee_id" options="{'no_create': True}"/>
-                            <field name="last_salary" string="Salario Bruto Mensual (₡)"
-                                   help="Para empleados con salario variable (comisiones, HE recurrentes), el sistema auto-completa este campo con el promedio de las últimas 4 boletas pagadas. Verifique y ajuste si es necesario."/>
-                            <field name="use_salary_average"
-                                   string="Usar Promedio 6 Meses (Art. 153 CT)"/>
-                            <field name="salary_average_manual"
-                                   invisible="not use_salary_average"
-                                   string="Promedio 6 Meses (CRC)"
-                                   help="Sume los ultimos 6 salarios brutos y divida entre 6."/>
+                            <field name="termination_reason" string="Motivo de Salida"/>
                         </group>
+                    </group>
+                    <!-- Salarios ultimos 6 meses (Art. 153 CT) -->
+                    <group string="Salarios &#250;ltimos 6 meses (Art. 153 CT)">
+                        <div colspan="2" class="alert alert-info" role="alert"
+                             style="margin-bottom:8px;">
+                            Ingrese el salario mensual de cada mes (suma de las 2 quincenas).
+                            El promedio se calcula solo sobre los meses con valor &gt; 0.
+                            Se usa para calcular preaviso, cesantia y vacaciones (Art. 153 CT).
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                            <div>
+                                <label for="sal_m1" style="font-size:12px;color:#666;">Mes 1 (m&#225;s reciente)</label>
+                                <field name="sal_m1" nolabel="1" style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                            </div>
+                            <div>
+                                <label for="sal_m2" style="font-size:12px;color:#666;">Mes 2</label>
+                                <field name="sal_m2" nolabel="1" style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                            <div>
+                                <label for="sal_m3" style="font-size:12px;color:#666;">Mes 3</label>
+                                <field name="sal_m3" nolabel="1" style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                            </div>
+                            <div>
+                                <label for="sal_m4" style="font-size:12px;color:#666;">Mes 4</label>
+                                <field name="sal_m4" nolabel="1" style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                            <div>
+                                <label for="sal_m5" style="font-size:12px;color:#666;">Mes 5</label>
+                                <field name="sal_m5" nolabel="1" style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                            </div>
+                            <div>
+                                <label for="sal_m6" style="font-size:12px;color:#666;">Mes 6 (m&#225;s antiguo)</label>
+                                <field name="sal_m6" nolabel="1" style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                            </div>
+                        </div>
+                        <div style="background:#f0f7ff;border-radius:6px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+                            <span style="color:#555;font-size:13px;">
+                                Meses con salario: <field name="sal_meses_con_valor" nolabel="1"
+                                style="display:inline;width:30px;font-weight:bold;border:none;background:transparent;"/>
+                            </span>
+                            <span style="font-size:15px;font-weight:bold;color:#1a73e8;">
+                                Promedio mensual: <field name="sal_promedio_calc" nolabel="1"
+                                style="display:inline;font-weight:bold;color:#1a73e8;border:none;background:transparent;font-size:15px;"/>
+                            </span>
+                        </div>
+                        <field name="last_salary" string="Salario Bruto Mensual (CRC)" invisible="1"/>
+                        <field name="use_salary_average" invisible="1"/>
+                        <field name="salary_average_manual" invisible="1"/>
+                    </group>
+                    <group>
                         <group>
                             <field name="entry_date" string="Fecha de Ingreso"/>
                             <field name="termination_date" string="Fecha de Salida"/>
