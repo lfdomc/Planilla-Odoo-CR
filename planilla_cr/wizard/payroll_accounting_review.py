@@ -152,7 +152,7 @@ class PayrollAccountingReviewLine(models.TransientModel):
     _description = 'Linea de Revision Contable'
 
     review_id       = fields.Many2one('planilla.accounting.review', ondelete='cascade')
-    run_id          = fields.Many2one('planilla.run.cr', string='Planilla', readonly=True)
+    run_id          = fields.Many2one('planilla.run.cr', string='Planilla (Ref)', readonly=True)
     run_name        = fields.Char(string='Planilla', readonly=True)
     run_state       = fields.Char(string='Estado Planilla', readonly=True)
     date_end        = fields.Date(string='Fecha', readonly=True)

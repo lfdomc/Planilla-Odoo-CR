@@ -70,7 +70,7 @@ class PayrollDashboard(models.TransientModel):
     compare_net   = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Neto Periodo Anterior')
     compare_cost  = fields.Monetary(compute='_compute_comparison', currency_field='currency_id', string='Costo Periodo Anterior')
     new_employees = fields.Char(compute='_compute_comparison', string='Nuevos Ingresos')
-    left_employees = fields.Char(compute='_compute_comparison', string='Salidas')
+    left_employees = fields.Char(compute='_compute_comparison', string='Salidas (comparativo)')
 
     prev_total_gross = fields.Monetary(
         compute='_compute_hr_kpis', string='Nomina Mes Anterior (CRC)',

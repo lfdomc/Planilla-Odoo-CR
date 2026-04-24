@@ -822,16 +822,16 @@ class HrEmployeeExtension(models.Model):
 
     years_of_service = fields.Integer(
         string='Anos de Servicio',
-        compute='_compute_years_of_service', store=True,
+        compute='_compute_years_of_service', store=True, compute_sudo=True,
         help='Anos completos trabajados desde la fecha de ingreso.'
     )
     next_anniversary_date = fields.Date(
         string='Proximo Aniversario',
-        compute='_compute_years_of_service', store=False,
+        compute='_compute_years_of_service', store=True, compute_sudo=True,
     )
     next_anniversary_days = fields.Float(
         string='Dias Extra en Proximo Aniversario',
-        compute='_compute_years_of_service', store=False,
+        compute='_compute_years_of_service', store=True, compute_sudo=True,
         help='Dias de vacaciones adicionales a recibir en el proximo aniversario (anos x 2).'
     )
 
@@ -1015,7 +1015,7 @@ class HrEmployeeExtension(models.Model):
         'planilla.amonestacion', 'employee_id', string='Amonestaciones'
     )
     amonestacion_count = fields.Integer(
-        string='Amonestaciones', compute='_compute_amonestacion_count', store=False
+        string='Total Amonestaciones', compute='_compute_amonestacion_count', store=False
     )
 
     def _compute_amonestacion_count(self):
@@ -1216,37 +1216,24 @@ class HrEmployeeExtension(models.Model):
             has_initial = bool(emp.vacation_initial_balance_date)
 
             if has_initial:
-                # Acumular solo desde la fecha de corte del saldo inicial
+                # Saldo inicial configurado (migracion desde sistema anterior).
+                # El saldo inicial representa los dias reales al momento del corte.
+                # Solo acumular dias NUEVOS desde el corte hasta hoy.
                 accrual_start = emp.vacation_initial_balance_date
-                # No acumular si la fecha de corte es futura o igual a hoy
+                init_balance  = emp.vacation_initial_balance or 0.0
                 if accrual_start >= cutoff:
-                    accrued_since_cutoff = 0.0
+                    # Corte en el futuro: usar solo saldo inicial
+                    dias_nuevos = 0
                 else:
-                    days_since_cutoff = (cutoff - accrual_start).days
-                    # Descontar solo incapacidades que caen DESPUES del corte
-                    long_dis_after_cutoff = self.env['planilla.disability'].search([
-                        ('employee_id', '=', emp.id),
-                        ('state', 'in', ('confirmed', 'paid')),
-                        ('days', '>', 90),
-                        ('date_start', '>=', accrual_start),
-                    ])
-                    dis_after = sum(max(d.days - 90, 0) for d in long_dis_after_cutoff)
-                    effective_days = max(days_since_cutoff - dis_after, 0)
-                    weeks_since_cutoff = effective_days / 7.0
-                    # METODO CORRECTO: el ciclo de acumulacion esta anclado
-                    # a la fecha de ingreso del empleado, no a la fecha de corte.
-                    # Si entro el 1 ene, gana su dia N cuando (N*50*7/12) dias
-                    # hayan pasado desde el 1 ene -- independiente del corte.
-                    # Formula: dias_nuevos = int(teorico_hoy) - int(teorico_al_corte)
-                # Dias teoricos desde entry hasta el corte (para conocer la fase)
-                dias_entry_corte = max((accrual_start - emp.entry_date).days, 0)
-                teorico_al_corte = (dias_entry_corte / 7.0 / 50.0) * 12.0
-                # Dias teoricos desde entry hasta hoy
-                dias_entry_hoy = max((cutoff - emp.entry_date).days, 0)
-                teorico_hoy = (dias_entry_hoy / 7.0 / 50.0) * 12.0
-                # Dias enteros NUEVOS ganados entre el corte y hoy
-                dias_nuevos = int(teorico_hoy) - int(teorico_al_corte)
-                accrued = int(emp.vacation_initial_balance) + dias_nuevos
+                    # Dias teoricos desde entry hasta el corte
+                    dias_entry_corte = max((accrual_start - emp.entry_date).days, 0)
+                    teorico_al_corte = (dias_entry_corte / 7.0 / 50.0) * 12.0
+                    # Dias teoricos desde entry hasta hoy
+                    dias_entry_hoy = max((cutoff - emp.entry_date).days - disability_days_excluded, 0)
+                    teorico_hoy = (dias_entry_hoy / 7.0 / 50.0) * 12.0
+                    # Dias enteros NUEVOS ganados entre el corte y hoy
+                    dias_nuevos = int(teorico_hoy) - int(teorico_al_corte)
+                accrued = int(init_balance) + max(dias_nuevos, 0)
             else:
                 # Calculo normal desde fecha de ingreso
                 total_days = (cutoff - emp.entry_date).days

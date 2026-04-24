@@ -330,4 +330,10 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
               sequence="70"
               groups="planilla_cr.group_planilla_aprobador"/>
 
+    <!-- Corrector saldo inicial vacaciones -->
+    <menuitem id="menu_vacation_initial_balance_wizard"
+              name="Corrector Saldo Inicial Vacaciones"
+              parent="planilla_cr.menu_planilla_cr_config"
+              action="planilla_cr.action_vacation_initial_balance_wizard"
+              sequence="96"/>
 </odoo>

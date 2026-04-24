@@ -90,6 +90,11 @@ class VacationBalanceWizard(models.TransientModel):
             domain.append(('branch_id', '=', self.branch_id.id))
 
         employees = self.env['hr.employee'].search(domain, order='name')
+        # Forzar recompute antes de leer: los campos store=True usan date.today()
+        # que no es una dependencia de Odoo, por lo que el valor guardado puede
+        # estar desactualizado si el cron no ha corrido recientemente.
+        employees._compute_vacation_balance()
+        employees.flush_recordset()
         rows = []
         for emp in employees:
             if not emp.entry_date:

@@ -417,7 +417,7 @@ class PayslipCR(models.Model):
     )
     deduction_only_line_ids = fields.One2many(
         'planilla.payslip.deduction.line', 'payslip_id',
-        string='Deducciones Adicionales',
+        string='Solo Deducciones',
         domain=[('line_type', '=', 'deduction')],
     )
 

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_vacation_initial_balance_wizard" model="ir.ui.view">
+    <field name="name">planilla.vacation.initial.balance.wizard.form</field>
+    <field name="model">planilla.vacation.initial.balance.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Corrector Saldo Inicial de Vacaciones">
+        <sheet>
+          <div class="alert alert-info" role="alert">
+            Este asistente detecta empleados cuyo saldo inicial de vacaciones
+            (campo "Saldo Inicial pre-sistema") no refleja los dias reales
+            acumulados segun Art. 153 CT al momento del corte.
+            Presione "Calcular" para ver la lista y "Aplicar Correcciones" para actualizar.
+          </div>
+          <group>
+            <field name="company_id"/>
+          </group>
+          <div invisible="not preview_line_ids">
+            <field name="preview_line_ids">
+              <list editable="bottom">
+                <field name="employee_id" readonly="1"/>
+                <field name="entry_date" readonly="1"/>
+                <field name="cutoff_date" readonly="1"/>
+                <field name="current_balance" readonly="1"/>
+                <field name="correct_balance" readonly="1"/>
+                <field name="difference" readonly="1"
+                       decoration-danger="difference &lt; 0"
+                       decoration-success="difference &gt; 0"/>
+                <field name="apply"/>
+              </list>
+            </field>
+          </div>
+          <div invisible="not corrected_count" class="alert alert-success" role="alert">
+            <field name="corrected_count"/> empleados actualizados correctamente.
+          </div>
+        </sheet>
+        <footer>
+          <button name="action_preview" type="object"
+                  string="Calcular" class="btn-primary"/>
+          <button name="action_apply" type="object"
+                  string="Aplicar Correcciones" class="btn-warning"
+                  invisible="not preview_line_ids"
+                  confirm="Confirma que desea actualizar el saldo inicial de los empleados marcados?"/>
+          <button special="cancel" string="Cerrar" class="btn-secondary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_vacation_initial_balance_wizard" model="ir.actions.act_window">
+    <field name="name">Corrector Saldo Inicial Vacaciones</field>
+    <field name="res_model">planilla.vacation.initial.balance.wizard</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+  </record>
+</odoo>
