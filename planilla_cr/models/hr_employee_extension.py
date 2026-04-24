@@ -1267,7 +1267,7 @@ class HrEmployeeExtension(models.Model):
             ]
             if has_cutoff and emp.vacation_initial_balance_date:
                 domain_taken.append(
-                    ('date', '>=', emp.vacation_initial_balance_date))
+                    ('date_start', '>=', emp.vacation_initial_balance_date))
 
             taken_recs = self.env['planilla.vacation.payment'].search(domain_taken)
             taken      = int(sum(taken_recs.mapped('days')))
