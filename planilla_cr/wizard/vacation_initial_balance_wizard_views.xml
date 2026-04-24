@@ -37,6 +37,9 @@
         <footer>
           <button name="action_preview" type="object"
                   string="Calcular" class="btn-primary"/>
+          <button name="action_export_excel" type="object"
+                  string="Exportar Excel de Revision" class="btn-secondary"
+                  title="Descarga un Excel con los saldos iniciales de todos los empleados para revision"/>
           <button name="action_apply" type="object"
                   string="Aplicar Correcciones" class="btn-warning"
                   invisible="not preview_line_ids"

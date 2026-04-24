@@ -97,6 +97,89 @@ class VacationInitialBalanceWizard(models.TransientModel):
         }
 
 
+
+    def action_export_excel(self):
+        """Exporta a Excel los datos de saldo inicial para revision."""
+        self.ensure_one()
+        import io, base64
+        from datetime import date as _date2
+        try:
+            import xlsxwriter
+        except ImportError:
+            from odoo.exceptions import UserError as _UE
+            raise _UE('xlsxwriter no instalado.')
+
+        employees = self.env['hr.employee'].search([
+            ('company_id', '=', self.company_id.id),
+            ('active', '=', True),
+        ], order='name')
+
+        today = _date2.today()
+        output = io.BytesIO()
+        wb  = xlsxwriter.Workbook(output, {'in_memory': True})
+        ws  = wb.add_worksheet('Saldos Iniciales')
+
+        hdr  = wb.add_format({'bold':True,'bg_color':'#1F4E79','font_color':'white','border':1,'align':'center'})
+        norm = wb.add_format({'border':1})
+        date_fmt = wb.add_format({'border':1,'num_format':'dd/mm/yyyy'})
+        num_fmt  = wb.add_format({'border':1,'num_format':'#,##0.0'})
+        warn_fmt = wb.add_format({'border':1,'bg_color':'#FFF2CC'})
+        ok_fmt   = wb.add_format({'border':1,'bg_color':'#E2EFDA'})
+        miss_fmt = wb.add_format({'border':1,'bg_color':'#FFE0E0'})
+
+        cols = [
+            ('Empleado',28),('Fecha Ingreso',14),('Fecha Corte',14),
+            ('Saldo Inicial',14),('Dias Acumulados Hoy',20),
+            ('Dias Tomados',13),('Saldo Disponible',16),('Estado',20),
+        ]
+        for c,(name,width) in enumerate(cols):
+            ws.write(0, c, name, hdr)
+            ws.set_column(c, c, width)
+        ws.freeze_panes(1, 0)
+
+        row = 1
+        for emp in employees:
+            if not emp.entry_date:
+                continue
+            has_cutoff = bool(emp.vacation_initial_balance_date)
+            init_bal   = emp.vacation_initial_balance or 0.0
+            accrued    = emp.vacation_days_accrued or 0.0
+            taken      = emp.vacation_days_taken   or 0.0
+            available  = emp.vacation_days_available or 0.0
+
+            if has_cutoff and init_bal == 0:
+                estado = 'REVISAR - saldo inicial = 0'
+                sfmt = warn_fmt
+            elif has_cutoff and init_bal > 0:
+                estado = 'OK con saldo inicial'
+                sfmt = ok_fmt
+            elif not has_cutoff:
+                estado = 'Sin fecha de corte'
+                sfmt = miss_fmt
+            else:
+                estado = 'OK'
+                sfmt = norm
+
+            ws.write(row, 0, emp.name or '',            norm)
+            ws.write_datetime(row, 1, emp.entry_date, date_fmt) if emp.entry_date else ws.write(row,1,'',norm)
+            ws.write_datetime(row, 2, emp.vacation_initial_balance_date, date_fmt) if has_cutoff else ws.write(row,2,'Sin corte',miss_fmt)
+            ws.write(row, 3, init_bal,  num_fmt)
+            ws.write(row, 4, accrued,   num_fmt)
+            ws.write(row, 5, taken,     num_fmt)
+            ws.write(row, 6, available, num_fmt)
+            ws.write(row, 7, estado,    sfmt)
+            row += 1
+
+        wb.close()
+        filename = f'Revision_Saldos_Iniciales_{today.strftime("%Y-%m-%d")}.xlsx'
+        att = self.env['ir.attachment'].create({
+            'name': filename, 'type': 'binary',
+            'datas': base64.b64encode(output.getvalue()),
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        return {'type':'ir.actions.act_url','url':f'/web/content/{att.id}?download=true','target':'self'}
+
+
 class VacationInitialBalanceLine(models.TransientModel):
     _name = 'planilla.vacation.initial.balance.line'
     _description = 'Linea de corrector de saldo inicial'
