@@ -1173,83 +1173,106 @@ class HrEmployeeExtension(models.Model):
                  'planilla_vacation_ids.vacation_type')
     def _compute_vacation_balance(self):
         """
-        Art. 153 CT CR: 12 dias habiles por cada 50 semanas laboradas.
+        Formula de vacaciones CR (documento RRHH Mundopet):
 
-        Logica con saldo inicial pre-implementacion:
-          Si el empleado tiene vacation_initial_balance (saldo real a una fecha de corte):
-            1. Toma el saldo inicial como punto de partida.
-            2. Calcula dias acumulados SOLO desde vacation_initial_balance_date hasta hoy.
-            3. Resta los dias tomados en el sistema (vacation.payment aprobados/pagados).
-            Saldo = vacation_initial_balance + dias_acumulados_desde_corte - dias_tomados
+        BASE  : 1 dia por cada 29 dias calendario trabajados.
+        BONUS : 2 dias adicionales por cada aniversario laboral completado.
 
-          Si NO tiene saldo inicial (instalacion desde cero):
-            Calcula todo desde entry_date como antes.
+        Con punto de control (migracion desde Excel anterior):
+          vacation_initial_balance_date = fecha del saldo real
+          vacation_initial_balance      = dias DISPONIBLES reales en esa fecha
+                                          (contempla todo el historial anterior)
+          Calculo desde ese punto:
+            Fase 1 - Parcial: dias ya transcurridos dentro del ciclo de 29
+                     al momento del corte (para no perder el avance ya hecho).
+            Fase 2 - Nuevos dias base: cada vez que (dias_desde_corte + parcial) >= 29
+            Fase 3 - Aniversarios post-corte: +2 dias por cada aniversario
+                     que caiga entre el corte y hoy.
+            Fase 4 - Deducir dias tomados en el sistema (posteriores al corte).
 
-        Art. 153 parrafo 2: incapacidades > 3 meses continuos NO cuentan
-        como tiempo trabajado para el calculo de vacaciones.
+        Sin punto de control (empleado 100% en el sistema):
+          Calcular todo desde entry_date con la misma formula.
+
+        Art. 153 CT par. 2: incapacidades > 3 meses continuos no cuentan.
         """
+        from dateutil.relativedelta import relativedelta as _rdelta
+
         for emp in self:
             if not emp.entry_date:
-                emp.vacation_days_accrued = 0.0
-                emp.vacation_days_taken = 0.0
+                emp.vacation_days_accrued  = 0.0
+                emp.vacation_days_taken    = 0.0
                 emp.vacation_days_available = 0.0
-                emp.vacation_balance_alert = False
+                emp.vacation_balance_alert  = False
                 continue
 
-            cutoff = emp.exit_date or date.today()
+            hoy = emp.exit_date or date.today()
 
-            # -- Descontar incapacidades > 3 meses continuos (Art. 153 CT) --
+            # -- Incapacidades largas (Art. 153 CT) ---------------------------
             disability_days_excluded = 0
-            long_disabilities = self.env['planilla.disability'].search([
+            for dis in self.env['planilla.disability'].search([
                 ('employee_id', '=', emp.id),
                 ('state', 'in', ('confirmed', 'paid')),
                 ('days', '>', 90),
-            ])
-            for dis in long_disabilities:
+            ]):
                 disability_days_excluded += max(dis.days - 90, 0)
 
-            # -- Determinar desde cuando acumular -----------------------------
-            # FIX: usar logica con saldo inicial si se configuro una fecha de corte,
-            # independientemente del valor del saldo (puede ser 0 o negativo).
-            # Antes: solo activaba si vacation_initial_balance > 0, ignorando
-            # empleados con saldo 0 o negativo que igual tienen fecha de corte.
-            has_initial = bool(emp.vacation_initial_balance_date)
+            has_cutoff = bool(emp.vacation_initial_balance_date)
 
-            if has_initial:
-                # Saldo inicial configurado (migracion desde sistema anterior).
-                # El saldo inicial representa los dias reales al momento del corte.
-                # Solo acumular dias NUEVOS desde el corte hasta hoy.
-                accrual_start = emp.vacation_initial_balance_date
-                init_balance  = emp.vacation_initial_balance or 0.0
-                if accrual_start >= cutoff:
-                    # Corte en el futuro: usar solo saldo inicial
-                    dias_nuevos = 0
+            if has_cutoff:
+                corte    = emp.vacation_initial_balance_date
+                init_bal = emp.vacation_initial_balance or 0.0
+
+                if corte >= hoy:
+                    accrued = int(init_bal)
                 else:
-                    # Dias teoricos desde entry hasta el corte
-                    dias_entry_corte = max((accrual_start - emp.entry_date).days, 0)
-                    teorico_al_corte = (dias_entry_corte / 7.0 / 50.0) * 12.0
-                    # Dias teoricos desde entry hasta hoy
-                    dias_entry_hoy = max((cutoff - emp.entry_date).days - disability_days_excluded, 0)
-                    teorico_hoy = (dias_entry_hoy / 7.0 / 50.0) * 12.0
-                    # Dias enteros NUEVOS ganados entre el corte y hoy
-                    dias_nuevos = int(teorico_hoy) - int(teorico_al_corte)
-                accrued = int(init_balance) + max(dias_nuevos, 0)
-            else:
-                # Calculo normal desde fecha de ingreso
-                total_days = (cutoff - emp.entry_date).days
-                effective_days = max(total_days - disability_days_excluded, 0)
-                weeks_worked = effective_days / 7.0
-                accrued = int((weeks_worked / 50.0) * 12.0)
+                    # Fase 1: parcial del ciclo de 29 al momento del corte
+                    dias_ingreso_corte = max((corte - emp.entry_date).days, 0)
+                    parcial_inicial    = dias_ingreso_corte % 29
 
-            # Dias tomados en el sistema (solo registros creados en el sistema)
-            taken_recs = self.env['planilla.vacation.payment'].search([
+                    # Fase 2: nuevos dias base desde el corte hasta hoy
+                    dias_corte_hoy = max(
+                        (hoy - corte).days - disability_days_excluded, 0)
+                    total_ciclo = dias_corte_hoy + parcial_inicial
+                    nuevos_base = total_ciclo // 29
+
+                    # Fase 3: aniversarios DESPUES del corte hasta hoy
+                    aniversarios = 0
+                    aniv = emp.entry_date + _rdelta(years=1)
+                    while aniv <= hoy:
+                        if aniv > corte:
+                            aniversarios += 1
+                        aniv += _rdelta(years=1)
+
+                    accrued = int(init_bal) + nuevos_base + (aniversarios * 2)
+
+            else:
+                # Sin punto de control: formula completa desde entry_date
+                dias_totales = max(
+                    (hoy - emp.entry_date).days - disability_days_excluded, 0)
+                nuevos_base  = dias_totales // 29
+                aniversarios = 0
+                aniv = emp.entry_date + _rdelta(years=1)
+                while aniv <= hoy:
+                    aniversarios += 1
+                    aniv += _rdelta(years=1)
+                accrued = nuevos_base + (aniversarios * 2)
+
+            # Fase 4: dias tomados en el sistema
+            # Solo contar registros POSTERIORES al corte (los anteriores
+            # ya estan incluidos en vacation_initial_balance)
+            domain_taken = [
                 ('employee_id', '=', emp.id),
                 ('state', 'in', ['approved', 'paid']),
                 ('vacation_type', 'in', ['disfrutadas', 'adelanto']),
-            ])
-            taken = int(sum(taken_recs.mapped('days')))
+            ]
+            if has_cutoff and emp.vacation_initial_balance_date:
+                domain_taken.append(
+                    ('date', '>=', emp.vacation_initial_balance_date))
 
-            available = accrued - taken  # Ya son enteros
+            taken_recs = self.env['planilla.vacation.payment'].search(domain_taken)
+            taken      = int(sum(taken_recs.mapped('days')))
+
+            available = accrued - taken
             emp.vacation_days_accrued   = accrued
             emp.vacation_days_taken     = taken
             emp.vacation_days_available = available
