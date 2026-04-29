@@ -345,7 +345,10 @@ class TerminationSimulator(models.TransientModel):
         # FIX-LIQ-01: CCSS solo sobre rubros AFECTOS (vacaciones + preaviso)
         # Aguinaldo y cesantia estan EXENTOS de CCSS (Art. 35 Ley CCSS, Art. 173 CT)
         base_ccss   = round((vac_amount or 0.0) + (preaviso_amount or 0.0), 2)
-        ccss        = round(base_ccss * K.CCSS_EMP, 2)
+        _cfg = self.env['planilla.accounting.config'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        _skip = _cfg.skip_ccss_on_termination if _cfg else False
+        ccss        = 0.0 if _skip else round(base_ccss * K.CCSS_EMP, 2)
         total_net   = round(total_gross - ccss, 2)
 
         # -- Prestamos y adelantos pendientes ---------------------------------
@@ -462,7 +465,10 @@ class TerminationSimulator(models.TransientModel):
         # CCSS solo sobre rubros afectos: vacaciones + preaviso
         # Cesantia (Art.173 CT) y Aguinaldo (Art.35 Ley CCSS) exentos
         base_ccss = round((self.preaviso_amount or 0.0) + (self.vacation_amount or 0.0), 2)
-        ccss = round(base_ccss * K.CCSS_EMP, 2)
+        _cfg2 = self.env['planilla.accounting.config'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        ccss = 0.0 if (_cfg2.skip_ccss_on_termination if _cfg2 else False) \
+            else round(base_ccss * K.CCSS_EMP, 2)
         self.total_gross   = total_gross
         self.ccss_on_total = ccss
         self.total_net     = round(total_gross - ccss, 2)
@@ -483,7 +489,10 @@ class TerminationSimulator(models.TransientModel):
         new_cesantia = round(daily * self.cesantia_days, 2)
         total_gross = self.preaviso_amount + new_cesantia + self.vacation_amount + self.aguinaldo_amount
         base_ccss_rec = round((self.preaviso_amount or 0.0) + (self.vacation_amount or 0.0), 2)
-        ccss = round(base_ccss_rec * K.CCSS_EMP, 2)
+        _cfg3 = self.env['planilla.accounting.config'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        ccss = 0.0 if (_cfg3.skip_ccss_on_termination if _cfg3 else False) \
+            else round(base_ccss_rec * K.CCSS_EMP, 2)
         total_net = round(total_gross - ccss, 2)
         total_final = round(total_net - self.total_loans_pending, 2)
         self.write({

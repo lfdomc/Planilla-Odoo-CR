@@ -446,11 +446,12 @@ class EmployeeTermination(models.Model):
                 (rec.preaviso_amount if rec.preaviso_applies else 0) +
                 rec.vacation_amount
             )
-            ccss_emp = round(liquidable_base * ccss_employee_rate, 2)
-            # FIX NEW-02 v54: renta sobre el total bruto de la liquidacion
-            # Base imponible renta: solo preaviso + vacaciones
-            # Cesantia (Art.29 CT) y Aguinaldo (Art.228 CT) estan exentos
-            # de CCSS (Art.173 CT / Art.35 Ley CCSS) y de Renta (Art.35 Ley ISR)
+            # Verificar si la empresa omite CCSS en liquidaciones
+            _config = rec.env['planilla.accounting.config'].search(
+                [('company_id', '=', rec.company_id.id)], limit=1)
+            _skip_ccss = _config.skip_ccss_on_termination if _config else False
+            ccss_emp = 0.0 if _skip_ccss else round(liquidable_base * ccss_employee_rate, 2)
+            # Cesantia (Art.29 CT) y Aguinaldo (Art.228 CT) exentos de CCSS y Renta
             renta_base = liquidable_base  # preaviso + vacaciones unicamente
             income_tax = round(rec._calc_income_tax(renta_base), 2)
             rec.total_gross = round(gross, 2)

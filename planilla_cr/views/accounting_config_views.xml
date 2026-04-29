@@ -22,6 +22,20 @@
                         </p>
                     </div>
 
+                    <group string="Opciones Especiales de Planilla">
+                        <group>
+                            <field name="overtime_fixed_8h"
+                                   widget="boolean_toggle"
+                                   string="HE: formula fija salario / 30 / 8h"
+                                   help="ON = horas extra con salario/30/8h fijo. OFF = usa horas del tipo de horario del empleado."/>
+                        </group>
+                        <group>
+                            <field name="skip_ccss_on_termination"
+                                   widget="boolean_toggle"
+                                   string="Liquidaciones: no descontar CCSS obrero"
+                                   help="ON = no descuenta CCSS en liquidaciones. OFF = descuenta CCSS normalmente."/>
+                        </group>
+                    </group>
                     <group string="General">
                         <group>
                             <field name="company_id"/>

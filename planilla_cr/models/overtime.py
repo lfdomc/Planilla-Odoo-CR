@@ -131,10 +131,17 @@ class Overtime(models.Model):
                 continue
             # Salario mensual del empleado directamente -- sin historial
             base_salary = rec.employee_id.base_salary or 0.0
-            # Horas por dia segun jornada del empleado (fallback 8h jornada ordinaria)
-            hours_per_day = 8.0
-            if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
-                hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
+            # Verificar si la empresa tiene configurado formula fija 8h
+            _cfg = rec.env['planilla.accounting.config'].search(
+                [('company_id', '=', rec.employee_id.company_id.id)], limit=1)
+            _fixed_8h = _cfg.overtime_fixed_8h if _cfg else False
+            # Horas por dia: fijo 8h si esta activado, o segun jornada del empleado
+            if _fixed_8h:
+                hours_per_day = 8.0
+            else:
+                hours_per_day = 8.0
+                if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
+                    hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
             # Tarifa por hora = Salario mensual / 30 dias / horas_jornada
             rec.hourly_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
 
@@ -155,9 +162,14 @@ class Overtime(models.Model):
             old_rate = rec.hourly_rate
             # Forzar recomputacion leyendo base_salary directamente
             base_salary = rec.employee_id.base_salary or 0.0
-            hours_per_day = 8.0
-            if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
-                hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
+            _cfg2 = rec.env['planilla.accounting.config'].search(
+                [('company_id', '=', rec.employee_id.company_id.id)], limit=1)
+            if _cfg2 and _cfg2.overtime_fixed_8h:
+                hours_per_day = 8.0
+            else:
+                hours_per_day = 8.0
+                if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
+                    hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
             new_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
             if new_rate != old_rate:
                 factors = {'simple': 1.5, 'double': 2.0, 'holiday': 2.0}
