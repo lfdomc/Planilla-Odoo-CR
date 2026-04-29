@@ -794,22 +794,22 @@ class HrEmployeeExtension(models.Model):
 
     vacation_days_accrued = fields.Float(
         string='Dias Acumulados',
-        compute='_compute_vacation_balance', store=True,
+        compute='_compute_vacation_balance', store=False,
         help='Dias ganados: 12 dias habiles por cada 50 semanas trabajadas (Art. 153 CT)'
     )
     vacation_days_taken = fields.Float(
         string='Dias Tomados',
-        compute='_compute_vacation_balance', store=True,
+        compute='_compute_vacation_balance', store=False,
         help='Dias de vacaciones ya utilizados en el sistema (estado aprobado o pagado)'
     )
     vacation_days_available = fields.Float(
         string='Dias Disponibles',
-        compute='_compute_vacation_balance', store=True,
+        compute='_compute_vacation_balance', store=False,
         help='Saldo disponible = Saldo Inicial + Acumulados desde corte  Tomados en sistema'
     )
     vacation_balance_alert = fields.Boolean(
         string='Alerta Vacaciones',
-        compute='_compute_vacation_balance', store=True,
+        compute='_compute_vacation_balance', store=False,
         help='True si el empleado tiene saldo negativo de vacaciones'
     )
     vacation_last_anniversary_year = fields.Integer(

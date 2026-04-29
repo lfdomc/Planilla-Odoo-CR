@@ -336,4 +336,9 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
               parent="planilla_cr.menu_planilla_cr_config"
               action="planilla_cr.action_vacation_initial_balance_wizard"
               sequence="96"/>
+    <menuitem id="menu_resumen_ejecutivo"
+              name="Resumen Ejecutivo"
+              parent="planilla_cr.menu_planilla_cr_reports"
+              action="planilla_cr.action_resumen_ejecutivo_wizard"
+              sequence="5"/>
 </odoo>
