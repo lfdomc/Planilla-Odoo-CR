@@ -97,8 +97,8 @@ class ResumenEjecutivoWizard(models.TransientModel):
         ws.set_row(3, 14)
 
         empresa = run.company_id.name or ''
-        periodo = f'{run.date_from.strftime("%d/%m/%Y")} AL {run.date_to.strftime("%d/%m/%Y")}' \
-            if run.date_from and run.date_to else ''
+        periodo = f'{run.date_start.strftime("%d/%m/%Y")} AL {run.date_end.strftime("%d/%m/%Y")}' \
+            if run.date_start and run.date_end else ''
 
         # Determine quincena label
         q_label = run.name or ''
