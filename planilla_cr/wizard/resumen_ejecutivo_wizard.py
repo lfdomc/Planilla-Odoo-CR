@@ -12,7 +12,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
         'res.company', required=True,
         default=lambda self: self.env.company
     )
-    run_id = fields.Many2one(
+    payroll_run_id = fields.Many2one(
         'planilla.run.cr', string='Planilla', required=True,
         domain="[('company_id', '=', company_id)]"
     )
@@ -23,12 +23,12 @@ class ResumenEjecutivoWizard(models.TransientModel):
 
     def action_generate(self):
         self.ensure_one()
-        run = self.run_id
+        run = self.payroll_run_id
         if not run:
             raise UserError('Seleccione una planilla.')
 
         slips = self.env['planilla.payslip.cr'].search([
-            ('run_id', '=', run.id),
+            ('payroll_run_id', '=', run.id),
             ('state', 'in', ['confirmed', 'done']),
         ], order='employee_id.department_id.name, employee_id.name')
 

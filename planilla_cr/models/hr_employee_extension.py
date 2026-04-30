@@ -1082,11 +1082,10 @@ class HrEmployeeExtension(models.Model):
         old_salaries = {emp.id: emp.base_salary for emp in self} if 'base_salary' in vals else {}
         result = super().write(vals)
         if needs_vac_recompute:
-            # Invalidar cache de campos computados de vacaciones
-            # para forzar recalculo con el nuevo valor
-            fnames = ['vacation_days_accrued', 'vacation_days_taken',
-                      'vacation_days_available', 'vacation_balance_alert']
-            self.invalidate_recordset(fnames)
+            # Invalidar TODA la cache del registro (incluyendo vacation_initial_balance)
+            # para que _compute_vacation_balance lea el valor nuevo desde la BD
+            # y no el valor anterior que puede quedar en cache del ORM
+            self.invalidate_recordset()
             self._compute_vacation_balance()
         if 'base_salary' in vals:
             # FIX-Q15: si skip_salary_history=True en contexto, no crear historial.
