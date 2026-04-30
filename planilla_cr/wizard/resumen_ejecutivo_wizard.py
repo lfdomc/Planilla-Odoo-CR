@@ -30,7 +30,11 @@ class ResumenEjecutivoWizard(models.TransientModel):
         slips = self.env['planilla.payslip.cr'].search([
             ('payroll_run_id', '=', run.id),
             ('state', 'in', ['confirmed', 'done']),
-        ], order='employee_id.department_id.name, employee_id.name')
+        ])
+        slips = slips.sorted(key=lambda s: (
+            s.employee_id.department_id.name or '',
+            s.employee_id.name or ''
+        ))
 
         if not slips:
             raise UserError('No hay boletas confirmadas en esta planilla.')
