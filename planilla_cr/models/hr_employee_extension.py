@@ -1082,11 +1082,14 @@ class HrEmployeeExtension(models.Model):
         old_salaries = {emp.id: emp.base_salary for emp in self} if 'base_salary' in vals else {}
         result = super().write(vals)
         if needs_vac_recompute:
-            # Invalidar TODA la cache del registro (incluyendo vacation_initial_balance)
-            # para que _compute_vacation_balance lea el valor nuevo desde la BD
-            # y no el valor anterior que puede quedar en cache del ORM
+            # Limpiar cache a nivel de entorno para que el valor recien guardado
+            # de vacation_initial_balance sea leido desde la BD al recomputar
+            field_obj = self._fields.get('vacation_initial_balance')
+            if field_obj:
+                self.env.cache.invalidate([(field_obj, self.ids)])
             self.invalidate_recordset()
             self._compute_vacation_balance()
+            self.flush_recordset()
         if 'base_salary' in vals:
             # FIX-Q15: si skip_salary_history=True en contexto, no crear historial.
             # Evita duplicado cuando salary_history.action_authorize actualiza base_salary:
@@ -1215,14 +1218,22 @@ class HrEmployeeExtension(models.Model):
                 emp.vacation_balance_alert  = False
                 continue
 
-            hoy = emp.exit_date or date.today()
+            # Usar exit_date solo si el empleado YA salio (active=False)
+            # Si sigue activo, siempre usar date.today() aunque exit_date tenga valor
+            if emp.exit_date and not emp.active:
+                hoy = emp.exit_date
+            else:
+                hoy = date.today()
 
             # -- Incapacidades largas (Art. 153 CT) ---------------------------
+            # Art. 153 CT: solo incapacidades comunes > 90 dias continuos
+            # descontables. Maternidad NO se descuenta (Art. 95 CT + OIT C183)
             disability_days_excluded = 0
             for dis in self.env['planilla.disability'].search([
                 ('employee_id', '=', emp.id),
                 ('state', 'in', ('confirmed', 'paid')),
                 ('days', '>', 90),
+                ('disability_type', '!=', 'maternity'),
             ]):
                 disability_days_excluded += max(dis.days - 90, 0)
 
