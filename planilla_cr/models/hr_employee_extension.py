@@ -1072,24 +1072,11 @@ class HrEmployeeExtension(models.Model):
         return employees
 
     def write(self, vals):
-        # Forzar recompute de vacaciones cuando cambia saldo inicial
-        vac_fields = {'vacation_initial_balance', 'vacation_initial_balance_date',
-                      'entry_date', 'exit_date'}
-        needs_vac_recompute = bool(vac_fields & set(vals.keys()))
         # Sync a contrato nativo al guardar cambios relevantes
         sync_fields = {'base_salary', 'entry_date', 'job_id'}
         needs_sync = bool(sync_fields & set(vals.keys()))
         old_salaries = {emp.id: emp.base_salary for emp in self} if 'base_salary' in vals else {}
         result = super().write(vals)
-        if needs_vac_recompute:
-            # Limpiar cache a nivel de entorno para que el valor recien guardado
-            # de vacation_initial_balance sea leido desde la BD al recomputar
-            field_obj = self._fields.get('vacation_initial_balance')
-            if field_obj:
-                self.env.cache.invalidate([(field_obj, self.ids)])
-            self.invalidate_recordset()
-            self._compute_vacation_balance()
-            self.flush_recordset()
         if 'base_salary' in vals:
             # FIX-Q15: si skip_salary_history=True en contexto, no crear historial.
             # Evita duplicado cuando salary_history.action_authorize actualiza base_salary:
