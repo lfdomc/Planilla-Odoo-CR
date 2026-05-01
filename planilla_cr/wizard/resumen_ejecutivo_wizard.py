@@ -174,9 +174,8 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # Con incapacidad/permiso: Subtotal = base_cotizable_final
             #   (lo que el patrono paga realmente, sin el subsidio CCSS/INS)
             has_disability = bool((slip.ccss_subsidy_total or 0) + (slip.ins_subsidy_total or 0))
-            permiso_sin_goce_amt = ((slip.amount_licencias_sin_goce or 0) +
-                                    get_deduction_amount(slip, 'ausencia') +
-                                    get_deduction_amount(slip, 'licencia_sin_goce'))
+            # Usar solo el campo oficial — las lineas de deduccion son el mismo dato
+            permiso_sin_goce_amt = slip.amount_licencias_sin_goce or 0
 
             # SIEMPRE mostrar el bruto completo como subtotal.
             # El Permiso sin Goce se muestra como columna de rebajo separada.
