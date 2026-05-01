@@ -1168,11 +1168,7 @@ class PayrollRunCR(models.Model):
         # con atomicidad completa. El savepoint garantiza que si una boleta falla,
         # ninguna queda confirmada (antes era loop individual -- posible estado inconsistente).
         # Recopilar advertencias antes de confirmar
-        all_warnings = []
-        for slip in payslips_draft:
-            w = slip._validate_payslip(raise_on_error=False)
-            if isinstance(w, list):
-                all_warnings.extend(w)
+        all_warnings = payslips_draft._get_validation_warnings()
 
         if all_warnings:
             # Mostrar wizard de confirmacion con advertencias

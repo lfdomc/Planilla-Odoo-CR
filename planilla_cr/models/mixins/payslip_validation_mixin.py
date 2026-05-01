@@ -411,6 +411,35 @@ class PayslipValidationMixin(models.AbstractModel):
         ], limit=1)
         return not bono_rec or bono_rec.afecto_ccss
 
+    def _get_validation_warnings(self) -> list:
+        """Retorna lista de advertencias sin lanzar errores.
+        Usado por el wizard de confirmacion con advertencias."""
+        from .. import planilla_const as _K
+        from odoo.exceptions import UserError as _UE
+        warnings_out = []
+        min_salary_global = self.env['planilla.minimum.salary'].get_current_minimum()
+        for rec in self:
+            emp = rec.employee_id
+            if not emp:
+                continue
+            prefix = f'[{emp.name}]'
+            min_salary = min_salary_global
+            if emp.employee_type_id and emp.employee_type_id.name:
+                specific = self.env['planilla.minimum.salary'].get_current_minimum(
+                    category=emp.employee_type_id.name)
+                if specific > 0:
+                    min_salary = specific
+            if min_salary > 0:
+                freq = rec.payroll_calendar_id.frequency if rec.payroll_calendar_id else 'monthly'
+                freq_factor = _K.FREQ_FACTORS.get(freq, 1.0)
+                min_periodo = round(min_salary * freq_factor, 2)
+                if rec.base_salary and rec.base_salary < min_periodo:
+                    warnings_out.append(
+                        f'{prefix} Salario (CRC{rec.base_salary:,.2f}) '
+                        f'bajo minimo MTSS (CRC{min_periodo:,.2f})'
+                    )
+        return warnings_out
+
     def _validate_before_confirm(self) -> None:
         """Valida que la boleta tenga datos completos y correctos antes de confirmar.
         FIX PERF-06: pre-cargar rate_helper y min_salary una vez para todos los registros.
