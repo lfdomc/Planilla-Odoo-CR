@@ -516,11 +516,11 @@ class PayslipValidationMixin(models.AbstractModel):
                             f'Exento: incapacidad activa en el periodo.'
                         )
                     else:
-                        errors.append(
+                        warnings.append(
                             f'{prefix} El salario base del periodo (CRC{rec.base_salary:,.2f}) '
                             f'esta por debajo del minimo MTSS vigente para el periodo '
                             f'(CRC{min_periodo:,.2f} = CRC{min_salary:,.2f}/mes x {freq_factor}). '
-                            f'Corrija el salario o verifique la categoria ocupacional.'
+                            f'Verifique la categoria o corrija el salario (advertencia, no bloquea).'
                         )
             elif emp.base_salary and 0 < emp.base_salary < 100_000:
                 warnings.append(

@@ -1167,6 +1167,27 @@ class PayrollRunCR(models.Model):
         # FIX A-01 v58: Delegar al action_confirm del mixin que usa write() batch
         # con atomicidad completa. El savepoint garantiza que si una boleta falla,
         # ninguna queda confirmada (antes era loop individual -- posible estado inconsistente).
+        # Recopilar advertencias antes de confirmar
+        all_warnings = []
+        for slip in payslips_draft:
+            w = slip._validate_payslip(raise_on_error=False)
+            if isinstance(w, list):
+                all_warnings.extend(w)
+
+        if all_warnings:
+            # Mostrar wizard de confirmacion con advertencias
+            wizard = self.env['planilla.confirm.warnings.wizard'].create({
+                'run_id': self.id,
+                'warnings_text': '\n'.join(f'- {w}' for w in all_warnings),
+            })
+            return {
+                'type': 'ir.actions.act_window',
+                'res_model': 'planilla.confirm.warnings.wizard',
+                'res_id': wizard.id,
+                'view_mode': 'form',
+                'target': 'new',
+            }
+
         with self.env.cr.savepoint():
             try:
                 payslips_draft.action_confirm()

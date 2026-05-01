@@ -1,6 +1,6 @@
 {
     'name': 'Sistema Planilla v5.28.51-PROD',
-    'version': '19.0.5.28.269',
+    'version': '19.0.5.28.270',
     
     'category': 'Human Resources/Payroll',
     'summary': 'Sistema de Planilla Costa Rica v5.14 - Legislacion CR 2026',
@@ -95,6 +95,7 @@
         'views/public_holiday_views.xml',
         'wizard/vacation_balance_wizard_views.xml',
         'wizard/vacation_initial_balance_wizard_views.xml',
+        'wizard/confirm_warnings_wizard_views.xml',
         'wizard/resumen_ejecutivo_wizard_views.xml',
         'wizard/employer_cost_wizard_views.xml',
         'wizard/wizard_views_v24.xml',
