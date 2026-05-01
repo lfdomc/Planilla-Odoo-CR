@@ -118,22 +118,22 @@ class ResumenEjecutivoWizard(models.TransientModel):
         # ── Column headers row 6 ──────────────────────────────────
         ws.set_row(6, 40)
         cols_labels = [
-            ('A6', 'Nombre',                    hdr_col),
-            ('B6', 'Dpto',                      hdr_col),
-            ('C6', 'Salario\nQuincenal',         hdr_col_ing),
-            ('D6', 'Otros',                     hdr_col_ing),
-            ('E6', 'Extras',                    hdr_col_ing),
-            ('F6', 'Sub total\nquincenal',       hdr_col_ing),
-            ('G6', 'C.C.S.S.',                  hdr_col_reb),
-            ('H6', 'Incapacidad\nC.C.S.S. INS', hdr_col_reb),
-            ('I6', 'Ahorro\nNavideno',           hdr_col_reb),
-            ('J6', 'Permiso sin\nGoce de Salario', hdr_col_reb),
-            ('K6', 'Impuesto\nde Renta',         hdr_col_reb),
-            ('L6', 'Otros',                     hdr_col_reb),
-            ('M6', 'Prestamos\nInternos',        hdr_col_reb),
-            ('N6', 'Facturas',                  hdr_col_reb),
-            ('O6', 'Maternidad',                hdr_col_reb),
-            ('P6', 'Total\nGeneral',             hdr_col_tot),
+            ('A6', 'Nombre',                      hdr_col),
+            ('B6', 'Dpto',                        hdr_col),
+            ('C6', 'Salario\nQuincenal',           hdr_col_ing),
+            ('D6', 'Otros',                       hdr_col_ing),
+            ('E6', 'Extras',                      hdr_col_ing),
+            ('F6', 'Sub total\nquincenal',         hdr_col_ing),
+            ('G6', 'Permiso sin\nGoce de Salario', hdr_col_reb),
+            ('H6', 'C.C.S.S.',                    hdr_col_reb),
+            ('I6', 'Incapacidad\nC.C.S.S. INS',   hdr_col_reb),
+            ('J6', 'Ahorro\nNavideno',             hdr_col_reb),
+            ('K6', 'Impuesto\nde Renta',           hdr_col_reb),
+            ('L6', 'Otros',                       hdr_col_reb),
+            ('M6', 'Prestamos\nInternos',          hdr_col_reb),
+            ('N6', 'Facturas',                    hdr_col_reb),
+            ('O6', 'Maternidad',                  hdr_col_reb),
+            ('P6', 'Total\nGeneral',               hdr_col_tot),
         ]
         for cell, label, f in cols_labels:
             ws.write(cell, label, f)
@@ -178,23 +178,20 @@ class ResumenEjecutivoWizard(models.TransientModel):
                                     get_deduction_amount(slip, 'ausencia') +
                                     get_deduction_amount(slip, 'licencia_sin_goce'))
 
-            if has_disability or permiso_sin_goce_amt > 0:
-                # Usar base cotizable real como subtotal.
-                # base_cotizable_final YA tiene descontado el permiso_sin_goce,
-                # por lo que NO debe aparecer como columna de rebajo adicional
-                # (evitar doble conteo).
-                sal_quincenal = slip.base_cotizable_final or slip.base_salary or 0
-                otros_ing     = 0
-                extras        = slip.overtime_amount or 0
-                subtotal      = sal_quincenal + extras
-                # Permiso sin goce ya esta embebido en el subtotal -> columna = 0
-                permiso_col   = 0.0
-            else:
-                sal_quincenal = slip.base_salary or 0
-                otros_ing     = get_otros_ingresos(slip)
-                extras        = slip.overtime_amount or 0
-                subtotal      = sal_quincenal + otros_ing + extras
-                permiso_col   = permiso_sin_goce_amt
+            # SIEMPRE mostrar el bruto completo como subtotal.
+            # El Permiso sin Goce se muestra como columna de rebajo separada.
+            # La ecuacion del reporte es:
+            # Subtotal - PermisoSinGoce - CCSS - Incap - Ahorro - Renta - ... = Total
+            sal_quincenal = slip.base_salary or 0
+            otros_ing     = get_otros_ingresos(slip)
+            extras        = slip.overtime_amount or 0
+            subtotal      = sal_quincenal + otros_ing + extras
+            permiso_col   = permiso_sin_goce_amt
+
+            if has_disability:
+                # Con incapacidad: el subtotal es el bruto completo
+                # y la incapacidad reduce via ccss_subsidy (ya en incap_ccss)
+                pass  # subtotal ya correcto
 
             ccss       = slip.ccss_employee or 0
             incap_ccss = (slip.ccss_subsidy_total or 0) + (slip.ins_subsidy_total or 0)
@@ -213,22 +210,23 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # (excluye subsidios CCSS/INS que paga la CCSS directamente)
             total_general = slip.deposito_patrono or slip.salary_payable or 0
 
-            ws.write(row - 1, 0,  emp.name or '',              txt_fmt)
-            ws.write(row - 1, 1,  dept,                         txt_fmt)
-            ws.write(row - 1, 2,  sal_quincenal,                num_fmt)
-            ws.write(row - 1, 3,  otros_ing if otros_ing else None,   num_fmt)
-            ws.write(row - 1, 4,  extras    if extras    else None,   num_fmt)
-            ws.write(row - 1, 5,  subtotal,                     num_fmt)
-            ws.write(row - 1, 6,  ccss      if ccss      else None,   num_fmt)
-            ws.write(row - 1, 7,  incap_ccss if incap_ccss else None, num_fmt)
-            ws.write(row - 1, 8,  ahorro_nav if ahorro_nav else None, num_fmt)
-            ws.write(row - 1, 9,  permiso_sin if permiso_sin else None, num_fmt)
-            ws.write(row - 1, 10, imp_renta  if imp_renta  else None, num_fmt)
-            ws.write(row - 1, 11, otros_reb  if otros_reb  else None, num_fmt)
-            ws.write(row - 1, 12, prestamos  if prestamos  else None, num_fmt)
-            ws.write(row - 1, 13, facturas   if facturas   else None, num_fmt)
-            ws.write(row - 1, 14, maternidad if maternidad else None, num_fmt)
-            ws.write(row - 1, 15, total_general,                num_fmt)
+            ws.write(row - 1, 0,  emp.name or '',                        txt_fmt)
+            ws.write(row - 1, 1,  dept,                                   txt_fmt)
+            ws.write(row - 1, 2,  sal_quincenal,                          num_fmt)
+            ws.write(row - 1, 3,  otros_ing   if otros_ing   else None,   num_fmt)
+            ws.write(row - 1, 4,  extras      if extras      else None,   num_fmt)
+            ws.write(row - 1, 5,  subtotal,                               num_fmt)
+            # Col 6: Permiso sin Goce (va antes de CCSS — reduce base cotizable)
+            ws.write(row - 1, 6,  permiso_sin if permiso_sin else None,   num_fmt)
+            ws.write(row - 1, 7,  ccss        if ccss        else None,   num_fmt)
+            ws.write(row - 1, 8,  incap_ccss  if incap_ccss  else None,   num_fmt)
+            ws.write(row - 1, 9,  ahorro_nav  if ahorro_nav  else None,   num_fmt)
+            ws.write(row - 1, 10, imp_renta   if imp_renta   else None,   num_fmt)
+            ws.write(row - 1, 11, otros_reb   if otros_reb   else None,   num_fmt)
+            ws.write(row - 1, 12, prestamos   if prestamos   else None,   num_fmt)
+            ws.write(row - 1, 13, facturas    if facturas    else None,   num_fmt)
+            ws.write(row - 1, 14, maternidad  if maternidad  else None,   num_fmt)
+            ws.write(row - 1, 15, total_general,                          num_fmt)
 
             dept_rows.setdefault(dept, []).append(row - 1)
             row += 1
