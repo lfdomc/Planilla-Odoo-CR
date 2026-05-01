@@ -197,11 +197,14 @@ class ResumenEjecutivoWizard(models.TransientModel):
             ahorro_nav = get_deduction_amount(slip, 'ahorro')
             permiso_sin = permiso_col
             imp_renta  = slip.income_tax or 0
-            otros_reb  = (get_deduction_amount(slip, 'sindical') +
+            otros_reb  = ((slip.amount_cobros_empleado or 0) +
+                          get_deduction_amount(slip, 'sindical') +
                           get_deduction_amount(slip, 'rop') +
                           get_deduction_amount(slip, 'pension_vol') +
                           get_deduction_amount(slip, 'pension_alimentaria') +
-                          get_deduction_amount(slip, 'embargo'))
+                          get_deduction_amount(slip, 'embargo') +
+                          get_deduction_amount(slip, 'seguro') +
+                          get_deduction_amount(slip, 'other'))
             prestamos  = get_deduction_amount(slip, 'loan')
             facturas   = get_deduction_amount(slip, 'cooperativa')
             maternidad = get_deduction_amount(slip, 'maternity')
