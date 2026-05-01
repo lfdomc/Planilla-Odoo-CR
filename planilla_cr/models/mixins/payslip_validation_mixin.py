@@ -415,12 +415,17 @@ class PayslipValidationMixin(models.AbstractModel):
         """Retorna lista de advertencias sin lanzar errores.
         Usado por el wizard de confirmacion con advertencias."""
         from .. import planilla_const as _K
-        from odoo.exceptions import UserError as _UE
         warnings_out = []
         min_salary_global = self.env['planilla.minimum.salary'].get_current_minimum()
         for rec in self:
             emp = rec.employee_id
             if not emp:
+                continue
+            # Empleados de medio tiempo no aplican la alerta de salario minimo
+            is_part_time = bool(
+                emp.schedule_type_id and emp.schedule_type_id.is_part_time
+            )
+            if is_part_time:
                 continue
             prefix = f'[{emp.name}]'
             min_salary = min_salary_global
