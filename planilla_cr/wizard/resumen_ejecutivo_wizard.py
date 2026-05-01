@@ -169,32 +169,42 @@ class ResumenEjecutivoWizard(models.TransientModel):
             emp = slip.employee_id
             dept = emp.department_id.name[:1] if emp.department_id else 'O'
 
-            sal_quincenal = slip.base_salary or 0
-            otros_ing     = get_otros_ingresos(slip)
-            extras        = slip.overtime_amount or 0
-            subtotal      = sal_quincenal + otros_ing + extras
+            # LOGICA FINANCIERA:
+            # Sin incapacidad: Subtotal = gross_salary (bruto completo)
+            # Con incapacidad/permiso: Subtotal = base_cotizable_final
+            #   (lo que el patrono paga realmente, sin el subsidio CCSS/INS)
+            has_disability = bool((slip.ccss_subsidy_total or 0) + (slip.ins_subsidy_total or 0))
+            permiso_sin_goce_amt = ((slip.amount_licencias_sin_goce or 0) +
+                                    get_deduction_amount(slip, 'ausencia') +
+                                    get_deduction_amount(slip, 'licencia_sin_goce'))
 
-            ccss          = slip.ccss_employee or 0
-            # Incapacidad CCSS/INS = subsidio CCSS descontado del patrono
-            incap_ccss    = slip.ccss_subsidy_total or 0
-            ahorro_nav    = get_deduction_amount(slip, 'ahorro')
-            # Permiso sin goce: licencias sin goce + ausencias
-            permiso_sin   = ((slip.amount_licencias_sin_goce or 0) +
-                             get_deduction_amount(slip, 'ausencia') +
-                             get_deduction_amount(slip, 'licencia_sin_goce'))
-            imp_renta     = slip.income_tax or 0
-            # Otros: sindicatos, ROP, pension voluntaria, pension alimentaria, embargo
-            otros_reb     = (get_deduction_amount(slip, 'sindical') +
-                             get_deduction_amount(slip, 'rop') +
-                             get_deduction_amount(slip, 'pension_vol') +
-                             get_deduction_amount(slip, 'pension_alimentaria') +
-                             get_deduction_amount(slip, 'embargo') +
-                             get_deduction_amount(slip, 'other'))
-            prestamos     = get_deduction_amount(slip, 'loan')
-            facturas      = get_deduction_amount(slip, 'cooperativa')
-            maternidad    = get_deduction_amount(slip, 'maternity')
-            # Total General = Deposito Patrono (neto real que paga la empresa)
-            # Es la fuente de verdad del sistema, equivale a ingresos - rebajos
+            if has_disability or permiso_sin_goce_amt > 0:
+                # Usar base cotizable real como bruto del reporte
+                sal_quincenal = slip.base_cotizable_final or slip.base_salary or 0
+                otros_ing     = 0  # ya incluido en base_cotizable_final
+                extras        = slip.overtime_amount or 0
+                subtotal      = sal_quincenal + extras
+            else:
+                sal_quincenal = slip.base_salary or 0
+                otros_ing     = get_otros_ingresos(slip)
+                extras        = slip.overtime_amount or 0
+                subtotal      = sal_quincenal + otros_ing + extras
+
+            ccss       = slip.ccss_employee or 0
+            incap_ccss = (slip.ccss_subsidy_total or 0) + (slip.ins_subsidy_total or 0)
+            ahorro_nav = get_deduction_amount(slip, 'ahorro')
+            permiso_sin = permiso_sin_goce_amt
+            imp_renta  = slip.income_tax or 0
+            otros_reb  = (get_deduction_amount(slip, 'sindical') +
+                          get_deduction_amount(slip, 'rop') +
+                          get_deduction_amount(slip, 'pension_vol') +
+                          get_deduction_amount(slip, 'pension_alimentaria') +
+                          get_deduction_amount(slip, 'embargo'))
+            prestamos  = get_deduction_amount(slip, 'loan')
+            facturas   = get_deduction_amount(slip, 'cooperativa')
+            maternidad = get_deduction_amount(slip, 'maternity')
+            # Total General = deposito_patrono: lo que el patrono deposita al empleado
+            # (excluye subsidios CCSS/INS que paga la CCSS directamente)
             total_general = slip.deposito_patrono or slip.salary_payable or 0
 
             ws.write(row - 1, 0,  emp.name or '',              txt_fmt)
