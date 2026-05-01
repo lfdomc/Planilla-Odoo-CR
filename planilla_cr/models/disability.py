@@ -250,28 +250,10 @@ class Disability(models.Model):
                 rec.maternity_avg_salary = 0.0
                 continue
 
-            # FIX SALARIO-VARIABLE: usar promedio de ultimas 3 boletas confirmadas.
-            # Captura comisiones, bonos y horas extra. Fallback: base_salary / 30.
-            # Base legal: la CCSS calcula sobre el salario efectivamente cotizado
-            # (Reglamento del Seguro de Salud, Art. 6).
-            from odoo.fields import Date as _Date
-            ultimas_boletas = rec.env['planilla.payslip.cr'].search([
-                ('employee_id', '=', rec.employee_id.id),
-                ('state', 'in', ('confirmed', 'paid')),
-                ('date_to', '<=', rec.date_start or _Date.context_today(rec)),
-            ], order='date_to desc', limit=3)
-
-            if ultimas_boletas:
-                from .. import planilla_const as _K
-                gross_list = []
-                for bol in ultimas_boletas:
-                    freq = bol._get_effective_freq()
-                    periodos = _K.PERIODOS_POR_MES.get(freq, 2)
-                    gross_list.append(bol.gross_salary * periodos)
-                avg_monthly = sum(gross_list) / len(gross_list)
-                rec.daily_salary = round(avg_monthly / 30, 2)
-            else:
-                rec.daily_salary = round(rec.employee_id.base_salary / 30, 2)
+            # Siempre usar salario base del empleado (ficha) / 30
+            # El salario base es la fuente de verdad para todos los calculos
+            # de planilla, incapacidades y horas extra.
+            rec.daily_salary = round(rec.employee_id.base_salary / 30, 2)
 
             if rec.disability_type == 'maternity':
                 # Usar salario mensual del empleado directamente

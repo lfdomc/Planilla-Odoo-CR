@@ -175,14 +175,26 @@ class ResumenEjecutivoWizard(models.TransientModel):
             subtotal      = sal_quincenal + otros_ing + extras
 
             ccss          = slip.ccss_employee or 0
-            incap_ccss    = get_deduction_amount(slip, 'seguro')
+            # Incapacidad CCSS/INS = subsidio CCSS descontado del patrono
+            incap_ccss    = slip.ccss_subsidy_total or 0
             ahorro_nav    = get_deduction_amount(slip, 'ahorro')
-            permiso_sin   = slip.amount_licencias_sin_goce or 0
+            # Permiso sin goce: licencias sin goce + ausencias
+            permiso_sin   = ((slip.amount_licencias_sin_goce or 0) +
+                             get_deduction_amount(slip, 'ausencia') +
+                             get_deduction_amount(slip, 'licencia_sin_goce'))
             imp_renta     = slip.income_tax or 0
-            otros_reb     = get_otros_rebajos(slip)
+            # Otros: sindicatos, ROP, pension voluntaria, pension alimentaria, embargo
+            otros_reb     = (get_deduction_amount(slip, 'sindical') +
+                             get_deduction_amount(slip, 'rop') +
+                             get_deduction_amount(slip, 'pension_vol') +
+                             get_deduction_amount(slip, 'pension_alimentaria') +
+                             get_deduction_amount(slip, 'embargo') +
+                             get_deduction_amount(slip, 'other'))
             prestamos     = get_deduction_amount(slip, 'loan')
             facturas      = get_deduction_amount(slip, 'cooperativa')
             maternidad    = get_deduction_amount(slip, 'maternity')
+            # Total General = Deposito Patrono (neto real que paga la empresa)
+            # Es la fuente de verdad del sistema, equivale a ingresos - rebajos
             total_general = slip.deposito_patrono or slip.salary_payable or 0
 
             ws.write(row - 1, 0,  emp.name or '',              txt_fmt)
