@@ -179,21 +179,27 @@ class ResumenEjecutivoWizard(models.TransientModel):
                                     get_deduction_amount(slip, 'licencia_sin_goce'))
 
             if has_disability or permiso_sin_goce_amt > 0:
-                # Usar base cotizable real como bruto del reporte
+                # Usar base cotizable real como subtotal.
+                # base_cotizable_final YA tiene descontado el permiso_sin_goce,
+                # por lo que NO debe aparecer como columna de rebajo adicional
+                # (evitar doble conteo).
                 sal_quincenal = slip.base_cotizable_final or slip.base_salary or 0
-                otros_ing     = 0  # ya incluido en base_cotizable_final
+                otros_ing     = 0
                 extras        = slip.overtime_amount or 0
                 subtotal      = sal_quincenal + extras
+                # Permiso sin goce ya esta embebido en el subtotal -> columna = 0
+                permiso_col   = 0.0
             else:
                 sal_quincenal = slip.base_salary or 0
                 otros_ing     = get_otros_ingresos(slip)
                 extras        = slip.overtime_amount or 0
                 subtotal      = sal_quincenal + otros_ing + extras
+                permiso_col   = permiso_sin_goce_amt
 
             ccss       = slip.ccss_employee or 0
             incap_ccss = (slip.ccss_subsidy_total or 0) + (slip.ins_subsidy_total or 0)
             ahorro_nav = get_deduction_amount(slip, 'ahorro')
-            permiso_sin = permiso_sin_goce_amt
+            permiso_sin = permiso_col
             imp_renta  = slip.income_tax or 0
             otros_reb  = (get_deduction_amount(slip, 'sindical') +
                           get_deduction_amount(slip, 'rop') +
