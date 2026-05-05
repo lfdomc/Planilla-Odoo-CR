@@ -184,6 +184,7 @@ class PayrollReportWizard(models.TransientModel):
             ('Vacaciones Pagadas',          18),
             ('Otros Ingresos',              16),
             ('Permiso sin Goce',            18),
+            ('Reducc. Incapacidad',         18),   # base - gross - permiso cuando hay incapac
             ('Salario Bruto',               18),
             # ── L-P Deducciones (= boleta sección Deducciones) ───────────────
             ('Base Cotizable CCSS',         18),
@@ -215,18 +216,18 @@ class PayrollReportWizard(models.TransientModel):
         # A-C id, D-F periodo, G-N ingresos, L-P deducciones,
         # Q-S subsidios+neto, T deposito, U vacía, V-AB patronales
         section_map = {}
-        for i in range(3):    section_map[i] = (hdr_id,    normal,      False)   # A-C id/texto
-        for i in range(3,6):  section_map[i] = (hdr_dias,  int_dias,    True)    # D-F días/periodo/freq → int
-        # D (3) periodo y E (4) freq son texto, solo F (5) es int
-        section_map[3] = (hdr_dias, normal,   False)   # Período (texto)
-        section_map[4] = (hdr_dias, normal,   False)   # Frecuencia (texto)
-        section_map[5] = (hdr_dias, int_dias, True)    # Días Laborados (int)
-        for i in range(6,13): section_map[i] = (hdr_ing,   money_ing,   False)   # G-M ingresos
-        for i in range(13,18):section_map[i] = (hdr_cotiz, money_cotiz, False)   # N-R ded/cotiz
-        for i in range(18,21):section_map[i] = (hdr_sub,   money_sub,   False)   # S-U subsidios+neto
-        section_map[21] = (hdr_ing,  money_ing,  False)   # V Depósito Patrono
-        section_map[22] = (hdr_id,   normal,     False)   # W vacía
-        for i in range(23,30):section_map[i] = (hdr_pat,  money_pat,  False)    # X-AD patronales
+        for i in range(3):    section_map[i] = (hdr_id,    normal,      False)
+        section_map[3] = (hdr_dias, normal,   False)   # D Período (texto)
+        section_map[4] = (hdr_dias, normal,   False)   # E Frecuencia (texto)
+        section_map[5] = (hdr_dias, int_dias, True)    # F Días Laborados
+        for i in range(6,13): section_map[i] = (hdr_ing,   money_ing,   False)  # G-M ingresos
+        section_map[13] = (hdr_ded,  money_ded,   False)  # N Reducción Incapacidad (rebajo)
+        section_map[14] = (hdr_ing,  money_ing,   False)  # O Salario Bruto
+        for i in range(15,20):section_map[i] = (hdr_cotiz, money_cotiz, False)  # P-T cotiz/ded
+        for i in range(20,23):section_map[i] = (hdr_sub,   money_sub,   False)  # U-W sub+neto
+        section_map[23] = (hdr_ing,  money_ing,  False)   # X Depósito Patrono
+        section_map[24] = (hdr_id,   normal,     False)   # Y vacía
+        for i in range(25,31):section_map[i] = (hdr_pat,  money_pat,  False)   # Z-AF patronales
         row = 5
         for col, (name, width) in enumerate(columns):
             hfmt = section_map.get(col, (hdr_id, money, False))[0]
@@ -253,46 +254,50 @@ class PayrollReportWizard(models.TransientModel):
             # Todos los cálculos se leen directo del slip — sin variables intermedias
 
             data = [
-                # ── A-C Identificación ───────────────────────────────────────
                 slip.employee_id.name or '',
                 slip.branch_id.name   or '',
                 slip.employee_id.identification_id or '',
-                # ── D-F Período ──────────────────────────────────────────────
                 periodo_str,
                 freq_str,
                 float(slip.dias_laborados_periodo or slip.days_worked or 0),
-                # ── G-M Ingresos ─────────────────────────────────────────────
-                c(slip.base_salary           or 0, slip),  # G Salario Base
-                c(slip.overtime_amount        or 0, slip),  # H Horas Extras
-                c(slip.bono_salarial_amount   or 0, slip),  # I Bonos Salariales
-                c(slip.vacation_amount        or 0, slip),  # J Vacaciones Pagadas
-                c(slip.other_income           or 0, slip),  # K Otros Ingresos
-                c(slip.amount_licencias_sin_goce or 0, slip), # L Permiso sin Goce
-                c(slip.gross_salary           or 0, slip),  # M Salario Bruto
-                # ── N-R Cotización y Deducciones ─────────────────────────────
-                c(slip.base_cotizable_final   or 0, slip),  # N Base Cotizable CCSS
-                c(slip.ccss_employee          or 0, slip),  # O CCSS Obrero 10.83%
-                c(slip.income_tax             or 0, slip),  # P Impuesto Renta
-                max(round(                                   # Q Otras Deducciones
+                c(slip.base_salary            or 0, slip),
+                c(slip.overtime_amount         or 0, slip),
+                c(slip.bono_salarial_amount    or 0, slip),
+                c(slip.vacation_amount         or 0, slip),
+                max(round(
+                    c(slip.gross_salary or 0, slip)
+                    - c(slip.base_salary or 0, slip)
+                    - c(slip.overtime_amount or 0, slip)
+                    - c(slip.bono_salarial_amount or 0, slip)
+                    - c(slip.vacation_amount or 0, slip)
+                    + c(slip.amount_licencias_sin_goce or 0, slip),
+                    2), 0.0),
+                c(slip.amount_licencias_sin_goce or 0, slip),
+                max(round(
+                    c(slip.base_salary or 0, slip)
+                    - c(slip.gross_salary or 0, slip)
+                    - c(slip.amount_licencias_sin_goce or 0, slip),
+                    2), 0.0),
+                c(slip.gross_salary            or 0, slip),
+                c(slip.base_cotizable_final    or 0, slip),
+                c(slip.ccss_employee           or 0, slip),
+                c(slip.income_tax              or 0, slip),
+                max(round(
                     c(slip.total_employee_deductions or 0, slip)
                     - c(slip.ccss_employee or 0, slip)
                     - c(slip.income_tax    or 0, slip), 2), 0.0),
-                c(slip.total_employee_deductions or 0, slip), # R Total Ded. Obrero
-                # ── S-U Subsidios + Neto ─────────────────────────────────────
-                c((slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), slip), # S Subsidio CCSS
-                c(slip.ins_subsidy_total   or 0, slip),     # T Subsidio INS
-                c(slip.net_salary          or 0, slip),     # U Salario Neto
-                # ── V Depósito Patrono ────────────────────────────────────────
-                c(slip.deposito_patrono    or 0, slip),     # V deposito_patrono (campo correcto del slip)
-                # ── W Separador visual ────────────────────────────────────────
+                c(slip.total_employee_deductions or 0, slip),
+                c((slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), slip),
+                c(slip.ins_subsidy_total   or 0, slip),
+                c(slip.net_salary          or 0, slip),
+                c(slip.deposito_patrono    or 0, slip),
                 '',
-                # ── X-AC Cargas Patronales ────────────────────────────────────
-                c(slip.ccss_employer        or 0, slip),    # X CCSS Patronal 26.83%
-                c(slip.ins_employer         or 0, slip),    # Y INS Riesgos del Trabajo
-                c(slip.aguinaldo_provision  or 0, slip),    # Z Provisión Aguinaldo
-                c(slip.cesantia_provision   or 0, slip),    # AA Provisión Cesantía
-                c(slip.vacation_provision   or 0, slip),    # AB Provisión Vacaciones
-                c(slip.total_employer_cost  or 0, slip),    # AC Costo Total Patronal
+                c(slip.ccss_employer       or 0, slip),
+                c(slip.ins_employer        or 0, slip),
+                c(slip.aguinaldo_provision or 0, slip),
+                c(slip.cesantia_provision  or 0, slip),
+                c(slip.vacation_provision  or 0, slip),
+                c(slip.total_employer_cost or 0, slip),
             ]
             for col, val in enumerate(data):
                 _, dfmt, is_int = section_map.get(col, (None, money, False))
@@ -312,12 +317,36 @@ class PayrollReportWizard(models.TransientModel):
         for col in range(3, len(columns)):
             ws.write(row, col, totals[col], total_num)
 
+        # Nota al pie — tope salarial CCSS y fórmulas de cierre
+        row += 2
+        fmt_note = wb.add_format({'font_size': 8, 'font_color': '#888888',
+                                   'italic': True, 'text_wrap': True})
+        ws.merge_range(row, 0, row, 10,
+            'Fórmulas de cierre: '
+            '(1) SalBruto = Base + HExtras + Bonos + Vac + OtrosIng − Permiso − ReducIncap  |  '
+            '(2) TotalDed = CCSS + Renta + OtrasDed  |  '
+            '(3) SalNeto = SalBruto − TotalDed + SubCCSS + SubINS  |  '
+            '(4) CCSS Obrero = 10.83% × BaseCotiz (sujeto a tope salarial CCSS — '
+            'empleados con salario > tope pueden mostrar CCSS < 10.83% × BaseCotiz; el valor del slip es correcto)',
+            fmt_note)
+
         wb.close()
         xlsx_data = base64.b64encode(output.getvalue()).decode()
-        run_slug = '_'.join(
-            r.name.replace(' ', '_').replace('/', '-')[:20]
-            for r in self.payroll_run_ids[:2]
-        )
+        # Nombre: YYYY_Mes_Primera/Segunda_Quincena (ej. 2026_Abril_Primera_Quincena)
+        import re as _re
+        def _run_slug(run):
+            name = run.name or ''
+            # Detectar año desde name o date_start
+            year = run.date_start.year if run.date_start else ''
+            # Detectar mes
+            month_es = {1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',
+                        6:'Junio',7:'Julio',8:'Agosto',9:'Septiembre',
+                        10:'Octubre',11:'Noviembre',12:'Diciembre'}
+            month = month_es.get(run.date_start.month, '') if run.date_start else ''
+            # Detectar primera/segunda quincena
+            q = 'Primera_Quincena' if (run.date_start and run.date_start.day <= 15) else 'Segunda_Quincena'
+            return f'{year}_{month}_{q}'
+        run_slug = '_'.join(_run_slug(r) for r in self.payroll_run_ids[:2])
         filename = f'Planilla_{run_slug}.xlsx'
 
         attachment = self.env['ir.attachment'].create({
