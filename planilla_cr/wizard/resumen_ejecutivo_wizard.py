@@ -272,14 +272,14 @@ class ResumenEjecutivoWizard(models.TransientModel):
             ahorro_nav = get_deduction_amount(slip, 'ahorro')
             permiso_sin = permiso_col
             imp_renta  = slip.income_tax or 0
-            otros_reb  = ((slip.amount_cobros_empleado or 0) +
-                          get_deduction_amount(slip, 'sindical') +
-                          get_deduction_amount(slip, 'rop') +
-                          get_deduction_amount(slip, 'pension_vol') +
-                          get_deduction_amount(slip, 'pension_alimentaria') +
-                          get_deduction_amount(slip, 'embargo') +
-                          get_deduction_amount(slip, 'seguro') +
-                          get_deduction_amount(slip, 'other'))
+            # FIX BUG-COBRO-DOBLE: usar get_otros_rebajos() en lugar de la suma manual.
+            # PROBLEMA ANTERIOR: slip.amount_cobros_empleado filtra por employee_charge_id,
+            # y get_deduction_amount('other') filtra por deduction_category='other'.
+            # Todos los cobros tienen AMBOS: employee_charge_id SET y category='other'.
+            # Resultado: cada cobro se sumaba DOS VECES → otros_reb = 2 × cobros_reales.
+            # SOLUCIÓN: get_otros_rebajos() suma una sola vez todas las líneas de deducción
+            # cuya categoría no está ya cubierta por otra columna del reporte.
+            otros_reb  = get_otros_rebajos(slip)
             prestamos  = get_deduction_amount(slip, 'loan')
             facturas   = get_deduction_amount(slip, 'cooperativa')
             maternidad = get_deduction_amount(slip, 'maternity')
