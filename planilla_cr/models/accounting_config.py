@@ -164,6 +164,27 @@ class PayrollAccountingConfig(models.Model):
     # ==============================================================
     # CUENTAS POR PAGAR (CREDITO)
     # ==============================================================
+    # Configuracion especial: omitir CCSS obrero en liquidaciones
+    # Por defecto DESACTIVADO (la mayoria de empresas paga CCSS en liquidaciones)
+    # Check para calcular HE con formula fija: salario/30/8
+    # Por defecto DESACTIVADO (usa horas del tipo de horario del empleado)
+    overtime_fixed_8h = fields.Boolean(
+        string='Horas extra: usar formula salario/30/8h (fijo)',
+        default=False,
+        help='Si se activa, el calculo de horas extra usara SIEMPRE salario/30/8h,'
+             ' ignorando el tipo de horario del empleado.'
+             ' Por defecto DESACTIVADO (usa las horas del tipo de horario asignado).'
+    )
+
+    skip_ccss_on_termination = fields.Boolean(
+        string='No descontar CCSS obrero en liquidaciones',
+        default=False,
+        help='Si se activa, el sistema no descontara la CCSS obrero en las'
+             ' liquidaciones de empleados ni en el simulador de liquidaciones.'
+             ' Por defecto DESACTIVADO. Activar solo si la empresa tiene un'
+             ' acuerdo especial o politica interna al respecto.'
+    )
+
     account_ccss_payable = fields.Many2one(
         'account.account', string='CCSS por Pagar (Obrera + Patronal)',
         help='CREDITO -- CCSS Obrera (10.83%) + Patronal (26.83%).\nEj: 230300 CCSS por Pagar'

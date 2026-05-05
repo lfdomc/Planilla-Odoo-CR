@@ -494,6 +494,6 @@ class Eddi7Export(models.TransientModel):
             raise UserError('Genere primero el archivo EDDI-7.')
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/planilla.eddi7.export/{self.id}/eddi7_file/{self.eddi7_filename}download=true',
+            'url': f'/web/content/planilla.eddi7.export/{self.id}/eddi7_file/{self.eddi7_filename}?download=true',
             'target': 'self',
         }

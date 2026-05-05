@@ -117,7 +117,7 @@ class Overtime(models.Model):
             date_str = str(rec.date) if rec.date else ''
             rec.name = f'HE - {emp} - {date_str}'
 
-    @api.depends('employee_id', 'date')
+    @api.depends('employee_id', 'date', 'employee_id.base_salary')
     def _compute_hourly_rate(self):
         """
         BUG #6 FIX v50: Usa el salario historico vigente en la fecha de las HE.
@@ -129,23 +129,19 @@ class Overtime(models.Model):
             if not rec.employee_id:
                 rec.hourly_rate = 0.0
                 continue
-            base_salary = 0.0
-            if rec.date:
-                # Buscar salario historico vigente en la fecha de las HE
-                history = self.env['planilla.salary.history'].search([
-                    ('employee_id', '=', rec.employee_id.id),
-                    ('effective_date', '<=', rec.date),
-                    ('state', '=', 'authorized'),  # FIX-G2: solo registros autorizados
-                ], order='effective_date desc', limit=1)
-                if history:
-                    base_salary = history.gross_salary
-            # Fallback: salario base actual
-            if not base_salary:
-                base_salary = rec.employee_id.base_salary or 0.0
-            # Horas por dia segun jornada del empleado (fallback 8h jornada ordinaria)
-            hours_per_day = 8.0
-            if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
-                hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
+            # Salario mensual del empleado directamente -- sin historial
+            base_salary = rec.employee_id.base_salary or 0.0
+            # Verificar si la empresa tiene configurado formula fija 8h
+            _cfg = rec.env['planilla.accounting.config'].search(
+                [('company_id', '=', rec.employee_id.company_id.id)], limit=1)
+            _fixed_8h = _cfg.overtime_fixed_8h if _cfg else False
+            # Horas por dia: fijo 8h si esta activado, o segun jornada del empleado
+            if _fixed_8h:
+                hours_per_day = 8.0
+            else:
+                hours_per_day = 8.0
+                if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
+                    hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
             # Tarifa por hora = Salario mensual / 30 dias / horas_jornada
             rec.hourly_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
 
@@ -166,9 +162,14 @@ class Overtime(models.Model):
             old_rate = rec.hourly_rate
             # Forzar recomputacion leyendo base_salary directamente
             base_salary = rec.employee_id.base_salary or 0.0
-            hours_per_day = 8.0
-            if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
-                hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
+            _cfg2 = rec.env['planilla.accounting.config'].search(
+                [('company_id', '=', rec.employee_id.company_id.id)], limit=1)
+            if _cfg2 and _cfg2.overtime_fixed_8h:
+                hours_per_day = 8.0
+            else:
+                hours_per_day = 8.0
+                if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
+                    hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
             new_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
             if new_rate != old_rate:
                 factors = {'simple': 1.5, 'double': 2.0, 'holiday': 2.0}

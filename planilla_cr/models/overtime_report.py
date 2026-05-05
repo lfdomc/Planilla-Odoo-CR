@@ -109,7 +109,7 @@ class OvertimeConsolidatedReport(models.TransientModel):
             'datas': base64.b64encode(output.getvalue()),
             'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}download=true', 'target': 'self'}
+        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}?download=true', 'target': 'self'}
 
 
 class MtssExportWizard(models.TransientModel):
@@ -196,4 +196,4 @@ class MtssExportWizard(models.TransientModel):
             'datas': base64.b64encode(output.getvalue()),
             'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         })
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}download=true', 'target': 'self'}
+        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}?download=true', 'target': 'self'}

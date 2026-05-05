@@ -19,6 +19,8 @@ class BankPaymentWizard(models.TransientModel):
         ('bcr_dav', 'BCR - Archivo DAV (CSV)'),
         ('bncr_sin', 'BNCR - Archivo SINPE (.SIN)'),
         ('sinpe_movil', 'SINPE Movil -- Todos los bancos (CSV)'),
+        ('bac_csv',   'BAC Credomatic (CSV)'),
+        ('bac_excel', 'BAC Credomatic (Excel)'),
     ], string='Formato Bancario', required=True, default='bcr_dav')
 
     # Campos SINPE Movil
@@ -125,7 +127,7 @@ class BankPaymentWizard(models.TransientModel):
                 errors.append(f'{emp.name}: IBAN invalido ({iban})')
                 continue
 
-            net = round(payslip.salary_payable, 2)  # B1 FIX: salary_payable (neto real despues de todas las deducciones)
+            net = round(payslip.deposito_patrono or payslip.salary_payable, 2)
             nombre = emp.name or ''
             writer.writerow([iban, nombre, f'{net:.2f}', concept, concept, concept])
 
@@ -150,7 +152,7 @@ class BankPaymentWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}download=true',
+            'url': f'/web/content/{attachment.id}?download=true',
             'target': 'self',
         }
 
@@ -210,7 +212,7 @@ class BankPaymentWizard(models.TransientModel):
                 errors.append(f'{emp.name}: IBAN invalido ({iban})')
                 continue
 
-            net = payslip.salary_payable  # B1 FIX: salary_payable no net_salary
+            net = payslip.deposito_patrono or payslip.salary_payable
             total_monto += net
 
             # Correlativo = posicion 23-28 del IBAN (indices 22-28 en 0-based del string IBAN completo)
@@ -337,7 +339,7 @@ class BankPaymentWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}download=true',
+            'url': f'/web/content/{attachment.id}?download=true',
             'target': 'self',
         }
 
@@ -378,7 +380,7 @@ class BankPaymentWizard(models.TransientModel):
                 errors.append(f'{emp.name}: telefono invalido ({phone_clean}) -- debe tener 8 digitos')
                 continue
 
-            net = round(payslip.salary_payable, 2)  # B1 FIX: salary_payable (neto real despues de todas las deducciones)
+            net = round(payslip.deposito_patrono or payslip.salary_payable, 2)
             cedula = emp.identification_id or ''
             writer.writerow([phone_clean, f'{net:.2f}', concept, emp.name, cedula])
             count += 1
@@ -403,7 +405,153 @@ class BankPaymentWizard(models.TransientModel):
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{attachment.id}download=true',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    # -------------------------------------------------------------
+    #  BAC  CREDOMATIC  --  CSV  cedula/nombre/monto
+    # -------------------------------------------------------------
+    def action_export_bac_csv(self):
+        """Genera CSV para pago masivo BAC Credomatic.
+        Formato: cedula, nombre_empleado, monto_neto
+        Compatible con el portal de pagos masivos de BAC Costa Rica.
+        """
+        self.ensure_one()
+        payslips = self._get_payslips()
+        if not payslips:
+            raise UserError('No hay boletas aprobadas en el periodo seleccionado.')
+
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator='\r\n')
+        writer.writerow(['Cedula', 'Nombre', 'Monto'])
+
+        errors = []
+        count = 0
+        total = 0.0
+
+        for payslip in payslips.sorted(key=lambda s: s.employee_id.name):
+            emp = payslip.employee_id
+            cedula = (emp.identification_id or '').strip().replace('-', '')
+            if not cedula:
+                errors.append(f'{emp.name}: sin cedula registrada')
+                continue
+            net = round(payslip.deposito_patrono or payslip.salary_payable, 2)
+            writer.writerow([cedula, emp.name or '', f'{net:.2f}'])
+            total += net
+            count += 1
+
+        if count == 0:
+            raise UserError(
+                'No se generaron registros. Errores:\n' + '\n'.join(errors)
+            )
+
+        # Fila de totales al final
+        writer.writerow(['', f'TOTAL ({count} empleados)', f'{total:.2f}'])
+
+        csv_content = output.getvalue()
+        if errors:
+            warn = '# ADVERTENCIA -- Empleados omitidos por falta de cedula:\n'
+            warn += '\n'.join(f'# - {e}' for e in errors) + '\n'
+            csv_content = warn + csv_content
+
+        filename = f'Planilla_BAC_{self.date_from}_{self.date_to}.csv'
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(csv_content.encode('utf-8')),
+            'mimetype': 'text/csv',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    # -------------------------------------------------------------
+    #  BAC  CREDOMATIC  --  EXCEL  (.xlsx)
+    # -------------------------------------------------------------
+    def action_export_bac_excel(self):
+        """Genera Excel para pago masivo BAC Credomatic.
+        Columnas: Cedula | Nombre | Monto
+        """
+        self.ensure_one()
+        import io as _io
+        try:
+            import xlsxwriter
+        except ImportError:
+            from odoo.exceptions import UserError as _UE
+            raise _UE('xlsxwriter no esta instalado. Use el formato CSV.')
+
+        payslips = self._get_payslips()
+        if not payslips:
+            from odoo.exceptions import UserError as _UE
+            raise _UE('No hay boletas aprobadas en el periodo seleccionado.')
+
+        output = _io.BytesIO()
+        workbook  = xlsxwriter.Workbook(output, {'in_memory': True})
+        sheet     = workbook.add_worksheet('BAC Planilla')
+
+        # Formatos
+        fmt_title  = workbook.add_format({'bold': True, 'font_size': 13, 'font_color': '#FFFFFF', 'bg_color': '#C8102E', 'border': 1})
+        fmt_header = workbook.add_format({'bold': True, 'bg_color': '#C8102E', 'font_color': '#FFFFFF', 'border': 1, 'align': 'center'})
+        fmt_cedula = workbook.add_format({'align': 'left', 'border': 1, 'num_format': '@'})
+        fmt_nombre = workbook.add_format({'align': 'left', 'border': 1})
+        fmt_monto  = workbook.add_format({'num_format': '#,##0.00', 'border': 1, 'align': 'right'})
+        fmt_total  = workbook.add_format({'bold': True, 'bg_color': '#F5C6CB', 'num_format': '#,##0.00', 'border': 1, 'align': 'right'})
+        fmt_total_lbl = workbook.add_format({'bold': True, 'bg_color': '#F5C6CB', 'border': 1})
+
+        # Titulo
+        sheet.merge_range('A1:C1', f'Planilla BAC Credomatic -- {self.date_from} al {self.date_to}', fmt_title)
+        sheet.set_row(0, 20)
+
+        # Encabezados
+        sheet.write(1, 0, 'Cedula',  fmt_header)
+        sheet.write(1, 1, 'Nombre',  fmt_header)
+        sheet.write(1, 2, 'Monto',   fmt_header)
+
+        # Anchos de columna
+        sheet.set_column('A:A', 14)
+        sheet.set_column('B:B', 35)
+        sheet.set_column('C:C', 16)
+
+        row   = 2
+        total = 0.0
+        count = 0
+        errors = []
+
+        for payslip in payslips.sorted(key=lambda s: s.employee_id.name):
+            emp    = payslip.employee_id
+            cedula = (emp.identification_id or '').strip().replace('-', '')
+            if not cedula:
+                errors.append(f'{emp.name}: sin cedula registrada')
+                continue
+            net = round(payslip.deposito_patrono or payslip.salary_payable, 2)
+            sheet.write(row, 0, cedula,    fmt_cedula)
+            sheet.write(row, 1, emp.name,  fmt_nombre)
+            sheet.write(row, 2, net,       fmt_monto)
+            total += net
+            count += 1
+            row   += 1
+
+        # Fila de totales
+        sheet.write(row, 0, '',                           fmt_total_lbl)
+        sheet.write(row, 1, f'TOTAL ({count} empleados)', fmt_total_lbl)
+        sheet.write(row, 2, total,                        fmt_total)
+
+        workbook.close()
+        xlsx_bytes = output.getvalue()
+
+        filename = f'Planilla_BAC_{self.date_from}_{self.date_to}.xlsx'
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': __import__('base64').b64encode(xlsx_bytes),
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
             'target': 'self',
         }
 
@@ -415,4 +563,8 @@ class BankPaymentWizard(models.TransientModel):
             return self.action_export_bncr_sin()
         elif self.bank_format == 'sinpe_movil':
             return self.action_export_sinpe_movil()
+        elif self.bank_format == 'bac_csv':
+            return self.action_export_bac_csv()
+        elif self.bank_format == 'bac_excel':
+            return self.action_export_bac_excel()
         raise UserError('Formato no implementado.')

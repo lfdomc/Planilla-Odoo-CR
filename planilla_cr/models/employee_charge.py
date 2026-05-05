@@ -317,7 +317,7 @@ class PlanillaEmployeeCharge(models.Model):
         # (estado draft, confirmed o paid) con una linea de deduccion de este cobro.
         active_line = self.env['planilla.payslip.deduction.line'].search([
             ('employee_charge_id', '=', self.id),
-            ('payslip_id.state', 'in', ('draft', 'confirmed', 'paid')),
+            ('payslip_id.state', 'in', ('draft', 'confirmed', 'done')),
         ], limit=1)
 
         if active_line:
@@ -346,7 +346,7 @@ class PlanillaEmployeeCharge(models.Model):
             # Obtener los periodos que SI tienen boleta activa
             active_lines = self.env['planilla.payslip.deduction.line'].search([
                 ('employee_charge_id', '=', rec.id),
-                ('payslip_id.state', 'in', ('draft', 'confirmed', 'paid')),
+                ('payslip_id.state', 'in', ('draft', 'confirmed', 'done')),
             ])
             active_periods = set()
             for line in active_lines:
@@ -518,7 +518,7 @@ class PlanillaEmployeeCharge(models.Model):
                 # Obtener todos los periodos que SI tienen linea en boleta activa
                 active_lines = self.env['planilla.payslip.deduction.line'].search([
                     ('employee_charge_id', '=', charge.id),
-                    ('payslip_id.state', 'in', ('draft', 'confirmed', 'paid')),
+                    ('payslip_id.state', 'in', ('draft', 'confirmed', 'done')),
                 ])
                 active_periods = set()
                 for line in active_lines:

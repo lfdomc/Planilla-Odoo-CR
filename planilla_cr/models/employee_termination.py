@@ -45,6 +45,62 @@ class EmployeeTermination(models.Model):
         string='Salario Bruto Mensual', currency_field='currency_id',
         required=True
     )
+    use_salary_average = fields.Boolean(
+        string='Usar Promedio Manual de Salarios',
+        default=False,
+        help='Active para ingresar el promedio de los ultimos 6 salarios (Art. 153 CT). '
+             'Se usara en lugar del salario actual para cesantia, preaviso y vacaciones.'
+    )
+    salary_average_manual = fields.Monetary(
+        string='Promedio 6 Meses (CRC)',
+        currency_field='currency_id',
+        help='Promedio mensual de los ultimos 6 salarios brutos (Art. 153 CT). '
+             'NOTA: el app paga quincenalmente, sume las dos quincenas de cada mes.'
+    )
+    # Campos para ingresar los 6 salarios mensuales (suma de 2 quincenas cada uno)
+    sal_m1 = fields.Monetary(string='Salario Mes 1 (mas reciente)',
+        currency_field='currency_id',
+        help='Suma de las 2 quincenas del mes mas reciente antes de la salida.')
+    sal_m2 = fields.Monetary(string='Salario Mes 2', currency_field='currency_id')
+    sal_m3 = fields.Monetary(string='Salario Mes 3', currency_field='currency_id')
+    sal_m4 = fields.Monetary(string='Salario Mes 4', currency_field='currency_id')
+    sal_m5 = fields.Monetary(string='Salario Mes 5', currency_field='currency_id')
+    sal_m6 = fields.Monetary(string='Salario Mes 6 (mas antiguo)',
+        currency_field='currency_id')
+    sal_promedio_calc = fields.Monetary(
+        string='Promedio Calculado (CRC)',
+        currency_field='currency_id',
+        compute='_compute_sal_promedio_term', store=False,
+        help='Promedio de los meses con valor > 0 (igual que formula Excel RRHH)'
+    )
+    sal_meses_con_valor = fields.Integer(
+        string='Meses con salario',
+        compute='_compute_sal_promedio_term', store=False
+    )
+
+    @api.depends('sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6')
+    def _compute_sal_promedio_term(self):
+        for rec in self:
+            vals = [rec.sal_m1 or 0, rec.sal_m2 or 0, rec.sal_m3 or 0,
+                    rec.sal_m4 or 0, rec.sal_m5 or 0, rec.sal_m6 or 0]
+            nz = [v for v in vals if v > 0]
+            if nz:
+                rec.sal_promedio_calc  = round(sum(nz) / len(nz), 2)
+                rec.sal_meses_con_valor = len(nz)
+            else:
+                rec.sal_promedio_calc  = 0.0
+                rec.sal_meses_con_valor = 0
+
+    @api.onchange('sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6')
+    def _onchange_sal_term(self):
+        vals = [self.sal_m1 or 0, self.sal_m2 or 0, self.sal_m3 or 0,
+                self.sal_m4 or 0, self.sal_m5 or 0, self.sal_m6 or 0]
+        nz = [v for v in vals if v > 0]
+        if nz:
+            avg = round(sum(nz) / len(nz), 2)
+            self.salary_average_manual = avg
+            self.use_salary_average = True
+            self.last_salary = avg
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.ref('base.CRC')
     )
@@ -225,8 +281,13 @@ class EmployeeTermination(models.Model):
                 rec.aguinaldo_months = 0
                 continue
 
-            daily_salary = rec.last_salary / 30
-            monthly_salary = rec.last_salary
+            # Usar promedio manual si el usuario lo activo (Art. 153 CT)
+            if rec.use_salary_average and rec.salary_average_manual > 0:
+                daily_salary = rec.salary_average_manual / 30
+            else:
+                daily_salary = rec.last_salary / 30
+            monthly_salary_eff = daily_salary * 30
+            # monthly_salary se deriva de daily_salary_eff
 
             # -- Preaviso ------------------------------------------
             rec.preaviso_amount = daily_salary * rec.preaviso_days if rec.preaviso_applies else 0
@@ -314,12 +375,12 @@ class EmployeeTermination(models.Model):
                     (period_start.year * 12 + period_start.month) + 1
                 )
                 months_from_system = max(0, total_months - months_covered)
-                aguinaldo_system   = round(monthly_salary / 12 * months_from_system, 2)
+                aguinaldo_system   = round(monthly_salary_eff / 12 * months_from_system, 2)
                 rec.aguinaldo_months = total_months
                 rec.aguinaldo_amount = round(ag_init_amount + aguinaldo_system, 2)
             else:
                 rec.aguinaldo_months = total_months
-                rec.aguinaldo_amount = round(monthly_salary / 12 * total_months, 2)
+                rec.aguinaldo_amount = round(monthly_salary_eff / 12 * total_months, 2)
 
     def _calc_income_tax(self, gross):
         """FIX NEW-02 v54: calcula renta sobre el total bruto de la liquidacion.
@@ -385,13 +446,18 @@ class EmployeeTermination(models.Model):
                 (rec.preaviso_amount if rec.preaviso_applies else 0) +
                 rec.vacation_amount
             )
-            ccss_emp = round(liquidable_base * ccss_employee_rate, 2)
-            # FIX NEW-02 v54: renta sobre el total bruto de la liquidacion
-            income_tax = round(rec._calc_income_tax(gross), 2)
+            # Verificar si la empresa omite CCSS en liquidaciones
+            _config = rec.env['planilla.accounting.config'].search(
+                [('company_id', '=', rec.company_id.id)], limit=1)
+            _skip_ccss = _config.skip_ccss_on_termination if _config else False
+            ccss_emp = 0.0 if _skip_ccss else round(liquidable_base * ccss_employee_rate, 2)
+            # Cesantia (Art.29 CT) y Aguinaldo (Art.228 CT) exentos de CCSS y Renta
+            renta_base = liquidable_base  # preaviso + vacaciones unicamente
+            income_tax = round(rec._calc_income_tax(renta_base), 2)
             rec.total_gross = round(gross, 2)
             rec.ccss_employee_on_termination = ccss_emp
             rec.income_tax_on_termination = income_tax
-            # total_net = bruto  CCSS obrero  renta  otras deducciones
+            # total_net = bruto - CCSS obrero - renta - otras deducciones
             rec.total_net = round(gross - ccss_emp - income_tax - rec.deductions, 2)
 
     # -- Onchange para autocompletar desde empleado ----------------
@@ -407,17 +473,8 @@ class EmployeeTermination(models.Model):
             # en lugar de usar solo el salario base fijo.
             # Art. 153 CT: la liquidacion debe basarse en el salario real percibido.
             if getattr(emp, 'has_variable_income', False):
-                history = self.env['planilla.salary.history'].search([
-                    ('employee_id', '=', emp.id),
-                    ('state', '=', 'authorized'),
-                ], order='effective_date desc', limit=4)
-                if history:
-                    salaries = [h.gross_salary or h.salary or 0.0 for h in history]
-                    avg_monthly = round(sum(salaries) / len(salaries), 2)
-                    self.last_salary = avg_monthly
-                else:
-                    self.last_salary = emp.base_salary or 0
-            else:
+                # Usar salario mensual del empleado directamente
+                avg_monthly = emp.base_salary or 0
                 self.last_salary = emp.base_salary or 0
 
     # -- Actions --------------------------------------------------
@@ -495,6 +552,19 @@ class EmployeeTermination(models.Model):
             self.write({
                 'state': 'paid',
                 'move_id': move.id if move else False,
+            })
+            # Registrar movimiento de salida
+            self.env['planilla.employee.movement'].create({
+                'employee_id':    self.employee_id.id,
+                'movement_date':  self.termination_date or fields.Date.today(),
+                'movement_type':  'salida',
+                'reason':         dict(self._fields['termination_reason'].selection).get(
+                    self.termination_reason, self.termination_reason
+                ),
+                'salary_before':  self.last_salary,
+                'company_id':     self.company_id.id,
+                'termination_id': self.id,
+                'note':           self.note or False,
             })
             # FIX-AUD-08: cancelar prestamos activos del empleado al pagar la liquidacion.
             # Si las deducciones ya contemplaban el saldo, los prestamos deben cerrarse

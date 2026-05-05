@@ -806,7 +806,10 @@ class PayrollRunCR(models.Model):
         # FIX v54: Separar bonos salariales, subsidios exentos y embargos
         # para asientos correctos en modo per_run (mismo criterio que per_employee)
         total_bonos_salariales = round(sum(p.bono_salarial_amount or 0.0 for p in payslips), 2)
-        total_rop_emp    = round(sum(p.rop_employer or 0.0 for p in payslips), 2)
+        # Usar total_rop_employer del run que ya esta calculado y persistido
+        # en lugar de sumar de payslips (que pueden tener el campo desactualizado)
+        total_rop_emp    = round(self.total_rop_employer or
+                                 sum(p.rop_employer or 0.0 for p in payslips), 2)
         total_rop_obrero = round(sum(
             l.amount for p in payslips
             for l in p.deduction_line_ids
@@ -868,9 +871,14 @@ class PayrollRunCR(models.Model):
         # paga al empleado (igual que vacaciones o paternidad). FIX-G4 las excluyo
         # de total_extra_income (evitar doble DEBE) pero deben seguir en el HABER
         # para que el empleado reciba el pago correcto.
+        # FIX-ACC-02: el neto solo agrega subsidios exentos y otros ingresos manuales
+        # porque bono_salarial_amount ya esta en total_gross.
+        # total_extra_income (= bonos_total + otros_ingresos) causaba doble conteo
+        # al incluir los bonos afectos que ya estaban en gross.
+        total_net_extras = round(total_subsidios_exentos + total_otros_ingresos, 2)
         total_net_for_accounting = round(
             total_gross - total_ccss_employee - total_income_tax
-            + total_subsidy + total_paternity + total_extra_income
+            + total_subsidy + total_paternity + total_net_extras
             + total_licencias_con_goce    # licencias con goce: el patrono las paga al empleado
             - total_pensiones - total_embargos - total_prestamos
             - total_ausencias - total_licencias_sin_goce - total_rop_obrero - total_otras_ded,
@@ -928,10 +936,10 @@ class PayrollRunCR(models.Model):
                      debit=total_rop_emp,
                      name=f'ROP Patronal 3.25% Ley 7983 -- Planilla {run_name}')
 
-        if total_bonos_salariales > 0:
-            bono_acct = config.account_bono_expense or config.account_salary_expense
-            add_line(bono_acct, debit=total_bonos_salariales,
-                     name=f'Bonos e Incentivos Salariales -- Planilla {run_name}')
+        # FIX-ACC-01: total_bonos_salariales YA esta incluido en total_gross
+        # (gross_salary = sal_base + overtime + vacation + other_income + bono_salarial)
+        # Agregar un DEBE separado causaba doble contabilizacion.
+        # Solo se registra como DEBE separado el subsidio exento (NO esta en gross).
         if total_subsidios_exentos > 0:
             subs_acct = config.account_subsidio_expense or config.account_salary_expense
             add_line(subs_acct, debit=total_subsidios_exentos,
@@ -1003,6 +1011,39 @@ class PayrollRunCR(models.Model):
 
         if not lines:
             return
+
+        # ---------------------------------------------------------------
+        # RECONCILIACION: asegurar que el DEBE de gastos coincida con
+        # sum(payslip.total_employer_cost). Se excluyen del calculo:
+        #   - Subsidio CCSS (va al activo 110604001, no es gasto patronal)
+        #   - Subsidios exentos (no estan en total_employer_cost)
+        # Solo se agrega linea si hay un gap POSITIVO (faltan debitos).
+        # Gap negativo significa que los debitos ya superan el costo, no se ajusta.
+        target_employer_cost = round(sum(p.total_employer_cost or 0.0 for p in payslips), 2)
+        # Excluir subsidios del total de debitos para comparar manzanas con manzanas
+        subsidio_ccss_total = round(sum(p.ccss_subsidy_total or 0.0 for p in payslips), 2)
+        subsidios_exentos_total = round(total_subsidios_exentos, 2)
+        current_debit_comparable = round(
+            sum(l[2]['debit'] for l in lines)
+            - subsidio_ccss_total
+            - subsidios_exentos_total,
+            2
+        )
+        gap = round(target_employer_cost - current_debit_comparable, 2)
+        if gap > 0.50:  # solo si FALTAN debitos (gap positivo)
+            rop_acct = (getattr(config, 'account_rop_payable', None)
+                        or config.account_ccss_payable)
+            add_line(
+                config.account_social_charges_expense,
+                debit=gap,
+                name=f'ROP Patronal y Otros Costos Laborales -- Planilla {run_name}'
+            )
+            add_line(
+                rop_acct,
+                credit=gap,
+                name=f'ROP Patronal y Otros Costos Laborales por Pagar -- Planilla {run_name}'
+            )
+        # ---------------------------------------------------------------
 
         # Verificar cuadre antes de postear
         total_debit  = round(sum(l[2]['debit']  for l in lines), 2)
@@ -1126,6 +1167,23 @@ class PayrollRunCR(models.Model):
         # FIX A-01 v58: Delegar al action_confirm del mixin que usa write() batch
         # con atomicidad completa. El savepoint garantiza que si una boleta falla,
         # ninguna queda confirmada (antes era loop individual -- posible estado inconsistente).
+        # Recopilar advertencias antes de confirmar
+        all_warnings = payslips_draft._get_validation_warnings()
+
+        if all_warnings:
+            # Mostrar wizard de confirmacion con advertencias
+            wizard = self.env['planilla.confirm.warnings.wizard'].create({
+                'run_id': self.id,
+                'warnings_text': '\n'.join(f'- {w}' for w in all_warnings),
+            })
+            return {
+                'type': 'ir.actions.act_window',
+                'res_model': 'planilla.confirm.warnings.wizard',
+                'res_id': wizard.id,
+                'view_mode': 'form',
+                'target': 'new',
+            }
+
         with self.env.cr.savepoint():
             try:
                 payslips_draft.action_confirm()
@@ -1238,9 +1296,12 @@ class PayrollRunCR(models.Model):
 
     def action_reset_to_draft(self):
         for rec in self:
-            if rec.state not in ('cancelled', 'confirmed'):
+            if rec.state not in ('cancelled', 'confirmed', 'done'):
                 raise UserError('Solo se puede resetear planillas canceladas o confirmadas.')
-            rec.payslip_ids.filtered(lambda p: p.state in ('cancelled', 'confirmed')).action_reset_to_draft()
+            # Revertir TODAS las boletas para limpiar incapacidades,
+            # licencias, cobros y HE vinculadas correctamente
+            all_slips = rec.payslip_ids.filtered(lambda p: p.state != 'draft')
+            all_slips.action_reset_to_draft()
             rec.state = 'draft'
 
     def action_view_accounting_entry(self):
@@ -1256,6 +1317,88 @@ class PayrollRunCR(models.Model):
             'res_model': 'account.move',
             'view_mode': 'form',
             'res_id': self.move_id.id,
+        }
+
+    def action_regenerate_accounting_entry(self):
+        """
+        Revierte el asiento contable existente y genera uno nuevo con los calculos
+        corregidos. Util para corregir asientos generados con versiones anteriores
+        que tenian el bug de doble contabilizacion de bonos (FIX-ACC-01/02).
+
+        IMPORTANTE: La planilla debe estar en estado 'done' (pagada).
+        El asiento anterior se revierte automaticamente antes de crear el nuevo.
+        """
+        self.ensure_one()
+        if self.state != 'done':
+            raise UserError(
+                'Solo se puede regenerar el asiento de planillas pagadas (estado: Pagado).'
+            )
+        # Si no hay asiento previo, simplemente generar uno nuevo
+        if not self.move_id:
+            config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
+            mode = config.accounting_entry_mode if config else 'per_employee'
+            if mode == 'per_run':
+                # Estado 'done' = pagado en boletas (no 'paid')
+                paid_slips = self.payslip_ids.filtered(lambda p: p.state == 'done')
+                if not paid_slips:
+                    raise UserError('No hay boletas pagadas para generar el asiento.')
+                self._create_consolidated_accounting_entry(paid_slips)
+            else:
+                paid_slips = self.payslip_ids.filtered(lambda p: p.state == 'done')
+                for slip in paid_slips:
+                    slip._generate_accounting_entry()
+            self.message_post(
+                body='<b>Asiento contable generado.</b> Asiento: %s' % (self.move_id.name if self.move_id else 'N/A'),
+                message_type='notification',
+            )
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'Asiento Contable',
+                'res_model': 'account.move',
+                'res_id': self.move_id.id,
+                'view_mode': 'form',
+            } if self.move_id else {'type': 'ir.actions.client', 'tag': 'display_notification',
+                'params': {'title': 'Asiento generado', 'message': 'Asiento creado correctamente.', 'type': 'success'}}
+
+        # 1. Revertir el asiento actual
+        old_move = self.move_id
+        if old_move.state == 'posted':
+            reversal = old_move._reverse_moves(
+                default_values_list=[{
+                    'date':    old_move.date,
+                    'journal_id': old_move.journal_id.id,
+                    'ref':    'REVERSO: ' + (old_move.ref or old_move.name),
+                }]
+            )
+            reversal.action_post()
+            _logger.info(
+                'planilla_cr: asiento %s revertido (%s) para regeneracion -- planilla %s',
+                old_move.name, reversal.name, self.name
+            )
+        elif old_move.state == 'draft':
+            old_move.unlink()
+
+        # 2. Desligar el asiento viejo del run para que generate_accounting_entry
+        #    pueda crear uno nuevo sin conflicto
+        self.write({'move_id': False})
+
+        # 3. Generar nuevo asiento con la logica corregida
+        self._create_consolidated_accounting_entry(self.payslip_ids.filtered(lambda p: p.state == 'done'))
+
+        self.message_post(
+            body=(
+                f'<b>Asiento contable regenerado.</b> '
+                f'Asiento anterior: {old_move.name} (revertido). '
+                f'Nuevo asiento: {self.move_id.name if self.move_id else "N/A"}.'
+            ),
+            message_type='notification',
+        )
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Asiento Contable Regenerado',
+            'res_model': 'account.move',
+            'res_id': self.move_id.id,
+            'view_mode': 'form',
         }
 
 class AccountMovePayrollSync(models.Model):
@@ -1322,7 +1465,13 @@ class AccountMovePayrollSync(models.Model):
                 'cancelando planilla "%s" y %d boleta(s). Usuario: %s.',
                 run.name, len(slips_to_cancel), run.env.user.name
             )
-            slips_to_cancel.write({'state': 'cancelled'})
+            slips_done2 = slips_to_cancel.filtered(lambda p: p.state == 'done')
+            slips_other2 = slips_to_cancel.filtered(lambda p: p.state != 'done')
+            if slips_done2:
+                slips_done2.write({'state': 'confirmed'})
+                slips_done2.action_cancel()
+            if slips_other2:
+                slips_other2.action_cancel()
             run.write({'state': 'cancelled'})
             try:
                 run.message_post(

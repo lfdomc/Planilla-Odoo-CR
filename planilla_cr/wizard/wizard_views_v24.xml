@@ -74,6 +74,70 @@
                             <field name="simulated_date"/>
                             <field name="termination_reason"/>
                         </group>
+                        <group string="Salarios &#250;ltimos 6 meses (Art. 153 CT)">
+                            <div colspan="2" class="alert alert-info" role="alert"
+                                 style="margin-bottom:8px;">
+                                Los salarios brutos se pre-cargan autom&#225;ticamente
+                                desde las boletas pagadas en el sistema. Puede
+                                editarlos o completar los que falten. El promedio
+                                se calcula solo sobre los meses con valor (igual
+                                que el Excel de RRHH).
+                            </div>
+                            <!-- Fila 1: mes 1 y 2 -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                                <div>
+                                    <label for="sal_m1" style="font-size:12px;color:#666;">Mes 1 (m&#225;s reciente)</label>
+                                    <field name="sal_m1" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                                <div>
+                                    <label for="sal_m2" style="font-size:12px;color:#666;">Mes 2</label>
+                                    <field name="sal_m2" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                            </div>
+                            <!-- Fila 2: mes 3 y 4 -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+                                <div>
+                                    <label for="sal_m3" style="font-size:12px;color:#666;">Mes 3</label>
+                                    <field name="sal_m3" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                                <div>
+                                    <label for="sal_m4" style="font-size:12px;color:#666;">Mes 4</label>
+                                    <field name="sal_m4" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                            </div>
+                            <!-- Fila 3: mes 5 y 6 -->
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+                                <div>
+                                    <label for="sal_m5" style="font-size:12px;color:#666;">Mes 5</label>
+                                    <field name="sal_m5" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                                <div>
+                                    <label for="sal_m6" style="font-size:12px;color:#666;">Mes 6 (m&#225;s antiguo)</label>
+                                    <field name="sal_m6" nolabel="1"
+                                           style="width:100%;font-size:15px;padding:6px 10px;border:1px solid #ccc;border-radius:4px;"/>
+                                </div>
+                            </div>
+                            <!-- Resumen -->
+                            <div style="background:#f0f7ff;border-radius:6px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
+                                <span style="color:#555;font-size:13px;">
+                                    Meses con salario:
+                                    <field name="sal_meses_con_valor" nolabel="1"
+                                           style="display:inline;width:30px;font-weight:bold;border:none;background:transparent;"/>
+                                </span>
+                                <span style="font-size:15px;font-weight:bold;color:#1a73e8;">
+                                    Promedio:
+                                    <field name="sal_promedio_calc" nolabel="1"
+                                           style="display:inline;font-weight:bold;color:#1a73e8;border:none;background:transparent;font-size:15px;"/>
+                                </span>
+                            </div>
+                            <field name="use_salary_average" invisible="1"/>
+                            <field name="salary_average_manual" invisible="1"/>
+                        </group>
                         <group string="Datos del Empleado" invisible="not entry_date">
                             <field name="entry_date" readonly="1"/>
                             <field name="years_service" readonly="1" invisible="not computed"
@@ -96,9 +160,15 @@
 
                         <!-- Cesantía -->
                         <group string="Cesantía (Art. 29 CT)">
-                            <field name="cesantia_days" readonly="1" string="Días de Cesantía"/>
+                            <field name="cesantia_days" string="Días de Cesantía"
+                                   help="Pre-calculado por ley Art. 29 CT. Puede editar si la empresa usa criterio diferente (ej: 14 dias en lugar de 18.33)."/>
                             <field name="cesantia_daily" readonly="1" string="Salario Diario (CRC)"/>
                             <field name="cesantia_amount" readonly="1" string="Monto Cesantía (CRC)"/>
+                            <button name="action_recalculate_cesantia" type="object"
+                                    string="↻ Recalcular Cesantía con días editados"
+                                    class="btn-secondary"
+                                    invisible="cesantia_days_locked"
+                                    colspan="2"/>
                         </group>
 
                         <!-- Vacaciones -->
@@ -132,12 +202,24 @@
 
                         <!-- Totales -->
                         <group string="Totales">
-                            <field name="total_gross" readonly="1"/>
-                            <field name="ccss_rate" readonly="1" string="Tasa CCSS Obrero (%)"/>
-                            <field name="ccss_on_total" readonly="1"/>
+                            <field name="total_gross" readonly="1"
+                                   string="Subtotal Bruto (CRC)"
+                                   help="Suma bruta: preaviso + cesantia + vacaciones + aguinaldo. Aguinaldo y cesantia estan exentos de CCSS y Renta."/>
+                            <field name="ccss_rate" readonly="1"
+                                   string="Tasa CCSS Obrero (%)"
+                                   help="CCSS se aplica SOLO sobre vacaciones y preaviso. Aguinaldo (Art.35 Ley CCSS) y cesantia (Art.173 CT) estan exentos."/>
+                            <field name="ccss_on_total" readonly="1"
+                                   string="CCSS Obrero (vac+preaviso)"/>
                             <field name="total_net" readonly="1"
-                                   style="font-weight:bold;color:#E67E22;"/>
+                                   string="Neto a Pagar (CRC)"
+                                   style="font-weight:bold;color:#27AE60;"/>
                         </group>
+                        <div class="alert alert-info" role="alert">
+                            <strong>Exenciones legales:</strong>
+                            Aguinaldo (Art. 35 Ley CCSS) y Cesant&#237;a (Art. 173 CT)
+                            est&#225;n exentos de CCSS y de Impuesto de Renta.
+                            La CCSS obrero se aplica &#250;nicamente sobre vacaciones y preaviso.
+                        </div>
 
                     </group>
 

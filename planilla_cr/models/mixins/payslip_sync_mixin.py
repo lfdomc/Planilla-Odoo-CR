@@ -839,21 +839,21 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
 
         for bono in bonos:
-            # Deduplicacion por bono_id (ID unico) -- inmune a bonos con mismo nombre
+            # Deduplicacion por bono_id (ID unico)
             existing = self.deduction_line_ids.filtered(
                 lambda l, b=bono: l.bono_id and l.bono_id.id == b.id
             )
-            # Fallback: si la linea fue creada antes del campo bono_id, buscar por descripcion
+            # Fallback: buscar por nombre del bono en la descripcion (con o sin prefijo)
             if not existing:
                 existing = self.deduction_line_ids.filtered(
                     lambda l, b=bono: l.line_type == 'income'
                     and l.deduction_category == 'bonus'
-                    and l.description == f'Bono: {b.name}'
-                    and not l.bono_id
+                    and b.name in (l.description or '')
                 )
-                # Migrar: asignar bono_id retroactivamente
+                # Migrar: asignar bono_id y actualizar descripcion
                 if existing:
-                    existing.write({'bono_id': bono.id})
+                    new_desc = f'[{bono.code}] {bono.name}' if bono.code else f'Bono: {bono.name}'
+                    existing.write({'bono_id': bono.id, 'description': new_desc})
             if existing:
                 # Recalcular monto si el bono cambio
                 if bono.amount_type == 'percentage':
@@ -1608,7 +1608,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 applied_elsewhere = self.env['planilla.payslip.deduction.line'].search([
                     ('employee_charge_id', '=', charge.id),
                     ('payslip_id', '!=', self.id),
-                    ('payslip_id.state', 'in', ('confirmed', 'paid')),
+                    ('payslip_id.state', 'in', ('confirmed', 'done')),
                 ], limit=1)
                 if applied_elsewhere:
                     continue
@@ -1719,7 +1719,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 if not charge.is_recurring:
                     already_applied = self.env['planilla.payslip.deduction.line'].search([
                         ('employee_charge_id', '=', charge.id),
-                        ('payslip_id.state', 'in', ('confirmed', 'paid')),
+                        ('payslip_id.state', 'in', ('confirmed', 'done')),
                     ], limit=1)
                     if already_applied:
                         continue

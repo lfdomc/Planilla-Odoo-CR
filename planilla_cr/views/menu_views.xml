@@ -1,17 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ── MENÚ PRINCIPAL ──────────────────────────────────────────── -->
-    <menuitem id="menu_planilla_cr_root"
-              name="Sistema Planilla"
-              sequence="85"
-              action="action_payroll_run_cr"
-              web_icon="planilla_cr,static/description/icon.png"/>
 
     <!-- ── PLANILLAS ──────────────────────────────────────────────── -->
-    <menuitem id="menu_planilla_cr_payroll"
-              name="Planillas"
-              parent="menu_planilla_cr_root"
-              sequence="10"/>
 
     <menuitem id="menu_payroll_run"
               name="Planillas"
@@ -39,10 +30,6 @@
               groups="planilla_cr.group_planilla_admin"/>
 
     <!-- ── NOVEDADES ──────────────────────────────────────────────── -->
-    <menuitem id="menu_planilla_cr_novedades"
-              name="Accion de Personal"
-              parent="menu_planilla_cr_root"
-              sequence="20"/>
 
     <menuitem id="menu_overtime"
               name="Horas Extras"
@@ -104,10 +91,6 @@
               groups="planilla_cr.group_planilla_operador"/>
 
     <!-- ── REPORTES ───────────────────────────────────────────────── -->
-    <menuitem id="menu_planilla_cr_reports"
-              name="Reportes"
-              parent="menu_planilla_cr_root"
-              sequence="30"/>
 
     <menuitem id="menu_planilla_reportes_wizard"
               name="Generar Reportes PDF"
@@ -218,10 +201,6 @@
     <!-- Constancia Laboral: disponible desde la ficha del empleado, no desde este menu -->
 
     <!-- CONFIGURACION -->
-    <menuitem id="menu_planilla_cr_config"
-              name="Configuracion"
-              parent="menu_planilla_cr_root"
-              sequence="90"/>
 
     <menuitem id="menu_branch"
               name="Sucursales"
@@ -351,4 +330,15 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
               sequence="70"
               groups="planilla_cr.group_planilla_aprobador"/>
 
+    <!-- Corrector saldo inicial vacaciones -->
+    <menuitem id="menu_vacation_initial_balance_wizard"
+              name="Corrector Saldo Inicial Vacaciones"
+              parent="planilla_cr.menu_planilla_cr_config"
+              action="planilla_cr.action_vacation_initial_balance_wizard"
+              sequence="96"/>
+    <menuitem id="menu_resumen_ejecutivo"
+              name="Resumen Ejecutivo"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_resumen_ejecutivo_wizard"
+              sequence="4"/>
 </odoo>

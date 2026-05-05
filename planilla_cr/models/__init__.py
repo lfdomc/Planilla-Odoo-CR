@@ -54,3 +54,5 @@ from . import eddi7_export
 from . import amonestacion
 
 from . import migrate_codes
+
+from . import employee_movement

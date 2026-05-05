@@ -1,4 +1,5 @@
 import logging
+import re
 import datetime
 from odoo import models, fields, api
 from .. import planilla_const as K
@@ -75,20 +76,40 @@ class PayslipComputeMixin(models.AbstractModel):
 
     def _get_salary_for_date(self, emp, ref_date):
         """
-        Retorna el salario mensual vigente para el empleado en ref_date.
-        Consulta planilla.salary.history (state=authorized, effective_date <= ref_date)
-        ordenado por fecha descendente. Si no hay historial, retorna emp.base_salary.
+        Retorna el salario mensual del empleado para una boleta.
+
+        LOGICA SIMPLIFICADA (ficha del empleado es la fuente de verdad):
+        1. Siempre parte de base_salary de la ficha como valor por defecto.
+        2. Si hay una entrada de historial cuya effective_date cae DENTRO del
+           periodo de la boleta (date_from..date_to) -> usa ese salario.
+           Esto soporta cambios salariales que aplican en medio de un periodo.
+        3. En cualquier otro caso (historial antes o despues del periodo) ->
+           usa base_salary de la ficha.
+
+        Esta logica es mas robusta porque:
+        - Evita usar historiales obsoletos cuando la ficha fue actualizada
+          manualmente sin un registro formal de historial.
+        - Solo sobreescribe la ficha cuando hay un cambio salarial ESPECIFICO
+          que aplica exactamente en el periodo que se esta calculando.
         """
-        if not emp or not ref_date:
-            return emp.base_salary if emp else 0.0
-        hist = self.env['planilla.salary.history'].search([
-            ('employee_id', '=', emp.id),
-            ('state', '=', 'authorized'),
-            ('effective_date', '<=', ref_date),
-        ], order='effective_date desc', limit=1)
-        if hist:
-            return hist.gross_salary or emp.base_salary
-        return emp.base_salary or 0.0
+        if not emp:
+            return 0.0
+        base = emp.base_salary or 0.0
+        if not ref_date:
+            return base
+        # Buscar si hay un cambio salarial que aplica EXACTAMENTE en este periodo
+        # (solo sobreescribir la ficha si hay un cambio formal dentro del periodo)
+        if hasattr(self, 'date_from') and self.date_from and hasattr(self, 'date_to') and self.date_to:
+            history_in_period = self.env['planilla.salary.history'].search([
+                ('employee_id', '=', emp.id),
+                ('state', '=', 'authorized'),
+                ('effective_date', '>=', self.date_from),
+                ('effective_date', '<=', self.date_to),
+            ], order='effective_date desc', limit=1)
+            if history_in_period and history_in_period.gross_salary:
+                return history_in_period.gross_salary
+        # Sin cambio formal en el periodo -> usar ficha del empleado
+        return base
 
     @api.depends('employee_id', 'date_from', 'date_to', 'attendance_hours',
                  'is_proportional', 'proportional_factor', 'payroll_calendar_id',
@@ -97,6 +118,8 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.base_salary')
     def _compute_base_salary(self):
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             emp = rec.employee_id
             if not emp:
                 rec.base_salary = 0.0
@@ -187,6 +210,8 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.base_salary')
     def _compute_extras(self):
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             approved_ot = [o for o in rec.overtime_ids if o.state == 'approved']
             # Incluir HE aprobadas Y pagadas (las pagadas ya pertenecen a esta boleta)
             billable_ot = [o for o in rec.overtime_ids if o.state in ('approved', 'paid')]
@@ -452,7 +477,9 @@ class PayslipComputeMixin(models.AbstractModel):
 
 
     @api.depends('deduction_line_ids.amount', 'deduction_line_ids.line_type',
-                 'deduction_line_ids.deduction_category')
+                 'deduction_line_ids.deduction_category',
+                 'deduction_line_ids.bono_id',
+                 'deduction_line_ids.bono_id.afecto_ccss')
     def _compute_bono_salarial(self) -> None:
         """
         FIX C-01 v54: Suma de bonos con afecto_ccss=True para integrar al salario bruto.
@@ -467,19 +494,13 @@ class PayslipComputeMixin(models.AbstractModel):
         if not self:
             return
 
-        # Pre-cargar todos los bonos activos de TODOS los empleados del recordset
-        # en UNA sola query. Elimina el N+1 anterior (1 query por boleta).
-        emp_ids = self.mapped('employee_id.id')
-        all_bonos = self.env['planilla.bono'].search([
-            ('employee_id', 'in', emp_ids),
-            ('state', '=', 'active'),
-        ])
-        # Indice: emp_id -> {bono_name: bono_rec}
-        bono_index: dict = {}
-        for b in all_bonos:
-            bono_index.setdefault(b.employee_id.id, {})[b.name] = b
-
+        # FIX BP-06: usar bono_id (ID unico) en lugar de parsear la descripcion.
+        # La descripcion ahora tiene formato '[BON-XXXX] Nombre' que no coincide
+        # con el indice por nombre. bono_id es el enlace directo y es inmune
+        # a cambios de formato en la descripcion.
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             bonus_lines = rec.deduction_line_ids.filtered(
                 lambda l: l.line_type == 'income' and l.deduction_category == 'bonus'
             )
@@ -487,14 +508,21 @@ class PayslipComputeMixin(models.AbstractModel):
                 rec.bono_salarial_amount = 0.0
                 continue
 
-            emp_bonos = bono_index.get(rec.employee_id.id, {})
             total = 0.0
             for line in bonus_lines:
-                concepto = (line.description or '').replace('Bono: ', '').strip()
-                bono_rec = emp_bonos.get(concepto)
-                # FIX BP-05: solo sumar si el bono existe Y tiene afecto_ccss=True.
-                # La logica anterior (not bono_rec OR afecto_ccss) era incorrecta:
-                # sumaba bonos no encontrados como si fueran salariales (fiscalmente erroneo).
+                # Preferir bono_id (enlace directo) sobre busqueda por nombre
+                bono_rec = line.bono_id
+                if not bono_rec:
+                    # Fallback para lineas sin bono_id (creadas antes del campo)
+                    emp_ids_fb = [rec.employee_id.id]
+                    nombre = (line.description or '').replace('Bono: ', '').strip()
+                    # Quitar prefijo [BON-XXXX] si existe
+                    nombre = re.sub(r'^\[\w+-\d+\]\s*', '', nombre).strip()
+                    bono_rec = self.env['planilla.bono'].search([
+                        ('employee_id', '=', rec.employee_id.id),
+                        ('name', '=', nombre),
+                        ('state', '=', 'active'),
+                    ], limit=1)
                 if bono_rec and bono_rec.afecto_ccss:
                     total += line.amount
             rec.bono_salarial_amount = round(total, 2)
@@ -508,6 +536,8 @@ class PayslipComputeMixin(models.AbstractModel):
                  'date_from', 'date_to')
     def _compute_gross(self) -> None:
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             # -- Base salarial segun incapacidad ------------------------------
             # REGLA LEGAL (Art. 79 y 94 CT):
             # - Sin incapacidad: gross = base_salary completo del periodo
@@ -565,6 +595,8 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.pensioner_type')
     def _compute_deductions(self) -> None:
         for rec in self:
+            if rec.state == 'paid':
+                continue  # Boleta pagada: valores congelados
             rh       = rec.env['planilla.rate.helper'].with_company(rec.company_id)
             # F3: tasa CCSS obrero depende del tipo de pensionado
             pensioner = rec.employee_id.pensioner_type or 'none'

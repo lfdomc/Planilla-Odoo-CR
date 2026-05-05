@@ -29,8 +29,8 @@ class TerminationSimulator(models.TransientModel):
                                       default=fields.Date.today)
     termination_reason = fields.Selection([
         ('voluntary',    'Renuncia Voluntaria'),
-        ('dismissal',    'Despido sin Causa Justa'),
-        ('just_cause',   'Despido con Causa Justa'),
+        ('dismissal',    'Despido con responsabilidad patronal (Art. 80 CT)'),
+        ('just_cause',   'Despido sin responsabilidad patronal (Art. 81 CT)'),
         ('mutual',       'Acuerdo Mutuo'),
         ('contract_end', 'Vencimiento de Contrato'),
     ], string='Motivo', required=True, default='voluntary')
@@ -53,6 +53,37 @@ class TerminationSimulator(models.TransientModel):
     currency_id        = fields.Many2one('res.currency', readonly=True)
     years_service      = fields.Float(string='Anos de Servicio', readonly=True)
     last_salary        = fields.Monetary(string='Ultimo Salario Bruto', currency_field='currency_id', readonly=True)
+    # Promedio salarial manual (opcional -- Art. 153 CT para salario variable)
+    use_salary_average = fields.Boolean(
+        string='Usar Promedio Manual de Salarios',
+        default=False,
+        help='Active si desea ingresar manualmente el promedio de los ultimos 6 salarios '
+             'para calcular cesantia, preaviso y vacaciones (Art. 153 CT).'
+    )
+    salary_average_manual = fields.Monetary(
+        string='Promedio Salarios Ultimos 6 Meses (CRC)',
+        currency_field='currency_id',
+        help='Calculado automaticamente de los 6 salarios ingresados. '
+             'Se usa para preaviso, cesantia y vacaciones (Art. 153 CT).'
+    )
+    # Campos para ingresar los 6 salarios individuales
+    sal_m1 = fields.Monetary(string='Salario Mes 1', currency_field='currency_id',
+        help='Salario bruto del mes mas reciente antes de la salida')
+    sal_m2 = fields.Monetary(string='Salario Mes 2', currency_field='currency_id')
+    sal_m3 = fields.Monetary(string='Salario Mes 3', currency_field='currency_id')
+    sal_m4 = fields.Monetary(string='Salario Mes 4', currency_field='currency_id')
+    sal_m5 = fields.Monetary(string='Salario Mes 5', currency_field='currency_id')
+    sal_m6 = fields.Monetary(string='Salario Mes 6 (mas antiguo)', currency_field='currency_id')
+    sal_promedio_calc = fields.Monetary(
+        string='Promedio Calculado (CRC)',
+        currency_field='currency_id',
+        compute='_compute_sal_promedio', store=False,
+        help='Promedio de los meses con salario > 0 (igual que formula Excel de RRHH)'
+    )
+    sal_meses_con_valor = fields.Integer(
+        string='Meses con salario',
+        compute='_compute_sal_promedio', store=False
+    )
     preaviso_days      = fields.Integer(string='Dias de Preaviso', readonly=True)
     preaviso_amount    = fields.Monetary(string='Preaviso (CRC)', currency_field='currency_id', readonly=True)
     preaviso_applies   = fields.Boolean(string='Preaviso Aplica', readonly=True)
@@ -71,7 +102,15 @@ class TerminationSimulator(models.TransientModel):
     aguinaldo_initial  = fields.Monetary(string='Aguinaldo Acumulado Inicial (CRC)', currency_field='currency_id', readonly=True)
     aguinaldo_system   = fields.Monetary(string='Aguinaldo del Sistema (CRC)', currency_field='currency_id', readonly=True)
     # Desglose cesantia
-    cesantia_days      = fields.Float(string='Dias de Cesantia', readonly=True)
+    cesantia_days      = fields.Float(
+        string='Dias de Cesantia',
+        help='Pre-calculado segun tabla Art. 29 CT. Puede editar este valor '
+             'si la empresa usa un criterio diferente (ej: 14 dias en lugar de 18.33).'
+    )
+    cesantia_days_locked = fields.Boolean(
+        string='Usar dias calculados automaticamente', default=True,
+        help='Desactive para ingresar manualmente los dias de cesantia.'
+    )
     cesantia_daily     = fields.Monetary(string='Salario Diario para Cesantia (CRC)', currency_field='currency_id', readonly=True)
     # Desglose CCSS
     ccss_rate          = fields.Float(string='Tasa CCSS Obrero (%)', readonly=True)
@@ -87,21 +126,54 @@ class TerminationSimulator(models.TransientModel):
         if self.employee_id:
             emp = self.employee_id
             self.currency_id = emp.currency_id
-            # FIX-B2: para empleados con salario variable (comisiones, HE recurrentes),
-            # usar el promedio de los ultimos 4 meses del historial salarial.
-            # Consistente con employee_termination._onchange_employee (Art. 153 CT).
-            if getattr(emp, 'has_variable_income', False):
-                history = self.env['planilla.salary.history'].search([
+            # Siempre cargar el salario base del empleado
+            self.last_salary = emp.base_salary or 0.0
+            # Pre-cargar ultimas 6 quincenas del sistema (agrupadas en meses)
+            # Solo si NO hay datos manuales ya ingresados
+            if not any([self.sal_m1, self.sal_m2, self.sal_m3,
+                        self.sal_m4, self.sal_m5, self.sal_m6]):
+                slips = self.env['planilla.payslip.cr'].search([
                     ('employee_id', '=', emp.id),
-                    ('state', '=', 'authorized'),
-                ], order='effective_date desc', limit=4)
-                if history:
-                    salaries = [h.gross_salary or h.salary or 0.0 for h in history]
-                    self.last_salary = round(sum(salaries) / len(salaries), 2)
-                else:
-                    self.last_salary = emp.base_salary or 0.0
+                    ('state', '=', 'done'),
+                ], order='date_to desc', limit=12)
+                # Agrupar quincenas en meses (suma de las 2 quincenas del mes)
+                from collections import defaultdict
+                monthly = defaultdict(float)
+                for s in slips:
+                    key = s.date_to.strftime('%Y-%m') if s.date_to else ''
+                    if key:
+                        # Usar base_salary mensual / 2 (no gross que incluye incap/bonos)
+                        # Esto da el salario puro que el Excel usa en su calculo
+                        monthly[key] = (s.employee_id.base_salary or 0)
+                months_sorted = sorted(monthly.keys(), reverse=True)[:6]
+                sal_fields = ['sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6']
+                for i, key in enumerate(months_sorted):
+                    setattr(self, sal_fields[i], round(monthly[key], 2))
+
+    @api.depends('sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6')
+    def _compute_sal_promedio(self):
+        for rec in self:
+            vals = [rec.sal_m1 or 0, rec.sal_m2 or 0, rec.sal_m3 or 0,
+                    rec.sal_m4 or 0, rec.sal_m5 or 0, rec.sal_m6 or 0]
+            nonzero = [v for v in vals if v > 0]
+            if nonzero:
+                rec.sal_promedio_calc  = round(sum(nonzero) / len(nonzero), 2)
+                rec.sal_meses_con_valor = len(nonzero)
             else:
-                self.last_salary = emp.base_salary or 0.0
+                rec.sal_promedio_calc  = 0.0
+                rec.sal_meses_con_valor = 0
+
+    @api.onchange('sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6')
+    def _onchange_sal_entries(self):
+        """Actualiza salary_average_manual en tiempo real al digitar los salarios."""
+        vals = [self.sal_m1 or 0, self.sal_m2 or 0, self.sal_m3 or 0,
+                self.sal_m4 or 0, self.sal_m5 or 0, self.sal_m6 or 0]
+        nonzero = [v for v in vals if v > 0]
+        if nonzero:
+            self.salary_average_manual = round(sum(nonzero) / len(nonzero), 2)
+            self.use_salary_average = True
+        else:
+            self.salary_average_manual = 0.0
 
     def action_simulate(self):
         self.ensure_one()
@@ -113,28 +185,45 @@ class TerminationSimulator(models.TransientModel):
         entry_date = emp.entry_date
         diff   = relativedelta(exit_date, entry_date)
         years  = diff.years + diff.months / 12.0 + diff.days / 365.0
-        # FIX-B2: usar last_salary (ya tiene el promedio si is variable income)
-        # en lugar de recalcular desde emp.base_salary
-        salary = self.last_salary or emp.base_salary or 0.0
-        daily  = salary / 30.0
+        # Determinar salario a usar: promedio manual > salario base actual
         notes_lines = []
-        if getattr(emp, 'has_variable_income', False) and self.last_salary != emp.base_salary:
+        # Calcular promedio desde los 6 campos (fuente unica de verdad)
+        sal_vals = [
+            self.sal_m1 or 0, self.sal_m2 or 0, self.sal_m3 or 0,
+            self.sal_m4 or 0, self.sal_m5 or 0, self.sal_m6 or 0,
+        ]
+        sal_nonzero = [v for v in sal_vals if v > 0]
+        if sal_nonzero:
+            salary = round(sum(sal_nonzero) / len(sal_nonzero), 2)
             notes_lines.append(
-                f'WARN  Empleado con salario variable: se usa promedio historico '
-                f'CRC{salary:,.2f} (salario base: CRC{emp.base_salary:,.2f}) -- Art. 153 CT'
+                f'Salario: promedio {len(sal_nonzero)} meses = CRC{salary:,.2f}/mes (Art. 153 CT)'
             )
+            self.salary_average_manual = salary
+            self.use_salary_average = True
+        elif self.use_salary_average and self.salary_average_manual > 0:
+            salary = self.salary_average_manual
+            notes_lines.append(
+                f'Salario: promedio manual CRC{salary:,.2f} (Art. 153 CT)'
+            )
+        else:
+            salary = self.last_salary or emp.base_salary or 0.0
+            notes_lines.append(f'Salario: ultimo bruto CRC{salary:,.2f}')
+        daily = salary / 30.0
 
         # -- Preaviso (Art. 28 CT) --------------------------------------------
         preaviso_applies = self.termination_reason in ('dismissal', 'mutual')
+        # Art. 28 CT -- tabla oficial:
+        # < 3 meses (0.25 anos):  7 dias
+        # 3-6 meses (0.25-0.5):  14 dias
+        # 6-12 meses (0.5-1.0):  15 dias  <-- CORREGIDO (antes usaba 30)
+        # > 1 ano:               30 dias
         if years < 0.25:
             preaviso_days = 7
         elif years < 0.5:
             preaviso_days = 14
+        elif years < 1.0:
+            preaviso_days = 15
         else:
-            # FIX-O5: Art. 28 CT establece 1 mes (30 dias) tanto para 6-12 meses
-            # como para mas de 1 ano. La version anterior usaba 21 dias para el
-            # tramo 0.5-1.0 ano, que no corresponde a ningun tramo legal del Art. 28 CT.
-            # employee_termination.py ya tenia los 30 dias correctamente.
             preaviso_days = 30
         preaviso_amount = (daily * preaviso_days) if preaviso_applies else 0.0
         notes_lines.append(
@@ -161,19 +250,30 @@ class TerminationSimulator(models.TransientModel):
                 days_this_year = cesantia_days_table.get(years_int + 1, 22.0)
                 cesantia_days += days_this_year * fraction
             cesantia_amount = round(daily * cesantia_days, 2)
-            if years < 1:
+            # Art. 29 CT: la cesantia SI aplica para fracciones del primer ano
+            # (proporcional a los dias de la tabla). Solo si >= 3 meses (0.25 anos).
+            if years < 0.25:
                 cesantia_amount = 0.0
-                notes_lines.append('Cesantia Art.29 CT: menos de 1 ano -- no aplica')
+                notes_lines.append('Cesantia Art.29 CT: menos de 3 meses -- no aplica')
             else:
-                notes_lines.append(f'Cesantia Art.29 CT: {years:.2f} anos x {cesantia_days:.1f} dias (tabla Art. 29)')
+                notes_lines.append(
+                    f'Cesantia Art.29 CT: {years:.2f} anos x {cesantia_days:.1f} dias '
+                    f'(tabla Art. 29) = CRC{cesantia_amount:,.2f}'
+                )
         else:
             cesantia_amount = 0.0
             notes_lines.append('Cesantia Art.29 CT: no aplica para este tipo de salida')
 
-        # -- Vacaciones pendientes --------------------------------------------
+        # -- Vacaciones pendientes (Art. 153 CT) ------------------------------
+        # Usar el mismo promedio de los 6 campos (fuente unica de verdad)
+        # igual que el Excel de RRHH
         vac_days   = emp.vacation_days_available or 0.0
-        vac_amount = round(daily * vac_days, 2)
-        notes_lines.append(f'Vacaciones Art.153 CT: {vac_days:.1f} dias disponibles x CRC{daily:,.2f}/dia')
+        daily_vac  = daily  # ya calculado desde los 6 campos arriba
+        vac_amount = round(daily_vac * vac_days, 2)
+        notes_lines.append(
+            f'Vacaciones Art.153 CT: {vac_days:.2f} dias x CRC{daily_vac:,.2f}/dia '
+            f'(promedio {len(sal_nonzero) if sal_nonzero else 1} meses)'
+        )
 
         # -- Aguinaldo proporcional (Art. 228 CT) ----------------------------
         # FIX: incluir acumulado pre-implementacion si existe
@@ -189,29 +289,66 @@ class TerminationSimulator(models.TransientModel):
 
         ag_init_amount = emp.aguinaldo_initial_amount or 0.0
         ag_init_date   = emp.aguinaldo_initial_date
-        if ag_init_amount and ag_init_date and ag_init_date >= period_start:
-            months_covered = (
-                (ag_init_date.year * 12 + ag_init_date.month) -
-                (period_start.year * 12 + period_start.month) + 1
-            )
-            months_from_system = max(0, total_months - months_covered)
-            aguinaldo_system   = round(salary * months_from_system / 12.0, 2)
-            months_worked      = total_months
-            aguinaldo          = round(ag_init_amount + aguinaldo_system, 2)
+        # FIX-LIQ-03: si el usuario ingreso los 6 salarios, calcular aguinaldo
+        # directamente como suma/12 (igual que Excel de RRHH).
+        # Ignorar acumulado inicial si los salarios ya cubren todo el periodo.
+        if sal_nonzero:
+            aguinaldo    = round(sum(sal_nonzero) / 12.0, 2)
+            months_worked = len(sal_nonzero)
             notes_lines.append(
-                'Aguinaldo Art.228 CT: acumulado inicial CRC%s + %s meses sistema' % (
-                    '{:,.2f}'.format(ag_init_amount), months_from_system)
+                'Aguinaldo Art.228 CT: suma %s salarios / 12 = CRC%s' % (
+                    len(sal_nonzero), '{:,.2f}'.format(aguinaldo))
             )
         else:
-            months_worked = total_months
-            aguinaldo = round(salary * months_worked / 12.0, 2)
-            notes_lines.append(
-                'Aguinaldo Art.228 CT: %s meses desde 1-dic' % months_worked
-            )
+            # Sin campos manuales: usar boletas del sistema
+            slips_in_period = self.env['planilla.payslip.cr'].search([
+                ('employee_id', '=', emp.id),
+                ('state', '=', 'done'),
+                ('date_from', '>=', period_start),
+                ('date_to', '<=', exit_date),
+            ])
+            sum_salaries_system = round(sum(slips_in_period.mapped('gross_salary')), 2)
+            if sum_salaries_system > 0:
+                aguinaldo_from_system = round(sum_salaries_system / 12.0, 2)
+                if ag_init_amount and ag_init_date and ag_init_date >= period_start:
+                    aguinaldo     = round(ag_init_amount + aguinaldo_from_system, 2)
+                    months_worked = total_months
+                    notes_lines.append(
+                        'Aguinaldo Art.228 CT: inicial CRC%s + sistema CRC%s' % (
+                            '{:,.2f}'.format(ag_init_amount),
+                            '{:,.2f}'.format(aguinaldo_from_system))
+                    )
+                else:
+                    aguinaldo     = aguinaldo_from_system
+                    months_worked = len(slips_in_period)
+                    notes_lines.append(
+                        'Aguinaldo Art.228 CT: CRC%s / 12 (%s boletas)' % (
+                            '{:,.2f}'.format(sum_salaries_system),
+                            len(slips_in_period))
+                    )
+            elif ag_init_amount:
+                aguinaldo     = ag_init_amount
+                months_worked = total_months
+                notes_lines.append(
+                    'Aguinaldo Art.228 CT: acumulado inicial CRC%s' % (
+                        '{:,.2f}'.format(ag_init_amount),)
+                )
+            else:
+                months_worked = total_months
+                aguinaldo = round(salary * months_worked / 12.0, 2)
+                notes_lines.append(
+                    'Aguinaldo Art.228 CT: %s meses estimado' % months_worked
+                )
 
         # -- Totales ----------------------------------------------------------
         total_gross = preaviso_amount + cesantia_amount + vac_amount + aguinaldo
-        ccss        = round(total_gross * K.CCSS_EMP, 2)
+        # FIX-LIQ-01: CCSS solo sobre rubros AFECTOS (vacaciones + preaviso)
+        # Aguinaldo y cesantia estan EXENTOS de CCSS (Art. 35 Ley CCSS, Art. 173 CT)
+        base_ccss   = round((vac_amount or 0.0) + (preaviso_amount or 0.0), 2)
+        _cfg = self.env['planilla.accounting.config'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        _skip = _cfg.skip_ccss_on_termination if _cfg else False
+        ccss        = 0.0 if _skip else round(base_ccss * K.CCSS_EMP, 2)
         total_net   = round(total_gross - ccss, 2)
 
         # -- Prestamos y adelantos pendientes ---------------------------------
@@ -277,6 +414,7 @@ class TerminationSimulator(models.TransientModel):
             'cesantia_amount':     cesantia_amount,
             'cesantia_applies':    cesantia_applies,
             'cesantia_days':       cesantia_days_disp,
+            'cesantia_days_locked': True,
             'cesantia_daily':      daily,
             'vacation_days':       vac_days,
             'vacation_amount':     vac_amount,
@@ -300,6 +438,72 @@ class TerminationSimulator(models.TransientModel):
             'notes':               '\n'.join(notes_lines),
         })
 
+        return {
+            'type':      'ir.actions.act_window',
+            'res_model': 'planilla.termination.simulator',
+            'res_id':    self.id,
+            'view_mode': 'form',
+            'target':    'new',
+        }
+
+    @api.onchange('cesantia_days')
+    def _onchange_cesantia_days(self):
+        """Recalcula cesantia_amount en tiempo real al editar los dias."""
+        if not self.computed or not self.cesantia_days:
+            return
+        emp = self.employee_id
+        if self.use_salary_average and self.salary_average_manual > 0:
+            salary = self.salary_average_manual
+        else:
+            salary = self.last_salary or (emp.base_salary if emp else 0.0) or 0.0
+        daily = salary / 30.0
+        new_ces = round(daily * self.cesantia_days, 2)
+        self.cesantia_amount  = new_ces
+        self.cesantia_daily   = daily
+        self.cesantia_days_locked = False
+        total_gross = self.preaviso_amount + new_ces + self.vacation_amount + self.aguinaldo_amount
+        # CCSS solo sobre rubros afectos: vacaciones + preaviso
+        # Cesantia (Art.173 CT) y Aguinaldo (Art.35 Ley CCSS) exentos
+        base_ccss = round((self.preaviso_amount or 0.0) + (self.vacation_amount or 0.0), 2)
+        _cfg2 = self.env['planilla.accounting.config'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        ccss = 0.0 if (_cfg2.skip_ccss_on_termination if _cfg2 else False) \
+            else round(base_ccss * K.CCSS_EMP, 2)
+        self.total_gross   = total_gross
+        self.ccss_on_total = ccss
+        self.total_net     = round(total_gross - ccss, 2)
+        self.total_final   = round(self.total_net - self.total_loans_pending, 2)
+
+    def action_recalculate_cesantia(self):
+        """Guarda y recalcula cesantia con los dias editados manualmente."""
+        self.ensure_one()
+        # Forzar recalculo (el onchange ya actualizo los valores en memoria)
+        # Llamar explicitamente para asegurar que la BD tiene los valores
+        self._onchange_cesantia_days()
+        emp = self.employee_id
+        if self.use_salary_average and self.salary_average_manual > 0:
+            salary = self.salary_average_manual
+        else:
+            salary = self.last_salary or emp.base_salary or 0.0
+        daily = salary / 30.0
+        new_cesantia = round(daily * self.cesantia_days, 2)
+        total_gross = self.preaviso_amount + new_cesantia + self.vacation_amount + self.aguinaldo_amount
+        base_ccss_rec = round((self.preaviso_amount or 0.0) + (self.vacation_amount or 0.0), 2)
+        _cfg3 = self.env['planilla.accounting.config'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        ccss = 0.0 if (_cfg3.skip_ccss_on_termination if _cfg3 else False) \
+            else round(base_ccss_rec * K.CCSS_EMP, 2)
+        total_net = round(total_gross - ccss, 2)
+        total_final = round(total_net - self.total_loans_pending, 2)
+        self.write({
+            'cesantia_amount':     new_cesantia,
+            'cesantia_daily':      daily,
+            'total_gross':         total_gross,
+            'ccss_on_total':       ccss,
+            'total_net':           total_net,
+            'total_final':         total_final,
+            'cesantia_days_locked': False,
+        })
         return {
             'type':      'ir.actions.act_window',
             'res_model': 'planilla.termination.simulator',

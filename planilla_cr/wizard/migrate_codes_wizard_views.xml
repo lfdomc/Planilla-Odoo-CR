@@ -5,7 +5,7 @@
         <field name="model">planilla.migrate.codes.wizard</field>
         <field name="arch" type="xml">
             <form string="Asignar Codigos a Novedades Existentes">
-                <div class="alert alert-info" invisible="result_message">
+                <div class="alert alert-info" role="alert" invisible="result_message">
                     Este asistente asigna codigos consecutivos (EMB-0001, BON-0001, etc.)
                     a todos los registros de Embargos, Bonos, Licencias, Horas Extras
                     y Cobros que aun no tienen codigo asignado.

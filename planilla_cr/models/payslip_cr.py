@@ -417,7 +417,7 @@ class PayslipCR(models.Model):
     )
     deduction_only_line_ids = fields.One2many(
         'planilla.payslip.deduction.line', 'payslip_id',
-        string='Deducciones Adicionales',
+        string='Solo Deducciones',
         domain=[('line_type', '=', 'deduction')],
     )
 
@@ -488,6 +488,24 @@ class PayslipCR(models.Model):
     # ==================================================================
     # CONSTRAINTS ORM
     # ==================================================================
+
+    def write(self, vals):
+        """Proteger boletas pagadas contra escritura accidental en campos criticos."""
+        campos_criticos = {
+            'base_salary', 'gross_salary', 'net_salary', 'salary_payable',
+            'ccss_employee', 'income_tax', 'total_employee_deductions',
+            'total_employer_cost', 'deposito_patrono', 'bono_salarial_amount',
+            'overtime_amount', 'ccss_subsidy_total',
+        }
+        if any(f in vals for f in campos_criticos):
+            paid_recs = self.filtered(lambda r: r.state == 'paid')
+            if paid_recs:
+                # Silenciosamente ignorar escrituras de campos criticos en pagadas
+                # (los computes intentan escribir pero no deben alterar el valor)
+                vals = {k: v for k, v in vals.items() if k not in campos_criticos}
+                if not vals:
+                    return True
+        return super().write(vals)
 
     def unlink(self):
         """

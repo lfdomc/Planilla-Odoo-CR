@@ -92,7 +92,7 @@
                                 </t>:
                             </td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-set="feriado_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state == 'approved')"/>
+                                <t t-set="feriado_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state in ('approved','paid'))"/>
                                 <t t-set="feriado_monto" t-value="sum(o.amount for o in feriado_lines)"/>
                                 <t t-if="feriado_monto &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(feriado_monto)"/></t>
                                 <t t-else="">-</t>
@@ -108,7 +108,7 @@
                                 </t>:
                             </td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-set="he_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type != 'holiday' and o.state == 'approved')"/>
+                                <t t-set="he_lines" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type != 'holiday' and o.state in ('approved','paid'))"/>
                                 <t t-set="he_monto" t-value="sum(o.amount for o in he_lines)"/>
                                 <t t-if="he_monto &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(he_monto)"/></t>
                                 <t t-else="">-</t>
@@ -117,8 +117,13 @@
                         </tr>
 
                         <!-- Vacaciones pagadas -->
+                        <t t-set="vac_lines_paid" t-value="doc.vacation_ids.filtered(lambda v: v.state in ('approved','paid'))"/>
+                        <t t-set="vac_dias_total" t-value="sum(v.days for v in vac_lines_paid)"/>
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Vacaciones:</td>
+                            <td style="padding:2px 8px 2px 20px;">
+                                Vacaciones<t t-if="vac_dias_total &gt; 0">
+                                    <span style="font-size:10px; color:#666;"> (<t t-out="'%.2f' % vac_dias_total"/> d)</span>
+                                </t>:</td>
                             <td style="padding:2px 8px; text-align:right;">
                                 <t t-if="doc.vacation_amount &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.vacation_amount)"/></t>
                                 <t t-else="">-</t>
@@ -187,7 +192,11 @@
 
                         <!-- Incapacidad INS -->
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Incapacidad INS:</td>
+                            <td style="padding:2px 8px 2px 20px;">
+                                Incapacidad INS<t t-if="ins_dis">
+                                    <t t-set="ins_dias" t-value="sum(d.days for d in ins_dis)"/>
+                                    <span style="font-size:10px; color:#666;"> (<t t-out="str(ins_dias)"/> d)</span>
+                                </t>:</td>
                             <td style="padding:2px 8px; text-align:right;">
                                 <t t-set="ins_dis" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'ins' and d.state in ('confirmed','paid'))"/>
                                 <t t-if="ins_dis">&#8353; <t t-out="'{:,.0f}'.format(doc.ins_subsidy_total)"/></t>
@@ -214,7 +223,11 @@
                         <t t-set="sg_dias_total" t-value="sum(l.amount for l in sg_dias_lines)"/>
                         <t t-set="sg_horas_total" t-value="sum(l.amount for l in sg_horas_lines)"/>
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Dias sin goce:</td>
+                            <td style="padding:2px 8px 2px 20px;">
+                                Dias sin goce<t t-if="sg_dias_lines">
+                                    <t t-set="sg_dias_count" t-value="sum(l.leave_cr_id.days if l.leave_cr_id else 1 for l in sg_dias_lines)"/>
+                                    <span style="font-size:10px; color:#666;"> (<t t-out="'%.0f' % sg_dias_count"/> d)</span>
+                                </t>:</td>
                             <td style="padding:2px 8px; text-align:right;">
                                 <t t-if="sg_dias_total &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(sg_dias_total)"/></t>
                                 <t t-else="">-</t>
@@ -222,10 +235,29 @@
                             <td/>
                         </tr>
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Horas sin goce:</td>
+                            <td style="padding:2px 8px 2px 20px;">
+                                Horas sin goce<t t-if="sg_horas_lines">
+                                    <t t-set="sg_horas_count" t-value="sum(l.leave_cr_id.hours if l.leave_cr_id and l.leave_cr_id.hours else 1 for l in sg_horas_lines)"/>
+                                    <span style="font-size:10px; color:#666;"> (<t t-out="'%.2f' % sg_horas_count"/> h)</span>
+                                </t>:</td>
                             <td style="padding:2px 8px; text-align:right;">
                                 <t t-if="sg_horas_total &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(sg_horas_total)"/></t>
                                 <t t-else="">-</t>
+                            </td>
+                            <td/>
+                        </tr>
+
+                        <!-- Licencias con goce -->
+                        <t t-set="cg_lines" t-value="doc.deduction_line_ids.filtered(lambda l: l.deduction_category == 'licencia_con_goce')"/>
+                        <t t-set="cg_total" t-value="sum(l.amount for l in cg_lines)"/>
+                        <tr t-if="cg_total &gt; 0">
+                            <td style="padding:2px 8px 2px 20px;">
+                                Licencia con Goce<t t-if="cg_lines">
+                                    <t t-set="cg_dias" t-value="sum(l.leave_cr_id.days if l.leave_cr_id else 1 for l in cg_lines)"/>
+                                    <span style="font-size:10px; color:#666;"> (<t t-out="'%.0f' % cg_dias"/> d)</span>
+                                </t>:</td>
+                            <td style="padding:2px 8px; text-align:right;">
+                                &#8353; <t t-out="'{{:,.0f}}'.format(cg_total)"/>
                             </td>
                             <td/>
                         </tr>
@@ -345,7 +377,7 @@
                         <tr>
                             <td style="padding:1px 8px 1px 20px; font-size:11px; color:#555;">Feriados trabajados:</td>
                             <td style="padding:1px 8px; text-align:right; font-size:11px; color:#555;">
-                                <t t-set="hol_ot2" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state == 'approved')"/>
+                                <t t-set="hol_ot2" t-value="doc.overtime_ids.filtered(lambda o: o.overtime_type == 'holiday' and o.state in ('approved','paid'))"/>
                                 <t t-out="str(len(hol_ot2))"/> dia(s) (<t t-out="'{:.2f}'.format(doc.overtime_holiday_hours)"/> h)
                             </td>
                             <td/>

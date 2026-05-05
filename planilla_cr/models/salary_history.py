@@ -111,6 +111,18 @@ class SalaryHistory(models.Model):
                     rec.gross_salary,
                     rec.effective_date,
                 )
+            # Registrar movimiento de aumento salarial
+            self.env['planilla.employee.movement'].create({
+                'employee_id':       rec.employee_id.id,
+                'movement_date':     rec.effective_date or fields.Date.today(),
+                'movement_type':     'aumento',
+                'reason':            rec.reason or 'Cambio salarial',
+                'salary_before':     rec.previous_salary or 0.0,
+                'salary_after':      rec.gross_salary or 0.0,
+                'company_id':        rec.employee_id.company_id.id,
+                'salary_history_id': rec.id,
+                'note':              rec.note or False,
+            })
             if rec.employee_id.work_email:
                 try:
                     template = self.env.ref(

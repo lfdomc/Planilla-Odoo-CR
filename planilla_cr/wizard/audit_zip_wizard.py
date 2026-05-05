@@ -127,4 +127,4 @@ Estructura:
             'datas': base64.b64encode(zip_buffer.getvalue()),
             'mimetype': 'application/zip',
         })
-        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}download=true', 'target': 'self'}
+        return {'type': 'ir.actions.act_url', 'url': f'/web/content/{att.id}?download=true', 'target': 'self'}

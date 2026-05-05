@@ -15,3 +15,10 @@ from . import sync_hr_wizard
 from . import test_email_wizard
 
 from . import migrate_codes_wizard
+
+from . import vacation_recalc_wizard
+from . import vacation_audit_wizard
+from . import payroll_accounting_review
+from . import vacation_initial_balance_wizard
+from . import resumen_ejecutivo_wizard
+from . import confirm_warnings_wizard

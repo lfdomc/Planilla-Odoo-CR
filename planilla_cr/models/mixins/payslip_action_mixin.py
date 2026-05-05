@@ -60,6 +60,19 @@ class PayslipActionMixin(models.AbstractModel):
                     rec._sync_embargos()
                     rec._sync_loan_deductions()
                     rec._sync_employee_charges()
+        # Forzar recompute completo despues del sync en modo batch.
+        # Los campos store=True (gross_salary, net_salary, deposito_patrono)
+        # pueden quedar con valores obsoletos si el recompute se ejecuta antes
+        # de que _sync_bonos_batch asigne los bono_id.
+        # Invalidar el cache fuerza que Odoo recalcule desde cero en el proximo acceso.
+        records.invalidate_recordset()
+        records._compute_bono_salarial()
+        records.modified([
+            'bono_salarial_amount', 'base_salary', 'gross_salary',
+            'net_salary', 'salary_payable', 'deposito_patrono',
+            'total_employee_deductions', 'total_employer_cost',
+        ])
+        records.env['planilla.payslip.cr'].flush_model()
         return records
 
     def action_sync_novedades(self) -> bool:
@@ -76,6 +89,16 @@ class PayslipActionMixin(models.AbstractModel):
                     f'Para editarla, primero cancelela y vuelva a Borrador.'
                 )
             if rec.state == 'draft':
+                # Limpiar lineas de incapacidad existentes para evitar duplicados
+                # al re-sincronizar en boletas que fueron re-procesadas
+                incap_lines = rec.deduction_line_ids.filtered(
+                    lambda l: l.deduction_category in ('incapacidad', 'licencia_con_goce')
+                              and l.line_type == 'deduction'
+                )
+                # Solo limpiar si hay incapacidades en el sistema para este periodo
+                # para no borrar entradas manuales
+                if incap_lines and rec.disability_ids:
+                    incap_lines.unlink()
                 rec._sync_novedades()        # incluye _sync_licencias() internamente
                 rec._sync_recurring_benefits()
                 rec._sync_rop()
@@ -123,15 +146,8 @@ class PayslipActionMixin(models.AbstractModel):
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('La boleta %s no esta en borrador.' % rec.name)
-        # FIX SYNC-BEFORE-CONFIRM: re-sincronizar novedades antes de validar.
-        # Garantiza que disability_ids (M2M) este actualizado, especialmente
-        # para boletas creadas antes del fix M2M (v5.28.74) que no tenian la
-        # maternidad u otras incapacidades vinculadas. Sin este sync, la
-        # validacion no detecta has_maternity y bloquea con error de salario minimo.
-        try:
-            self._sync_novedades()
-        except Exception:
-            pass  # si el sync falla, continuar con la validacion de todas formas
+        # NO re-sincronizar novedades aqui -- causaria recalculo de boletas
+        # ya revisadas y ajustadas manualmente, perdiendo correcciones aplicadas.
         self._validate_before_confirm()
         self.write({'state': 'confirmed'})
         _logger.info(
