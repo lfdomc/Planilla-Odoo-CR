@@ -239,15 +239,16 @@ class PayrollReportWizard(models.TransientModel):
         totals = [0.0] * len(columns)
         for slip in payslips.sorted(key=lambda s: s.employee_id.name):
             c = self._convert_amount
-            # ── Contexto de días ──────────────────────────────────────────
-            dias_periodo   = slip.days_in_period or 0
-            dias_trabajados = slip.dias_laborados_periodo or 0
-            dias_incap     = slip.disability_days_in_period or 0
-            dias_licencia  = round(sum(
-                l.amount for l in slip.deduction_line_ids
-                if l.line_type == 'deduction'
-                and l.deduction_category in ('licencia_sin_goce', 'ausencia')
-            ) / (slip.base_salary / (slip.days_in_period or 1) or 1), 1) if slip.base_salary else 0
+            # ── Período — los 3 campos que tienen columna en el reporte
+            periodo_str = (
+                f"{slip.date_from.strftime('%d/%b/%Y')} – {slip.date_to.strftime('%d/%b/%Y')}"
+                if slip.date_from and slip.date_to else ''
+            )
+            freq_map = {'biweekly': 'Quincenal', 'monthly': 'Mensual',
+                        'weekly': 'Semanal', 'bimonthly': 'Bimensual'}
+            freq_str = freq_map.get(getattr(slip, 'period_type', None) or
+                                    getattr(slip, 'frequency', ''), 'Quincenal')
+
 
             # ── Ingresos ──────────────────────────────────────────────────────
             bono_salarial  = c(slip.bono_salarial_amount or 0.0, slip)
@@ -298,12 +299,10 @@ class PayrollReportWizard(models.TransientModel):
                 slip.branch_id.name or '',
                 slip.employee_id.identification_id or '',
                 # Días
-                float(dias_periodo),
-                float(dias_trabajados),
-                float(dias_incap),
-                float(dias_licencia),
-                # Ingresos
-                c(slip.base_salary, slip),
+                # D-F: Período / Frecuencia / Días Laborados
+                periodo_str,
+                freq_str,
+                float(slip.dias_laborados_periodo or slip.days_worked or 0),
                 c(slip.overtime_amount, slip),
                 bono_salarial,
                 c(slip.vacation_amount, slip),
