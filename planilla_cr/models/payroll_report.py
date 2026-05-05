@@ -250,94 +250,49 @@ class PayrollReportWizard(models.TransientModel):
                                     getattr(slip, 'frequency', ''), 'Quincenal')
 
 
-            # ── Ingresos ──────────────────────────────────────────────────────
-            bono_salarial  = c(slip.bono_salarial_amount or 0.0, slip)
-            # OtrosIng = todo lo que va al bruto además de base/extras/bonos/vacaciones.
-            # Incluye other_income + cualquier ingreso adicional no categorizado.
-            otros_ingresos = max(round(
-                c(slip.gross_salary, slip)
-                - c(slip.base_salary, slip)
-                - c(slip.overtime_amount, slip)
-                - bono_salarial
-                - c(slip.vacation_amount, slip),
-                2), 0.0)
-            # Permiso sin goce leído desde líneas (evita campo store stale).
-            permiso_sin_goce = round(sum(
-                l.amount for l in slip.deduction_line_ids
-                if l.line_type == 'deduction'
-                and l.deduction_category in ('licencia_sin_goce', 'ausencia')
-            ), 2)
-
-            # ── Cotización ────────────────────────────────────────────────────
-            # base_cotizable_final = campo del modelo que ya incluye todos los
-            # ajustes: incapacidades (Art.79 CT) + licencias sin goce.
-            # CCSSOb = 10.83% × base_cotizable_final  (verificable por el usuario).
-            base_cotiz = c(slip.base_cotizable_final or 0.0, slip)
-
-            # ── Deducciones ───────────────────────────────────────────────────
-            # OtrasDed = todo lo que deduce además de CCSS y Renta:
-            # pensiones, embargos, cobros, sindicato, cooperativa, préstamos, etc.
-            otras_ded = max(round(
-                c(slip.total_employee_deductions, slip)
-                - c(slip.ccss_employee, slip)
-                - c(slip.income_tax, slip),
-                2), 0.0)
-
-            # ── Subsidios ─────────────────────────────────────────────────────
-            # Subsidio CCSS: días 4+ maternidad/enfermedad, pasa por el patrono.
-            # Subsidio INS : riesgo laboral, INS paga directamente al empleado.
-            # Paternidad   : 8 días hábiles a cargo del patrono (Ley 8107).
-            # Ambos se muestran por separado para transparencia.
-            subsidio_ccss = max(round(
-                c(slip.ccss_subsidy_total or 0.0, slip)
-                + c(slip.paternity_amount  or 0.0, slip), 2), 0.0)
-            subsidio_ins  = max(c(slip.ins_subsidy_total or 0.0, slip), 0.0)
+            # Todos los cálculos se leen directo del slip — sin variables intermedias
 
             data = [
-                # Identificación
-                slip.employee_id.name,
-                slip.branch_id.name or '',
+                # ── A-C Identificación ───────────────────────────────────────
+                slip.employee_id.name or '',
+                slip.branch_id.name   or '',
                 slip.employee_id.identification_id or '',
-                # Días
-                # D-F: Período / Frecuencia / Días Laborados
+                # ── D-F Período ──────────────────────────────────────────────
                 periodo_str,
                 freq_str,
                 float(slip.dias_laborados_periodo or slip.days_worked or 0),
-                c(slip.overtime_amount, slip),
-                bono_salarial,
-                c(slip.vacation_amount, slip),
-                otros_ingresos,
-                permiso_sin_goce,
-                c(slip.gross_salary, slip),
-                # Cotización y deducciones
-                base_cotiz,
-                c(slip.ccss_employee, slip),
-                c(slip.income_tax, slip),
-                otras_ded,
-                c(slip.total_employee_deductions, slip),
-                # col 19-20: Subsidios
-                subsidio_ccss,
-                subsidio_ins,
-                # col 21: Salario Neto
-                c(slip.net_salary, slip),
-                # col 22 = W — Depósito Patrono (lo que el patrono realmente transfiere)
-                # = max(0, SalNeto - SubCCSS - SubINS)
-                # max(0): en INS total el patrono deposita 0, el INS paga directo.
-                max(round(
-                    c(slip.net_salary, slip)
-                    - c(slip.ccss_subsidy_total or 0.0, slip)
-                    - c(slip.paternity_amount   or 0.0, slip)
-                    - c(slip.ins_subsidy_total  or 0.0, slip),
-                    2), 0.0),
-                # col 23 = X — espacio visual separador
+                # ── G-M Ingresos ─────────────────────────────────────────────
+                c(slip.base_salary           or 0, slip),  # G Salario Base
+                c(slip.overtime_amount        or 0, slip),  # H Horas Extras
+                c(slip.bono_salarial_amount   or 0, slip),  # I Bonos Salariales
+                c(slip.vacation_amount        or 0, slip),  # J Vacaciones Pagadas
+                c(slip.other_income           or 0, slip),  # K Otros Ingresos
+                c(slip.amount_licencias_sin_goce or 0, slip), # L Permiso sin Goce
+                c(slip.gross_salary           or 0, slip),  # M Salario Bruto
+                # ── N-R Cotización y Deducciones ─────────────────────────────
+                c(slip.base_cotizable_final   or 0, slip),  # N Base Cotizable CCSS
+                c(slip.ccss_employee          or 0, slip),  # O CCSS Obrero 10.83%
+                c(slip.income_tax             or 0, slip),  # P Impuesto Renta
+                max(round(                                   # Q Otras Deducciones
+                    c(slip.total_employee_deductions or 0, slip)
+                    - c(slip.ccss_employee or 0, slip)
+                    - c(slip.income_tax    or 0, slip), 2), 0.0),
+                c(slip.total_employee_deductions or 0, slip), # R Total Ded. Obrero
+                # ── S-U Subsidios + Neto ─────────────────────────────────────
+                c((slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), slip), # S Subsidio CCSS
+                c(slip.ins_subsidy_total   or 0, slip),     # T Subsidio INS
+                c(slip.net_salary          or 0, slip),     # U Salario Neto
+                # ── V Depósito Patrono ────────────────────────────────────────
+                c(slip.deposito_patrono    or 0, slip),     # V deposito_patrono (campo correcto del slip)
+                # ── W Separador visual ────────────────────────────────────────
                 '',
-                # col 24-29 — Cargas patronales
-                c(slip.ccss_employer, slip),
-                c(slip.ins_employer, slip),
-                c(slip.aguinaldo_provision, slip),
-                c(slip.cesantia_provision, slip),
-                c(slip.vacation_provision, slip),
-                c(slip.total_employer_cost, slip),
+                # ── X-AC Cargas Patronales ────────────────────────────────────
+                c(slip.ccss_employer        or 0, slip),    # X CCSS Patronal 26.83%
+                c(slip.ins_employer         or 0, slip),    # Y INS Riesgos del Trabajo
+                c(slip.aguinaldo_provision  or 0, slip),    # Z Provisión Aguinaldo
+                c(slip.cesantia_provision   or 0, slip),    # AA Provisión Cesantía
+                c(slip.vacation_provision   or 0, slip),    # AB Provisión Vacaciones
+                c(slip.total_employer_cost  or 0, slip),    # AC Costo Total Patronal
             ]
             for col, val in enumerate(data):
                 _, dfmt, is_int = section_map.get(col, (None, money, False))
