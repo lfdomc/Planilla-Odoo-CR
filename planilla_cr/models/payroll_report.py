@@ -173,15 +173,18 @@ class PayrollReportWizard(models.TransientModel):
             # ── Subsidios ─────────────────────────────────────────────────────
             ('Subsidio CCSS (CRC)',   15),
             ('Subsidio INS (CRC)',    14),
-            ('Salario Neto (CRC)',    16),
-            # ── Cargas patronales ─────────────────────────────────────────────
-            ('CCSS Patronal (CRC)',   15),
-            ('INS Patronal (CRC)',    14),
-            ('Prov. Aguinaldo (CRC)', 16),
-            ('Prov. Cesantía (CRC)',  16),
-            ('Prov. Vacaciones (CRC)',16),
-            ('Costo Total Emp. (CRC)',18),
-            ('Depósito Patrono (CRC)', 18),   # = max(0, SalNeto - SubCCSS - SubINS)
+            ('Salario Neto (CRC)',    16),   # col V (21)
+            # col W (22) — Depósito Patrono
+            ('Depósito Patrono (CRC)', 18),
+            # col X (23) — espacio separador
+            ('',                        2),
+            # cols Y-AD (24-29) — Cargas patronales
+            ('CCSS Patronal (CRC)',    15),
+            ('INS Patronal (CRC)',     14),
+            ('Prov. Aguinaldo (CRC)',  16),
+            ('Prov. Cesantía (CRC)',   16),
+            ('Prov. Vacaciones (CRC)', 16),
+            ('Costo Total Emp. (CRC)', 18),
         ]
         # Encabezados con color por sección
         # Mapeo col_index -> (header_format, data_format)
@@ -214,14 +217,17 @@ class PayrollReportWizard(models.TransientModel):
             19: (hdr_ded,   money_ded,   False),
             20: (hdr_sub,   money_sub,   False),
             21: (hdr_sub,   money_sub,   False),
-            22: (hdr_ing,   money_ing,   False),   # Salario Neto = ingreso color
-            23: (hdr_pat,   money_pat,   False),
+            # col W (22) = Depósito Patrono
+            22: (hdr_ing,   money_ing,   False),
+            # col X (23) = espacio vacío
+            23: (hdr_id,    normal,      False),
+            # cols Y-AD (24-29) = cargas patronales
             24: (hdr_pat,   money_pat,   False),
             25: (hdr_pat,   money_pat,   False),
             26: (hdr_pat,   money_pat,   False),
             27: (hdr_pat,   money_pat,   False),
             28: (hdr_pat,   money_pat,   False),
-            29: (hdr_ing,   money_ing,   False),   # Depósito Patrono = verde como Neto
+            29: (hdr_pat,   money_pat,   False),
         }
         row = 5
         for col, (name, width) in enumerate(columns):
@@ -312,26 +318,29 @@ class PayrollReportWizard(models.TransientModel):
                 c(slip.income_tax, slip),
                 otras_ded,
                 c(slip.total_employee_deductions, slip),
-                # Subsidios y neto
+                # col 19-20: Subsidios
                 subsidio_ccss,
                 subsidio_ins,
+                # col 21: Salario Neto
                 c(slip.net_salary, slip),
-                # Cargas patronales
-                c(slip.ccss_employer, slip),
-                c(slip.ins_employer, slip),
-                c(slip.aguinaldo_provision, slip),
-                c(slip.cesantia_provision, slip),
-                c(slip.vacation_provision, slip),
-                c(slip.total_employer_cost, slip),
-                # Depósito real que el patrono transfiere al empleado.
-                # = SalNeto - SubCCSS - SubINS  (ambos los paga CCSS/INS directo).
-                # max(0): cuando hay INS total el patrono deposita 0, el INS paga directo.
+                # col 22 = W — Depósito Patrono (lo que el patrono realmente transfiere)
+                # = max(0, SalNeto - SubCCSS - SubINS)
+                # max(0): en INS total el patrono deposita 0, el INS paga directo.
                 max(round(
                     c(slip.net_salary, slip)
                     - c(slip.ccss_subsidy_total or 0.0, slip)
                     - c(slip.paternity_amount   or 0.0, slip)
                     - c(slip.ins_subsidy_total  or 0.0, slip),
                     2), 0.0),
+                # col 23 = X — espacio visual separador
+                '',
+                # col 24-29 — Cargas patronales
+                c(slip.ccss_employer, slip),
+                c(slip.ins_employer, slip),
+                c(slip.aguinaldo_provision, slip),
+                c(slip.cesantia_provision, slip),
+                c(slip.vacation_provision, slip),
+                c(slip.total_employer_cost, slip),
             ]
             for col, val in enumerate(data):
                 _, dfmt, is_int = section_map.get(col, (None, money, False))
