@@ -121,6 +121,28 @@ class PayrollReportWizard(models.TransientModel):
         totals = [0.0] * len(columns)
         for slip in payslips.sorted(key=lambda s: s.employee_id.name):
             c = self._convert_amount
+            # FIX BUG-PLAN-1: OtrosIng = gross - base - overtime - vacation
+            # gross_salary incluye bono_salarial (afecto CCSS) que no estaba en
+            # other_income (campo directo). Esta formula captura TODO lo que va al
+            # bruto mas alla de las tres columnas explícitas.
+            otros_ingresos = round(
+                c(slip.gross_salary, slip)
+                - c(slip.base_salary, slip)
+                - c(slip.overtime_amount, slip)
+                - c(slip.vacation_amount, slip),
+                2
+            )
+            # FIX BUG-PLAN-2: OtrasDed = total_ded - ccss - renta
+            # other_deductions es un campo casi siempre 0. Las deducciones reales
+            # (pension alimentaria, embargo, cobros, sindical, prestamos, etc.)
+            # estan en deduction_line_ids y suman en total_employee_deductions.
+            # Esta formula garantiza que CCSS + Renta + OtrasDed = TotalDed exacto.
+            otras_ded = round(
+                c(slip.total_employee_deductions, slip)
+                - c(slip.ccss_employee, slip)
+                - c(slip.income_tax, slip),
+                2
+            )
             data = [
                 slip.employee_id.name,
                 slip.branch_id.name or '',
@@ -128,11 +150,11 @@ class PayrollReportWizard(models.TransientModel):
                 c(slip.base_salary, slip),
                 c(slip.overtime_amount, slip),
                 c(slip.vacation_amount, slip),
-                c(slip.other_income, slip),
+                max(otros_ingresos, 0.0),
                 c(slip.gross_salary, slip),
                 c(slip.ccss_employee, slip),
                 c(slip.income_tax, slip),
-                c(slip.other_deductions, slip),
+                max(otras_ded, 0.0),
                 c(slip.total_employee_deductions, slip),
                 c(slip.net_salary, slip),
                 c(slip.ccss_employer, slip),
