@@ -157,12 +157,67 @@ class ResumenEjecutivoWizard(models.TransientModel):
             )
             return sum(lines.mapped('amount'))
 
+        def get_ccss_subsidy_via_patrono(slip):
+            """
+            Retorna el subsidio CCSS/maternidad que fluye a traves del patrono al empleado.
+
+            Casos donde el subsidio SI aparece en deposito_patrono (ingreso extra del patrono):
+              - Maternidad con maternity_ccss_on_employer=True y maternity_split_50=False:
+                la CCSS transfiere el subsidio completo al patrono, quien lo deposita al empleado.
+              - Incapacidad normal CCSS (no maternidad, no INS):
+                el patrono cubre dias 1-3 y la CCSS paga dias 4+ directamente al empleado.
+                En este caso ccss_subsidy NO pasa por el patrono -> NO se incluye.
+
+            Casos donde el subsidio NO pasa por el patrono (CCSS/INS deposita directo):
+              - split_50: CCSS deposita el 50%% directamente al empleado.
+              - INS riesgo laboral: INS deposita directamente.
+              - Incapacidad normal: CCSS deposita dias 4+ directamente.
+            """
+            if not (slip.date_from and slip.date_to):
+                return 0.0
+            ccss_sub = slip.ccss_subsidy_total or 0.0
+            if ccss_sub <= 0:
+                return 0.0
+            active_dis = slip.disability_ids.filtered(
+                lambda d: d.state in ('confirmed', 'paid') and d.date_start and d.date_end
+            )
+            mat_in_per = [
+                d for d in active_dis
+                if d.disability_type == 'maternity'
+                and max(slip.date_from, d.date_start) <= min(slip.date_to, d.date_end)
+            ]
+            if not mat_in_per:
+                return 0.0  # No maternidad -> CCSS no pasa por patrono
+            has_ccss_on_emp = any(getattr(d, 'maternity_ccss_on_employer', False) for d in mat_in_per)
+            has_split_50    = any(getattr(d, 'maternity_split_50', False) for d in mat_in_per)
+            if has_ccss_on_emp and not has_split_50:
+                # Subsidio completo pasa por patrono -> es ingreso del empleado en esta planilla
+                return ccss_sub
+            return 0.0
+
         def get_otros_rebajos(slip):
-            cat_mapped = {'ccss', 'loan', 'ahorro', 'maternity',
-                          'ausencia', 'income_tax', 'facturas'}
+            # cat_excluidas = categorias que ya tienen su propia columna en el reporte.
+            # IMPORTANTE — regla de exclusion exacta para evitar doble conteo:
+            #   'licencia_sin_goce' -> ya en permiso_col (amount_licencias_sin_goce)
+            #   'ausencia'          -> ya en permiso_col
+            #   'ccss'              -> columna CCSS (campo computado)
+            #   'income_tax'        -> columna Renta (campo computado)
+            #   'loan'              -> columna Prestamos
+            #   'ahorro'            -> columna Ahorro
+            #   'maternity'         -> columna Maternidad
+            #   'cooperativa'       -> columna Facturas (get_deduction_amount cooperativa)
+            #   'facturas'          -> alias de cooperativa usado por algunos códigos
+            # BUG ANTERIOR: 'licencia_sin_goce' y 'cooperativa' NO estaban en cat_excluidas
+            # -> se sumaban dos veces (permiso_col + otros_reb o facturas + otros_reb)
+            # -> provocaba diff positivo falso en empleados con esas deducciones.
+            cat_excluidas = {
+                'ccss', 'income_tax', 'loan', 'ahorro', 'maternity',
+                'ausencia', 'licencia_sin_goce',  # FIX BUG1: agregar licencia_sin_goce
+                'cooperativa', 'facturas',         # FIX BUG2+3: cooperativa y su alias
+            }
             lines = slip.deduction_line_ids.filtered(
                 lambda l: l.line_type == 'deduction'
-                and l.deduction_category not in cat_mapped
+                and l.deduction_category not in cat_excluidas
             )
             return sum(lines.mapped('amount'))
 
@@ -183,7 +238,10 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # La ecuacion del reporte es:
             # Subtotal - PermisoSinGoce - CCSS - Incap - Ahorro - Renta - ... = Total
             sal_quincenal = slip.base_salary or 0
-            otros_ing     = get_otros_ingresos(slip)
+            otros_ing     = (get_otros_ingresos(slip)
+                             + (slip.vacation_amount or 0)       # FIX BUG4a: vacaciones pagadas
+                             + (slip.other_income  or 0)         # FIX BUG4b: otros ingresos (campo directo)
+                             + get_ccss_subsidy_via_patrono(slip)) # FIX: subsidio mat que pasa por patrono
             extras        = slip.overtime_amount or 0
             subtotal      = sal_quincenal + otros_ing + extras
             permiso_col   = permiso_sin_goce_amt

@@ -199,9 +199,7 @@ class PayslipValidationMixin(models.AbstractModel):
                 has_50_cost = any(getattr(d, 'maternity_split_50', False) for d in mat_now_cost)
 
                 if mat_now_cost and has_50_cost:
-                    # Maternidad 50/50: el patrono adelanta el 50% del neto del subsidio.
-                    # neto_real = subsidio - CCSS obrera; patron paga la mitad.
-                    # Para maternidad parcial: patron paga salario_dias + mitad_subsidio.
+                    # Maternidad 50/50: patrono adelanta 50% del neto; CCSS deposita el otro 50%.
                     ccss_emp_preview = rec.ccss_employee or 0.0
                     dias_per = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else 15
                     dias_mat = sum(
@@ -221,9 +219,26 @@ class PayslipValidationMixin(models.AbstractModel):
                         disability_cost_real = round(neto_real_50 / 2.0, 2)
                     else:
                         disability_cost_real = round(ccss_sub_preview / 2.0, 2)
+                elif mat_now_cost and not has_50_cost:
+                    # FIX BUG-MAT-NETO: Maternidad sin split (ccss_on_employer=True, split_50=False).
+                    # La CCSS reembolsa el subsidio completo al patrono -> costo neto = 0.
+                    # El costo patronal se limita a CCSS patronal + INS + provisiones
+                    # (ya contabilizados en las otras lineas de total_employer_cost).
+                    # Para maternidad parcial: patrono paga los dias laborados (gross - CCSS obrera).
+                    ccss_emp_preview_ns = rec.ccss_employee or 0.0
+                    dias_per_ns = (rec.date_to - rec.date_from).days + 1 if (rec.date_from and rec.date_to) else 15
+                    dias_mat_ns = sum(
+                        (min(rec.date_to, d.date_end) - max(rec.date_from, d.date_start)).days + 1
+                        for d in mat_now_cost if d.date_start and d.date_end
+                    ) if mat_now_cost else 0
+                    es_parcial_ns = bool(mat_now_cost) and (dias_mat_ns < dias_per_ns)
+                    if es_parcial_ns:
+                        # Dias laborados: patrono paga el salario neto de esos dias
+                        disability_cost_real = round((rec.gross_salary or 0.0) - ccss_emp_preview_ns, 2)
+                    else:
+                        disability_cost_real = 0.0  # Patrono recibe reembolso completo de la CCSS
                 else:
-                    # Incapacidad normal con subsidio (dias 4+): patrono paga
-                    # gross - deducciones (neto laboral)
+                    # Incapacidad normal con subsidio CCSS (dias 4+): patrono paga neto laboral.
                     disability_cost_real = round(
                         (rec.gross_salary or 0.0) - rec.total_employee_deductions +
                         (rec.paternity_amount or 0.0) + extra_income, 2
@@ -254,26 +269,16 @@ class PayslipValidationMixin(models.AbstractModel):
                 extra_income, 2
             )
             rec.salary_payable = rec.net_salary
-            # deposito_patrono = lo que la empresa realmente transfiere al empleado
-            # = net_salary - subsidios CCSS/INS que paga la Caja/INS directamente
-            ccss_sub_val = rec.ccss_subsidy_total or 0.0
-            ins_sub_val  = rec.ins_subsidy_total  or 0.0
-            # deposito_patrono = lo que la empresa realmente deposita al empleado
-            # CASO 1 (normal, sin subsidios): toda la boleta la paga la empresa
-            # CASO 2 (incapacidad/maternidad con subsidio): neto_por_patrono ya
-            #         tiene el calculo correcto incluyendo el 50/50 de maternidad.
-            # NO se puede usar net_salary - ccss_subsidy porque en maternidad 50/50
-            # ccss_subsidy = monto_base_completo > net_salary, dando valor negativo.
-            if ccss_sub_val > 0 or ins_sub_val > 0:
-                rec.deposito_patrono = round(rec.neto_por_patrono or 0.0, 2)
-            else:
-                rec.deposito_patrono = round(rec.net_salary, 2)
 
-            # -- Desglose patrono vs CCSS/INS (todos los tipos de incapacidad) --
+            # -- Desglose patrono vs CCSS/INS -----------------------------------
+            # FIX BUG-ORDEN: neto_por_patrono se computa ANTES de deposito_patrono.
+            # El orden anterior era inverso: deposito_patrono leia neto_por_patrono
+            # del ciclo anterior (valor stale), causando un deposito incorrecto
+            # en la primera computacion y en cambios de estado de incapacidad.
             ccss_sub = rec.ccss_subsidy_total or 0.0
             ins_sub  = rec.ins_subsidy_total  or 0.0
+
             if rec.disability_days_in_period:
-                # Detectar maternidad con CCSS obrera sobre subsidio patronal
                 active_dis_all = rec.disability_ids.filtered(
                     lambda d: d.state in ('confirmed', 'paid')
                     and d.date_start and d.date_end
@@ -289,8 +294,6 @@ class PayslipValidationMixin(models.AbstractModel):
                 has_ccss_on_emp = any(getattr(d, 'maternity_ccss_on_employer', False) for d in mat_dis_now)
                 has_split_50    = any(getattr(d, 'maternity_split_50', False) for d in mat_dis_now)
 
-                # Detectar si hay dias laborados ademas de la maternidad en el periodo
-                # (maternidad parcial: la licencia no cubre todo el periodo)
                 dias_mat_en_periodo = sum(
                     (min(rec.date_to, d.date_end) - max(rec.date_from, d.date_start)).days + 1
                     for d in mat_dis_now
@@ -299,42 +302,11 @@ class PayslipValidationMixin(models.AbstractModel):
                 es_maternidad_parcial = mat_dis_now and (dias_mat_en_periodo < dias_periodo)
 
                 if mat_dis_now and has_ccss_on_emp and has_split_50:
-                    # Modalidad 50/50 maternidad + CCSS obrera sobre subsidio.
-                    #
-                    # CASO 1: Maternidad TOTAL (cubre todo el periodo, 0 dias laborados):
-                    #   Base cotizable = subsidio total (=salario_cotizable cuando no hay dias laborados)
-                    #   CCSS obrera = 10.83% sobre el subsidio total
-                    #   neto_real = subsidio_total - ccss_obrera
-                    #   Patrono deposita 50% del neto_real, CCSS deposita el otro 50%.
-                    #
-                    # CASO 2: Maternidad PARCIAL (hay dias laborados ademas de dias de maternidad):
-                    #   gross_salary = salario_cotizable = salario_dias_laborados + subsidiado_patrono
-                    #   ccss_employee = 10.83% sobre gross_salary (proporcional a base cotizable total)
-                    #   El patrono paga: gross_salary (dias laborados neto de CCSS) + 50% subsidio mat neto
-                    #   La CCSS paga: 50% del subsidio maternidad neto de CCSS
-                    #
-                    # En ambos casos net_salary = gross - ccss_emp + ccss_sub (subsidio mat).
-                    # El desglose neto_por_patrono + neto_por_ccss debe sumar net_salary.
-
+                    # Modalidad 50/50: CCSS obrera + split patrono/CCSS.
+                    # El patrono deposita 50% del neto_real; la CCSS deposita el otro 50%.
                     if es_maternidad_parcial:
-                        # Caso 2: Maternidad PARCIAL -- hay dias laborados + dias maternidad
-                        #
-                        # El salario de dias laborados lo paga el patrono (neto de CCSS obrero).
-                        # El subsidio de maternidad (ccss_sub) lo pagan patrono y CCSS al 50/50.
-                        # La CCSS obrera (ccss_employee) se calcula SOLO sobre el salario laborado
-                        # (gross_salary = salario_cotizable = dias_laborados x diario).
-                        # El subsidio de maternidad ya viene neto de CCSS porque la CCSS
-                        # lo descuenta directamente antes de depositar.
-                        #
-                        # Desglose correcto:
-                        #   neto_laborado   = gross_salary - ccss_employee  (salario dias trabajados neto)
-                        #   neto_por_ccss   = ccss_sub / 2                  (50% subsidio maternidad -> deposita CCSS)
-                        #   neto_por_patrono= neto_laborado + ccss_sub / 2  (dias laborados + 50% subsidio mat)
-                        #   TOTAL           = neto_por_patrono + neto_por_ccss = net_salary  OK
                         neto_laborado        = round((rec.gross_salary or 0.0) - (rec.ccss_employee or 0.0), 2)
                         mitad_sub            = round(ccss_sub / 2.0, 2)
-                        # Restar deducciones adicionales (cobros, embargos, prestamos)
-                        # que reducen lo que el patrono realmente deposita
                         ded_adicionales = sum(
                             l.amount for l in rec.deduction_line_ids
                             if l.line_type == 'deduction'
@@ -342,9 +314,6 @@ class PayslipValidationMixin(models.AbstractModel):
                         rec.neto_por_ccss    = mitad_sub
                         rec.neto_por_patrono = round(neto_laborado + mitad_sub - ded_adicionales, 2)
                     else:
-                        # Caso 1: Maternidad TOTAL -- no hay dias laborados, solo subsidio maternidad
-                        # Base cotizable = subsidio total (maternity_ccss_on_employer=True)
-                        # CCSS obrera se descuenta sobre el subsidio total antes del 50/50.
                         total_sub   = ccss_sub
                         ccss_obrera = rec.ccss_employee or 0.0
                         neto_real   = round(total_sub - ccss_obrera, 2)
@@ -354,10 +323,35 @@ class PayslipValidationMixin(models.AbstractModel):
                         )
                         rec.neto_por_patrono = round(neto_real / 2.0 - ded_adicionales_t, 2)
                         rec.neto_por_ccss    = round(neto_real / 2.0, 2)
+
+                elif mat_dis_now and has_ccss_on_emp and not has_split_50:
+                    # FIX BUG-MAT-NETO: Maternidad con CCSS que pasa por planilla
+                    # del patrono (maternity_ccss_on_employer=True, split_50=False).
+                    #
+                    # La CCSS transfiere el subsidio completo al patrono;
+                    # el patrono lo deposita al empleado neto de CCSS obrera y deducciones.
+                    # El empleado recibe TODO del patrono -- la CCSS NO deposita al empleado.
+                    #
+                    # Bug anterior: el else-branch usaba gross_salary (=0 en maternidad total)
+                    # dando neto_por_patrono = -deductions (negativo).
+                    #
+                    # Formula correcta (Art. 94 CT):
+                    #   Maternidad total:   neto_patrono = ccss_sub - ccss_obrera - ded
+                    #   Maternidad parcial: neto_patrono = (gross - ccss_obrera) + ccss_sub - ded
+                    ded_adic_mat  = sum(
+                        l.amount for l in rec.deduction_line_ids
+                        if l.line_type == 'deduction'
+                    )
+                    ccss_obr_mat  = rec.ccss_employee or 0.0
+                    if es_maternidad_parcial:
+                        neto_lab_mat         = round((rec.gross_salary or 0.0) - ccss_obr_mat, 2)
+                        rec.neto_por_patrono = round(neto_lab_mat + ccss_sub - ded_adic_mat, 2)
+                    else:
+                        rec.neto_por_patrono = round(ccss_sub - ccss_obr_mat - ded_adic_mat, 2)
+                    rec.neto_por_ccss = 0.0  # CCSS ya pagó al patrono, no deposita al empleado
+
                 elif mat_dis_now and has_split_50 and not has_ccss_on_emp:
-                    # Modalidad 50/50 sin CCSS obrera:
-                    # Patrono paga 50%%, CCSS paga 50%%, empleado no pierde nada por subsidio.
-                    # Si es parcial, el patrono ademas paga el salario de los dias laborados.
+                    # Modalidad 50/50 sin CCSS obrera sobre el subsidio.
                     mitad = round(ccss_sub / 2.0, 2) if ccss_sub else 0.0
                     if es_maternidad_parcial:
                         neto_laborado = round((rec.gross_salary or 0.0) - (rec.total_employee_deductions or 0.0) + extra_income, 2)
@@ -365,8 +359,11 @@ class PayslipValidationMixin(models.AbstractModel):
                     else:
                         rec.neto_por_patrono = mitad
                     rec.neto_por_ccss = mitad
+
                 else:
-                    # Incapacidad normal CCSS o INS: patrono = dias 1-3 + salario laborado, CCSS = dias 4+
+                    # Incapacidad normal CCSS (dias 1-3 patrono, dias 4+ CCSS) o INS.
+                    # gross_salary = salario_cotizable (dias laborados + 50% dias patrono).
+                    # INS total: gross_salary = 0, patrono no deposita nada (INS paga fuera).
                     rec.neto_por_patrono = round(
                         (rec.gross_salary or 0.0) - rec.total_employee_deductions +
                         (rec.paternity_amount or 0.0) +
@@ -376,6 +373,14 @@ class PayslipValidationMixin(models.AbstractModel):
             else:
                 rec.neto_por_patrono = 0.0
                 rec.neto_por_ccss    = 0.0
+
+            # deposito_patrono se asigna DESPUES de que neto_por_patrono esta fresco.
+            # FIX BUG-ORDEN: antes esta linea usaba el neto_por_patrono del ciclo
+            # anterior (stale), dando valores incorrectos en la primera computacion.
+            if ccss_sub > 0 or ins_sub > 0:
+                rec.deposito_patrono = round(rec.neto_por_patrono or 0.0, 2)
+            else:
+                rec.deposito_patrono = round(rec.net_salary, 2)
 
             if rec.salary_payable and rec.salary_payable > 0:
                 rec.cost_per_net_colon = round(rec.total_employer_cost / rec.deposito_patrono, 2) if rec.deposito_patrono else 0.0
