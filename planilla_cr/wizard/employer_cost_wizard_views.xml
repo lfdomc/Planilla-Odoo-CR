@@ -12,16 +12,19 @@
                         Solo boletas en estado <strong>PAGADO</strong>.
                     </div>
                     <group>
-                        <group string="Filtros">
+                        <group string="Opciones">
                             <field name="company_id"/>
                             <field name="branch_id"/>
-                        </group>
-                        <group string="Período">
-                            <field name="date_from"/>
-                            <field name="date_to"/>
                             <field name="group_by"/>
                         </group>
+                        <group string="Período calculado" invisible="not payroll_run_ids">
+                            <field name="date_from" readonly="1"/>
+                            <field name="date_to"   readonly="1"/>
+                        </group>
                     </group>
+                    <separator string="Seleccione las Planillas"/>
+                    <field name="payroll_run_ids" widget="many2many_checkboxes"
+                           domain="[('state','=','done')]"/>
                 </sheet>
                 <footer>
                     <button name="action_generate_pdf" type="object"

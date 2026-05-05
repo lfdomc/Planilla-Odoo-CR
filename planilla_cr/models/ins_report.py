@@ -16,8 +16,16 @@ class InsReport(models.TransientModel):
 
     company_id = fields.Many2one('res.company', required=True,
                                   default=lambda self: self.env.company)
-    date_from = fields.Date(string='Desde', required=True)
-    date_to = fields.Date(string='Hasta', required=True)
+    payroll_run_ids = fields.Many2many(
+        'planilla.run.cr',
+        'planilla_ins_report_run_rel',
+        'wizard_id', 'run_id',
+        string='Planillas',
+        domain=[('state', '=', 'done')],
+        required=True,
+    )
+    date_from = fields.Date(compute='_compute_dates', store=False)
+    date_to   = fields.Date(compute='_compute_dates', store=False)
     frequency = fields.Selection([
         ('monthly', 'Mensual'),
         ('biweekly', 'Quincenal'),
@@ -25,16 +33,26 @@ class InsReport(models.TransientModel):
     ], string='Frecuencia de Planilla', required=True, default='monthly')
     branch_id = fields.Many2one('planilla.branch', string='Sucursal')
 
+    @api.depends('payroll_run_ids')
+    def _compute_dates(self):
+        for rec in self:
+            if rec.payroll_run_ids:
+                rec.date_from = min(rec.payroll_run_ids.mapped('date_start'))
+                rec.date_to   = max(rec.payroll_run_ids.mapped('date_end'))
+            else:
+                rec.date_from = rec.date_to = fields.Date.context_today(rec)
+
     def _get_payslips_and_employees(self):
-        domain = [
-            ('date_from', '<=', self.date_to),
-            ('date_to', '>=', self.date_from),
-            ('state', '=', 'done'),
-            ('company_id', '=', self.company_id.id),
-        ]
-        payslips = self.env['planilla.payslip.cr'].search(domain)
-        employees = payslips.mapped('employee_id').filtered(lambda e: e.ins_include)
-        return payslips, employees
+        if not self.payroll_run_ids:
+            empty = self.env['planilla.payslip.cr']
+            return empty, self.env['hr.employee']
+        slips = self.payroll_run_ids.mapped('payslip_ids').filtered(
+            lambda s: s.state == 'done'
+        )
+        if self.branch_id:
+            slips = slips.filtered(lambda s: s.branch_id == self.branch_id)
+        employees = slips.mapped('employee_id').filtered(lambda e: e.ins_include)
+        return slips, employees
 
     def action_generate_report(self):
         self.ensure_one()
@@ -132,15 +150,17 @@ class InsReport(models.TransientModel):
         total_prima = 0.0
 
         for i, emp in enumerate(employees):
+            # Leer directo del slip — ins_employer ya tiene la prima correcta
+            # calculada en el modelo (base_cotizable_final × tasa_riesgo).
             emp_payslips = payslips.filtered(lambda p: p.employee_id.id == emp.id)
-            emp_salary = sum(emp_payslips.mapped('gross_salary'))
+            emp_salary   = sum(emp_payslips.mapped('gross_salary'))
+            emp_prima    = sum(emp_payslips.mapped('ins_employer'))
 
-            risk = emp.ins_risk_class or 'II'
+            risk     = emp.ins_risk_class or 'II'
             ins_rate = self.env['planilla.rate.helper'].get_ins_rate(risk)
-            emp_prima = emp_salary * ins_rate
 
             total_salary += emp_salary
-            total_prima += emp_prima
+            total_prima  += emp_prima
 
             occ_label = occ_selection.get(emp.ins_occupation, emp.ins_occupation or '')
 

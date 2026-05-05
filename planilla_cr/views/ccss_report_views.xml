@@ -13,8 +13,11 @@
                     <group>
                         <group>
                             <field name="company_id"/>
-                            <field name="date_from"/>
-                            <field name="date_to"/>
+                            <separator string="Seleccione las Planillas"/>
+                    <field name="payroll_run_ids" widget="many2many_checkboxes"
+                               domain="[('state','=','done')]"/>
+                            <field name="date_from" readonly="1" invisible="not payroll_run_ids"/>
+                            <field name="date_to" readonly="1" invisible="not payroll_run_ids"/>
                             <field name="branch_id"/>
                         </group>
                         <group>

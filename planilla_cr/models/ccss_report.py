@@ -11,42 +11,49 @@ class CcssReport(models.TransientModel):
 
     company_id = fields.Many2one('res.company', required=True,
                                   default=lambda self: self.env.company)
-    date_from = fields.Date(string='Desde', required=True)
-    date_to = fields.Date(string='Hasta', required=True)
+    payroll_run_ids = fields.Many2many(
+        'planilla.run.cr',
+        'planilla_ccss_report_run_rel',
+        'wizard_id', 'run_id',
+        string='Planillas',
+        domain=[('state', '=', 'done')],
+        required=True,
+    )
+    date_from = fields.Date(compute='_compute_dates', store=False)
+    date_to   = fields.Date(compute='_compute_dates', store=False)
     branch_id = fields.Many2one('planilla.branch', string='Sucursal')
     report_format = fields.Selection([
         ('pdf', 'PDF'),
         ('excel', 'Excel'),
         ('sicere', 'Archivo SICERE (.txt)'),
     ], string='Formato', required=True, default='pdf')
-
-    # Numero de patrono CCSS (requerido para SICERE)
     patron_number = fields.Char(
         string='Numero de Patrono CCSS',
         help='Numero de patrono asignado por la CCSS (requerido para generar archivo SICERE)'
     )
 
-
+    @api.depends('payroll_run_ids')
+    def _compute_dates(self):
+        for rec in self:
+            if rec.payroll_run_ids:
+                rec.date_from = min(rec.payroll_run_ids.mapped('date_start'))
+                rec.date_to   = max(rec.payroll_run_ids.mapped('date_end'))
+            else:
+                rec.date_from = rec.date_to = fields.Date.context_today(rec)
 
     def _get_payslips(self):
-        domain = [
-            ('date_from', '<=', self.date_to),
-            ('date_to', '>=', self.date_from),
-            ('state', '=', 'done'),
-            ('company_id', '=', self.company_id.id),
-        ]
+        if not self.payroll_run_ids:
+            return self.env['planilla.payslip.cr']
+        slips = self.payroll_run_ids.mapped('payslip_ids').filtered(
+            lambda s: s.state == 'done'
+        )
         if self.branch_id:
-            domain.append(('branch_id', '=', self.branch_id.id))
-        payslips = self.env['planilla.payslip.cr'].search(domain)
-        # FIX M-05 v59: Prefetch de campos de empleado para eliminar N+1.
-        # Sin esto, cada iteracion del loop genera queries individuales.
-        if payslips:
-            payslips.mapped('employee_id.identification_id')
-            payslips.mapped('employee_id.name')
-            payslips.mapped('employee_id.ccss_number')
-            payslips.mapped('employee_id.branch_id.name')
-            payslips.mapped('employee_id.base_salary')
-        return payslips
+            slips = slips.filtered(lambda s: s.branch_id == self.branch_id)
+        if slips:
+            slips.mapped('employee_id.identification_id')
+            slips.mapped('employee_id.name')
+            slips.mapped('employee_id.ccss_number')
+        return slips
 
     def action_generate(self):
         self.ensure_one()
@@ -71,18 +78,20 @@ class CcssReport(models.TransientModel):
 
         for ps in payslips:
             emp = ps.employee_id
-            bruto = ps.gross_salary
-            # Usar monto real de la boleta si esta disponible (mas preciso)
-            obrero   = ps.ccss_employee if ps.ccss_employee else round(bruto * tasa_obrero, 2)
-            patronal = ps.ccss_employer if ps.ccss_employer else round(bruto * tasa_patronal, 2)
-            total_bruto += bruto
-            total_obrero += obrero
+            # Leer directo del slip — la base cotizable ya está calculada
+            # correctamente en base_cotizable_final (incluye ajustes incapacidad,
+            # licencias, etc.) y ccss_employee/ccss_employer son los montos reales.
+            base_cotiz = ps.base_cotizable_final or ps.gross_salary or 0.0
+            obrero     = ps.ccss_employee or 0.0
+            patronal   = ps.ccss_employer or 0.0
+            total_bruto    += base_cotiz
+            total_obrero   += obrero
             total_patronal += patronal
 
             rows.append({
                 'cedula': emp.identification_id or '',
                 'nombre': emp.name or '',
-                'salario_bruto': bruto,
+                'salario_bruto': base_cotiz,
                 'cuota_obrero': obrero,
                 'cuota_patronal': patronal,
                 'total_cuota': obrero + patronal,
@@ -271,7 +280,7 @@ class CcssReport(models.TransientModel):
 
             # Salario bruto: 14 digitos con 2 decimales implicitos (sin punto decimal)
             # Ej: 500000.00 -> "00000050000000"
-            bruto_centimos = int(round(ps.gross_salary * 100))
+            bruto_centimos = int(round((ps.base_cotizable_final or ps.gross_salary or 0.0) * 100))
             salario_fmt = str(bruto_centimos).rjust(14, '0')[:14]
             total_bruto += ps.gross_salary
 

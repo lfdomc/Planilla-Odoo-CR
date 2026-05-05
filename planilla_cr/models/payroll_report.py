@@ -166,101 +166,67 @@ class PayrollReportWizard(models.TransientModel):
         ws.write(3, 0, f'Sucursal: {self.branch_id.name if self.branch_id else "Todas"}')
 
         # -- Columnas ------------------------------------------------
-        # ── Fórmulas de cierre fila a fila ────────────────────────────────
-        # INGRESOS:
-        #   SalBruto  = SalBase + HExtras + BonSal + Vacaciones + OtrosIng - PermisoSinGoce
-        # COTIZACIÓN:
-        #   BaseCotiz = base_cotizable_final  (ajustada por incap + licencias)
-        #   CCSSOb    = 10.83% × BaseCotiz
-        #   CCSSpat   = 26.83% × BaseCotiz
-        # DEDUCCIONES:
-        #   TotalDed  = CCSSOb + Renta + OtrasDed
-        # NETO:
-        #   SalNeto   = SalBruto - TotalDed + SubsidioCCSS + SubsidioINS
-        #   (SubsidioCCSS/INS = días 4+ cubiertos por la CCSS/INS, no por patrono)
+        # Columnas — mapeo 1:1 con campos de planilla.payslip.cr
+        # El orden espeja la boleta del empleado: ingresos → deducciones → neto → cargas
         columns = [
-            # ── Identificación ────────────────────────────────────────────────
-            ('Empleado',              28),
-            ('Sucursal',              16),
-            ('Cédula',                14),
-            # ── Contexto de días ──────────────────────────────────────────────
-            ('Días Periodo',          10),
-            ('Días Trabajados',       12),
-            ('Días Incapacidad',      12),
-            ('Días Lic. Sin Goce',    14),
-            # ── Ingresos ──────────────────────────────────────────────────────
-            ('Salario Base (CRC)',    16),
-            ('H. Extras (CRC)',       14),
-            ('Bonos Sal. (CRC)',      14),
-            ('Vacaciones (CRC)',      14),
-            ('Otros Ingresos (CRC)', 16),
-            ('Permiso sin Goce (CRC)',18),
-            ('Salario Bruto (CRC)',   16),
-            # ── Cotización CCSS ───────────────────────────────────────────────
-            ('Base Cotizable (CRC)',  16),
-            ('CCSS Obrero (CRC)',     14),
-            ('Imp. Renta (CRC)',      15),
-            ('Otras Ded. (CRC)',      14),
-            ('Total Ded. Obrero (CRC)',17),
-            # ── Subsidios ─────────────────────────────────────────────────────
-            ('Subsidio CCSS (CRC)',   15),
-            ('Subsidio INS (CRC)',    14),
-            ('Salario Neto (CRC)',    16),   # col V (21)
-            # col W (22) — Depósito Patrono
-            ('Depósito Patrono (CRC)', 18),
-            # col X (23) — espacio separador
-            ('',                        2),
-            # cols Y-AD (24-29) — Cargas patronales
-            ('CCSS Patronal (CRC)',    15),
-            ('INS Patronal (CRC)',     14),
-            ('Prov. Aguinaldo (CRC)',  16),
-            ('Prov. Cesantía (CRC)',   16),
-            ('Prov. Vacaciones (CRC)', 16),
-            ('Costo Total Emp. (CRC)', 18),
+            # ── A-C Identificación ───────────────────────────────────────────
+            ('Empleado',                    28),
+            ('Sucursal',                    16),
+            ('Cédula',                      14),
+            # ── D-F Período ──────────────────────────────────────────────────
+            ('Período',                     22),
+            ('Frecuencia',                  14),
+            ('Días Laborados',              12),
+            # ── G-K Ingresos (= boleta sección Ingresos) ─────────────────────
+            ('Salario Base Quincenal',      20),
+            ('Horas Extras',                16),
+            ('Bonos Salariales (CCSS)',     20),
+            ('Vacaciones Pagadas',          18),
+            ('Otros Ingresos',              16),
+            ('Permiso sin Goce',            18),
+            ('Salario Bruto',               18),
+            # ── L-P Deducciones (= boleta sección Deducciones) ───────────────
+            ('Base Cotizable CCSS',         18),
+            ('CCSS Obrero 10.83%',          18),
+            ('Impuesto Renta',              16),
+            ('Otras Deducciones',           18),
+            ('Total Deducciones Obrero',    20),
+            # ── Q-S Subsidios + Neto ──────────────────────────────────────────
+            ('Subsidio CCSS/Maternidad',   20),
+            ('Subsidio INS',               16),
+            ('Salario Neto a Recibir',     20),
+            # ── T Depósito Patrono ────────────────────────────────────────────
+            ('Depósito Patrono',           20),
+            # ── U (vacía separadora) ──────────────────────────────────────────
+            ('',                            2),
+            # ── V-AB Cargas Patronales (= boleta sección Cargas) ─────────────
+            ('CCSS Patronal 26.83%',       20),
+            ('INS Riesgos del Trabajo',    20),
+            ('Provisión Aguinaldo',        18),
+            ('Provisión Cesantía',         18),
+            ('Provisión Vacaciones',       18),
+            ('Costo Total Patronal',       20),
         ]
         # Encabezados con color por sección
         # Mapeo col_index -> (header_format, data_format)
         # Secciones: [0-2]=id, [3-6]=dias, [7-13]=ing, [14-15]=cotiz,
         #            [16-18]=ded, [19-20]=sub, [21]=neto, [22-27]=pat
-        col_formats = (
-            [hdr_id,   money]      * 3   # 0-2 id (pero 0,1,2 son texto)
-        )
-        section_map = {
-            # col_idx: (hdr_fmt, data_fmt, is_int)
-            0:  (hdr_id,    normal,      False),
-            1:  (hdr_id,    normal,      False),
-            2:  (hdr_id,    normal,      False),
-            3:  (hdr_dias,  int_dias,    True),
-            4:  (hdr_dias,  int_dias,    True),
-            5:  (hdr_dias,  int_dias,    True),
-            6:  (hdr_dias,  int_dias,    True),
-            7:  (hdr_ing,   money_ing,   False),
-            8:  (hdr_ing,   money_ing,   False),
-            9:  (hdr_ing,   money_ing,   False),
-            10: (hdr_ing,   money_ing,   False),
-            11: (hdr_ing,   money_ing,   False),
-            12: (hdr_ing,   money_ing,   False),
-            13: (hdr_ing,   money_ing,   False),
-            14: (hdr_cotiz, money_cotiz, False),
-            15: (hdr_cotiz, money_cotiz, False),
-            16: (hdr_ded,   money_ded,   False),
-            17: (hdr_ded,   money_ded,   False),
-            18: (hdr_ded,   money_ded,   False),
-            19: (hdr_ded,   money_ded,   False),
-            20: (hdr_sub,   money_sub,   False),
-            21: (hdr_sub,   money_sub,   False),
-            # col W (22) = Depósito Patrono
-            22: (hdr_ing,   money_ing,   False),
-            # col X (23) = espacio vacío
-            23: (hdr_id,    normal,      False),
-            # cols Y-AD (24-29) = cargas patronales
-            24: (hdr_pat,   money_pat,   False),
-            25: (hdr_pat,   money_pat,   False),
-            26: (hdr_pat,   money_pat,   False),
-            27: (hdr_pat,   money_pat,   False),
-            28: (hdr_pat,   money_pat,   False),
-            29: (hdr_pat,   money_pat,   False),
-        }
+        # section_map: col_idx → (header_fmt, data_fmt, is_int)
+        # A-C id, D-F periodo, G-N ingresos, L-P deducciones,
+        # Q-S subsidios+neto, T deposito, U vacía, V-AB patronales
+        section_map = {}
+        for i in range(3):    section_map[i] = (hdr_id,    normal,      False)   # A-C id/texto
+        for i in range(3,6):  section_map[i] = (hdr_dias,  int_dias,    True)    # D-F días/periodo/freq → int
+        # D (3) periodo y E (4) freq son texto, solo F (5) es int
+        section_map[3] = (hdr_dias, normal,   False)   # Período (texto)
+        section_map[4] = (hdr_dias, normal,   False)   # Frecuencia (texto)
+        section_map[5] = (hdr_dias, int_dias, True)    # Días Laborados (int)
+        for i in range(6,13): section_map[i] = (hdr_ing,   money_ing,   False)   # G-M ingresos
+        for i in range(13,18):section_map[i] = (hdr_cotiz, money_cotiz, False)   # N-R ded/cotiz
+        for i in range(18,21):section_map[i] = (hdr_sub,   money_sub,   False)   # S-U subsidios+neto
+        section_map[21] = (hdr_ing,  money_ing,  False)   # V Depósito Patrono
+        section_map[22] = (hdr_id,   normal,     False)   # W vacía
+        for i in range(23,30):section_map[i] = (hdr_pat,  money_pat,  False)    # X-AD patronales
         row = 5
         for col, (name, width) in enumerate(columns):
             hfmt = section_map.get(col, (hdr_id, money, False))[0]

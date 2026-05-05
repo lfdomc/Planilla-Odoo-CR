@@ -12,8 +12,16 @@ class EmployerCostReport(models.TransientModel):
 
     company_id = fields.Many2one('res.company', required=True,
                                   default=lambda self: self.env.company)
-    date_from = fields.Date(string='Desde', required=True)
-    date_to   = fields.Date(string='Hasta',  required=True)
+    payroll_run_ids = fields.Many2many(
+        'planilla.run.cr',
+        'planilla_cost_report_run_rel',
+        'wizard_id', 'run_id',
+        string='Planillas',
+        domain=[('state', '=', 'done')],
+        required=True,
+    )
+    date_from = fields.Date(compute='_compute_dates', store=False)
+    date_to   = fields.Date(compute='_compute_dates', store=False)
     branch_id = fields.Many2one('planilla.branch', string='Sucursal (Opcional)')
     group_by  = fields.Selection([
         ('branch',    'Por Sucursal'),
@@ -21,16 +29,26 @@ class EmployerCostReport(models.TransientModel):
         ('month',     'Por Mes'),
     ], string='Agrupar por', default='branch', required=True)
 
+    @api.depends('payroll_run_ids')
+    def _compute_dates(self):
+        for rec in self:
+            if rec.payroll_run_ids:
+                rec.date_from = min(rec.payroll_run_ids.mapped('date_start'))
+                rec.date_to   = max(rec.payroll_run_ids.mapped('date_end'))
+            else:
+                rec.date_from = rec.date_to = fields.Date.context_today(rec)
+
     def _get_payslips(self):
-        domain = [
-            ('state', '=', 'done'),   # FIX-C19: estado pagado es 'done', no 'paid'
-            ('company_id', '=', self.company_id.id),
-            ('date_from', '>=', self.date_from),
-            ('date_to',   '<=', self.date_to),
-        ]
+        if not self.payroll_run_ids:
+            return self.env['planilla.payslip.cr']
+        slips = self.payroll_run_ids.mapped('payslip_ids').filtered(
+            lambda s: s.state == 'done'
+        )
         if self.branch_id:
-            domain.append(('employee_id.branch_id', '=', self.branch_id.id))
-        return self.env['planilla.payslip.cr'].search(domain, order='date_from, employee_id')
+            slips = slips.filtered(
+                lambda s: s.employee_id.branch_id == self.branch_id
+            )
+        return slips.sorted(key=lambda s: (s.date_from, s.employee_id.name))
 
     def _build_report_data(self):
         payslips = self._get_payslips()
