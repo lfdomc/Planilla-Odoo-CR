@@ -250,7 +250,7 @@ class PayrollReportWizard(models.TransientModel):
             is_pen = 0 if (s.employee_id.pensioner_type or 'none') != 'none' else 1
             return (is_pen, s.employee_id.name or '')
         sorted_slips = sorted(payslips, key=_sort_key)
-        self._past_first_regular = False
+        past_first_regular = False
         # Insertar encabezado de sección pensionados si existen
         has_pensionados = any((s.employee_id.pensioner_type or 'none') != 'none' for s in sorted_slips)
         if has_pensionados:
@@ -347,8 +347,8 @@ class PayrollReportWizard(models.TransientModel):
             ]
             is_pensionado = (slip.employee_id.pensioner_type or 'none') != 'none'
             # Separador cuando cambia de pensionados a no-pensionados
-            if not is_pensionado and not getattr(self, '_past_first_regular', False):
-                self._past_first_regular = True
+            if not is_pensionado and not past_first_regular:
+                past_first_regular = True
                 # Fila separadora con etiqueta
                 ws.merge_range(row, 0, row, len(columns)-1,
                                'EMPLEADOS REGULARES', hdr_pen)
