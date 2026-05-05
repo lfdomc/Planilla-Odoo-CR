@@ -193,9 +193,10 @@ class PayrollReportWizard(models.TransientModel):
             ('Otras Deducciones',           18),
             ('Total Deducciones Obrero',    20),
             # ── Q-S Subsidios + Neto ──────────────────────────────────────────
-            ('Subsidio CCSS/Maternidad',   20),
-            ('Subsidio INS',               16),
+            ('Subsidio CCSS/Mat.',         18),
+            ('Otros Sub. en Neto',         16),
             ('Salario Neto a Recibir',     20),
+            ('INS Pago Directo',           16),
             # ── T Depósito Patrono ────────────────────────────────────────────
             ('Depósito Patrono',           20),
             # ── U (vacía separadora) ──────────────────────────────────────────
@@ -224,10 +225,10 @@ class PayrollReportWizard(models.TransientModel):
         section_map[13] = (hdr_ded,  money_ded,   False)  # N Reducción Incapacidad (rebajo)
         section_map[14] = (hdr_ing,  money_ing,   False)  # O Salario Bruto
         for i in range(15,20):section_map[i] = (hdr_cotiz, money_cotiz, False)  # P-T cotiz/ded
-        for i in range(20,23):section_map[i] = (hdr_sub,   money_sub,   False)  # U-W sub+neto
-        section_map[23] = (hdr_ing,  money_ing,  False)   # X Depósito Patrono
-        section_map[24] = (hdr_id,   normal,     False)   # Y vacía
-        for i in range(25,31):section_map[i] = (hdr_pat,  money_pat,  False)   # Z-AF patronales
+        for i in range(20,24):section_map[i] = (hdr_sub,   money_sub,   False)  # sub+neto+ins_info
+        section_map[24] = (hdr_ing,  money_ing,  False)   # Depósito Patrono
+        section_map[25] = (hdr_id,   normal,     False)   # vacía
+        for i in range(26,32):section_map[i] = (hdr_pat,  money_pat,  False)   # patronales
         row = 5
         for col, (name, width) in enumerate(columns):
             hfmt = section_map.get(col, (hdr_id, money, False))[0]
@@ -253,6 +254,12 @@ class PayrollReportWizard(models.TransientModel):
 
             # Todos los cálculos se leen directo del slip — sin variables intermedias
 
+            permiso_real = round(sum(
+                l.amount for l in slip.deduction_line_ids
+                if l.line_type == 'deduction'
+                and l.deduction_category in ('licencia_sin_goce', 'ausencia')
+            ), 2)
+
             data = [
                 slip.employee_id.name or '',
                 slip.branch_id.name   or '',
@@ -270,13 +277,13 @@ class PayrollReportWizard(models.TransientModel):
                     - c(slip.overtime_amount or 0, slip)
                     - c(slip.bono_salarial_amount or 0, slip)
                     - c(slip.vacation_amount or 0, slip)
-                    + c(slip.amount_licencias_sin_goce or 0, slip),
+                    + permiso_real,
                     2), 0.0),
-                c(slip.amount_licencias_sin_goce or 0, slip),
+                permiso_real,
                 max(round(
                     c(slip.base_salary or 0, slip)
                     - c(slip.gross_salary or 0, slip)
-                    - c(slip.amount_licencias_sin_goce or 0, slip),
+                    - permiso_real,
                     2), 0.0),
                 c(slip.gross_salary            or 0, slip),
                 c(slip.base_cotizable_final    or 0, slip),
@@ -288,8 +295,14 @@ class PayrollReportWizard(models.TransientModel):
                     - c(slip.income_tax    or 0, slip), 2), 0.0),
                 c(slip.total_employee_deductions or 0, slip),
                 c((slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), slip),
-                c(slip.ins_subsidy_total   or 0, slip),
+                max(round(
+                    c(slip.net_salary or 0, slip)
+                    - c(slip.gross_salary or 0, slip)
+                    + c(slip.total_employee_deductions or 0, slip)
+                    - c((slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), slip),
+                    2), 0.0),
                 c(slip.net_salary          or 0, slip),
+                c(slip.ins_subsidy_total   or 0, slip),
                 c(slip.deposito_patrono    or 0, slip),
                 '',
                 c(slip.ccss_employer       or 0, slip),
