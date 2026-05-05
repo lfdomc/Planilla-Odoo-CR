@@ -126,7 +126,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             ('F6', 'Sub total\nquincenal',         hdr_col_ing),
             ('G6', 'Permiso sin\nGoce de Salario', hdr_col_reb),
             ('H6', 'C.C.S.S.',                    hdr_col_reb),
-            ('I6', 'Incapacidad\nC.C.S.S. INS',   hdr_col_reb),
+            ('I6', 'Reducción por\nIncapacidad',    hdr_col_reb),
             ('J6', 'Ahorro\nNavideno',             hdr_col_reb),
             ('K6', 'Impuesto\nde Renta',           hdr_col_reb),
             ('L6', 'Otros',                       hdr_col_reb),
@@ -150,9 +150,10 @@ class ResumenEjecutivoWizard(models.TransientModel):
             return sum(lines.mapped('amount'))
 
         def get_otros_ingresos(slip):
+            # FIX: excluir licencias_con_goce y vacation (no van a extra_income en net_salary).
             lines = slip.deduction_line_ids.filtered(
                 lambda l: l.line_type == 'income'
-                and l.deduction_category not in ('overtime',)
+                and l.deduction_category not in ('overtime', 'licencia_con_goce', 'vacation')
             )
             return sum(lines.mapped('amount'))
 
@@ -193,7 +194,23 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 pass  # subtotal ya correcto
 
             ccss       = slip.ccss_employee or 0
-            incap_ccss = (slip.ccss_subsidy_total or 0) + (slip.ins_subsidy_total or 0)
+            # FIX INCAP: usar (base_salary - gross_salary) en lugar de ccss_subsidy.
+            # Razon: la formula del reporte exige que
+            #   Total = Subtotal - Permiso - CCSS - Incap - Renta - Otros
+            # Para que cierre matematicamente, Incap debe representar la REDUCCION
+            # TOTAL del salario por incapacidad (lo que el patrono deja de pagar),
+            # NO el subsidio CCSS/INS (que es solo el 60% de los dias 4+).
+            #
+            # Con base_salary - gross_salary:
+            #   - Sin incapacidad: base == gross -> incap = 0   OK
+            #   - CCSS parcial:    incap = base - salario_cotizable  OK
+            #   - INS total:       incap = base - 0 = base completo  OK
+            #   - Maternidad total:incap = base - 0 = base completo  OK
+            #
+            # Formula resultante:
+            #   base - (base - gross) - CCSS - Otros = gross - CCSS - Otros
+            #   = gross_salary - total_deductions ≈ neto_por_patrono  CORRECTO
+            incap_ccss = max((slip.base_salary or 0) - (slip.gross_salary or 0), 0)
             ahorro_nav = get_deduction_amount(slip, 'ahorro')
             permiso_sin = permiso_col
             imp_renta  = slip.income_tax or 0
