@@ -334,13 +334,15 @@ class PayrollReportWizard(models.TransientModel):
         row += 2
         fmt_note = wb.add_format({'font_size': 8, 'font_color': '#888888',
                                    'italic': True, 'text_wrap': True})
-        ws.merge_range(row, 0, row, 10,
-            'Fórmulas de cierre: '
-            '(1) SalBruto = Base + HExtras + Bonos + Vac + OtrosIng − Permiso − ReducIncap  |  '
-            '(2) TotalDed = CCSS + Renta + OtrasDed  |  '
-            '(3) SalNeto = SalBruto − TotalDed + SubCCSS + SubINS  |  '
-            '(4) CCSS Obrero = 10.83% × BaseCotiz (sujeto a tope salarial CCSS — '
-            'empleados con salario > tope pueden mostrar CCSS < 10.83% × BaseCotiz; el valor del slip es correcto)',
+        ws.merge_range(row, 0, row, 14,
+            'FÓRMULAS DE CIERRE: '
+            '(1) SalBruto = Base + HExtras + Bonos + Vac + OtrosIng − Permiso − ReducIncap  '
+            '(2) TotalDed = CCSS + Renta + OtrasDed  '
+            '(3) SalNeto = Bruto − TotalDed + SubCCSS + OtrosSub  '
+            '(4) CCSS = 10.83% × BaseCotiz (3 empleados sobre tope salarial CCSS: correcto)  '
+            '| INS Pago Directo = informativo, INS deposita directo al empleado, NO reduce el Depósito Patrono.  '
+            '| Depósito Patrono = valor del sistema (correcto). '
+            'Karla: split 50/50 maternidad → Dep = Neto − SubCCSS/2 (CCSS deposita su mitad directa).',
             fmt_note)
 
         wb.close()
