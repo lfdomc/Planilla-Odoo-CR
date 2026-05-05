@@ -191,6 +191,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             has_ccss_on_emp = any(getattr(d, 'maternity_ccss_on_employer', False) for d in mat_in_per)
             has_split_50    = any(getattr(d, 'maternity_split_50', False) for d in mat_in_per)
             if has_ccss_on_emp and not has_split_50:
+<<<<<<< HEAD
                 # Modalidad: CCSS transfiere el subsidio completo al patrono.
                 # El patrono lo deposita íntegro al empleado.
                 return ccss_sub
@@ -199,6 +200,10 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 # El patrono deposita su 50%% del subsidio → aparece en deposito_patrono
                 # pero no en ninguna columna de ingresos del wizard sin este fix.
                 return round(ccss_sub / 2.0, 2)
+=======
+                # Subsidio completo pasa por patrono -> es ingreso del empleado en esta planilla
+                return ccss_sub
+>>>>>>> d43359353d125f999c131f2293658d46752d7685
             return 0.0
 
         def get_otros_rebajos(slip):
@@ -236,6 +241,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # Con incapacidad/permiso: Subtotal = base_cotizable_final
             #   (lo que el patrono paga realmente, sin el subsidio CCSS/INS)
             has_disability = bool((slip.ccss_subsidy_total or 0) + (slip.ins_subsidy_total or 0))
+<<<<<<< HEAD
             # FIX PERMISO-STALE: calcular desde las líneas en lugar del campo almacenado.
             # amount_licencias_sin_goce es store=True y puede quedar desactualizado
             # si se agregan/modifican líneas después de confirmar la boleta.
@@ -246,6 +252,10 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 if l.line_type == 'deduction'
                 and l.deduction_category in ('licencia_sin_goce', 'ausencia')
             ), 2)
+=======
+            # Usar solo el campo oficial — las lineas de deduccion son el mismo dato
+            permiso_sin_goce_amt = slip.amount_licencias_sin_goce or 0
+>>>>>>> d43359353d125f999c131f2293658d46752d7685
 
             # SIEMPRE mostrar el bruto completo como subtotal.
             # El Permiso sin Goce se muestra como columna de rebajo separada.
