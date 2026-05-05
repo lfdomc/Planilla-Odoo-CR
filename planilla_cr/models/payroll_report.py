@@ -181,6 +181,7 @@ class PayrollReportWizard(models.TransientModel):
             ('Prov. Cesantía (CRC)',  16),
             ('Prov. Vacaciones (CRC)',16),
             ('Costo Total Emp. (CRC)',18),
+            ('Depósito Patrono (CRC)', 18),   # = max(0, SalNeto - SubCCSS - SubINS)
         ]
         # Encabezados con color por sección
         # Mapeo col_index -> (header_format, data_format)
@@ -220,6 +221,7 @@ class PayrollReportWizard(models.TransientModel):
             26: (hdr_pat,   money_pat,   False),
             27: (hdr_pat,   money_pat,   False),
             28: (hdr_pat,   money_pat,   False),
+            29: (hdr_ing,   money_ing,   False),   # Depósito Patrono = verde como Neto
         }
         row = 5
         for col, (name, width) in enumerate(columns):
@@ -321,6 +323,15 @@ class PayrollReportWizard(models.TransientModel):
                 c(slip.cesantia_provision, slip),
                 c(slip.vacation_provision, slip),
                 c(slip.total_employer_cost, slip),
+                # Depósito real que el patrono transfiere al empleado.
+                # = SalNeto - SubCCSS - SubINS  (ambos los paga CCSS/INS directo).
+                # max(0): cuando hay INS total el patrono deposita 0, el INS paga directo.
+                max(round(
+                    c(slip.net_salary, slip)
+                    - c(slip.ccss_subsidy_total or 0.0, slip)
+                    - c(slip.paternity_amount   or 0.0, slip)
+                    - c(slip.ins_subsidy_total  or 0.0, slip),
+                    2), 0.0),
             ]
             for col, val in enumerate(data):
                 _, dfmt, is_int = section_map.get(col, (None, money, False))
