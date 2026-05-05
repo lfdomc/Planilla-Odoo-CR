@@ -1,10 +1,6 @@
 {
     'name': 'Sistema Planilla v5.28.51-PROD',
-<<<<<<< HEAD
-    'version': '19.0.5.28.282',
-=======
     'version': '19.0.5.28.281',
->>>>>>> d43359353d125f999c131f2293658d46752d7685
     
     'category': 'Human Resources/Payroll',
     'summary': 'Sistema de Planilla Costa Rica v5.14 - Legislacion CR 2026',
