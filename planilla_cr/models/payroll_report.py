@@ -156,6 +156,12 @@ class PayrollReportWizard(models.TransientModel):
 
         total_lbl = wb.add_format({'bold': True, 'bg_color': '#D9E1F2', 'border': 1, 'font_size': 9})
         total_num = wb.add_format({'bold': True, 'bg_color': '#D9E1F2', 'num_format': '#,##0.00', 'border': 1, 'font_size': 9})
+        # Pensionados: fondo naranja suave para toda la fila CCSS
+        money_pen_ccss = wb.add_format({'num_format': '#,##0.00', 'border': 1, 'font_size': 9,
+                                        'bg_color': '#FCE4D6', 'bold': True})   # naranja suave
+        # Encabezado especial para primera sección de pensionados
+        hdr_pen = wb.add_format({'bold': True, 'bg_color': '#ED7D31', 'font_color': 'white',
+                                  'border': 1, 'font_size': 9, 'align': 'center'})
 
         # -- Encabezado del reporte -----------------------------------
         title_fmt = wb.add_format({'bold': True, 'font_size': 14, 'color': '#1F4E79'})
@@ -239,7 +245,21 @@ class PayrollReportWizard(models.TransientModel):
         # -- Datos por boleta -----------------------------------------
         row = 6
         totals = [0.0] * len(columns)
-        for slip in payslips.sorted(key=lambda s: s.employee_id.name):
+        # Pensionados primero, luego orden alfabético
+        def _sort_key(s):
+            is_pen = 0 if (s.employee_id.pensioner_type or 'none') != 'none' else 1
+            return (is_pen, s.employee_id.name or '')
+        sorted_slips = sorted(payslips, key=_sort_key)
+        self._past_first_regular = False
+        # Insertar encabezado de sección pensionados si existen
+        has_pensionados = any((s.employee_id.pensioner_type or 'none') != 'none' for s in sorted_slips)
+        if has_pensionados:
+            ws.merge_range(row, 0, row, len(columns)-1,
+                           '⚠ PENSIONADOS SECTOR PÚBLICO / IVM — CCSS Obrero 6.50% (exoneración IVM Art. 4 Ley Const. CCSS)',
+                           hdr_pen)
+            ws.set_row(row, 16)
+            row += 1
+        for slip in sorted_slips:
             c = self._convert_amount
             # ── Período — los 3 campos que tienen columna en el reporte
             periodo_str = (
@@ -254,11 +274,24 @@ class PayrollReportWizard(models.TransientModel):
 
             # Todos los cálculos se leen directo del slip — sin variables intermedias
 
-            permiso_real = round(sum(
+            # Permiso sin goce — dos fuentes, la que tenga valor gana:
+            # 1. Líneas explícitas de deducción (evita campo stale)
+            permiso_lines = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if l.line_type == 'deduction'
                 and l.deduction_category in ('licencia_sin_goce', 'ausencia')
             ), 2)
+            # 2. Reducción implícita: cuando gross < base+HE+bonos+vac
+            #    (licencia via proporcional, hr.leave, u otro mecanismo que
+            #     reduce gross_salary sin crear línea de deducción explícita)
+            bruto_esperado = round(
+                c(slip.base_salary or 0, slip)
+                + c(slip.overtime_amount or 0, slip)
+                + c(slip.bono_salarial_amount or 0, slip)
+                + c(slip.vacation_amount or 0, slip), 2)
+            permiso_implicito = max(round(bruto_esperado - c(slip.gross_salary or 0, slip), 2), 0.0)
+            # Usar el mayor de los dos (líneas explícitas vs reducción implícita)
+            permiso_real = max(permiso_lines, permiso_implicito)
 
             data = [
                 slip.employee_id.name or '',
@@ -312,8 +345,20 @@ class PayrollReportWizard(models.TransientModel):
                 c(slip.vacation_provision  or 0, slip),
                 c(slip.total_employer_cost or 0, slip),
             ]
+            is_pensionado = (slip.employee_id.pensioner_type or 'none') != 'none'
+            # Separador cuando cambia de pensionados a no-pensionados
+            if not is_pensionado and not getattr(self, '_past_first_regular', False):
+                self._past_first_regular = True
+                # Fila separadora con etiqueta
+                ws.merge_range(row, 0, row, len(columns)-1,
+                               'EMPLEADOS REGULARES', hdr_pen)
+                ws.set_row(row, 14)
+                row += 1
             for col, val in enumerate(data):
                 _, dfmt, is_int = section_map.get(col, (None, money, False))
+                # Col P (15) = CCSS Obrero → usar color especial para pensionados
+                if is_pensionado and col == 15:
+                    dfmt = money_pen_ccss
                 if isinstance(val, str):
                     ws.write(row, col, val, dfmt)
                 elif is_int:
