@@ -16,10 +16,28 @@ class PayrollReportWizard(models.TransientModel):
         ('employee_detail', 'Detalle por Empleado'),
     ], string='Tipo de Reporte', required=True, default='monthly_summary')
 
-    date_from = fields.Date(string='Desde', required=True,
-                            default=lambda self: fields.Date.context_today(self).replace(day=1))
-    date_to = fields.Date(string='Hasta', required=True,
-                          default=lambda self: fields.Date.context_today(self))
+    # ── Selección de planillas ────────────────────────────────────────────────
+    # El usuario escoge una o más planillas ya procesadas (state=done).
+    # date_from/date_to se calculan automáticamente desde las planillas elegidas.
+    payroll_run_ids = fields.Many2many(
+        'planilla.run.cr',
+        'planilla_report_run_rel',
+        'wizard_id', 'run_id',
+        string='Planillas',
+        domain=[('state', '=', 'done')],
+        required=True,
+    )
+    date_from = fields.Date(
+        string='Desde',
+        compute='_compute_dates_from_runs',
+        store=False,
+    )
+    date_to = fields.Date(
+        string='Hasta',
+        compute='_compute_dates_from_runs',
+        store=False,
+    )
+
     branch_id = fields.Many2one('planilla.branch', string='Sucursal (Opcional)')
     company_id = fields.Many2one('res.company', default=lambda self: self.env.company)
     currency_id = fields.Many2one(
@@ -27,8 +45,18 @@ class PayrollReportWizard(models.TransientModel):
         string='Moneda del Reporte',
         default=lambda self: self.env.company.currency_id,
         required=True,
-        help='Moneda en que se mostraran los montos del reporte. Los salarios en otras monedas seran convertidos.'
+        help='Moneda en que se mostraran los montos del reporte.',
     )
+
+    @api.depends('payroll_run_ids')
+    def _compute_dates_from_runs(self):
+        for rec in self:
+            if rec.payroll_run_ids:
+                rec.date_from = min(rec.payroll_run_ids.mapped('date_start'))
+                rec.date_to   = max(rec.payroll_run_ids.mapped('date_end'))
+            else:
+                rec.date_from = fields.Date.context_today(rec)
+                rec.date_to   = fields.Date.context_today(rec)
 
     def action_generate_report(self):
         self.ensure_one()
@@ -42,16 +70,17 @@ class PayrollReportWizard(models.TransientModel):
             return self.env.ref('planilla_cr.action_report_employee_detail').report_action(self)
 
     def _get_payslips(self):
-        # Overlap logic: finds payslips that overlap the selected period
-        domain = [
-            ('date_from', '<=', self.date_to),
-            ('date_to', '>=', self.date_from),
-            ('state', '=', 'done'),
-            ('company_id', '=', self.company_id.id),
-        ]
+        # Obtener boletas directamente de los runs seleccionados.
+        # Esto garantiza que solo aparecen las boletas de las planillas
+        # que el usuario eligió — sin duplicados ni periodos adyacentes.
+        if not self.payroll_run_ids:
+            return self.env['planilla.payslip.cr']
+        slips = self.payroll_run_ids.mapped('payslip_ids').filtered(
+            lambda s: s.state == 'done'
+        )
         if self.branch_id:
-            domain.append(('branch_id', '=', self.branch_id.id))
-        return self.env['planilla.payslip.cr'].search(domain)
+            slips = slips.filtered(lambda s: s.branch_id == self.branch_id)
+        return slips
 
     def _convert_amount(self, amount, slip):
         """Convert amount from slip currency to report currency."""
@@ -69,9 +98,11 @@ class PayrollReportWizard(models.TransientModel):
         """Exporta el detalle completo de planilla a Excel con todas las columnas."""
         self.ensure_one()
 
+        if not self.payroll_run_ids:
+            raise UserError('Debe seleccionar al menos una planilla.')
         payslips = self._get_payslips()
         if not payslips:
-            raise UserError('No hay boletas pagadas en el periodo seleccionado.')
+            raise UserError('Las planillas seleccionadas no tienen boletas pagadas.')
 
         output = io.BytesIO()
         wb = xlsxwriter.Workbook(output, {'in_memory': True})
@@ -129,7 +160,8 @@ class PayrollReportWizard(models.TransientModel):
         # -- Encabezado del reporte -----------------------------------
         title_fmt = wb.add_format({'bold': True, 'font_size': 14, 'color': '#1F4E79'})
         ws.write(0, 0, 'PLANILLA DETALLADA -- PLANILLA CR', title_fmt)
-        ws.write(1, 0, f'Periodo: {self.date_from} al {self.date_to}')
+        run_names = ', '.join(self.payroll_run_ids.mapped('name'))
+        ws.write(1, 0, run_names)
         ws.write(2, 0, f'Empresa: {self.company_id.name}')
         ws.write(3, 0, f'Sucursal: {self.branch_id.name if self.branch_id else "Todas"}')
 
@@ -362,7 +394,11 @@ class PayrollReportWizard(models.TransientModel):
 
         wb.close()
         xlsx_data = base64.b64encode(output.getvalue()).decode()
-        filename = f'Planilla_{self.date_from}_{self.date_to}.xlsx'
+        run_slug = '_'.join(
+            r.name.replace(' ', '_').replace('/', '-')[:20]
+            for r in self.payroll_run_ids[:2]
+        )
+        filename = f'Planilla_{run_slug}.xlsx'
 
         attachment = self.env['ir.attachment'].create({
             'name': filename,

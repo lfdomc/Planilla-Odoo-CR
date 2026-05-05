@@ -15,13 +15,19 @@
                         <group string="Tipo de Reporte">
                             <field name="report_type" widget="radio"/>
                         </group>
-                        <group string="Filtros">
-                            <field name="date_from"/>
-                            <field name="date_to"/>
+                        <group string="Opciones">
                             <field name="branch_id"/>
                             <field name="company_id"/>
                             <field name="currency_id"/>
                         </group>
+                    </group>
+                    <separator string="Seleccione las Planillas a incluir en el Reporte"/>
+                    <field name="payroll_run_ids" widget="many2many_checkboxes"
+                           domain="[('state','=','done')]"
+                           options="{'color_field': 'state'}"/>
+                    <group string="Período calculado" invisible="not payroll_run_ids">
+                        <field name="date_from" readonly="1"/>
+                        <field name="date_to"   readonly="1"/>
                     </group>
                 </sheet>
                 <footer>
