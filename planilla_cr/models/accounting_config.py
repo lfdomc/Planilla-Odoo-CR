@@ -77,7 +77,7 @@ class PayrollAccountingConfig(models.Model):
         ('legal',  'Según años de servicio (Art. 29 CT)'),
     ],
         string='Modalidad provisión cesantía',
-        default='custom',
+        default='legal',
         required=True,
         help='TASA FIJA: porcentaje único para todos. Permite planeación predecible.\n'
              'ART. 29 CT: varía por años de servicio (5.42%–6.11%).',

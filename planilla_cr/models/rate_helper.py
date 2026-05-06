@@ -90,13 +90,13 @@ class RateHelper(models.AbstractModel):
                 [('company_id', '=', self.env.company.id)], limit=1
             )
             if config:
-                mode = config.cesantia_prov_mode or 'custom'
+                mode = config.cesantia_prov_mode or 'legal'
                 if mode == 'custom':
                     rate = config.cesantia_prov_rate or 4.8
                     return round(rate / 100, 6)
-                # mode == 'legal': continúa con lógica por años
+                # mode == 'legal': usa tabla Art. 29 CT por años de servicio
         except Exception:
-            pass  # Si falla la búsqueda, usar lógica estándar
+            pass  # Si falla la búsqueda, usar tabla Art. 29 CT
 
         dc = self._get_deduction_code('CESANTIA')
         if dc:
