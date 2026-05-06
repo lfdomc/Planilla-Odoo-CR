@@ -191,9 +191,8 @@ class PayrollReportWizard(models.TransientModel):
             ('Otros Ingresos',              16),
             ('Permiso sin Goce',            18),
             ('Reducc. Incapacidad',         18),   # base - gross - permiso cuando hay incapac
-            ('Salario Bruto',               18),
             # ── L-P Deducciones (= boleta sección Deducciones) ───────────────
-            ('Base Cotizable CCSS',         18),
+            ('Salario Bruto Cotizable',     20),
             ('CCSS Obrero 10.83%',          18),
             ('Impuesto Renta',              16),
             ('Otras Deducciones',           18),
@@ -201,10 +200,8 @@ class PayrollReportWizard(models.TransientModel):
             # ── Q-S Subsidios + Neto ──────────────────────────────────────────
             ('Subsidio CCSS/Mat.',         18),
             ('Otros Sub. en Neto',         16),
-            ('Salario Neto a Recibir',     20),
-            ('INS Pago Directo',           16),
             # ── T Depósito Patrono ────────────────────────────────────────────
-            ('Depósito Patrono',           20),
+            ('Neto Depósito Patrono',      22),
             # ── U (vacía separadora) ──────────────────────────────────────────
             ('',                            2),
             # ── V-AB Cargas Patronales (= boleta sección Cargas) ─────────────
@@ -227,14 +224,12 @@ class PayrollReportWizard(models.TransientModel):
         section_map[3] = (hdr_dias, normal,   False)   # D Período (texto)
         section_map[4] = (hdr_dias, normal,   False)   # E Frecuencia (texto)
         section_map[5] = (hdr_dias, int_dias, True)    # F Días Laborados
-        for i in range(6,13): section_map[i] = (hdr_ing,   money_ing,   False)  # G-M ingresos
-        section_map[13] = (hdr_ded,  money_ded,   False)  # N Reducción Incapacidad (rebajo)
-        section_map[14] = (hdr_ing,  money_ing,   False)  # O Salario Bruto
-        for i in range(15,20):section_map[i] = (hdr_cotiz, money_cotiz, False)  # P-T cotiz/ded
-        for i in range(20,24):section_map[i] = (hdr_sub,   money_sub,   False)  # sub+neto+ins_info
-        section_map[24] = (hdr_ing,  money_ing,  False)   # Depósito Patrono
-        section_map[25] = (hdr_id,   normal,     False)   # vacía
-        for i in range(26,32):section_map[i] = (hdr_pat,  money_pat,  False)   # patronales
+        for i in range(6,13): section_map[i] = (hdr_ing,   money_ing,   False)
+        for i in range(13,18):section_map[i] = (hdr_cotiz, money_cotiz, False)
+        for i in range(18,21):section_map[i] = (hdr_sub,   money_sub,   False)
+        section_map[19] = (hdr_ing,  money_ing,  False)   # V Neto Deposito Patrono
+        section_map[20] = (hdr_id,   normal,     False)   # W vacia
+        for i in range(21,27):section_map[i] = (hdr_pat,  money_pat,  False)
         row = 5
         for col, (name, width) in enumerate(columns):
             hfmt = section_map.get(col, (hdr_id, money, False))[0]
@@ -304,38 +299,16 @@ class PayrollReportWizard(models.TransientModel):
                 c(slip.overtime_amount         or 0, slip),
                 c(slip.bono_salarial_amount    or 0, slip),
                 c(slip.vacation_amount         or 0, slip),
-                max(round(
-                    c(slip.gross_salary or 0, slip)
-                    - c(slip.base_salary or 0, slip)
-                    - c(slip.overtime_amount or 0, slip)
-                    - c(slip.bono_salarial_amount or 0, slip)
-                    - c(slip.vacation_amount or 0, slip)
-                    + permiso_real,
-                    2), 0.0),
+                max(round(c(slip.gross_salary or 0,slip)-c(slip.base_salary or 0,slip)-c(slip.overtime_amount or 0,slip)-c(slip.bono_salarial_amount or 0,slip)-c(slip.vacation_amount or 0,slip),2),0.0),
                 permiso_real,
-                max(round(
-                    c(slip.base_salary or 0, slip)
-                    - c(slip.gross_salary or 0, slip)
-                    - permiso_real,
-                    2), 0.0),
-                c(slip.gross_salary            or 0, slip),
+                max(round(c(slip.base_salary or 0,slip)+c(slip.overtime_amount or 0,slip)+c(slip.bono_salarial_amount or 0,slip)+c(slip.vacation_amount or 0,slip)-c(slip.gross_salary or 0,slip)-permiso_real,2),0.0),
                 c(slip.base_cotizable_final    or 0, slip),
                 c(slip.ccss_employee           or 0, slip),
                 c(slip.income_tax              or 0, slip),
-                max(round(
-                    c(slip.total_employee_deductions or 0, slip)
-                    - c(slip.ccss_employee or 0, slip)
-                    - c(slip.income_tax    or 0, slip), 2), 0.0),
+                max(round(c(slip.total_employee_deductions or 0,slip)-c(slip.ccss_employee or 0,slip)-c(slip.income_tax or 0,slip),2),0.0),
                 c(slip.total_employee_deductions or 0, slip),
-                c((slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), slip),
-                max(round(
-                    c(slip.net_salary or 0, slip)
-                    - c(slip.gross_salary or 0, slip)
-                    + c(slip.total_employee_deductions or 0, slip)
-                    - c((slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), slip),
-                    2), 0.0),
-                c(slip.net_salary          or 0, slip),
-                c(slip.ins_subsidy_total   or 0, slip),
+                c((slip.ccss_subsidy_total or 0)+(slip.paternity_amount or 0), slip),
+                max(round(c(slip.net_salary or 0,slip)-c(slip.gross_salary or 0,slip)+c(slip.total_employee_deductions or 0,slip)-c((slip.ccss_subsidy_total or 0)+(slip.paternity_amount or 0),slip),2),0.0),
                 c(slip.deposito_patrono    or 0, slip),
                 '',
                 c(slip.ccss_employer       or 0, slip),
@@ -357,7 +330,7 @@ class PayrollReportWizard(models.TransientModel):
             for col, val in enumerate(data):
                 _, dfmt, is_int = section_map.get(col, (None, money, False))
                 # Col P (15) = CCSS Obrero → usar color especial para pensionados
-                if is_pensionado and col == 15:
+                if is_pensionado and col == 14:  # O = CCSS Obrero (after N removal)
                     dfmt = money_pen_ccss
                 if isinstance(val, str):
                     ws.write(row, col, val, dfmt)

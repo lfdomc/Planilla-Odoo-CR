@@ -714,9 +714,14 @@ class PayslipComputeMixin(models.AbstractModel):
             freq        = rec._get_effective_freq()
             # FIX P-02 v58: usar K.FREQ_FACTORS centralizado
             prov_factor = K.FREQ_FACTORS.get(freq, 1.0)
-            rec.aguinaldo_provision = round(g * agu_rate * prov_factor, 2)
-            rec.cesantia_provision  = round(g * ces_rate * prov_factor, 2)
-            rec.vacation_provision  = round(g * vac_rate * prov_factor, 2)
+            # FIX PROV-01: provisiones NO usan prov_factor porque g ya es
+            # el salario del periodo (quincenal). prov_factor=0.5 para biweekly
+            # causaba que la provision fuera la MITAD de lo correcto.
+            # Correcto: provision_quincenal = g_quincenal × rate
+            # Aguinaldo anual = g_quincenal × 8.33% × 24 = 1 salario mensual ✓
+            rec.aguinaldo_provision = round(g * agu_rate, 2)
+            rec.cesantia_provision  = round(g * ces_rate, 2)
+            rec.vacation_provision  = round(g * vac_rate, 2)
 
     def _calc_income_tax(self, gross: float, ccss_emp: float = 0.0,
                          one_time_bonus: float = 0.0) -> tuple:
