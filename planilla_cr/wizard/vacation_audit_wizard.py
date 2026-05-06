@@ -57,14 +57,14 @@ class VacationAuditWizard(models.TransientModel):
                 # Tiene saldo inicial al corte: acumular desde corte a ref
                 dias_desde = (ref - cutoff).days
                 semanas = max(dias_desde, 0) / 7.0
-                acum_post = round((semanas / 50.0) * 12.0, 2)
+                acum_post = int((semanas * 7) // 29)  # días completos: floor(días/29)
                 base_calc = saldo_inicial
             else:
                 # Sin corte o entro despues del corte: acumular desde ingreso
                 start = cutoff if (cutoff and cutoff > emp.entry_date) else emp.entry_date
                 dias_desde = max((ref - start).days, 0)
                 semanas = dias_desde / 7.0
-                acum_post = round((semanas / 50.0) * 12.0, 2)
+                acum_post = int((semanas * 7) // 29)  # días completos: floor(días/29)
                 base_calc = 0.0
 
             # --- 2. Aniversarios ganados hasta ref ---

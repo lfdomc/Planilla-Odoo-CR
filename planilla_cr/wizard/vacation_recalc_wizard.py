@@ -156,7 +156,7 @@ class VacationRecalcWizard(models.TransientModel):
         """Calcula saldo correcto al cutoff_date."""
         dias = (cutoff_date - entry_date).days
         semanas = dias / 7.0
-        acum_normal = round((semanas / 50.0) * 12.0, 2)
+        acum_normal = int((semanas * 7) // 29)  # días completos: floor(días/29)
 
         aniversarios = []
         year = entry_date.year + 1

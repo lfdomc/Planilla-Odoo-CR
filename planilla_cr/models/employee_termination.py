@@ -317,6 +317,7 @@ class EmployeeTermination(models.Model):
             # FIX: Si el empleado tiene saldo inicial con fecha de corte,
             # usar ese saldo como base y acumular solo desde la fecha de corte
             # hasta la fecha de terminacion. Evita sobrecontar dias pre-sistema.
+            import math
             from datetime import date as _date
             exit_d = rec.termination_date or _date.today()
 
@@ -339,12 +340,15 @@ class EmployeeTermination(models.Model):
                     accrued_since_cutoff = 0.0
                 else:
                     days_since = (exit_d - vac_cutoff).days
-                    accrued_since_cutoff = round((days_since / 7.0 / 50.0) * 12.0)
-                vacation_days_gross = round(vac_init + accrued_since_cutoff)
+                    accrued_since_cutoff = math.floor(days_since / 29)
+                vacation_days_gross = math.floor(vac_init + accrued_since_cutoff)  # solo días completos
             else:
                 # Calculo normal desde fecha de ingreso
                 weeks_worked = rec.days_service / 7
-                vacation_days_gross = round((weeks_worked / 50.0) * 12.0)
+                # FIX: solo días COMPLETOS (floor) — 1 día por cada 29 días calendario.
+                # round() redondeaba 0.96 → 1, pagando un día que no se completó.
+                # floor() garantiza que solo se pagan días acumulados completos.
+                vacation_days_gross = math.floor(rec.days_service / 29)
 
             vacation_days_net = max(vacation_days_gross - vacation_days_taken, 0.0)
             rec.vacation_days_accrued = round(vacation_days_net, 2)
