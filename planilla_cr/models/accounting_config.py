@@ -71,6 +71,25 @@ class PayrollAccountingConfig(models.Model):
 
 
     # -- Representante RRHH para Constancias Laborales ---------------
+    # ── Tasa de Provisión de Cesantía ─────────────────────────────────────
+    cesantia_prov_mode = fields.Selection([
+        ('custom', 'Tasa fija personalizada'),
+        ('legal',  'Según años de servicio (Art. 29 CT)'),
+    ],
+        string='Modalidad provisión cesantía',
+        default='custom',
+        required=True,
+        help='TASA FIJA: porcentaje único para todos. Permite planeación predecible.\n'
+             'ART. 29 CT: varía por años de servicio (5.42%–6.11%).',
+    )
+    cesantia_prov_rate = fields.Float(
+        string='Tasa fija cesantía (%)',
+        default=4.8,
+        digits=(5, 4),
+        help='% a provisionar por cesantía en modalidad tasa fija. '
+             'Default 4.80%% (criterio contable). Mínimo legal: 5.42%%.',
+    )
+
     hr_rep_name = fields.Char(
         string='Nombre Representante RRHH',
         help='Nombre completo del encargado de RRHH que firma las constancias laborales.'

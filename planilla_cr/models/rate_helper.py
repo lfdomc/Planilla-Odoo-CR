@@ -71,22 +71,33 @@ class RateHelper(models.AbstractModel):
 
     def get_cesantia_rate(self, entry_date=None, period_date=None):
         """
-        Tasa provision cesantia segun tabla Art. 29 CT.
+        Tasa provision cesantia.
 
-        La tasa varia segun los anos de servicio del empleado:
-          Ano 1: 19.5 dias -> 5.4167%
-          Ano 2: 20.0 dias -> 5.5556%
-          ...
-          Ano 8+: 22.0 dias -> 6.1111% (maximo legal Art. 29 CT)
-
-        Si hay un codigo CESANTIA configurado en BD, se usa ese valor
-        (permite override manual por empresa).
-        Si no hay entry_date, usa la tasa fallback 5.33%.
+        Orden de prioridad:
+          1. Si config contable usa 'custom': retorna la tasa fija configurada
+             (default 4.80% según criterio contable de Mundopet).
+          2. Si config usa 'legal' y hay código CESANTIA en BD: usa ese valor.
+          3. Si config usa 'legal' y hay entry_date: calcula por Art. 29 CT.
+          4. Fallback: K.PROV_CESANTIA (5.33%).
 
         Args:
             entry_date: Fecha de ingreso del empleado (date object).
             period_date: Fecha del periodo (date object). Default: hoy.
         """
+        # Prioridad 1: configuración contable de la empresa
+        try:
+            config = self.env['planilla.accounting.config'].search(
+                [('company_id', '=', self.env.company.id)], limit=1
+            )
+            if config:
+                mode = config.cesantia_prov_mode or 'custom'
+                if mode == 'custom':
+                    rate = config.cesantia_prov_rate or 4.8
+                    return round(rate / 100, 6)
+                # mode == 'legal': continúa con lógica por años
+        except Exception:
+            pass  # Si falla la búsqueda, usar lógica estándar
+
         dc = self._get_deduction_code('CESANTIA')
         if dc:
             return dc.employer_percentage / 100

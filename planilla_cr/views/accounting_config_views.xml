@@ -36,6 +36,14 @@
                                    help="ON = no descuenta CCSS en liquidaciones. OFF = descuenta CCSS normalmente."/>
                         </group>
                     </group>
+                    <group string="Provisiones Patronales">
+                        <group string="Cesantía">
+                            <field name="cesantia_prov_mode" widget="radio"/>
+                            <field name="cesantia_prov_rate"
+                                   invisible="cesantia_prov_mode != 'custom'"
+                                   string="Tasa fija (%)"/>
+                        </group>
+                    </group>
                     <group string="General">
                         <group>
                             <field name="company_id"/>
