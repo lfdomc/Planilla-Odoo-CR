@@ -720,6 +720,20 @@ class PayrollRunCR(models.Model):
             self.name, created_count, skipped_count, BATCH_SIZE
         )
 
+        # FIX GEN-01: Sincronizar novedades automáticamente después de generar.
+        # Sin esto el usuario debía hacer "Generar" + "Sincronizar Novedades" en dos
+        # pasos separados, y si olvidaba el sync los valores quedaban incompletos
+        # (sin overtime, incapacidades, préstamos, bonos, etc.).
+        # Ahora "Generar Planilla" produce boletas completas en un solo paso.
+        if created_count > 0:
+            new_slips = self.payslip_ids.filtered(lambda p: p.state == 'draft')
+            if new_slips:
+                new_slips.action_sync_novedades()
+                _logger.info(
+                    'planilla_cr.action_generate_payslips: sync novedades completado para %d boletas',
+                    len(new_slips)
+                )
+
         return {
             'type': 'ir.actions.act_window',
             'name': 'Boletas Generadas',
