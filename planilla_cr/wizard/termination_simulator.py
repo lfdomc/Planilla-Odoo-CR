@@ -292,8 +292,14 @@ class TerminationSimulator(models.TransientModel):
             if vac_cutoff >= exit_date:
                 accrued_since_cutoff = 0
             else:
-                days_since = (exit_date - vac_cutoff).days
-                accrued_since_cutoff = _math.floor(days_since / 29)
+                # FIX: incluir parcial_inicial — días ya avanzados en el ciclo
+                # al momento del corte. Idéntico a hr_employee_extension.py.
+                # Sin este parcial, el simulador da un día menos que el modelo.
+                dias_ingreso_corte = max((vac_cutoff - entry_date).days, 0)
+                parcial_inicial    = dias_ingreso_corte % 29
+                dias_corte_exit    = (exit_date - vac_cutoff).days
+                total_ciclo        = dias_corte_exit + parcial_inicial
+                accrued_since_cutoff = total_ciclo // 29
             vacation_days_gross = _math.floor(vac_init + accrued_since_cutoff)
         else:
             vacation_days_gross = _math.floor((exit_date - entry_date).days / 29)
