@@ -154,8 +154,11 @@
 
                         <!-- Preaviso -->
                         <group string="Preaviso (Art. 28 CT)">
-                            <field name="preaviso_days" readonly="1" string="Días de Preaviso"/>
-                            <field name="preaviso_amount" readonly="1" string="Monto Preaviso (CRC)"/>
+                            <field name="preaviso_applies" string="¿Aplica preaviso?"/>
+                            <field name="preaviso_days" readonly="1" string="Días de Preaviso"
+                                   invisible="not preaviso_applies"/>
+                            <field name="preaviso_amount" readonly="1" string="Monto Preaviso (CRC)"
+                                   invisible="not preaviso_applies"/>
                         </group>
 
                         <!-- Cesantía -->

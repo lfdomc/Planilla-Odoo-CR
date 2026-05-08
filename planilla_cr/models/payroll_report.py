@@ -254,14 +254,26 @@ class PayrollReportWizard(models.TransientModel):
         for slip in sorted_slips:
             c = self._convert_amount
             # ── Período — los 3 campos que tienen columna en el reporte
-            periodo_str = (
-                f"{slip.date_from.strftime('%d/%b/%Y')} – {slip.date_to.strftime('%d/%b/%Y')}"
-                if slip.date_from and slip.date_to else ''
-            )
+            # Período — usar strptime si date_from llega como string
+            def _fmt_date(d):
+                if not d: return ''
+                if hasattr(d, 'strftime'): return d.strftime('%d/%b/%Y')
+                try:
+                    from datetime import datetime as _dt
+                    return _dt.strptime(str(d), '%Y-%m-%d').strftime('%d/%b/%Y')
+                except Exception:
+                    return str(d)
+            periodo_str = (f"{_fmt_date(slip.date_from)} – {_fmt_date(slip.date_to)}"
+                           if slip.date_from and slip.date_to else '')
+
+            # Frecuencia — el campo correcto es effective_frequency
             freq_map = {'biweekly': 'Quincenal', 'monthly': 'Mensual',
                         'weekly': 'Semanal', 'bimonthly': 'Bimensual'}
-            freq_str = freq_map.get(getattr(slip, 'period_type', None) or
-                                    getattr(slip, 'frequency', ''), 'Quincenal')
+            freq_str = freq_map.get(
+                getattr(slip, 'effective_frequency', None) or
+                getattr(slip, 'period_type', None) or
+                getattr(slip, 'frequency', '') or '',
+                'Quincenal')
 
 
             # Todos los cálculos se leen directo del slip — sin variables intermedias

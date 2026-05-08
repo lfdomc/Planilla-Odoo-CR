@@ -86,7 +86,10 @@ class TerminationSimulator(models.TransientModel):
     )
     preaviso_days      = fields.Integer(string='Dias de Preaviso', readonly=True)
     preaviso_amount    = fields.Monetary(string='Preaviso (CRC)', currency_field='currency_id', readonly=True)
-    preaviso_applies   = fields.Boolean(string='Preaviso Aplica', readonly=True)
+    preaviso_applies   = fields.Boolean(
+        string='Aplica Preaviso',
+        help='Desmarcar si el empleado decide no ejercer/cobrar el preaviso.',
+    )
     cesantia_amount    = fields.Monetary(string='Cesantia (CRC)', currency_field='currency_id', readonly=True)
     cesantia_applies   = fields.Boolean(string='Cesantia Aplica', readonly=True)
     vacation_days      = fields.Float(string='Dias Vacaciones Pendientes', readonly=True)
@@ -211,7 +214,10 @@ class TerminationSimulator(models.TransientModel):
         daily = salary / 30.0
 
         # -- Preaviso (Art. 28 CT) --------------------------------------------
-        preaviso_applies = self.termination_reason in ('dismissal', 'mutual')
+        # FIX: igual que employee_termination.py — preaviso solo aplica
+        # para despido sin justa causa (dismissal). 'mutual' NO genera
+        # preaviso automático; el usuario puede activarlo manualmente si aplica.
+        preaviso_applies = self.termination_reason in ('dismissal',)
         # Art. 28 CT -- tabla oficial:
         # < 3 meses (0.25 anos):  7 dias
         # 3-6 meses (0.25-0.5):  14 dias
@@ -226,6 +232,11 @@ class TerminationSimulator(models.TransientModel):
         else:
             preaviso_days = 30
         preaviso_amount = (daily * preaviso_days) if preaviso_applies else 0.0
+        # Importante: si el usuario ya simuló y luego desmarcó preaviso_applies,
+        # recalcular con el valor actualizado del campo
+        if not self.preaviso_applies and preaviso_applies:
+            # El usuario ya había desactivado manualmente — respetar su elección
+            pass  # preaviso_applies se sobreescribirá al final con self.write()
         notes_lines.append(
             f"Preaviso Art.28 CT: {preaviso_days} dias "
             f"{'-- APLICA' if preaviso_applies else '-- no aplica (renuncia voluntaria)'}"
@@ -341,6 +352,11 @@ class TerminationSimulator(models.TransientModel):
                 )
 
         # -- Totales ----------------------------------------------------------
+        # Si el usuario ya había desmarcado preaviso_applies antes de recalcular,
+        # respetar esa decisión. El campo se guarda antes del recálculo.
+        if not self.preaviso_applies and self.id:
+            preaviso_applies = False
+            preaviso_amount  = 0.0
         total_gross = preaviso_amount + cesantia_amount + vac_amount + aguinaldo
         # FIX-LIQ-01: CCSS solo sobre rubros AFECTOS (vacaciones + preaviso)
         # Aguinaldo y cesantia estan EXENTOS de CCSS (Art. 35 Ley CCSS, Art. 173 CT)
