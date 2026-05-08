@@ -276,14 +276,50 @@ class TerminationSimulator(models.TransientModel):
             notes_lines.append('Cesantia Art.29 CT: no aplica para este tipo de salida')
 
         # -- Vacaciones pendientes (Art. 153 CT) ------------------------------
-        # Usar el mismo promedio de los 6 campos (fuente unica de verdad)
-        # igual que el Excel de RRHH
-        vac_days   = emp.vacation_days_available or 0.0
-        daily_vac  = daily  # ya calculado desde los 6 campos arriba
+        # Recalcular con la fecha de salida simulada (NO usar vacation_days_available
+        # que calcula con date.today() y puede dar 1 día extra si hoy > exit_date
+        # o si la boleta más reciente procesó antes de la simulación).
+        # Misma lógica que employee_termination.py para ser consistente.
+        vac_init     = emp.vacation_initial_balance or 0.0
+        vac_cutoff   = emp.vacation_initial_balance_date
+        import math as _math
+        if vac_cutoff and vac_cutoff < exit_date:
+            # Con punto de control: días desde corte hasta fecha de salida
+            dias_ingreso_corte = max((vac_cutoff - entry_date).days, 0)
+            parcial_inicial    = dias_ingreso_corte % 29
+            dias_corte_salida  = max((exit_date - vac_cutoff).days, 0)
+            nuevos_base        = (dias_corte_salida + parcial_inicial) // 29
+            # Aniversarios entre corte y fecha salida
+            from dateutil.relativedelta import relativedelta as _rdelta
+            aniversarios = 0
+            aniv = entry_date + _rdelta(years=1)
+            while aniv <= exit_date:
+                if aniv > vac_cutoff:
+                    aniversarios += 1
+                aniv += _rdelta(years=1)
+            accrued = int(vac_init) + nuevos_base + (aniversarios * 2)
+        else:
+            # Sin punto de control: desde entry_date hasta exit_date
+            dias_totales = max((exit_date - entry_date).days, 0)
+            accrued = dias_totales // 29
+
+        # Días tomados en el sistema (posteriores al corte)
+        domain_taken = [
+            ('employee_id', '=', emp.id),
+            ('state', 'in', ['approved', 'paid']),
+            ('vacation_type', 'in', ['disfrutadas', 'adelanto']),
+        ]
+        if vac_cutoff:
+            domain_taken.append(('date_start', '>=', vac_cutoff))
+        taken_recs = self.env['planilla.vacation.payment'].search(domain_taken)
+        taken      = int(sum(taken_recs.mapped('days')))
+        vac_days   = max(accrued - taken, 0)
+
+        daily_vac  = daily
         vac_amount = round(daily_vac * vac_days, 2)
         notes_lines.append(
-            f'Vacaciones Art.153 CT: {vac_days:.2f} dias x CRC{daily_vac:,.2f}/dia '
-            f'(promedio {len(sal_nonzero) if sal_nonzero else 1} meses)'
+            f'Vacaciones Art.153 CT: {vac_days} dias (acumulados={accrued}, tomados={taken}) '
+            f'x CRC{daily_vac:,.2f}/dia'
         )
 
         # -- Aguinaldo proporcional (Art. 228 CT) ----------------------------
@@ -304,11 +340,25 @@ class TerminationSimulator(models.TransientModel):
         # directamente como suma/12 (igual que Excel de RRHH).
         # Ignorar acumulado inicial si los salarios ya cubren todo el periodo.
         if sal_nonzero:
-            aguinaldo    = round(sum(sal_nonzero) / 12.0, 2)
-            months_worked = len(sal_nonzero)
+            # FIX: aguinaldo = promedio × meses_en_periodo (no suma/12 de los 6 meses)
+            # igual que employee_termination.py: monthly_salary_eff / 12 * months_from_system
+            # Período aguinaldo: 1 dic del año anterior hasta exit_date
+            if exit_date.month >= 12:
+                ag_period_start = datetime.date(exit_date.year, 12, 1)
+            else:
+                ag_period_start = datetime.date(exit_date.year - 1, 12, 1)
+            # Meses desde que entró al trabajo (o desde inicio del período) hasta exit
+            from dateutil.relativedelta import relativedelta as _rdelta2
+            period_entry = max(entry_date, ag_period_start)
+            ag_diff = _rdelta2(exit_date, period_entry)
+            months_worked = ag_diff.years * 12 + ag_diff.months
+            if ag_diff.days > 0:
+                months_worked += 1  # mes parcial cuenta
+            months_worked = max(1, months_worked)
+            aguinaldo = round(salary / 12.0 * months_worked, 2)
             notes_lines.append(
-                'Aguinaldo Art.228 CT: suma %s salarios / 12 = CRC%s' % (
-                    len(sal_nonzero), '{:,.2f}'.format(aguinaldo))
+                'Aguinaldo Art.228 CT: CRC{:,.2f}/mes x {} meses = CRC{:,.2f}'.format(
+                    salary / 12.0, months_worked, aguinaldo)
             )
         else:
             # Sin campos manuales: usar boletas del sistema
@@ -405,7 +455,8 @@ class TerminationSimulator(models.TransientModel):
 
         # -- Calculate breakdown data for display ---------------------
         vac_initial_days  = emp.vacation_initial_balance or 0.0
-        vac_accrued_since = round(vac_days - vac_initial_days, 2) if vac_initial_days else 0.0
+        vac_initial_days  = int(vac_init)
+        vac_accrued_since = max(vac_days - vac_initial_days, 0)
         taken_payments_sim = self.env['planilla.vacation.payment'].search([
             ('employee_id', '=', emp.id),
             ('state', 'in', ('approved', 'paid')),
