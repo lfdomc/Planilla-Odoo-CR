@@ -340,7 +340,10 @@ class TerminationSimulator(models.TransientModel):
                 ag_period_start = datetime.date(exit_date.year - 1, 12, 1)
                 total_months = exit_date.month
 
-            # Si hay aguinaldo_initial_amount: sumarlo al del sistema
+            # Si hay aguinaldo_initial_amount: solo agregar meses NO cubiertos
+            # IDÉNTICO a employee_termination.py para evitar doble conteo.
+            # ag_init ya cubre meses desde period_start hasta ag_init_date.
+            # El sistema solo aporta los meses RESTANTES.
             ag_init_amount = emp.aguinaldo_initial_amount or 0.0
             ag_init_date   = emp.aguinaldo_initial_date
             if ag_init_amount and ag_init_date and ag_init_date >= ag_period_start:
@@ -349,10 +352,12 @@ class TerminationSimulator(models.TransientModel):
                     (ag_period_start.year * 12 + ag_period_start.month) + 1
                 )
                 months_from_system = max(total_months - months_covered, 0)
-                aguinaldo_system   = round(sum(sal_nonzero) / 12.0, 2)
+                # Solo los meses restantes × salario mensual promedio
+                aguinaldo_system   = round(salary / 12.0 * months_from_system, 2)
                 months_worked      = total_months
                 aguinaldo          = round(ag_init_amount + aguinaldo_system, 2)
             else:
+                # Sin acumulado inicial: suma de salarios del período / 12
                 months_worked = total_months
                 aguinaldo     = round(sum(sal_nonzero) / 12.0, 2)
 
