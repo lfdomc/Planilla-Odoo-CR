@@ -85,11 +85,12 @@
                 <filter string="Aprobadas"   name="approved" domain="[('state','=','approved')]"/>
                 <filter string="Pagadas"     name="paid"     domain="[('state','=','paid')]"/>
                 <separator/>
-                <filter string="Dobles"   name="double" domain="[('type','=','doble')]"/>
-                <filter string="Sencillas" name="single" domain="[('type','=','sencilla')]"/>
+                <filter string="Simples (1.5x)" name="simple"  domain="[('overtime_type','=','simple')]"/>
+                <filter string="Dobles (2x)"    name="double"  domain="[('overtime_type','=','double')]"/>
+                <filter string="Feriados"        name="holiday" domain="[('overtime_type','=','holiday')]"/>
                 <separator/>
                 <filter string="▾ Por Empleado" name="by_emp"    context="{'group_by':'employee_id'}"/>
-                <filter string="▾ Por Tipo"     name="by_type"   context="{'group_by':'type'}"/>
+                <filter string="▾ Por Tipo"     name="by_type"   context="{'group_by':'overtime_type'}"/>
                 <filter string="▾ Por Estado"   name="by_state"  context="{'group_by':'state'}"/>
                 <separator/>
                 <filter string="1ra Quincena (1-15)" name="q1"
