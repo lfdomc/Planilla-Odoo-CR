@@ -1226,6 +1226,33 @@ class HrEmployeeExtension(models.Model):
 
             has_cutoff = bool(emp.vacation_initial_balance_date)
 
+            # Metodo de acumulacion configurado en Configuracion Contable
+            # monthly = mismo dia cada mes (default, practica mas comun CR)
+            # days29  = cada 29 dias calendario (metodo legal estricto Art. 153 CT)
+            _config = self.env['planilla.accounting.config'].search(
+                [('company_id', '=', emp.company_id.id)], limit=1)
+            accrual_method = _config.vacation_accrual_method if _config else 'monthly'
+
+            def _meses_desde(desde, hasta):
+                # Meses completos ganados contando el mismo dia de cada mes
+                # que corresponde al dia de ingreso del empleado
+                import calendar as _cal
+                entry_day = emp.entry_date.day
+                count = 0
+                # Primer candidato despues de 'desde'
+                try:    cand = date(desde.year, desde.month, entry_day)
+                except: cand = date(desde.year, desde.month, _cal.monthrange(desde.year, desde.month)[1])
+                if cand <= desde:
+                    m = cand + _rdelta(months=1)
+                    try:    cand = date(m.year, m.month, entry_day)
+                    except: cand = date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
+                while cand <= hasta:
+                    count += 1
+                    m = cand + _rdelta(months=1)
+                    try:    cand = date(m.year, m.month, entry_day)
+                    except: cand = date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
+                return count
+
             if has_cutoff:
                 corte    = emp.vacation_initial_balance_date
                 init_bal = emp.vacation_initial_balance or 0.0
@@ -1233,37 +1260,60 @@ class HrEmployeeExtension(models.Model):
                 if corte >= hoy:
                     accrued = int(init_bal)
                 else:
-                    # Fase 1: parcial del ciclo de 29 al momento del corte
-                    dias_ingreso_corte = max((corte - emp.entry_date).days, 0)
-                    parcial_inicial    = dias_ingreso_corte % 29
+                    if accrual_method == 'monthly':
+                        nuevos_base = _meses_desde(corte, hoy)
+                    else:
+                        # Cada 29 dias: Fase 1 parcial
+                        dias_ingreso_corte = max((corte - emp.entry_date).days, 0)
+                        parcial_inicial    = dias_ingreso_corte % 29
+                        dias_corte_hoy = max(
+                            (hoy - corte).days - disability_days_excluded, 0)
+                        total_ciclo = dias_corte_hoy + parcial_inicial
+                        nuevos_base = total_ciclo // 29
 
-                    # Fase 2: nuevos dias base desde el corte hasta hoy
-                    dias_corte_hoy = max(
-                        (hoy - corte).days - disability_days_excluded, 0)
-                    total_ciclo = dias_corte_hoy + parcial_inicial
-                    nuevos_base = total_ciclo // 29
-
-                    # Fase 3: aniversarios DESPUES del corte hasta hoy
-                    aniversarios = 0
+                    # Aniversarios DESPUES del corte hasta hoy (ambos metodos)
+                    # Modo per_year: en el aniversario N se dan 2*N dias (ej: 3er aniv = 6 dias)
+                    _config2 = self.env['planilla.accounting.config'].search(
+                        [('company_id', '=', emp.company_id.id)], limit=1)
+                    _av_base = _config2.extra_vacation_days_amount if _config2 else 2
+                    _av_mode = _config2.extra_vacation_days_mode if _config2 else 'per_year'
+                    bonus_aniversarios = 0
                     aniv = emp.entry_date + _rdelta(years=1)
+                    yr_count = 1
                     while aniv <= hoy:
                         if aniv > corte:
-                            aniversarios += 1
+                            if _av_mode == 'per_year':
+                                bonus_aniversarios += _av_base * yr_count
+                            else:
+                                bonus_aniversarios += _av_base
+                        yr_count += 1
                         aniv += _rdelta(years=1)
 
-                    accrued = int(init_bal) + nuevos_base + (aniversarios * 2)
+                    accrued = int(init_bal) + nuevos_base + bonus_aniversarios
 
             else:
                 # Sin punto de control: formula completa desde entry_date
-                dias_totales = max(
-                    (hoy - emp.entry_date).days - disability_days_excluded, 0)
-                nuevos_base  = dias_totales // 29
-                aniversarios = 0
+                if accrual_method == 'monthly':
+                    nuevos_base = _meses_desde(emp.entry_date, hoy)
+                else:
+                    dias_totales = max(
+                        (hoy - emp.entry_date).days - disability_days_excluded, 0)
+                    nuevos_base  = dias_totales // 29
+                _config3 = self.env['planilla.accounting.config'].search(
+                    [('company_id', '=', emp.company_id.id)], limit=1)
+                _av_base2 = _config3.extra_vacation_days_amount if _config3 else 2
+                _av_mode2 = _config3.extra_vacation_days_mode if _config3 else 'per_year'
+                bonus_aniversarios = 0
                 aniv = emp.entry_date + _rdelta(years=1)
+                yr_count = 1
                 while aniv <= hoy:
-                    aniversarios += 1
+                    if _av_mode2 == 'per_year':
+                        bonus_aniversarios += _av_base2 * yr_count
+                    else:
+                        bonus_aniversarios += _av_base2
+                    yr_count += 1
                     aniv += _rdelta(years=1)
-                accrued = nuevos_base + (aniversarios * 2)
+                accrued = nuevos_base + bonus_aniversarios
 
             # Fase 4: dias tomados en el sistema
             # Solo contar registros POSTERIORES al corte (los anteriores

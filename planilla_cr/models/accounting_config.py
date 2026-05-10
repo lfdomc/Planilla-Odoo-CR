@@ -39,6 +39,22 @@ class PayrollAccountingConfig(models.Model):
              'expresamente por la DGT -- el patrono asume la responsabilidad fiscal.\n\n'
              'El sistema aplica la opcion seleccionada sin validar cual es la correcta.'
     )
+    # -- Método de acumulación de vacaciones ----------------------------------
+    vacation_accrual_method = fields.Selection([
+        ('monthly', 'Mismo día cada mes (1 día el día del aniversario mensual)'),
+        ('days29',  'Cada 29 días calendario (método legal Art. 153 CT)'),
+    ],
+        string='Método de Acumulación de Vacaciones',
+        default='monthly',
+        required=True,
+        help='MISMO DÍA CADA MES (default): el empleado gana 1 día de vacaciones '
+             'el mismo día numérico de cada mes que corresponde a su fecha de ingreso. '
+             'Ej: ingreso 9 ago → gana el 9 de sep, 9 de oct, 9 de nov, etc. '
+             'Es la práctica más común en empresas costarricenses.\n\n'
+             'CADA 29 DÍAS: método estrictamente legal (Art. 153 CT). '
+             '1 día por cada 29 días calendario trabajados.',
+    )
+
     # -- Beneficio extra de vacaciones por aniversario de empresa ------
     extra_vacation_days_enabled = fields.Boolean(
         string='Dias Extra de Vacaciones por Anio',

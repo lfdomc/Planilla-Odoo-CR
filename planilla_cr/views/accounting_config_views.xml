@@ -36,6 +36,11 @@
                                    help="ON = no descuenta CCSS en liquidaciones. OFF = descuenta CCSS normalmente."/>
                         </group>
                     </group>
+                    <group string="Vacaciones">
+                        <group string="Método de Acumulación">
+                            <field name="vacation_accrual_method" widget="radio"/>
+                        </group>
+                    </group>
                     <group string="Provisiones Patronales">
                         <group string="Cesantía">
                             <field name="cesantia_prov_mode" widget="radio"/>

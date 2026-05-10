@@ -288,21 +288,52 @@ class TerminationSimulator(models.TransientModel):
         ])
         vacation_days_taken = sum(taken_recs.mapped('days'))
 
+        # Método de acumulación configurado en Configuración Contable
+        _sim_config = self.env['planilla.accounting.config'].search(
+            [('company_id', '=', self.env.company.id)], limit=1)
+        accrual_method = _sim_config.vacation_accrual_method if _sim_config else 'monthly'
+
+        def _sim_meses_desde(desde, hasta):
+            import calendar as _cal2
+            entry_day = entry_date.day
+            count = 0
+            try:    cand = datetime.date(desde.year, desde.month, entry_day)
+            except: cand = datetime.date(desde.year, desde.month, _cal2.monthrange(desde.year, desde.month)[1])
+            if cand <= desde:
+                from dateutil.relativedelta import relativedelta as _rd3
+                m = cand + _rd3(months=1)
+                try:    cand = datetime.date(m.year, m.month, entry_day)
+                except: cand = datetime.date(m.year, m.month, _cal2.monthrange(m.year, m.month)[1])
+            while cand <= hasta:
+                count += 1
+                from dateutil.relativedelta import relativedelta as _rd4
+                m = cand + _rd4(months=1)
+                try:    cand = datetime.date(m.year, m.month, entry_day)
+                except: cand = datetime.date(m.year, m.month, _cal2.monthrange(m.year, m.month)[1])
+            return count
+
         if vac_cutoff:
             if vac_cutoff >= exit_date:
                 accrued_since_cutoff = 0
             else:
-                # FIX: incluir parcial_inicial — días ya avanzados en el ciclo
-                # al momento del corte. Idéntico a hr_employee_extension.py.
-                # Sin este parcial, el simulador da un día menos que el modelo.
-                dias_ingreso_corte = max((vac_cutoff - entry_date).days, 0)
-                parcial_inicial    = dias_ingreso_corte % 29
-                dias_corte_exit    = (exit_date - vac_cutoff).days
-                total_ciclo        = dias_corte_exit + parcial_inicial
-                accrued_since_cutoff = total_ciclo // 29
+                if accrual_method == 'monthly':
+                    accrued_since_cutoff = _sim_meses_desde(vac_cutoff, exit_date)
+                else:
+                    dias_ingreso_corte = max((vac_cutoff - entry_date).days, 0)
+                    parcial_inicial    = dias_ingreso_corte % 29
+                    dias_corte_exit    = (exit_date - vac_cutoff).days
+                    total_ciclo        = dias_corte_exit + parcial_inicial
+                    accrued_since_cutoff = total_ciclo // 29
             vacation_days_gross = _math.floor(vac_init + accrued_since_cutoff)
         else:
-            vacation_days_gross = _math.floor((exit_date - entry_date).days / 29)
+            if accrual_method == 'monthly':
+                vacation_days_gross = _sim_meses_desde(entry_date, exit_date)
+            else:
+                vacation_days_gross = _math.floor((exit_date - entry_date).days / 29)
+
+        # Bonus por aniversarios POST-corte (o desde entry si no hay corte)
+        vac_desde = vac_cutoff if vac_cutoff else entry_date
+        vacation_days_gross += _aniv_bonus(vac_desde, exit_date)
 
         vac_days   = max(vacation_days_gross - vacation_days_taken, 0)
         daily_vac  = daily
