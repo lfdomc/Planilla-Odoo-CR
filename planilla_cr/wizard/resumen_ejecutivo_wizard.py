@@ -48,348 +48,364 @@ class ResumenEjecutivoWizard(models.TransientModel):
         wb = xlsxwriter.Workbook(output, {'in_memory': True})
         ws = wb.add_worksheet('Resumen Ejecutivo')
 
-        # ── Formats ────────────────────────────────────────────────
-        def fmt(**kw):
-            return wb.add_format(kw)
+        # ── Colores de sección ─────────────────────────────────────────────────
+        C_ID    = '#1F4E79'   # Identificación
+        C_ING   = '#375623'   # Ingresos del empleado
+        C_DED   = '#C00000'   # Deducciones
+        C_NET   = '#1F4E79'   # Neto / depósito
+        C_PAT   = '#4A4A4A'   # Cargas patronales
 
-        title_fmt = fmt(bold=True, font_size=12, align='center',
-                        valign='vcenter', font_name='Arial')
-        hdr_base = dict(bold=True, font_size=9, font_name='Arial',
-                        align='center', valign='vcenter',
-                        text_wrap=True, border=1)
-        hdr_grp_ing = fmt(**{**hdr_base, 'bg_color': '#92D050',
-                             'font_color': '#000000'})
-        hdr_grp_reb = fmt(**{**hdr_base, 'bg_color': '#FF0000',
-                             'font_color': '#FFFFFF'})
-        hdr_col = fmt(**{**hdr_base, 'bg_color': '#D9D9D9'})
-        hdr_col_ing = fmt(**{**hdr_base, 'bg_color': '#E2EFDA'})
-        hdr_col_reb = fmt(**{**hdr_base, 'bg_color': '#FCE4D6'})
-        hdr_col_tot = fmt(**{**hdr_base, 'bg_color': '#BDD7EE'})
+        # Colores de fondo por sección
+        BG_ID   = '#DEEAF1'
+        BG_ING  = '#E2EFDA'
+        BG_DED  = '#FCE4D6'
+        BG_NET  = '#BDD7EE'
+        BG_PAT  = '#EDEDED'
+        BG_TOT  = '#FFF2CC'
 
-        num_fmt = fmt(num_format='#,##0', border=1, font_size=9,
-                      font_name='Arial')
-        num_neg = fmt(num_format='#,##0', border=1, font_size=9,
-                      font_name='Arial', font_color='#C00000')
-        txt_fmt = fmt(border=1, font_size=9, font_name='Arial',
-                      valign='vcenter')
-        sub_fmt = fmt(bold=True, border=1, font_size=9, font_name='Arial',
-                      bg_color='#F2F2F2', num_format='#,##0')
-        sub_lbl = fmt(bold=True, border=1, font_size=9, font_name='Arial',
-                      bg_color='#F2F2F2')
-        tot_fmt = fmt(bold=True, border=2, font_size=9, font_name='Arial',
-                      bg_color='#BDD7EE', num_format='#,##0')
-        tot_lbl = fmt(bold=True, border=2, font_size=9, font_name='Arial',
-                      bg_color='#BDD7EE')
+        def F(bold=False, bg=None, fg='#000000', border=1,
+              align='center', sz=9, num=None, wrap=False, italic=False):
+            d = dict(bold=bold, font_size=sz, font_name='Arial',
+                     align=align, valign='vcenter', border=border,
+                     font_color=fg, text_wrap=wrap, italic=italic)
+            if bg:  d['bg_color'] = bg
+            if num: d['num_format'] = num
+            return wb.add_format(d)
 
-        # ── Column widths ──────────────────────────────────────────
-        # A=Nombre, B=Dept, C=SalQuinc, D=Otros, E=Extras, F=Subtotal
-        # G=CCSS, H=IncapCCSS, I=AhorroNav, J=PermisoSinGoce,
-        # K=ImpRenta, L=Otros, M=PrestInternos, N=Facturas, O=Maternidad
-        # P=TotalGeneral
-        widths = [32, 5, 12, 10, 10, 12, 10, 12, 10, 14, 10, 10, 12, 10, 10, 12]
-        for i, w in enumerate(widths):
-            ws.set_column(i, i, w)
+        # Formatos de encabezado de grupo (fila con nombre de sección)
+        fh_id  = F(bold=True, bg=C_ID,  fg='#FFFFFF', sz=9, wrap=True)
+        fh_ing = F(bold=True, bg=C_ING, fg='#FFFFFF', sz=9, wrap=True)
+        fh_ded = F(bold=True, bg=C_DED, fg='#FFFFFF', sz=9, wrap=True)
+        fh_net = F(bold=True, bg=C_NET, fg='#FFFFFF', sz=9, wrap=True)
+        fh_pat = F(bold=True, bg=C_PAT, fg='#FFFFFF', sz=9, wrap=True)
 
-        # ── Header rows ────────────────────────────────────────────
-        ws.set_row(0, 18)
-        ws.set_row(1, 14)
-        ws.set_row(2, 14)
-        ws.set_row(3, 14)
+        # Formatos de datos
+        fd_id  = F(bg=BG_ID,  align='left')
+        fd_ing = F(bg=BG_ING, num='#,##0')
+        fd_ded = F(bg=BG_DED, num='#,##0', fg='#C00000')
+        fd_net = F(bg=BG_NET, num='#,##0', bold=True)
+        fd_pat = F(bg=BG_PAT, num='#,##0')
+        fd_tot = F(bg=BG_TOT, num='#,##0', bold=True)
+        fd_0   = F(num='#,##0')
 
-        empresa = run.company_id.name or ''
-        periodo = f'{run.date_start.strftime("%d/%m/%Y")} AL {run.date_end.strftime("%d/%m/%Y")}' \
-            if run.date_start and run.date_end else ''
+        # Formatos de totales por sección
+        ft_ing = F(bg=BG_ING, num='#,##0', bold=True, border=2)
+        ft_ded = F(bg=BG_DED, num='#,##0', bold=True, border=2, fg='#C00000')
+        ft_net = F(bg=BG_NET, num='#,##0', bold=True, border=2)
+        ft_pat = F(bg=BG_PAT, num='#,##0', bold=True, border=2)
 
-        # Determine quincena label
-        q_label = run.name or ''
+        f_lbl  = F(align='left')
+        f_sep  = F(bg='#FFFFFF', border=0)  # columna separadora
 
-        ws.merge_range('A1:P1', empresa, title_fmt)
-        ws.merge_range('A2:P2', f'PLANILLA DEL {periodo}', title_fmt)
-        ws.merge_range('A3:P3', q_label, title_fmt)
-        ws.merge_range('A4:P4', f'Elaborado por {self.elaborado_por}', title_fmt)
-
-        # ── Group headers row 5 ────────────────────────────────────
-        ws.set_row(5, 22)
-        ws.merge_range('A5:B5', '', hdr_col)
-        ws.merge_range('C5:F5', 'INGRESOS', hdr_grp_ing)
-        ws.merge_range('G5:O5', 'REBAJOS', hdr_grp_reb)
-        ws.write('P5', '', hdr_col)
-
-        # ── Column headers row 6 ──────────────────────────────────
-        ws.set_row(6, 40)
-        cols_labels = [
-            ('A6', 'Nombre',                      hdr_col),
-            ('B6', 'Dpto',                        hdr_col),
-            ('C6', 'Salario\nQuincenal',           hdr_col_ing),
-            ('D6', 'Otros',                       hdr_col_ing),
-            ('E6', 'Extras',                      hdr_col_ing),
-            ('F6', 'Sub total\nquincenal',         hdr_col_ing),
-            ('G6', 'Permiso sin\nGoce de Salario', hdr_col_reb),
-            ('H6', 'C.C.S.S.',                    hdr_col_reb),
-            ('I6', 'Reducción por\nIncapacidad',    hdr_col_reb),
-            ('J6', 'Ahorro\nNavideno',             hdr_col_reb),
-            ('K6', 'Impuesto\nde Renta',           hdr_col_reb),
-            ('L6', 'Otros',                       hdr_col_reb),
-            ('M6', 'Prestamos\nInternos',          hdr_col_reb),
-            ('N6', 'Facturas',                    hdr_col_reb),
-            ('O6', 'Maternidad',                  hdr_col_reb),
-            ('P6', 'Total\nGeneral',               hdr_col_tot),
+        # ── Definición de columnas ─────────────────────────────────────────────
+        # Cada columna: (encabezado, ancho, sección, formato_dato)
+        # Las columnas se agrupan en secciones con filas de color
+        cols = [
+            # ── Identificación ────────────────────────────────────────────────
+            ('Empleado',               28, 'id',  fd_id),
+            ('Departamento',           18, 'id',  fd_id),
+            ('Puesto',                 18, 'id',  fd_id),
+            ('Sucursal',               12, 'id',  fd_id),
+            ('Días\nLaborados',         8, 'id',  F(bg=BG_ID, num='0')),
+            # ── Ingresos del empleado ─────────────────────────────────────────
+            ('Salario\nBase',          12, 'ing', fd_ing),
+            ('Horas\nExtras',          10, 'ing', fd_ing),
+            ('Bonos\nSalariales',      10, 'ing', fd_ing),
+            ('Vacaciones\nPagadas',    10, 'ing', fd_ing),
+            ('Subsidio\nIncap. Días 1-3', 12, 'ing', fd_ing),
+            ('Otros\nIngresos',        10, 'ing', fd_ing),
+            # ── Deducciones (rebajan el bruto cotizable) ──────────────────────
+            ('Días\nIncapacidad',       8, 'ded', F(bg=BG_DED, num='0', fg='#C00000')),
+            ('Monto\nIncapacidad',     11, 'ded', fd_ded),
+            ('Licencia\nSin Goce',     11, 'ded', fd_ded),
+            # ── Salario Bruto Cotizable ───────────────────────────────────────
+            ('Sal. Bruto\nCotizable',  13, 'net', ft_net),
+            # ── Deducciones legales ───────────────────────────────────────────
+            ('CCSS\nObrero 10.83%',    11, 'ded', fd_ded),
+            ('Impuesto\nRenta',        10, 'ded', fd_ded),
+            ('Pensión\nAlimenticia',   10, 'ded', fd_ded),
+            ('Embargo\nJudicial',      10, 'ded', fd_ded),
+            ('Cobros\nEmpleado',       10, 'ded', fd_ded),
+            ('Préstamos\nInternos',    10, 'ded', fd_ded),
+            ('Ahorro\nNavideño',       10, 'ded', fd_ded),
+            ('Sindicato /\nCooper.',   10, 'ded', fd_ded),
+            ('Otras\nDeducciones',     10, 'ded', fd_ded),
+            ('Total\nDeducciones',     12, 'ded', ft_ded),
+            # ── Subsidios post-deducción (no afectan CCSS ni renta) ───────────
+            ('Subsidio\nCCSS/Mat.',    12, 'ing', fd_ing),
+            ('INS\nPago Directo',      10, 'ing', fd_ing),
+            # ── Neto depósito patrono ─────────────────────────────────────────
+            ('NETO\nDEPÓSITO',        13, 'net', ft_net),
+            # ── Separador ─────────────────────────────────────────────────────
+            ('',                        2, 'sep', f_sep),
+            # ── Cargas patronales ─────────────────────────────────────────────
+            ('CCSS\nPatronal 26.83%', 12, 'pat', fd_pat),
+            ('INS\nRiesgos Trabajo',   12, 'pat', fd_pat),
+            ('Prov.\nAguinaldo',       11, 'pat', fd_pat),
+            ('Prov.\nCesantía',        11, 'pat', fd_pat),
+            ('Prov.\nVacaciones',      11, 'pat', fd_pat),
+            ('Costo Total\nPatronal',  13, 'pat', ft_pat),
         ]
-        for cell, label, f in cols_labels:
-            ws.write(cell, label, f)
 
-        # ── Data rows ─────────────────────────────────────────────
-        row = 7  # 1-indexed row 7 = index 6
-        dept_rows = {}  # dept_code -> list of row indices
+        N = len(cols)
+        secciones = {
+            'id':  fh_id,
+            'ing': fh_ing,
+            'ded': fh_ded,
+            'net': fh_net,
+            'pat': fh_pat,
+            'sep': f_sep,
+        }
 
-        def get_deduction_amount(slip, category):
-            lines = slip.deduction_line_ids.filtered(
-                lambda l: l.deduction_category == category
-                and l.line_type == 'deduction'
-            )
-            return sum(lines.mapped('amount'))
+        # ── Anchos de columna ──────────────────────────────────────────────────
+        for ci, (_, w, _, _) in enumerate(cols):
+            ws.set_column(ci, ci, w)
 
-        def get_otros_ingresos(slip):
-            # FIX: excluir licencias_con_goce y vacation (no van a extra_income en net_salary).
-            lines = slip.deduction_line_ids.filtered(
-                lambda l: l.line_type == 'income'
-                and l.deduction_category not in ('overtime', 'licencia_con_goce', 'vacation')
-            )
-            return sum(lines.mapped('amount'))
+        # ── Título ────────────────────────────────────────────────────────────
+        empresa = run.company_id.name or ''
+        periodo = f"{run.date_start.strftime('%d/%m/%Y')} al {run.date_end.strftime('%d/%m/%Y')}"
+        freq_map = {'biweekly': 'Quincenal', 'monthly': 'Mensual',
+                    'weekly': 'Semanal', 'bimonthly': 'Bimensual'}
+        freq = freq_map.get(run.frequency or '', run.frequency or '')
 
-        def get_ccss_subsidy_via_patrono(slip):
-            """
-            Retorna el subsidio CCSS/maternidad que fluye a traves del patrono al empleado.
+        titulo_fmt = F(bold=True, sz=13, bg='#1F4E79', fg='#FFFFFF', border=2)
+        sub_fmt    = F(sz=9, bg='#D6E4F0', align='left')
 
-            Casos donde el subsidio SI aparece en deposito_patrono (ingreso extra del patrono):
-              - Maternidad con maternity_ccss_on_employer=True y maternity_split_50=False:
-                la CCSS transfiere el subsidio completo al patrono, quien lo deposita al empleado.
-              - Incapacidad normal CCSS (no maternidad, no INS):
-                el patrono cubre dias 1-3 y la CCSS paga dias 4+ directamente al empleado.
-                En este caso ccss_subsidy NO pasa por el patrono -> NO se incluye.
+        ws.merge_range(0, 0, 0, N-1,
+            f'RESUMEN EJECUTIVO DE PLANILLA — {run.name}', titulo_fmt)
+        ws.merge_range(1, 0, 1, N-1,
+            f'{empresa}  |  Período: {periodo}  |  Frecuencia: {freq}  |  '
+            f'Elaborado por: {self.elaborado_por or ""}', sub_fmt)
+        ws.set_row(0, 22); ws.set_row(1, 14)
 
-            Casos donde el subsidio NO pasa por el patrono (CCSS/INS deposita directo):
-              - split_50: CCSS deposita el 50%% directamente al empleado.
-              - INS riesgo laboral: INS deposita directamente.
-              - Incapacidad normal: CCSS deposita dias 4+ directamente.
-            """
-            if not (slip.date_from and slip.date_to):
-                return 0.0
-            ccss_sub = slip.ccss_subsidy_total or 0.0
-            if ccss_sub <= 0:
-                return 0.0
-            active_dis = slip.disability_ids.filtered(
-                lambda d: d.state in ('confirmed', 'paid') and d.date_start and d.date_end
-            )
-            mat_in_per = [
-                d for d in active_dis
-                if d.disability_type == 'maternity'
-                and max(slip.date_from, d.date_start) <= min(slip.date_to, d.date_end)
-            ]
-            if not mat_in_per:
-                return 0.0  # No maternidad -> CCSS no pasa por patrono
-            has_ccss_on_emp = any(getattr(d, 'maternity_ccss_on_employer', False) for d in mat_in_per)
-            has_split_50    = any(getattr(d, 'maternity_split_50', False) for d in mat_in_per)
-            if has_ccss_on_emp and not has_split_50:
-                # Modalidad: CCSS transfiere el subsidio completo al patrono.
-                # El patrono lo deposita íntegro al empleado.
-                return ccss_sub
-            if has_split_50:
-                # Modalidad 50/50: CCSS deposita su 50% directamente al empleado.
-                # El patrono deposita su 50%% del subsidio → aparece en deposito_patrono
-                # pero no en ninguna columna de ingresos del wizard sin este fix.
-                return round(ccss_sub / 2.0, 2)
-            return 0.0
+        # ── Fila de sección (color por grupo) ────────────────────────────────
+        row_sec = 2
+        prev_sec = None
+        sec_start = {}
+        for ci, (hdr, _, sec, _) in enumerate(cols):
+            if sec != prev_sec:
+                sec_start[sec] = ci
+                prev_sec = sec
+            ws.write(row_sec, ci, '', secciones[sec])
+        # Labels de sección
+        sec_labels = {
+            'id':  'IDENTIFICACIÓN',
+            'ing': 'INGRESOS',
+            'ded': 'DEDUCCIONES',
+            'net': 'NETO',
+            'pat': 'CARGAS PATRONALES',
+            'sep': '',
+        }
+        prev_sec = None; sec_start_ci = 0
+        for ci, (_, _, sec, _) in enumerate(cols):
+            if sec != prev_sec:
+                if prev_sec and prev_sec != 'sep':
+                    end = ci - 1
+                    ws.merge_range(row_sec, sec_start_ci, row_sec, end,
+                                   sec_labels[prev_sec], secciones[prev_sec])
+                sec_start_ci = ci; prev_sec = sec
+        if prev_sec and prev_sec != 'sep':
+            ws.merge_range(row_sec, sec_start_ci, row_sec, N-1,
+                           sec_labels[prev_sec], secciones[prev_sec])
+        ws.set_row(row_sec, 16)
 
-        def get_otros_rebajos(slip):
-            # cat_excluidas = categorias que ya tienen su propia columna en el reporte.
-            # IMPORTANTE — regla de exclusion exacta para evitar doble conteo:
-            #   'licencia_sin_goce' -> ya en permiso_col (amount_licencias_sin_goce)
-            #   'ausencia'          -> ya en permiso_col
-            #   'ccss'              -> columna CCSS (campo computado)
-            #   'income_tax'        -> columna Renta (campo computado)
-            #   'loan'              -> columna Prestamos
-            #   'ahorro'            -> columna Ahorro
-            #   'maternity'         -> columna Maternidad
-            #   'cooperativa'       -> columna Facturas (get_deduction_amount cooperativa)
-            #   'facturas'          -> alias de cooperativa usado por algunos códigos
-            # BUG ANTERIOR: 'licencia_sin_goce' y 'cooperativa' NO estaban en cat_excluidas
-            # -> se sumaban dos veces (permiso_col + otros_reb o facturas + otros_reb)
-            # -> provocaba diff positivo falso en empleados con esas deducciones.
-            cat_excluidas = {
-                'ccss', 'income_tax', 'loan', 'ahorro', 'maternity',
-                'ausencia', 'licencia_sin_goce',  # FIX BUG1: agregar licencia_sin_goce
-                'cooperativa', 'facturas',         # FIX BUG2+3: cooperativa y su alias
-            }
-            lines = slip.deduction_line_ids.filtered(
-                lambda l: l.line_type == 'deduction'
-                and l.deduction_category not in cat_excluidas
-            )
-            return sum(lines.mapped('amount'))
+        # ── Encabezados de columna ────────────────────────────────────────────
+        row_hdr = 3
+        for ci, (hdr, _, sec, _) in enumerate(cols):
+            ws.write(row_hdr, ci, hdr, secciones[sec])
+        ws.set_row(row_hdr, 36)
+
+        # ── Datos por empleado ────────────────────────────────────────────────
+        row = 4
+        totales = [0.0] * N
+
+        # Subtotales por departamento
+        prev_dept = None
+        dept_start_row = 4
+        dept_totals = [0.0] * N
 
         for slip in slips:
             emp = slip.employee_id
-            dept = emp.department_id.name[:1] if emp.department_id else 'O'
+            dept = emp.department_id.name or 'Sin Departamento'
 
-            # LOGICA FINANCIERA:
-            # Sin incapacidad: Subtotal = gross_salary (bruto completo)
-            # Con incapacidad/permiso: Subtotal = base_cotizable_final
-            #   (lo que el patrono paga realmente, sin el subsidio CCSS/INS)
-            has_disability = bool((slip.ccss_subsidy_total or 0) + (slip.ins_subsidy_total or 0))
-            # FIX PERMISO-STALE: calcular desde las líneas en lugar del campo almacenado.
-            # amount_licencias_sin_goce es store=True y puede quedar desactualizado
-            # si se agregan/modifican líneas después de confirmar la boleta.
-            # Leer las líneas directamente garantiza que el wizard siempre refleja
-            # el estado real, evitando que licencias_sin_goce sean invisibles en el reporte.
-            permiso_sin_goce_amt = round(sum(
+            # Separador y subtotal de departamento
+            if dept != prev_dept:
+                if prev_dept is not None:
+                    # Fila subtotal del departamento anterior
+                    sub_lbl_fmt = F(bold=True, bg='#F2F2F2', align='left', border=1)
+                    ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
+                    for ci in range(1, N):
+                        _, _, sec, _ = cols[ci]
+                        sf = F(bold=True, bg='#F2F2F2',
+                               num='#,##0', border=1,
+                               fg='#C00000' if sec == 'ded' else '#000000')
+                        v = dept_totals[ci]
+                        ws.write(row, ci, v if v else None, sf)
+                    ws.set_row(row, 14)
+                    row += 1
+                    dept_totals = [0.0] * N
+
+                # Encabezado de departamento
+                dept_hdr_fmt = F(bold=True, bg='#2E4057', fg='#FFFFFF',
+                                 align='left', border=1, sz=9)
+                ws.merge_range(row, 0, row, N-1, f'  {dept}', dept_hdr_fmt)
+                ws.set_row(row, 14)
+                row += 1
+                prev_dept = dept
+
+            # ── Leer datos del slip (misma fuente que la boleta) ──────────────
+            dias_lab = slip.dias_laborados_periodo or slip.days_worked or 0
+
+            # INGRESOS
+            sal_base     = slip.base_salary or 0
+            horas_extras = slip.overtime_amount or 0
+            bonos        = slip.bono_salarial_amount or 0
+            vacaciones   = slip.vacation_amount or 0
+            # Subsidio incapacidad días 1-3: lo que el patrono paga por esos días
+            subsid_incap_13 = max((slip.base_salary or 0) - (slip.gross_salary or 0), 0) \
+                if (slip.gross_salary or 0) < (slip.base_salary or 0) else 0
+            # Otros ingresos = residual (bonos no salariales, incentivos, etc.)
+            otros_ing    = slip.other_income or 0
+
+            # DEDUCCIONES QUE REDUCEN COTIZABLE
+            dias_incap = slip.disability_days_in_period or 0
+            monto_incap = max((slip.base_salary or 0) - (slip.gross_salary or 0), 0)
+            licencia_sg = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if l.line_type == 'deduction'
                 and l.deduction_category in ('licencia_sin_goce', 'ausencia')
             ), 2)
 
-            # SIEMPRE mostrar el bruto completo como subtotal.
-            # El Permiso sin Goce se muestra como columna de rebajo separada.
-            # La ecuacion del reporte es:
-            # Subtotal - PermisoSinGoce - CCSS - Incap - Ahorro - Renta - ... = Total
-            sal_quincenal = slip.base_salary or 0
-            otros_ing     = (get_otros_ingresos(slip)
-                             + (slip.vacation_amount or 0)       # FIX BUG4a: vacaciones pagadas
-                             + (slip.other_income  or 0)         # FIX BUG4b: otros ingresos (campo directo)
-                             + get_ccss_subsidy_via_patrono(slip)) # FIX: subsidio mat que pasa por patrono
-            extras        = slip.overtime_amount or 0
-            subtotal      = sal_quincenal + otros_ing + extras
-            permiso_col   = permiso_sin_goce_amt
+            # SALARIO BRUTO COTIZABLE
+            bruto_cotiz = slip.base_cotizable_final or 0
 
-            if has_disability:
-                # Con incapacidad: el subtotal es el bruto completo
-                # y la incapacidad reduce via ccss_subsidy (ya en incap_ccss)
-                pass  # subtotal ya correcto
+            # DEDUCCIONES LEGALES Y ADICIONALES
+            ccss_emp   = slip.ccss_employee or 0
+            renta      = slip.income_tax or 0
 
-            ccss       = slip.ccss_employee or 0
-            # FIX INCAP: usar (base_salary - gross_salary) en lugar de ccss_subsidy.
-            # Razon: la formula del reporte exige que
-            #   Total = Subtotal - Permiso - CCSS - Incap - Renta - Otros
-            # Para que cierre matematicamente, Incap debe representar la REDUCCION
-            # TOTAL del salario por incapacidad (lo que el patrono deja de pagar),
-            # NO el subsidio CCSS/INS (que es solo el 60% de los dias 4+).
-            #
-            # Con base_salary - gross_salary:
-            #   - Sin incapacidad: base == gross -> incap = 0   OK
-            #   - CCSS parcial:    incap = base - salario_cotizable  OK
-            #   - INS total:       incap = base - 0 = base completo  OK
-            #   - Maternidad total:incap = base - 0 = base completo  OK
-            #
-            # Formula resultante:
-            #   base - (base - gross) - CCSS - Otros = gross - CCSS - Otros
-            #   = gross_salary - total_deductions ≈ neto_por_patrono  CORRECTO
-            incap_ccss = max((slip.base_salary or 0) - (slip.gross_salary or 0), 0)
-            ahorro_nav = get_deduction_amount(slip, 'ahorro')
-            permiso_sin = permiso_col
-            imp_renta  = slip.income_tax or 0
-            # FIX BUG-COBRO-DOBLE: usar get_otros_rebajos() en lugar de la suma manual.
-            # PROBLEMA ANTERIOR: slip.amount_cobros_empleado filtra por employee_charge_id,
-            # y get_deduction_amount('other') filtra por deduction_category='other'.
-            # Todos los cobros tienen AMBOS: employee_charge_id SET y category='other'.
-            # Resultado: cada cobro se sumaba DOS VECES → otros_reb = 2 × cobros_reales.
-            # SOLUCIÓN: get_otros_rebajos() suma una sola vez todas las líneas de deducción
-            # cuya categoría no está ya cubierta por otra columna del reporte.
-            otros_reb  = get_otros_rebajos(slip)
-            prestamos  = get_deduction_amount(slip, 'loan')
-            facturas   = get_deduction_amount(slip, 'cooperativa')
-            maternidad = get_deduction_amount(slip, 'maternity')
-            # Total General = deposito_patrono: lo que el patrono deposita al empleado
-            # (excluye subsidios CCSS/INS que paga la CCSS directamente)
-            total_general = slip.deposito_patrono or slip.salary_payable or 0
+            # Leer cada categoría desde deduction_line_ids
+            def _sum_cat(*cats):
+                return round(sum(
+                    l.amount for l in slip.deduction_line_ids
+                    if l.line_type == 'deduction'
+                    and l.deduction_category in cats
+                ), 2)
 
-            ws.write(row - 1, 0,  emp.name or '',                        txt_fmt)
-            ws.write(row - 1, 1,  dept,                                   txt_fmt)
-            ws.write(row - 1, 2,  sal_quincenal,                          num_fmt)
-            ws.write(row - 1, 3,  otros_ing   if otros_ing   else None,   num_fmt)
-            ws.write(row - 1, 4,  extras      if extras      else None,   num_fmt)
-            ws.write(row - 1, 5,  subtotal,                               num_fmt)
-            # Col 6: Permiso sin Goce (va antes de CCSS — reduce base cotizable)
-            ws.write(row - 1, 6,  permiso_sin if permiso_sin else None,   num_fmt)
-            ws.write(row - 1, 7,  ccss        if ccss        else None,   num_fmt)
-            ws.write(row - 1, 8,  incap_ccss  if incap_ccss  else None,   num_fmt)
-            ws.write(row - 1, 9,  ahorro_nav  if ahorro_nav  else None,   num_fmt)
-            ws.write(row - 1, 10, imp_renta   if imp_renta   else None,   num_fmt)
-            ws.write(row - 1, 11, otros_reb   if otros_reb   else None,   num_fmt)
-            ws.write(row - 1, 12, prestamos   if prestamos   else None,   num_fmt)
-            ws.write(row - 1, 13, facturas    if facturas    else None,   num_fmt)
-            ws.write(row - 1, 14, maternidad  if maternidad  else None,   num_fmt)
-            ws.write(row - 1, 15, total_general,                          num_fmt)
+            pension_al = _sum_cat('pension_alimentaria')
+            embargo    = _sum_cat('embargo', 'embargo_judicial')
+            cobros_emp = _sum_cat('cobro', 'cobro_empleado', 'employee_charge')
+            prestamos  = _sum_cat('loan', 'prestamo', 'prestamo_interno')
+            ahorro_nav = _sum_cat('ahorro', 'ahorro_navidad', 'ahorro_navideno')
+            sindicato  = _sum_cat('sindicato', 'cooperativa', 'sindical')
+            otras_ded  = max(round(
+                (slip.total_employee_deductions or 0)
+                - ccss_emp - renta - pension_al - embargo
+                - cobros_emp - prestamos - ahorro_nav - sindicato, 2), 0)
 
-            dept_rows.setdefault(dept, []).append(row - 1)
+            total_ded  = slip.total_employee_deductions or 0
+
+            # SUBSIDIOS POST-DEDUCCIÓN (informativo, no afectan CCSS/renta)
+            subsid_ccss = round(
+                (slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), 2)
+            subsid_ins  = slip.ins_subsidy_total or 0
+
+            # NETO DEPÓSITO
+            neto_dep = slip.deposito_patrono or 0
+
+            # CARGAS PATRONALES
+            ccss_pat   = slip.ccss_employer or 0
+            ins_pat    = slip.ins_employer or 0
+            prov_agu   = slip.aguinaldo_provision or 0
+            prov_ces   = slip.cesantia_provision or 0
+            prov_vac   = slip.vacation_provision or 0
+            costo_tot  = slip.total_employer_cost or 0
+
+            # ── Escribir fila ──────────────────────────────────────────────────
+            vals = [
+                emp.name or '',
+                dept,
+                emp.job_id.name or '',
+                slip.branch_id.name or '',
+                float(dias_lab),
+                sal_base, horas_extras, bonos, vacaciones,
+                subsid_incap_13, otros_ing,
+                float(dias_incap), monto_incap, licencia_sg,
+                bruto_cotiz,
+                ccss_emp, renta, pension_al, embargo,
+                cobros_emp, prestamos, ahorro_nav, sindicato, otras_ded,
+                total_ded,
+                subsid_ccss, subsid_ins,
+                neto_dep,
+                '',  # separador
+                ccss_pat, ins_pat, prov_agu, prov_ces, prov_vac, costo_tot,
+            ]
+
+            for ci, (val, (_, _, sec, dfmt)) in enumerate(zip(vals, cols)):
+                is_num = isinstance(val, float) and sec != 'sep'
+                is_int = sec == 'id' and ci == 4
+                ws.write(row, ci, val if val != 0.0 or not is_num else None, dfmt)
+                if is_num and val:
+                    totales[ci] += val
+                    dept_totals[ci] += val
+                elif is_int:
+                    totales[ci] += val
+                    dept_totals[ci] += val
+
+            ws.set_row(row, 14)
             row += 1
 
-        # ── Subtotals ─────────────────────────────────────────────
-        def write_subtotal(label, rows_list):
-            nonlocal row
-            if not rows_list:
-                return
-            ws.write(row - 1, 0, label, sub_lbl)
-            ws.write(row - 1, 1, '',    sub_lbl)
-            for col in range(2, 16):
-                refs = '+'.join(
-                    f'{xlsxwriter.utility.xl_rowcol_to_cell(r, col)}'
-                    for r in rows_list
-                )
-                ws.write(row - 1, col,
-                         f'={refs}' if refs else 0, sub_fmt)
-            # Total General subtotal
-            r1 = xlsxwriter.utility.xl_rowcol_to_cell(row - 1, 2)
-            r2 = xlsxwriter.utility.xl_rowcol_to_cell(row - 1, 4)
-            r3 = xlsxwriter.utility.xl_rowcol_to_cell(row - 1, 6)
-            r4 = xlsxwriter.utility.xl_rowcol_to_cell(row - 1, 14)
-            refs_total = '+'.join(
-                f'{xlsxwriter.utility.xl_rowcol_to_cell(r, 15)}'
-                for r in rows_list
-            )
-            ws.write(row - 1, 15, f'={refs_total}' if refs_total else 0, sub_fmt)
+        # Último subtotal de departamento
+        if prev_dept:
+            sub_lbl_fmt = F(bold=True, bg='#F2F2F2', align='left', border=1)
+            ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
+            for ci in range(1, N):
+                _, _, sec, _ = cols[ci]
+                sf = F(bold=True, bg='#F2F2F2', num='#,##0', border=1,
+                       fg='#C00000' if sec == 'ded' else '#000000')
+                v = dept_totals[ci]
+                ws.write(row, ci, v if v else None, sf)
+            ws.set_row(row, 14)
             row += 1
 
-        adm_rows = dept_rows.get('A', [])
-        op_rows  = [r for k, v in dept_rows.items() if k != 'A' for r in v]
-        all_rows = adm_rows + op_rows
+        # ── Fila de TOTALES GENERALES ─────────────────────────────────────────
+        row += 1
+        tot_lbl_fmt = F(bold=True, bg='#FFF2CC', align='left', border=2, sz=10)
+        ws.write(row, 0, 'TOTAL GENERAL', tot_lbl_fmt)
+        for ci in range(1, N):
+            _, _, sec, _ = cols[ci]
+            tf = F(bold=True, bg='#FFF2CC', num='#,##0', border=2,
+                   fg='#C00000' if sec == 'ded' else '#000000')
+            v = totales[ci]
+            ws.write(row, ci, v if v else None, tf)
+        ws.set_row(row, 18)
 
-        if adm_rows:
-            write_subtotal('SUBTOTAL ADMINISTRATIVO', adm_rows)
-        if op_rows:
-            write_subtotal('SUBTOTAL OPERATIVO', op_rows)
+        # ── Nota al pie ───────────────────────────────────────────────────────
+        row += 2
+        note_fmt = F(sz=8, align='left', italic=True, fg='#666666', border=0)
+        ws.merge_range(row, 0, row, N-1,
+            'Datos leídos directamente de las boletas confirmadas. '
+            'Subsidio Incap. días 1-3 = cargo del patrono (no genera CCSS/Renta). '
+            'INS Pago Directo = informativo, el INS deposita directamente al empleado. '
+            'Subsidio CCSS/Mat. incluye paternidad (Ley 8107).',
+            note_fmt)
 
-        # ── Grand total ───────────────────────────────────────────
-        ws.write(row - 1, 0, 'TOTALES', tot_lbl)
-        ws.write(row - 1, 1, '', tot_lbl)
-        for col in range(2, 16):
-            refs = '+'.join(
-                f'{xlsxwriter.utility.xl_rowcol_to_cell(r, col)}'
-                for r in all_rows
-            )
-            ws.write(row - 1, col, f'={refs}' if refs else 0, tot_fmt)
-        refs_t = '+'.join(
-            f'{xlsxwriter.utility.xl_rowcol_to_cell(r, 15)}'
-            for r in all_rows
-        )
-        ws.write(row - 1, 15, f'={refs_t}' if refs_t else 0, tot_fmt)
-
-        # ── Freeze panes & print settings ────────────────────────
-        ws.freeze_panes(6, 2)
-        ws.set_landscape()
-        ws.set_paper(9)  # A4
-        ws.fit_to_pages(1, 0)
-        ws.set_print_scale(85)
-        ws.repeat_rows(4, 5)
+        ws.freeze_panes(4, 5)  # Congelar ID + primera col de ingresos
 
         wb.close()
+        xlsx_data = base64.b64encode(output.getvalue()).decode()
 
-        filename = f'Resumen_Ejecutivo_{run.name or "planilla"}.xlsx'.replace(' ', '_')
-        att = self.env['ir.attachment'].create({
-            'name': filename, 'type': 'binary',
-            'datas': base64.b64encode(output.getvalue()),
-            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        slug = run.name.replace(' ', '_')[:40]
+        filename = f'ResumenEjecutivo_{slug}.xlsx'
+
+        attach = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': xlsx_data,
+            'res_model': self._name,
+            'res_id': self.id,
         })
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{att.id}?download=true',
+            'url': f'/web/content/{attach.id}?download=true',
             'target': 'self',
         }
