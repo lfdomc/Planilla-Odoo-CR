@@ -112,13 +112,13 @@ class ResumenEjecutivoWizard(models.TransientModel):
             ('Horas\nExtras',          10, 'ing', fd_ing),
             ('Bonos\nSalariales',      10, 'ing', fd_ing),
             ('Vacaciones\nPagadas',    10, 'ing', fd_ing),
-            ('Subsidio\nIncap. Días 1-3', 12, 'ing', fd_ing),
             ('Otros\nIngresos',        10, 'ing', fd_ing),
             # ── Deducciones (rebajan el bruto cotizable) ──────────────────────
             ('Días\nIncapacidad',       8, 'ded', F(bg=BG_DED, num='0', fg='#C00000')),
             ('Monto\nIncapacidad',     11, 'ded', fd_ded),
             ('Licencia\nSin Goce',     11, 'ded', fd_ded),
             # ── Salario Bruto Cotizable ───────────────────────────────────────
+            ('Subsidio\nMat./CCSS',    12, 'ing', fd_ing),   # subsidio que sí va en net_salary
             ('Sal. Bruto\nCotizable',  13, 'net', ft_net),
             # ── Deducciones legales ───────────────────────────────────────────
             ('CCSS\nObrero 10.83%',    11, 'ded', fd_ded),
@@ -258,9 +258,6 @@ class ResumenEjecutivoWizard(models.TransientModel):
             horas_extras = slip.overtime_amount or 0
             bonos        = slip.bono_salarial_amount or 0
             vacaciones   = slip.vacation_amount or 0
-            # Subsidio incapacidad días 1-3: lo que el patrono paga por esos días
-            subsid_incap_13 = max((slip.base_salary or 0) - (slip.gross_salary or 0), 0) \
-                if (slip.gross_salary or 0) < (slip.base_salary or 0) else 0
             # Otros ingresos = residual (bonos no salariales, incentivos, etc.)
             otros_ing    = slip.other_income or 0
 
@@ -272,6 +269,10 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 if l.line_type == 'deduction'
                 and l.deduction_category in ('licencia_sin_goce', 'ausencia')
             ), 2)
+
+            # SUBSIDIO MATERNIDAD / CCSS (días 4+ incapacidad + paternidad)
+            # Este subsidio sí forma parte del neto que recibe el empleado
+            subsid_mat = round((slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), 2)
 
             # SALARIO BRUTO COTIZABLE
             bruto_cotiz = slip.base_cotizable_final or 0
@@ -320,8 +321,9 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 slip.branch_id.name or '',
                 float(dias_lab),
                 sal_base, horas_extras, bonos, vacaciones,
-                subsid_incap_13, otros_ing,
+                otros_ing,
                 float(dias_incap), monto_incap, licencia_sg,
+                subsid_mat,
                 bruto_cotiz,
                 ccss_emp, renta, pension_al, embargo,
                 cobros_emp, prestamos, seguro, pension_vol, otras_ded,
@@ -377,7 +379,8 @@ class ResumenEjecutivoWizard(models.TransientModel):
             'Datos leídos directamente de las boletas confirmadas. '
             'Subsidio Incap. días 1-3 = cargo del patrono (no genera CCSS/Renta). '
             'INS Pago Directo = informativo, el INS deposita directamente al empleado. '
-            'Subsidio Incap. días 1-3 = cargo del patrono (no genera CCSS/Renta). INS Pago Directo y Subsidio CCSS no incluidos en este reporte.',
+            'Los valores de Neto Depósito y Costo Total se leen directamente de cada boleta — son los valores oficiales. '
+            'BrutoCotizable puede diferir de Neto+Deducciones en casos con permisos sin goce, subsidios o incapacidades mixtas — esto es esperado.',
             note_fmt)
 
         ws.freeze_panes(4, 5)  # Congelar ID + primera col de ingresos
