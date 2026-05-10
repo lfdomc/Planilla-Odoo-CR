@@ -349,6 +349,9 @@ else:
                 cargos que se descontarán automáticamente en la boleta del empleado.
             </p>
         </field>
+
+        <field name="search_view_id" ref="view_employee_charge_search"/>
+        <field name="context">{"search_default_this_month": 1}</field>
     </record>
 
 </odoo>

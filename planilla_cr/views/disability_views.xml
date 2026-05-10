@@ -208,6 +208,9 @@
         <field name="name">Incapacidades</field>
         <field name="res_model">planilla.disability</field>
         <field name="view_mode">list,form</field>
+
+        <field name="search_view_id" ref="view_disability_search"/>
+        <field name="context">{"search_default_this_month": 1}</field>
     </record>
 
     <record id="view_disability_search" model="ir.ui.view">
