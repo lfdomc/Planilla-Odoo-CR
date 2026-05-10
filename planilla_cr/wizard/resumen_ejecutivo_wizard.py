@@ -131,9 +131,6 @@ class ResumenEjecutivoWizard(models.TransientModel):
             ('Pensión\nVoluntaria',     10, 'ded', fd_ded),
             ('Otros\nDescuentos',       10, 'ded', fd_ded),
             ('Total\nDeducciones',     12, 'ded', ft_ded),
-            # ── Subsidios post-deducción (no afectan CCSS ni renta) ───────────
-            ('Subsidio\nCCSS/Mat.',    12, 'ing', fd_ing),
-            ('INS\nPago Directo',      10, 'ing', fd_ing),
             # ── Neto depósito patrono ─────────────────────────────────────────
             ('NETO\nDEPÓSITO',        13, 'net', ft_net),
             # ── Separador ─────────────────────────────────────────────────────
@@ -304,11 +301,6 @@ class ResumenEjecutivoWizard(models.TransientModel):
 
             total_ded  = slip.total_employee_deductions or 0
 
-            # SUBSIDIOS POST-DEDUCCIÓN (informativo, no afectan CCSS/renta)
-            subsid_ccss = round(
-                (slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), 2)
-            subsid_ins  = slip.ins_subsidy_total or 0
-
             # NETO DEPÓSITO
             neto_dep = slip.deposito_patrono or 0
 
@@ -334,7 +326,6 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 ccss_emp, renta, pension_al, embargo,
                 cobros_emp, prestamos, seguro, pension_vol, otras_ded,
                 total_ded,
-                subsid_ccss, subsid_ins,
                 neto_dep,
                 '',  # separador
                 ccss_pat, ins_pat, prov_agu, prov_ces, prov_vac, costo_tot,
@@ -386,7 +377,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             'Datos leídos directamente de las boletas confirmadas. '
             'Subsidio Incap. días 1-3 = cargo del patrono (no genera CCSS/Renta). '
             'INS Pago Directo = informativo, el INS deposita directamente al empleado. '
-            'Subsidio CCSS/Mat. incluye paternidad (Ley 8107).',
+            'Subsidio Incap. días 1-3 = cargo del patrono (no genera CCSS/Renta). INS Pago Directo y Subsidio CCSS no incluidos en este reporte.',
             note_fmt)
 
         ws.freeze_panes(4, 5)  # Congelar ID + primera col de ingresos
