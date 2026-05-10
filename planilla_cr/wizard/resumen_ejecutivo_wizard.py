@@ -127,9 +127,9 @@ class ResumenEjecutivoWizard(models.TransientModel):
             ('Embargo\nJudicial',      10, 'ded', fd_ded),
             ('Cobros\nEmpleado',       10, 'ded', fd_ded),
             ('Préstamos\nInternos',    10, 'ded', fd_ded),
-            ('Ahorro\nNavideño',       10, 'ded', fd_ded),
-            ('Sindicato /\nCooper.',   10, 'ded', fd_ded),
-            ('Otras\nDeducciones',     10, 'ded', fd_ded),
+            ('Seguro /\nPóliza',        10, 'ded', fd_ded),
+            ('Pensión\nVoluntaria',     10, 'ded', fd_ded),
+            ('Otros\nDescuentos',       10, 'ded', fd_ded),
             ('Total\nDeducciones',     12, 'ded', ft_ded),
             # ── Subsidios post-deducción (no afectan CCSS ni renta) ───────────
             ('Subsidio\nCCSS/Mat.',    12, 'ing', fd_ing),
@@ -295,12 +295,12 @@ class ResumenEjecutivoWizard(models.TransientModel):
             embargo    = _sum_cat('embargo', 'embargo_judicial')
             cobros_emp = _sum_cat('cobro', 'cobro_empleado', 'employee_charge')
             prestamos  = _sum_cat('loan', 'prestamo', 'prestamo_interno')
-            ahorro_nav = _sum_cat('ahorro', 'ahorro_navidad', 'ahorro_navideno')
-            sindicato  = _sum_cat('sindicato', 'cooperativa', 'sindical')
+            seguro     = _sum_cat('seguro')
+            pension_vol = _sum_cat('pension_vol')
             otras_ded  = max(round(
                 (slip.total_employee_deductions or 0)
                 - ccss_emp - renta - pension_al - embargo
-                - cobros_emp - prestamos - ahorro_nav - sindicato, 2), 0)
+                - cobros_emp - prestamos - seguro - pension_vol, 2), 0)
 
             total_ded  = slip.total_employee_deductions or 0
 
@@ -332,7 +332,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 float(dias_incap), monto_incap, licencia_sg,
                 bruto_cotiz,
                 ccss_emp, renta, pension_al, embargo,
-                cobros_emp, prestamos, ahorro_nav, sindicato, otras_ded,
+                cobros_emp, prestamos, seguro, pension_vol, otras_ded,
                 total_ded,
                 subsid_ccss, subsid_ins,
                 neto_dep,
