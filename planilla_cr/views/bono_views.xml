@@ -163,6 +163,24 @@
                         context="{'group_by': 'bono_type'}"/>
                 <filter string="▾ Por Sucursal" name="by_branch"
                         context="{'group_by': 'branch_id'}"/>
+
+                <separator/>
+                <filter string="1ra Quincena (1-15)" name="q1"
+                        domain="[('date_start', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;=', (context_today() + relativedelta(day=15)).strftime('%Y-%m-%d'))]"/>
+                <filter string="2da Quincena (16-fin)" name="q2"
+                        domain="[('date_start', '&gt;=', (context_today() + relativedelta(day=16)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="Este mes" name="this_month"
+                        domain="[('date_start', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Mes pasado" name="last_month"
+                        domain="[('date_start', '&gt;=', (context_today() + relativedelta(months=-1, day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;=', (context_today() + relativedelta(months=-1, day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="▾ Por Mes"      name="by_month" context="{'group_by':'date_start:month'}"/>
+                <filter string="▾ Por Quincena" name="by_week"  context="{'group_by':'date_start:week'}"/>
             </search>
         </field>
     </record>

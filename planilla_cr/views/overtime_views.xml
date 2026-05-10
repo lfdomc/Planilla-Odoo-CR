@@ -73,4 +73,42 @@
         <field name="res_model">planilla.overtime</field>
         <field name="view_mode">list,form</field>
     </record>
+
+    <record id="view_overtime_search" model="ir.ui.view">
+        <field name="name">planilla.overtime.search</field>
+        <field name="model">planilla.overtime</field>
+        <field name="arch" type="xml">
+            <search string="Buscar">
+                <field name="employee_id"/>
+                <field name="date"/>
+                <filter string="Sin aprobar" name="draft"    domain="[('state','=','draft')]"/>
+                <filter string="Aprobadas"   name="approved" domain="[('state','=','approved')]"/>
+                <filter string="Pagadas"     name="paid"     domain="[('state','=','paid')]"/>
+                <separator/>
+                <filter string="Dobles"   name="double" domain="[('type','=','doble')]"/>
+                <filter string="Sencillas" name="single" domain="[('type','=','sencilla')]"/>
+                <separator/>
+                <filter string="▾ Por Empleado" name="by_emp"    context="{'group_by':'employee_id'}"/>
+                <filter string="▾ Por Tipo"     name="by_type"   context="{'group_by':'type'}"/>
+                <filter string="▾ Por Estado"   name="by_state"  context="{'group_by':'state'}"/>
+                <separator/>
+                <filter string="1ra Quincena (1-15)" name="q1"
+                        domain="[('date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date', '&lt;=', (context_today() + relativedelta(day=15)).strftime('%Y-%m-%d'))]"/>
+                <filter string="2da Quincena (16-fin)" name="q2"
+                        domain="[('date', '&gt;=', (context_today() + relativedelta(day=16)).strftime('%Y-%m-%d')),
+                                 ('date', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="Este mes" name="this_month"
+                        domain="[('date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Mes pasado" name="last_month"
+                        domain="[('date', '&gt;=', (context_today() + relativedelta(months=-1, day=1)).strftime('%Y-%m-%d')),
+                                 ('date', '&lt;=', (context_today() + relativedelta(months=-1, day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="▾ Por Mes"      name="by_month" context="{'group_by':'date:month'}"/>
+                <filter string="▾ Por Quincena" name="by_week"  context="{'group_by':'date:week'}"/>
+            </search>
+        </field>
+    </record>
 </odoo>

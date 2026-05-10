@@ -313,6 +313,24 @@ else:
                         context="{'group_by': 'state'}"/>
                 <filter string="▾ Por Período" name="by_period"
                         context="{'group_by': 'date_from:month'}"/>
+
+                <separator/>
+                <filter string="1ra Quincena (1-15)" name="q1"
+                        domain="[('date_from', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_from', '&lt;=', (context_today() + relativedelta(day=15)).strftime('%Y-%m-%d'))]"/>
+                <filter string="2da Quincena (16-fin)" name="q2"
+                        domain="[('date_from', '&gt;=', (context_today() + relativedelta(day=16)).strftime('%Y-%m-%d')),
+                                 ('date_from', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="Este mes" name="this_month"
+                        domain="[('date_from', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_from', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Mes pasado" name="last_month"
+                        domain="[('date_from', '&gt;=', (context_today() + relativedelta(months=-1, day=1)).strftime('%Y-%m-%d')),
+                                 ('date_from', '&lt;=', (context_today() + relativedelta(months=-1, day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="▾ Por Mes"      name="by_month" context="{'group_by':'date_from:month'}"/>
+                <filter string="▾ Por Quincena" name="by_week"  context="{'group_by':'date_from:week'}"/>
             </search>
         </field>
     </record>

@@ -106,4 +106,38 @@
         <field name="view_mode">list,form</field>
         <field name="context">{'search_default_active': 1}</field>
     </record>
+
+    <record id="view_pension_alimentaria_search" model="ir.ui.view">
+        <field name="name">planilla.pension.alimentaria.search</field>
+        <field name="model">planilla.pension.alimentaria</field>
+        <field name="arch" type="xml">
+            <search string="Buscar">
+                <field name="employee_id"/>
+                <field name="date_start"/>
+                <filter string="Activas"    name="active"   domain="[('state','=','active')]"/>
+                <filter string="Suspendidas" name="suspended" domain="[('state','=','suspended')]"/>
+                <filter string="Finalizadas" name="ended"    domain="[('state','=','ended')]"/>
+                <separator/>
+                <filter string="▾ Por Empleado" name="by_emp"  context="{'group_by':'employee_id'}"/>
+                <filter string="▾ Por Estado"   name="by_state" context="{'group_by':'state'}"/>
+                <separator/>
+                <filter string="1ra Quincena (1-15)" name="q1"
+                        domain="[('date_start', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;=', (context_today() + relativedelta(day=15)).strftime('%Y-%m-%d'))]"/>
+                <filter string="2da Quincena (16-fin)" name="q2"
+                        domain="[('date_start', '&gt;=', (context_today() + relativedelta(day=16)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="Este mes" name="this_month"
+                        domain="[('date_start', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Mes pasado" name="last_month"
+                        domain="[('date_start', '&gt;=', (context_today() + relativedelta(months=-1, day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;=', (context_today() + relativedelta(months=-1, day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="▾ Por Mes"      name="by_month" context="{'group_by':'date_start:month'}"/>
+                <filter string="▾ Por Quincena" name="by_week"  context="{'group_by':'date_start:week'}"/>
+            </search>
+        </field>
+    </record>
 </odoo>

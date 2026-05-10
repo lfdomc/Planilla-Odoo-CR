@@ -103,4 +103,40 @@
             automáticamente en cada boleta de pago del período correspondiente.</p>
         </field>
     </record>
+
+    <record id="view_employee_loan_search" model="ir.ui.view">
+        <field name="name">planilla.employee.loan.search</field>
+        <field name="model">planilla.employee.loan</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Préstamos">
+                <field name="employee_id"/>
+                <field name="date_granted"/>
+                <filter string="Activos"    name="active"   domain="[('state','in',['active','partial'])]"/>
+                <filter string="Cancelados" name="cancelled" domain="[('state','=','cancelled')]"/>
+                <filter string="Pagados"    name="paid"     domain="[('state','=','paid')]"/>
+                <separator/>
+                <filter string="Adelantos"  name="advance"  domain="[('loan_type','=','adelanto')]"/>
+                <filter string="Préstamos"  name="loan"     domain="[('loan_type','=','prestamo')]"/>
+                <separator/>
+                <filter string="▾ Por Empleado" name="by_emp" context="{'group_by':'employee_id'}"/>
+                <filter string="▾ Por Estado"   name="by_state" context="{'group_by':'state'}"/>
+                <separator/>
+                <filter string="1ra Quincena (1-15)" name="q1"
+                        domain="[('date_granted', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_granted', '&lt;=', (context_today() + relativedelta(day=15)).strftime('%Y-%m-%d'))]"/>
+                <filter string="2da Quincena (16-fin)" name="q2"
+                        domain="[('date_granted', '&gt;=', (context_today() + relativedelta(day=16)).strftime('%Y-%m-%d')),
+                                 ('date_granted', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="Este mes" name="this_month"
+                        domain="[('date_granted', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_granted', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Mes pasado" name="last_month"
+                        domain="[('date_granted', '&gt;=', (context_today() + relativedelta(months=-1, day=1)).strftime('%Y-%m-%d')),
+                                 ('date_granted', '&lt;=', (context_today() + relativedelta(months=-1, day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="▾ Por Mes"      name="by_month" context="{'group_by':'date_granted:month'}"/>
+            </search>
+        </field>
+    </record>
 </odoo>

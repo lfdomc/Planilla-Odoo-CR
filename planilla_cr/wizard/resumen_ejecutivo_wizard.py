@@ -166,7 +166,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
         periodo = f"{run.date_start.strftime('%d/%m/%Y')} al {run.date_end.strftime('%d/%m/%Y')}"
         freq_map = {'biweekly': 'Quincenal', 'monthly': 'Mensual',
                     'weekly': 'Semanal', 'bimonthly': 'Bimensual'}
-        freq = freq_map.get(run.frequency or '', run.frequency or '')
+        freq = freq_map.get((run.payroll_calendar_id.frequency or ''), run.payroll_calendar_id.frequency or '')
 
         titulo_fmt = F(bold=True, sz=13, bg='#1F4E79', fg='#FFFFFF', border=2)
         sub_fmt    = F(sz=9, bg='#D6E4F0', align='left')
