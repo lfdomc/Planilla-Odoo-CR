@@ -237,7 +237,6 @@ class EmployeeLoan(models.Model):
             bank_account = self.env['account.account'].search([
                 ('account_type', 'in', ('asset_cash',)),
                 ('company_ids', 'in', self.employee_id.company_id.id),
-                ('deprecated', '=', False),
             ], limit=1)
         if not bank_account:
             self.message_post(
