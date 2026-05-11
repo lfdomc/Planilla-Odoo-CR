@@ -68,14 +68,6 @@
         </field>
     </record>
 
-    <record id="action_overtime" model="ir.actions.act_window">
-        <field name="name">Horas Extras</field>
-        <field name="res_model">planilla.overtime</field>
-        <field name="view_mode">list,form</field>
-
-        <field name="search_view_id" ref="view_overtime_search"/>
-        <field name="context">{"search_default_by_month": 1}</field>
-    </record>
 
     <record id="view_overtime_search" model="ir.ui.view">
         <field name="name">planilla.overtime.search</field>
@@ -115,4 +107,14 @@
             </search>
         </field>
     </record>
+
+    <record id="action_overtime" model="ir.actions.act_window">
+        <field name="name">Horas Extras</field>
+        <field name="res_model">planilla.overtime</field>
+        <field name="view_mode">list,form</field>
+
+        <field name="search_view_id" ref="view_overtime_search"/>
+        <field name="context">{"search_default_by_month": 1}</field>
+    </record>
+
 </odoo>
