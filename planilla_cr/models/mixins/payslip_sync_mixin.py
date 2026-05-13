@@ -1649,7 +1649,13 @@ class PayslipSyncMixin(models.AbstractModel):
                 desc = f'{desc}: {charge.notes}'
 
             # Forzar lectura fresca del código para evitar cache stale
-            charge_code = charge.read(['code'])[0].get('code') or charge.code
+            # Leer código directamente de BD para evitar cache stale del ORM
+            self.env.cr.execute(
+                "SELECT code FROM planilla_employee_charge WHERE id = %s",
+                (charge.id,)
+            )
+            row = self.env.cr.fetchone()
+            charge_code = (row[0] if row else None) or charge.code
 
             lines_to_create.append({
                 'payslip_id':          self.id,
