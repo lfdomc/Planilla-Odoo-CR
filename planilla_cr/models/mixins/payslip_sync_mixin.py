@@ -1648,12 +1648,15 @@ class PayslipSyncMixin(models.AbstractModel):
             if charge.notes:
                 desc = f'{desc}: {charge.notes}'
 
+            # Forzar lectura fresca del código para evitar cache stale
+            charge_code = charge.read(['code'])[0].get('code') or charge.code
+
             lines_to_create.append({
                 'payslip_id':          self.id,
                 'deduction_code_id':   ded_code.id,
                 'description':         (
-                    f'[{charge.code}] {desc}'
-                    if getattr(charge, 'code', None) else desc
+                    f'[{charge_code}] {desc}'
+                    if charge_code else desc
                 ),
                 'line_type':           'deduction',
                 'deduction_category':  'other',
