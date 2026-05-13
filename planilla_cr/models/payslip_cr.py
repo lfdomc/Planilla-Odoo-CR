@@ -698,6 +698,23 @@ class PayslipDeductionLine(models.Model):
         help='Embargo judicial que origino esta linea. Trazabilidad directa al registro.'
     )
 
+    def unlink(self):
+        """Al eliminar manualmente una línea de deducción, restaurar el
+        cobro/recurso vinculado a estado 'approved' para que pueda
+        re-sincronizarse en la siguiente llamada a Sincronizar Novedades."""
+        for line in self:
+            # Restaurar cobro al empleado si fue marcado como 'applied'
+            if line.employee_charge_id:
+                charge = self.env['planilla.employee.charge'].browse(
+                    line.employee_charge_id).exists()
+                if charge and charge.state == 'applied':
+                    charge.write({'state': 'approved', 'payslip_id': False})
+            # Restaurar cuota de préstamo
+            if line.loan_installment_id and line.loan_installment_id.state == 'deducted':
+                if line.loan_installment_id.payslip_id == line.payslip_id:
+                    line.loan_installment_id.write({'state': 'pending', 'payslip_id': False})
+        return super().unlink()
+
     @api.constrains('amount', 'deduction_category', 'payslip_id')
     def _check_deduction_limits(self):
         """

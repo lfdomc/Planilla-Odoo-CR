@@ -128,12 +128,24 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
 
         for pension in pensiones:
-            # Verificar si ya esta aplicada (por numero_expediente)
+            # Verificar si ya esta aplicada en la boleta actual
             existing = self.deduction_line_ids.filtered(
                 lambda l: l.deduction_category == 'pension_alimentaria'
                 and l.numero_resolucion == pension.numero_expediente
             )
             if existing:
+                continue
+            # FIX DEDUP: verificar también en otras boletas en borrador para
+            # evitar duplicación al resetear y re-sincronizar
+            applied_elsewhere = self.env['planilla.payslip.deduction.line'].search([
+                ('deduction_category', '=', 'pension_alimentaria'),
+                ('numero_resolucion', '=', pension.numero_expediente),
+                ('payslip_id', '!=', self.id),
+                ('payslip_id.state', 'in', ('draft', 'confirmed', 'done')),
+                ('payslip_id.employee_id', '=', self.employee_id.id),
+                ('payslip_id.date_from', '>=', self.date_from),
+            ], limit=1)
+            if applied_elsewhere:
                 continue
 
             monto = pension.compute_amount(self.gross_salary or 0.0)

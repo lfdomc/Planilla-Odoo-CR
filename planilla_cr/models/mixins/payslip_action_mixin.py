@@ -268,32 +268,34 @@ class PayslipActionMixin(models.AbstractModel):
             })
             # Restaurar cobros al empleado al estado aprobado para que puedan
             # sincronizarse a una nueva boleta si se regenera la planilla.
-            charge_lines = rec.deduction_line_ids.filtered(
-                lambda l: l.employee_charge_id
+            # FIX: restaurar cobros en DOS fuentes:
+            # 1. Líneas de deducción existentes (flujo normal)
+            # 2. Búsqueda directa por payslip_id (cuando las líneas fueron borradas manualmente)
+            charge_ids_from_lines = set(
+                l.employee_charge_id for l in rec.deduction_line_ids
+                if l.employee_charge_id
             )
-            if charge_lines:
-                charge_ids_list = [l.employee_charge_id for l in charge_lines if l.employee_charge_id]
-                if charge_ids_list:
-                    # FIX BUG-COBRO-01: separar cobros unicos de recurrentes.
-                    # FIX BUG-COBRO-02: usar .exists() para ignorar cobros que
-                    # fueron eliminados despues de ser procesados en planilla.
-                    # Sin .exists(), browse() lanza "Registro faltante" si el
-                    # planilla.employee.charge fue borrado desde RRHH.
-                    all_charges = self.env['planilla.employee.charge'].browse(charge_ids_list).exists()
-                    # Unicos (applied) -> volver a approved
-                    unique_charges = all_charges.filtered(
-                        lambda c: not c.is_recurring and c.state == 'applied'
-                                  and c.payslip_id.id == rec.id
-                    )
-                    if unique_charges:
-                        unique_charges.write({'state': 'approved', 'payslip_id': False})
-                    # Recurrentes -> limpiar el periodo de applied_periods
-                    recurring_charges = all_charges.filtered(lambda c: c.is_recurring)
-                    for charge in recurring_charges:
-                        charge._remove_period_applied(rec.date_from)
-                        # Si ya no tiene mas periodos activos, limpiar payslip_id
-                        if not charge.applied_periods:
-                            charge.payslip_id = False
+            charges_via_payslip = self.env['planilla.employee.charge'].search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('state', '=', 'applied'),
+                ('payslip_id', '=', rec.id),
+            ])
+            all_ids = charge_ids_from_lines | set(charges_via_payslip.ids)
+            if all_ids:
+                all_charges = self.env['planilla.employee.charge'].browse(
+                    list(all_ids)).exists()
+                # Únicos (applied) -> volver a approved
+                unique_charges = all_charges.filtered(
+                    lambda c: not c.is_recurring and c.state == 'applied'
+                )
+                if unique_charges:
+                    unique_charges.write({'state': 'approved', 'payslip_id': False})
+                # Recurrentes -> limpiar el periodo de applied_periods
+                recurring_charges = all_charges.filtered(lambda c: c.is_recurring)
+                for charge in recurring_charges:
+                    charge._remove_period_applied(rec.date_from)
+                    if not charge.applied_periods:
+                        charge.payslip_id = False
             rec.state = 'cancelled'
 
     def action_reset_to_draft(self) -> None:
