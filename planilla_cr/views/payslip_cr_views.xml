@@ -103,7 +103,7 @@
                             invisible="state == 'draft'" class="btn-secondary"
                             icon="fa-eye"/>
                     <button name="action_print_payslip" type="object" string="Imprimir"
-                            invisible="state == 'draft'" icon="fa-print"/>
+                            icon="fa-print"/>
                     <button name="action_cancel" type="object" string="Cancelar"
                             invisible="state in ('done', 'cancelled')"/>
                     <field name="state" widget="statusbar"

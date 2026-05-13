@@ -20,6 +20,11 @@ class ResumenEjecutivoWizard(models.TransientModel):
         string='Elaborado por',
         default=lambda self: self.env.user.name
     )
+    include_draft = fields.Boolean(
+        string='Incluir boletas en borrador',
+        default=True,
+        help='Activar para revisar cálculos antes de confirmar la planilla.',
+    )
 
     def action_generate(self):
         self.ensure_one()
@@ -29,7 +34,9 @@ class ResumenEjecutivoWizard(models.TransientModel):
 
         slips = self.env['planilla.payslip.cr'].search([
             ('payroll_run_id', '=', run.id),
-            ('state', 'in', ['confirmed', 'done']),
+            ('state', 'in', (['draft', 'confirmed', 'done']
+                             if self.include_draft
+                             else ['confirmed', 'done'])),
         ])
         slips = slips.sorted(key=lambda s: (
             s.employee_id.department_id.name or '',
@@ -165,11 +172,12 @@ class ResumenEjecutivoWizard(models.TransientModel):
                     'weekly': 'Semanal', 'bimonthly': 'Bimensual'}
         freq = freq_map.get((run.payroll_calendar_id.frequency or ''), run.payroll_calendar_id.frequency or '')
 
+        draft_warn = ' ⚠ INCLUYE BORRADORES — Solo para revisión interna' if self.include_draft else ''
         titulo_fmt = F(bold=True, sz=13, bg='#1F4E79', fg='#FFFFFF', border=2)
         sub_fmt    = F(sz=9, bg='#D6E4F0', align='left')
 
         ws.merge_range(0, 0, 0, N-1,
-            f'RESUMEN EJECUTIVO DE PLANILLA — {run.name}', titulo_fmt)
+            f'RESUMEN EJECUTIVO DE PLANILLA — {run.name}{draft_warn}', titulo_fmt)
         ws.merge_range(1, 0, 1, N-1,
             f'{empresa}  |  Período: {periodo}  |  Frecuencia: {freq}  |  '
             f'Elaborado por: {self.elaborado_por or ""}', sub_fmt)

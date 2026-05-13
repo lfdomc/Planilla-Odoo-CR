@@ -36,6 +36,15 @@
                                    help="ON = no descuenta CCSS en liquidaciones. OFF = descuenta CCSS normalmente."/>
                         </group>
                     </group>
+                    <group string="Planilla — Configuración General">
+                        <group string="Nuevas Planillas">
+                            <field name="default_payroll_calendar_id"
+                                   string="Calendarización por Defecto"/>
+                        </group>
+                        <group string="Asientos Contables">
+                            <field name="accounting_entry_mode" widget="radio"/>
+                        </group>
+                    </group>
                     <group string="Vacaciones">
                         <group string="Método de Acumulación">
                             <field name="vacation_accrual_method" widget="radio"/>

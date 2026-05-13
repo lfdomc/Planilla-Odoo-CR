@@ -436,11 +436,17 @@ def _setup_accounting_config(env):
 
     if not existing:
         # -- Crear config nueva con TODAS las cuentas --------------
+        # Default calendar: Quincenal (biweekly)
+        default_cal = env['planilla.calendar'].search(
+            [('frequency', '=', 'biweekly')], limit=1)
+
         vals = {
             'company_id': env.company.id,
-            'accounting_entry_mode': 'per_employee',
+            'accounting_entry_mode': 'per_run',
             'journal_id': journal.id,
         }
+        if default_cal:
+            vals['default_payroll_calendar_id'] = default_cal.id
         for field_name, (code, name, acc_type) in ACCOUNT_MAP.items():
             account = get_or_create_account(code, name, acc_type)
             vals[field_name] = account.id

@@ -12,7 +12,7 @@
     Fuente: Resolución DGT-R-016-2026 Ministerio de Hacienda CR
     Vigentes: 1 enero 2026 (para salarios mensuales en ₡)
 -->
-<odoo noupdate="1">
+<odoo noupdate="0">
 
     <!-- TRAMOS 2025 — DESACTIVADOS (referencia histórica) -->
     <record id="tax_bracket_0" model="planilla.income.tax.bracket">
@@ -92,9 +92,9 @@
     <record id="tax_bracket_2026_1" model="planilla.income.tax.bracket">
         <field name="sequence">20</field>
         <field name="year">2026</field>
-        <field name="name">10% sobre el exceso de &#8353;918,000</field>
+        <field name="name">10% sobre el exceso de &#8353;918,000 hasta &#8353;1,347,000</field>
         <field name="limit_from">918000</field>
-        <field name="limit_to">1381000</field>
+        <field name="limit_to">1347000</field>
         <field name="rate">10</field>
         <field name="valid_from">2026-01-01</field>
         <field name="active">True</field>
@@ -103,9 +103,9 @@
     <record id="tax_bracket_2026_2" model="planilla.income.tax.bracket">
         <field name="sequence">30</field>
         <field name="year">2026</field>
-        <field name="name">15% sobre el exceso de &#8353;1,381,000</field>
-        <field name="limit_from">1381000</field>
-        <field name="limit_to">2423000</field>
+        <field name="name">15% sobre el exceso de &#8353;1,347,000 hasta &#8353;2,364,000</field>
+        <field name="limit_from">1347000</field>
+        <field name="limit_to">2364000</field>
         <field name="rate">15</field>
         <field name="valid_from">2026-01-01</field>
         <field name="active">True</field>
@@ -114,9 +114,9 @@
     <record id="tax_bracket_2026_3" model="planilla.income.tax.bracket">
         <field name="sequence">40</field>
         <field name="year">2026</field>
-        <field name="name">20% sobre el exceso de &#8353;2,423,000</field>
-        <field name="limit_from">2423000</field>
-        <field name="limit_to">4845000</field>
+        <field name="name">20% sobre el exceso de &#8353;2,364,000 hasta &#8353;4,727,000</field>
+        <field name="limit_from">2364000</field>
+        <field name="limit_to">4727000</field>
         <field name="rate">20</field>
         <field name="valid_from">2026-01-01</field>
         <field name="active">True</field>
@@ -125,8 +125,8 @@
     <record id="tax_bracket_2026_4" model="planilla.income.tax.bracket">
         <field name="sequence">50</field>
         <field name="year">2026</field>
-        <field name="name">25% sobre el exceso de &#8353;4,845,000</field>
-        <field name="limit_from">4845000</field>
+        <field name="name">25% sobre el exceso de &#8353;4,727,000</field>
+        <field name="limit_from">4727000</field>
         <field name="limit_to">0</field>
         <field name="rate">25</field>
         <field name="valid_from">2026-01-01</field>

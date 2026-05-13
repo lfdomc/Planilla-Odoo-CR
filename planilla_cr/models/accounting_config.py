@@ -20,7 +20,7 @@ class PayrollAccountingConfig(models.Model):
         ('per_employee', 'Por Empleado (un asiento por boleta)'),
         ('per_run', 'Por Planilla (un asiento consolidado por planilla)'),
     ], string='Modo de Asiento Contable',
-        default='per_employee', required=True,
+        default='per_run', required=True,
         help='Define si se genera un asiento contable por cada boleta de pago '
              'o un unico asiento consolidado por planilla.'
     )
