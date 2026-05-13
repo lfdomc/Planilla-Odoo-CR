@@ -1603,12 +1603,14 @@ class PayslipSyncMixin(models.AbstractModel):
                 )
                 if existing:
                     continue
-                # Deduplicacion cross-boleta: si ya fue aplicado en otra boleta
-                # activa (no cancelada), no duplicar
+                # Deduplicacion cross-boleta: si ya fue aplicado en CUALQUIER
+                # boleta activa (draft/confirmed/done), no duplicar.
+                # FIX: incluir 'draft' para evitar doble carga cuando se
+                # resetea a borrador y se vuelve a sincronizar.
                 applied_elsewhere = self.env['planilla.payslip.deduction.line'].search([
                     ('employee_charge_id', '=', charge.id),
                     ('payslip_id', '!=', self.id),
-                    ('payslip_id.state', 'in', ('confirmed', 'done')),
+                    ('payslip_id.state', 'in', ('draft', 'confirmed', 'done')),
                 ], limit=1)
                 if applied_elsewhere:
                     continue
