@@ -24,7 +24,7 @@ class PayrollReportWizard(models.TransientModel):
         'planilla_report_run_rel',
         'wizard_id', 'run_id',
         string='Planillas',
-        domain=[('state', '=', 'done')],
+        domain=[('state', 'in', ['draft', 'confirmed', 'done'])],  # incluir borradores para revisión
         required=True,
     )
     date_from = fields.Date(
@@ -76,7 +76,7 @@ class PayrollReportWizard(models.TransientModel):
         if not self.payroll_run_ids:
             return self.env['planilla.payslip.cr']
         slips = self.payroll_run_ids.mapped('payslip_ids').filtered(
-            lambda s: s.state == 'done'
+            lambda s: s.state in ('draft', 'confirmed', 'done')
         )
         if self.branch_id:
             slips = slips.filtered(lambda s: s.branch_id == self.branch_id)

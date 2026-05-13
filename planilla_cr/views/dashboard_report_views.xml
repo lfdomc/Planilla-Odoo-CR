@@ -23,7 +23,7 @@
                     </group>
                     <separator string="Seleccione las Planillas a incluir en el Reporte"/>
                     <field name="payroll_run_ids" widget="many2many_checkboxes"
-                           domain="[('state','=','done')]"
+                           domain="[('state','in',['draft','confirmed','done'])]"
                            options="{'color_field': 'state'}"/>
                     <group string="Período calculado" invisible="not payroll_run_ids">
                         <field name="date_from" readonly="1"/>
