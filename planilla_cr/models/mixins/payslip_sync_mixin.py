@@ -1768,10 +1768,21 @@ class PayslipSyncMixin(models.AbstractModel):
                 if charge.notes:
                     desc = f'{desc}: {charge.notes}'
 
+                # Leer código del cobro directo de BD (sin caché ORM)
+                self.env.cr.execute(
+                    "SELECT code FROM planilla_employee_charge WHERE id = %s",
+                    (charge.id,)
+                )
+                _row = self.env.cr.fetchone()
+                _charge_code = (_row[0] if _row else None) or charge.code
+
                 lines_to_create.append({
                     'payslip_id':          slip.id,
                     'deduction_code_id':   ded_code.id,
-                    'description':         desc,
+                    'description':         (
+                        f'[{_charge_code}] {desc}'
+                        if _charge_code else desc
+                    ),
                     'line_type':           'deduction',
                     'deduction_category':  'other',
                     'amount_type':         'fixed',
