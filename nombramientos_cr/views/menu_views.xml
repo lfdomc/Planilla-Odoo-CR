@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Raíz del módulo -->
+    <menuitem id="menu_nombramientos_root"
+              name="Nombramientos"
+              sequence="25"/>
+
+    <!-- ── Nivel 1: items principales ──────────────────────────── -->
+
+    <!-- Nombramientos Semanales -->
+    <menuitem id="menu_nombramientos_main"
+              name="Nombramientos"
+              parent="menu_nombramientos_root"
+              action="action_nombramiento"
+              sequence="1"/>
+
+    <!-- Calendario (antes "Calendario Semanal") -->
+    <menuitem id="menu_calendario"
+              name="Calendario"
+              parent="menu_nombramientos_root"
+              action="action_calendario_html"
+              sequence="2"/>
+
+    <!-- Generar Planilla — movido al nivel principal -->
+    <menuitem id="menu_generar_planilla"
+              name="Generar Planilla"
+              parent="menu_nombramientos_root"
+              action="action_generar_planilla_wizard"
+              sequence="4"/>
+
+    <!-- ── Nivel 2: sub-items de Nombramientos ──────────────────── -->
+
+    <!-- Aprobar Turnos — nivel principal entre Calendario y Generar Planilla -->
+    <menuitem id="menu_turnos"
+              name="Aprobar Turnos"
+              parent="menu_nombramientos_root"
+              action="action_turno"
+              sequence="3"/>
+
+    <!-- Sedes -->
+    <menuitem id="menu_sedes_nom"
+              name="Sedes / Sucursales"
+              parent="menu_nombramientos_main"
+              action="action_nom_branch"
+              sequence="3"/>
+
+    <!-- Plantillas de Turno -->
+    <menuitem id="menu_shift_templates"
+              name="Plantillas de Turno"
+              parent="menu_nombramientos_main"
+              action="action_shift_template"
+              sequence="4"/>
+
+    <!-- Configuración -->
+    <menuitem id="menu_nombramientos_config"
+              name="Configuración"
+              parent="menu_nombramientos_main"
+              action="action_nombramientos_config"
+              sequence="5"/>
+
+</odoo>

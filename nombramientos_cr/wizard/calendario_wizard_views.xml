@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Qweb Report Template ──────────────────────────────────────────── -->
+    <template id="report_calendario_semanal_template">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="wizard">
+                <t t-set="data" t-value="wizard._get_calendar_data()"/>
+                <div class="page" style="font-family: Arial, sans-serif; font-size: 11px;">
+
+                    <!-- Título principal -->
+                    <table width="100%" style="margin-bottom:8px;">
+                        <tr>
+                            <td style="background:#1F4E79; color:white; text-align:center;
+                                        padding:10px; font-size:16px; font-weight:bold;
+                                        border-radius:4px;">
+                                CALENDARIO DE NOMBRAMIENTOS SEMANALES
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="background:#D6E4F0; text-align:center;
+                                        padding:5px; font-size:12px;">
+                                <t t-esc="data['company']"/> &#160;|&#160;
+                                <t t-esc="data['date_start']"/> al <t t-esc="data['date_end']"/>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Un bloque por sucursal -->
+                    <t t-foreach="data['calendar']" t-as="branch_data">
+                        <table width="100%" style="border-collapse:collapse; margin-bottom:16px;">
+
+                            <!-- Encabezado sucursal -->
+                            <tr>
+                                <td colspan="8"
+                                    style="background:#2E75B6; color:white; font-weight:bold;
+                                           font-size:12px; padding:6px 10px; text-align:center;
+                                           letter-spacing:1px;">
+                                    HORARIO — <t t-esc="branch_data['name'].upper()"/>
+                                </td>
+                            </tr>
+
+                            <!-- Días de la semana (header) -->
+                            <tr>
+                                <td style="background:#1F4E79; color:white; font-weight:bold;
+                                           padding:5px 8px; text-align:center; width:90px;
+                                           border:1px solid #ccc;">
+                                    SUCURSAL
+                                </td>
+                                <t t-foreach="data['headers']" t-as="hdr">
+                                    <td style="background:#1F4E79; color:white; font-weight:bold;
+                                               padding:5px 4px; text-align:center;
+                                               border:1px solid #ccc; font-size:10px;">
+                                        <div style="font-size:11px;"><t t-esc="hdr['name']"/></div>
+                                        <div style="font-size:9px; opacity:0.8;"><t t-esc="hdr['date']"/></div>
+                                    </td>
+                                </t>
+                            </tr>
+
+                            <!-- Fila de turnos -->
+                            <tr style="vertical-align:top; min-height:60px;">
+                                <!-- Columna sede con horario general -->
+                                <td style="background:#EBF3FB; font-weight:bold;
+                                           font-size:9px; padding:5px 6px;
+                                           border:1px solid #ccc; vertical-align:middle;
+                                           text-align:center;">
+                                    <t t-esc="branch_data['name']"/>
+                                </td>
+
+                                <!-- Celda por día -->
+                                <t t-foreach="range(7)" t-as="day_idx">
+                                    <td style="border:1px solid #ccc; padding:3px;
+                                               vertical-align:top; min-height:60px;
+                                               background:#FAFAFA;">
+                                        <t t-set="day_entries" t-value="branch_data['days'].get(day_idx, [])"/>
+                                        <t t-if="day_entries">
+                                            <t t-foreach="day_entries" t-as="entry">
+                                                <div t-attf-style="background:#{entry['color']};
+                                                                    color:#{entry['text_color']};
+                                                                    border-radius:3px;
+                                                                    padding:3px 5px;
+                                                                    margin-bottom:2px;
+                                                                    font-size:9px;
+                                                                    line-height:1.3;">
+                                                    <div style="font-weight:bold;">
+                                                        <t t-esc="entry['employee']"/>
+                                                    </div>
+                                                    <div style="opacity:0.9; font-size:8px;">
+                                                        <t t-esc="entry['time_range']"/>
+                                                    </div>
+                                                </div>
+                                            </t>
+                                        </t>
+                                        <t t-else="">
+                                            <div style="color:#CCC; font-size:9px;
+                                                        text-align:center; padding-top:8px;">
+                                                —
+                                            </div>
+                                        </t>
+                                    </td>
+                                </t>
+                            </tr>
+
+                        </table>
+                    </t>
+
+                    <t t-if="not data['calendar']">
+                        <p style="text-align:center; color:#999; padding:20px;">
+                            No hay turnos confirmados para este período.
+                        </p>
+                    </t>
+
+                </div>
+            </t>
+        </t>
+    </template>
+
+    <!-- ── Report Action ─────────────────────────────────────────────────── -->
+    <record id="action_report_calendario_semanal" model="ir.actions.report">
+        <field name="name">Calendario Semanal de Nombramientos</field>
+        <field name="model">nombramientos.calendario.wizard</field>
+        <field name="report_type">qweb-html</field>
+        <field name="report_name">nombramientos_cr.report_calendario_semanal_template</field>
+        <field name="report_file">calendario_semanal_nombramientos</field>
+        <field name="binding_model_id" ref="model_nombramientos_calendario_wizard"/>
+        <field name="print_report_name">'Calendario_Semanal_%s' % (object.date_start)</field>
+    </record>
+
+    <!-- ── Wizard Form View ──────────────────────────────────────────────── -->
+    <record id="view_calendario_wizard_form" model="ir.ui.view">
+        <field name="name">nombramientos.calendario.wizard.form</field>
+        <field name="model">nombramientos.calendario.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Generar Calendario Semanal">
+                <sheet>
+                    <div class="oe_title">
+                        <h2>Calendario Semanal de Nombramientos</h2>
+                        <p style="color:#666; font-size:12px;">
+                            Muestra los empleados asignados a cada sucursal por día de la semana.
+                        </p>
+                    </div>
+                    <group>
+                        <group string="Semana a mostrar">
+                            <field name="date_start" string="Inicio de Semana (Lunes)"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Filtros opcionales">
+                            <field name="branch_ids" widget="many2many_tags"
+                                   placeholder="Todas las sucursales..."/>
+                        </group>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_print" type="object"
+                            string="Ver Calendario" class="btn-primary"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Action para abrir el wizard ──────────────────────────────────── -->
+    <record id="action_calendario_wizard" model="ir.actions.act_window">
+        <field name="name">Calendario Semanal</field>
+        <field name="res_model">nombramientos.calendario.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

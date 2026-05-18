@@ -647,4 +647,39 @@ class PayrollAccountingConfig(models.Model):
             },
         }
 
+    # ── Sincronización bidireccional con nombramientos.config ──────────────
+    def write(self, vals):
+        res = super().write(vals)
+        if ('default_payroll_calendar_id' in vals
+                and not self.env.context.get('skip_planilla_sync')):
+            self._sync_to_nombramientos_config()
+        return res
 
+    def _sync_to_nombramientos_config(self):
+        # SAFETY: nunca falla si nombramientos_cr no está instalado.
+        # planilla_cr funciona completamente solo — la sync es opcional.
+        try:
+            if 'nombramientos.config' not in self.env:
+                return
+        except Exception:
+            return
+        try:
+            for rec in self:
+                if not rec.default_payroll_calendar_id:
+                    continue
+                nom_config = self.env['nombramientos.config'].search([
+                    ('company_id', '=', rec.company_id.id),
+                ], limit=1)
+                if not nom_config:
+                    continue
+                cal = rec.default_payroll_calendar_id
+                freq_map = {
+                    'weekly': 'weekly', 'biweekly': 'biweekly', 'monthly': 'monthly',
+                }
+                update = {'payroll_calendar_id': cal.id}
+                if cal.frequency in freq_map:
+                    update['payment_frequency'] = freq_map[cal.frequency]
+                nom_config.with_context(skip_planilla_sync=True).write(update)
+        except Exception:
+            # No propagar errores de sync — planilla_cr no depende de nombramientos
+            pass

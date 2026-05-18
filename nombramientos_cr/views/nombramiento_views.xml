@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── FORM VIEW ──────────────────────────────────────────────────────── -->
+    <record id="view_nombramiento_form" model="ir.ui.view">
+        <field name="name">nombramientos.nombramiento.form</field>
+        <field name="model">nombramientos.nombramiento</field>
+        <field name="arch" type="xml">
+            <form string="Nombramiento">
+                <header>
+                    <button name="action_confirm" string="Confirmar" type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_confirm_week" string="✓ Confirmar toda la semana"
+                            type="object" class="btn-secondary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_generate_planilla_week"
+                            string="Generar Planilla Semanal" type="object"
+                            class="btn-primary"
+                            invisible="state not in ['confirmed','in_payroll']"/>
+                    <button name="action_reset_to_draft" string="↩ Volver a Borrador"
+                            type="object"
+                            invisible="state not in ['confirmed','in_payroll','cancelled']"
+                            confirm="¿Seguro? Esto cancelará la boleta generada si existe."/>
+                    <button name="action_cancel" string="Cancelar" type="object"
+                            invisible="state in ['cancelled','paid']"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed,in_payroll,paid"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Empleado y Sede">
+                            <field name="employee_id"/>
+                            <field name="branch_id"/>
+                            <field name="job_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Período y Tarifa">
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="hourly_rate" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <!-- Botón para generar turnos automáticamente -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_add_week_turnos" type="object"
+                                string="Generar Turnos Lun-Vie"
+                                class="oe_stat_button"
+                                icon="fa-calendar"
+                                invisible="state != 'draft'"/>
+                        <button name="action_open_generar_planilla"
+                                type="object"
+                                class="oe_stat_button" icon="fa-paper-plane"
+                                string="Enviar a Planilla"
+                                invisible="state != 'confirmed'"/>
+                    </div>
+
+                    <!-- Totales -->
+                    <group>
+                        <group string="Resumen">
+                            <field name="turno_count" string="Turnos"/>
+                            <field name="total_hours" string="Total Horas"/>
+                            <field name="total_amount" widget="monetary"/>
+                        </group>
+                        <group string="Planilla Generada"
+                               invisible="not payroll_run_id">
+                            <field name="payroll_run_id" readonly="1"/>
+                            <field name="payslip_id" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <!-- Turnos -->
+                    <notebook>
+                        <page string="Turnos / Días Trabajados" name="turnos">
+                            <field name="turno_ids"
+                                   readonly="state not in ['draft']">
+                                <list editable="bottom">
+                                    <field name="date"/>
+                                    <field name="day_name" optional="show"/>
+                                    <field name="effective_branch_id" optional="show"/>
+                                    <field name="branch_override_id" optional="hide"
+                                           string="Cambiar Sede"/>
+                                    <field name="hour_start" string="Entrada"
+                                           widget="float_time"/>
+                                    <field name="hour_end" string="Salida"
+                                           widget="float_time"/>
+                                    <field name="hours" string="Horas"
+                                           widget="float_time"/>
+                                    <field name="state" string="Asistencia"/>
+                                    <field name="amount" string="Monto (₡)"
+                                           widget="monetary"/>
+                                    <field name="notes" optional="hide"/>
+                                    <field name="currency_id" invisible="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Observaciones" name="notes">
+                            <field name="notes" placeholder="Notas internas..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── LIST VIEW ─────────────────────────────────────────────────────── -->
+    <record id="view_nombramiento_list" model="ir.ui.view">
+        <field name="name">nombramientos.nombramiento.list</field>
+        <field name="model">nombramientos.nombramiento</field>
+        <field name="arch" type="xml">
+            <list string="Nombramientos" decoration-muted="state == 'cancelled'"
+                  decoration-success="state in ['in_payroll','paid']"
+                  decoration-info="state == 'confirmed'"
+                  multi_edit="1">
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="branch_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="total_hours" string="Horas" widget="float_time"/>
+                <field name="total_amount" string="Monto (₡)" widget="monetary"/>
+                <field name="state" widget="badge"
+                       decoration-success="state in ['in_payroll','paid']"
+                       decoration-info="state == 'confirmed'"
+                       decoration-muted="state == 'cancelled'"/>
+                <field name="currency_id" invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── SEARCH VIEW ───────────────────────────────────────────────────── -->
+    <record id="view_nombramiento_search" model="ir.ui.view">
+        <field name="name">nombramientos.nombramiento.search</field>
+        <field name="model">nombramientos.nombramiento</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Nombramientos">
+                <field name="employee_id"/>
+                <field name="branch_id"/>
+                <field name="name"/>
+                <separator/>
+                <filter string="Borradores"   name="draft"      domain="[('state','=','draft')]"/>
+                <filter string="Confirmados"  name="confirmed"  domain="[('state','=','confirmed')]"/>
+                <filter string="En Planilla"  name="in_payroll" domain="[('state','=','in_payroll')]"/>
+                <filter string="Pagados"      name="paid"       domain="[('state','=','paid')]"/>
+                <separator/>
+                <filter string="Esta semana"  name="this_week"
+                        domain="[('date_start','&gt;=',(context_today() + relativedelta(weekday=0, weeks=-0)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Semana pasada" name="last_week"
+                        domain="[('date_start','&gt;=',(context_today() + relativedelta(weekday=0, weeks=-1)).strftime('%Y-%m-%d')),
+                                 ('date_start','&lt;=',(context_today() + relativedelta(weekday=6, weeks=-1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="▾ Por Empleado" name="by_emp"    context="{'group_by':'employee_id'}"/>
+                <filter string="▾ Por Sucursal" name="by_branch" context="{'group_by':'branch_id'}"/>
+                <filter string="▾ Por Semana"   name="by_week"   context="{'group_by':'date_start:week'}"/>
+                <filter string="▾ Por Estado"   name="by_state"  context="{'group_by':'state'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ── SERVER ACTIONS (acciones masivas en lista) ──────────────────── -->
+    <record id="action_confirm_batch" model="ir.actions.server">
+        <field name="name">Confirmar seleccionados</field>
+        <field name="model_id" ref="model_nombramientos_nombramiento"/>
+        <field name="binding_model_id" ref="model_nombramientos_nombramiento"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+for rec in records:
+    if rec.state == 'draft' and rec.turno_ids and rec.total_hours > 0:
+        rec.write({'state': 'confirmed'})
+        </field>
+    </record>
+
+    <record id="action_reset_draft_batch" model="ir.actions.server">
+        <field name="name">Volver a borrador</field>
+        <field name="model_id" ref="model_nombramientos_nombramiento"/>
+        <field name="binding_model_id" ref="model_nombramientos_nombramiento"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+for rec in records:
+    if rec.state in ('confirmed', 'in_payroll', 'cancelled'):
+        rec.action_reset_to_draft()
+        </field>
+    </record>
+
+    <!-- ── ACTION ────────────────────────────────────────────────────────── -->
+    <record id="action_nombramiento" model="ir.actions.act_window">
+        <field name="name">Nombramientos</field>
+        <field name="res_model">nombramientos.nombramiento</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_nombramiento_search"/>
+        <field name="context">{"search_default_by_week": 1}</field>
+    </record>
+
+</odoo>

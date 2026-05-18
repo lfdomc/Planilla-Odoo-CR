@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <!-- ── Shift Template List ───────────────────────────────────────────── -->
+  <record id="view_shift_template_list" model="ir.ui.view">
+    <field name="name">nombramientos.shift.template.list</field>
+    <field name="model">nombramientos.shift.template</field>
+    <field name="arch" type="xml">
+      <list string="Plantillas de Turno" editable="top">
+        <field name="sequence" widget="handle"/>
+        <field name="name"/>
+        <field name="hour_start" widget="float_time" string="Entrada"/>
+        <field name="hour_end"   widget="float_time" string="Salida"/>
+        <field name="shift_type" string="Jornada"/>
+        <field name="apply_monday"    string="L" optional="show"/>
+        <field name="apply_tuesday"   string="K" optional="show"/>
+        <field name="apply_wednesday" string="M" optional="show"/>
+        <field name="apply_thursday"  string="J" optional="show"/>
+        <field name="apply_friday"    string="V" optional="show"/>
+        <field name="apply_saturday"  string="S" optional="show"/>
+        <field name="apply_sunday"    string="D" optional="show"/>
+        <field name="active"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="view_shift_template_form" model="ir.ui.view">
+    <field name="name">nombramientos.shift.template.form</field>
+    <field name="model">nombramientos.shift.template</field>
+    <field name="arch" type="xml">
+      <form string="Plantilla de Turno">
+        <sheet>
+          <group>
+            <group string="Identificación">
+              <field name="name"/>
+              <field name="shift_type"/>
+              <field name="company_id" groups="base.group_multi_company"/>
+            </group>
+            <group string="Horario">
+              <field name="hour_start" widget="float_time" string="Hora de Entrada"/>
+              <field name="hour_end"   widget="float_time" string="Hora de Salida"/>
+            </group>
+          </group>
+          <group string="Días que aplica por defecto">
+            <group>
+              <field name="apply_monday"    string="Lunes"/>
+              <field name="apply_tuesday"   string="Martes"/>
+              <field name="apply_wednesday" string="Miércoles"/>
+              <field name="apply_thursday"  string="Jueves"/>
+            </group>
+            <group>
+              <field name="apply_friday"    string="Viernes"/>
+              <field name="apply_saturday"  string="Sábado"/>
+              <field name="apply_sunday"    string="Domingo"/>
+              <field name="active"          string="Activo"/>
+            </group>
+          </group>
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_shift_template" model="ir.actions.act_window">
+    <field name="name">Plantillas de Turno</field>
+    <field name="res_model">nombramientos.shift.template</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+  <!-- ── Config Form ───────────────────────────────────────────────────── -->
+  <record id="view_nombramientos_config_form" model="ir.ui.view">
+    <field name="name">nombramientos.config.form</field>
+    <field name="model">nombramientos.config</field>
+    <field name="arch" type="xml">
+      <form string="Configuración de Nombramientos">
+        <sheet>
+          <div class="oe_title">
+            <h1>Configuración de Nombramientos</h1>
+          </div>
+
+          <!-- PAGO -->
+          <group string="Modo de Pago y Frecuencia">
+            <group>
+              <field name="payment_mode" widget="radio"/>
+              <field name="payment_frequency"/>
+              <field name="payroll_calendar_id"/>
+              <field name="company_id" groups="base.group_multi_company"/>
+            </group>
+          </group>
+
+          <!-- JORNADA -->
+          <group string="Jornada y Horario">
+            <group>
+              <field name="default_shift_type" widget="radio"/>
+            </group>
+            <group>
+              <field name="default_shift_template_id"/>
+            </group>
+          </group>
+
+          <!-- HORAS EXTRAS -->
+          <group string="Reglas de Horas Extras (Código de Trabajo CR)">
+            <group>
+              <field name="auto_overtime"/>
+              <field name="pay_double_rest_day"/>
+              <field name="pay_double_holiday"/>
+            </group>
+            <group>
+              <field name="apply_lunch_break"/>
+              <field name="lunch_break_minutes"
+                     invisible="not apply_lunch_break"/>
+            </group>
+          </group>
+
+          <!-- VIÁTICOS -->
+          <group string="Viáticos por Cambio de Sede">
+            <group>
+              <field name="viatico_enabled"/>
+              <field name="viatico_amount"
+                     invisible="not viatico_enabled"/>
+              <field name="currency_id" invisible="1"/>
+            </group>
+          </group>
+
+          <!-- NOTIFICACIONES -->
+          <group string="Notificaciones">
+            <group>
+              <field name="notify_employee"/>
+              <field name="notify_manager"/>
+            </group>
+            <group>
+              <field name="manager_id"
+                     invisible="not notify_manager"/>
+            </group>
+          </group>
+
+          <!-- PLANTILLAS -->
+          <separator string="Plantillas de Turno"/>
+          <field name="default_shift_template_id"
+                 invisible="1"/>
+          <div>
+            <button name="%(action_shift_template)d"
+                    type="action" string="Gestionar Plantillas de Turno →"
+                    class="btn-secondary"/>
+          </div>
+
+        </sheet>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_nombramientos_config" model="ir.actions.act_window">
+    <field name="name">Configuración</field>
+    <field name="res_model">nombramientos.config</field>
+    <field name="view_mode">form</field>
+    <field name="target">current</field>
+    <field name="context">{'no_create': False}</field>
+  </record>
+
+</odoo>

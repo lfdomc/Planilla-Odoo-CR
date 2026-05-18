@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+  <record id="shift_apertura" model="nombramientos.shift.template">
+    <field name="name">Apertura</field>
+    <field name="hour_start">6.0</field>
+    <field name="hour_end">14.0</field>
+    <field name="shift_type">day</field>
+    <field name="sequence">10</field>
+  </record>
+  <record id="shift_partido" model="nombramientos.shift.template">
+    <field name="name">Partido (8am–5pm)</field>
+    <field name="hour_start">8.0</field>
+    <field name="hour_end">17.0</field>
+    <field name="shift_type">day</field>
+    <field name="sequence">20</field>
+  </record>
+  <record id="shift_cierre" model="nombramientos.shift.template">
+    <field name="name">Cierre</field>
+    <field name="hour_start">14.0</field>
+    <field name="hour_end">22.0</field>
+    <field name="shift_type">mixed</field>
+    <field name="sequence">30</field>
+    <field name="apply_monday">True</field>
+    <field name="apply_tuesday">True</field>
+    <field name="apply_wednesday">True</field>
+    <field name="apply_thursday">True</field>
+    <field name="apply_friday">True</field>
+    <field name="apply_saturday">True</field>
+    <field name="apply_sunday">True</field>
+  </record>
+  <record id="shift_nocturno" model="nombramientos.shift.template">
+    <field name="name">Nocturno</field>
+    <field name="hour_start">22.0</field>
+    <field name="hour_end">28.0</field>
+    <field name="shift_type">night</field>
+    <field name="sequence">40</field>
+    <field name="apply_saturday">True</field>
+    <field name="apply_sunday">True</field>
+  </record>
+  <record id="shift_medio" model="nombramientos.shift.template">
+    <field name="name">Medio turno (8am–12pm)</field>
+    <field name="hour_start">8.0</field>
+    <field name="hour_end">12.0</field>
+    <field name="shift_type">day</field>
+    <field name="sequence">50</field>
+  </record>
+  <record id="shift_tarde" model="nombramientos.shift.template">
+    <field name="name">Tarde (1pm–9pm)</field>
+    <field name="hour_start">13.0</field>
+    <field name="hour_end">21.0</field>
+    <field name="shift_type">mixed</field>
+    <field name="sequence">60</field>
+  </record>
+</odoo>

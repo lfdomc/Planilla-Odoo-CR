@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_turno_list" model="ir.ui.view">
+        <field name="name">nombramientos.turno.list</field>
+        <field name="model">nombramientos.turno</field>
+        <field name="arch" type="xml">
+            <list string="Turnos" decoration-muted="state == 'absent'">
+                <field name="nombramiento_id"/>
+                <field name="employee_id"/>
+                <field name="date"/>
+                <field name="day_name"/>
+                <field name="effective_branch_id" string="Sede"/>
+                <field name="hour_start" string="Entrada" widget="float_time"/>
+                <field name="hour_end" string="Salida" widget="float_time"/>
+                <field name="hours" string="Horas" widget="float_time"/>
+                <field name="amount" string="Monto" widget="monetary"/>
+                <field name="state" widget="badge"
+                       decoration-muted="state == 'absent'"
+                       decoration-success="state == 'present'"/>
+                <field name="currency_id" invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_turno_search" model="ir.ui.view">
+        <field name="name">nombramientos.turno.search</field>
+        <field name="model">nombramientos.turno</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Turnos">
+                <field name="nombramiento_id"/>
+                <field name="employee_id"/>
+                <field name="date"/>
+                <separator/>
+                <filter string="Presentes"  name="present" domain="[('state','=','present')]"/>
+                <filter string="Ausentes"   name="absent"  domain="[('state','=','absent')]"/>
+                <filter string="Parciales"  name="partial" domain="[('state','=','partial')]"/>
+                <separator/>
+                <filter string="▾ Por Empleado" name="by_emp"    context="{'group_by':'nombramiento_id'}"/>
+                <filter string="▾ Por Sede"     name="by_branch" context="{'group_by':'effective_branch_id'}"/>
+                <filter string="▾ Por Fecha"    name="by_date"   context="{'group_by':'date'}"/>
+                <filter string="▾ Por Mes"      name="by_month"  context="{'group_by':'date:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_turno" model="ir.actions.act_window">
+        <field name="name">Turnos</field>
+        <field name="res_model">nombramientos.turno</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_turno_search"/>
+        <field name="context">{"search_default_by_month": 1}</field>
+    </record>
+
+</odoo>

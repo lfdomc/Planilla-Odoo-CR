@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="assets_backend" inherit_id="web.assets_backend">
+        <xpath expr="." position="inside">
+            <script type="module" src="/nombramientos_cr/static/src/js/calendario_action.js"/>
+            <t t-call-assets="nombramientos_cr.assets_templates" lazy_load="true"/>
+        </xpath>
+    </template>
+    <template id="assets_templates" name="nombramientos_cr templates">
+        <t t-raw="0"/>
+    </template>
+</odoo>

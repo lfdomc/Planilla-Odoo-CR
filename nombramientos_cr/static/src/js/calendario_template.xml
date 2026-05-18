@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates>
+  <t t-name="nombramientos_cr.Calendario">
+    <div style="padding:16px 16px 0 16px;font-family:var(--font-sans);display:flex;flex-direction:column;height:calc(100vh - 110px);overflow:hidden">
+
+      <!-- ── Toolbar ─────────────────────────────────────────────────────── -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+
+        <!-- Navigation -->
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn btn-secondary btn-sm" t-on-click="prev">&#8249;</button>
+          <span style="min-width:200px;text-align:center;font-weight:500;font-size:14px">
+            <t t-esc="rangeLabel"/>
+          </span>
+          <button class="btn btn-secondary btn-sm" t-on-click="next">&#8250;</button>
+        </div>
+
+        <!-- View mode buttons -->
+        <div style="display:flex;gap:3px;background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary);border-radius:6px;padding:3px">
+          <button t-att-class="'btn btn-sm' + (state.viewMode==='week' ? ' btn-primary' : ' btn-light')"
+                  t-on-click="()=>this.setView('week')" style="font-size:12px;padding:2px 10px">
+            Semana
+          </button>
+          <button t-att-class="'btn btn-sm' + (state.viewMode==='biweek' ? ' btn-primary' : ' btn-light')"
+                  t-on-click="()=>this.setView('biweek')" style="font-size:12px;padding:2px 10px">
+            Quincena
+          </button>
+          <button t-att-class="'btn btn-sm' + (state.viewMode==='month' ? ' btn-primary' : ' btn-light')"
+                  t-on-click="()=>this.setView('month')" style="font-size:12px;padding:2px 10px">
+            Mes
+          </button>
+        </div>
+
+        <!-- Sede filter -->
+        <select class="o_input" t-model="state.sedeFilter" style="font-size:13px;padding:4px 8px">
+          <option value="all">Todas las sedes</option>
+          <t t-foreach="state.data.branches" t-as="b" t-key="b.id">
+            <option t-att-value="b.id"><t t-esc="b.name"/></option>
+          </t>
+        </select>
+
+      </div>
+
+      <!-- ── Summary cards ──────────────────────────────────────────────────── -->
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+
+        <!-- Total general -->
+        <div style="background:#f8f9fa;border:1px solid #e0e0e0;border-radius:8px;padding:10px 14px;min-width:130px">
+          <div style="font-size:10px;font-weight:500;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Total período</div>
+          <div style="font-size:18px;font-weight:500;color:#333"><t t-esc="summary.horas"/>h</div>
+          <div style="font-size:11px;color:#666;margin-top:2px">
+            <t t-esc="summary.turnos"/> turnos · <t t-esc="summary.empleados"/> empleados
+          </div>
+          <div style="font-size:12px;font-weight:500;color:#1d6ef5;margin-top:2px">₡<t t-esc="summary.costo"/></div>
+        </div>
+
+        <!-- Por empleado -->
+        <t t-if="summary.byEmp.length">
+          <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;flex:1;min-width:200px">
+            <div style="font-size:10px;font-weight:500;color:#3b82f6;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Por empleado</div>
+            <t t-foreach="summary.byEmp" t-as="emp" t-key="emp.id">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+                <div t-att-style="'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'+empColor(emp.id)"/>
+                <div style="flex:1;font-size:12px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                  <t t-esc="emp.name"/>
+                </div>
+                <div style="font-size:12px;font-weight:500;color:#555;white-space:nowrap">
+                  <t t-esc="emp.hours.toFixed(1)"/>h
+                </div>
+                <div style="font-size:11px;color:#888;white-space:nowrap">
+                  ₡<t t-esc="Math.round(emp.costo).toLocaleString('es-CR')"/>
+                </div>
+              </div>
+            </t>
+          </div>
+        </t>
+
+        <!-- Por sede -->
+        <t t-if="summary.bySede.length">
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;flex:1;min-width:180px">
+            <div style="font-size:10px;font-weight:500;color:#16a34a;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Por sede</div>
+            <t t-foreach="summary.bySede" t-as="sede" t-key="sede.name">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px">
+                <div style="width:8px;height:8px;border-radius:2px;flex-shrink:0;background:#16a34a;opacity:.6"/>
+                <div style="flex:1;font-size:12px;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                  <t t-esc="sede.name"/>
+                </div>
+                <div style="font-size:12px;font-weight:500;color:#555;white-space:nowrap">
+                  <t t-esc="sede.hours.toFixed(1)"/>h
+                </div>
+                <div style="font-size:11px;color:#888;white-space:nowrap">
+                  <t t-esc="sede.turnos"/> turnos
+                </div>
+              </div>
+            </t>
+          </div>
+        </t>
+
+      </div>
+
+      <!-- Loading -->
+      <div t-if="state.loading" style="flex:1;display:flex;align-items:center;justify-content:center;color:#888;font-size:14px">
+        Cargando...
+      </div>
+
+      <!-- ── WEEK view ──────────────────────────────────────────────────────── -->
+      <div t-elif="state.viewMode === 'week'" style="flex:1;overflow:auto;padding-bottom:16px">
+        <table style="width:100%;border-collapse:collapse;min-width:700px">
+          <thead>
+            <tr style="background:#f5f5f5">
+              <th style="width:90px;padding:8px;border:1px solid #e0e0e0;font-size:12px;font-weight:500;text-align:center">Sede</th>
+              <t t-foreach="dates" t-as="d" t-key="d.getTime()">
+                <th t-att-style="'padding:8px;border:1px solid #e0e0e0;font-size:11px;font-weight:500;text-align:center;'+(isToday(d)?'background:#dbeafe;':'')">
+                  <div style="color:#888"><t t-esc="dayLabel(d)"/></div>
+                  <div t-att-style="'font-size:15px;font-weight:500;'+(isToday(d)?'color:#1d6ef5;':'')"><t t-esc="d.getDate()"/></div>
+                  <div style="font-size:10px;color:#aaa"><t t-esc="fmtDate(d)"/></div>
+                </th>
+              </t>
+            </tr>
+          </thead>
+          <tbody>
+            <t t-foreach="sedes" t-as="sede" t-key="sede.id">
+              <tr>
+                <td style="padding:6px;font-size:12px;font-weight:500;border:1px solid #e0e0e0;background:#fafafa;text-align:center;vertical-align:top;color:#555">
+                  <t t-esc="sede.name"/>
+                </td>
+                <t t-foreach="dates" t-as="d" t-key="d.getTime()">
+                  <td t-att-style="'padding:4px;min-height:70px;vertical-align:top;border:1px solid #e0e0e0;cursor:pointer;'+(isToday(d)?'background:#f0f7ff;':'')"
+                      t-on-click="()=>this.openNew(d,sede.name)">
+                    <t t-foreach="turnosBySede(sede.name,d)" t-as="t" t-key="t.id">
+                      <div t-att-style="'border-radius:4px;padding:3px 5px;margin-bottom:3px;cursor:pointer;border-left:3px solid '+empColor(t.emp_id)+';background:'+empColor(t.emp_id)+'18;'"
+                           t-on-click.stop="()=>this.openEdit(t)">
+                        <div t-att-style="'font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:'+empColor(t.emp_id)"><t t-esc="t.emp_name"/></div>
+                        <div style="font-size:10px;color:#666"><t t-esc="floatToTime(t.hour_start)"/>–<t t-esc="floatToTime(t.hour_end)"/></div>
+                      </div>
+                    </t>
+                    <div style="text-align:center;color:#ddd;font-size:18px;line-height:1.8;border:1px dashed #eee;border-radius:4px;margin:2px">+</div>
+                  </td>
+                </t>
+              </tr>
+            </t>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ── BIWEEK view — dos semanas apiladas ───────────────────────────── -->
+      <div t-elif="state.viewMode === 'biweek'" style="flex:1;overflow:auto;padding-bottom:16px">
+        <t t-foreach="biweekRows" t-as="week" t-key="week_index">
+          <div t-att-style="'margin-bottom:' + (week_index===0?'12px':'0')">
+            <!-- Week label -->
+            <div style="font-size:11px;font-weight:500;color:#888;margin-bottom:4px;padding-left:2px">
+              Semana del <t t-esc="fmtDate(week[0])"/> al <t t-esc="fmtDate(week[6])"/>
+            </div>
+            <table style="width:100%;border-collapse:collapse;min-width:700px">
+              <thead>
+                <tr style="background:#f5f5f5">
+                  <th style="width:90px;padding:6px;border:1px solid #e0e0e0;font-size:11px;font-weight:500;text-align:center">Sede</th>
+                  <t t-foreach="week" t-as="d" t-key="d_index">
+                    <th t-att-style="'padding:6px;border:1px solid #e0e0e0;font-size:11px;font-weight:500;text-align:center;'+(isToday(d)?'background:#dbeafe;':'')">
+                      <div style="color:#888"><t t-esc="dayLabel(d)"/></div>
+                      <div t-att-style="'font-size:14px;font-weight:500;'+(isToday(d)?'color:#1d6ef5;':'')"><t t-esc="d.getDate()"/></div>
+                    </th>
+                  </t>
+                </tr>
+              </thead>
+              <tbody>
+                <t t-foreach="sedes" t-as="sede" t-key="sede.id">
+                  <tr>
+                    <td style="padding:5px;font-size:11px;font-weight:500;border:1px solid #e0e0e0;background:#fafafa;text-align:center;vertical-align:top;color:#555">
+                      <t t-esc="sede.name"/>
+                    </td>
+                    <t t-foreach="week" t-as="d" t-key="d_index">
+                      <td t-att-style="'padding:3px;min-height:60px;vertical-align:top;border:1px solid #e0e0e0;cursor:pointer;'+(isToday(d)?'background:#f0f7ff;':'')"
+                          t-on-click="()=>this.openNew(d,sede.name)">
+                        <t t-foreach="turnosBySede(sede.name,d)" t-as="t" t-key="t.id">
+                          <div t-att-style="'border-radius:3px;padding:2px 4px;margin-bottom:2px;cursor:pointer;border-left:3px solid '+empColor(t.emp_id)+';background:'+empColor(t.emp_id)+'18;'"
+                               t-on-click.stop="()=>this.openEdit(t)">
+                            <t t-if="t.turno_name"><div style="font-size:9px;color:#888;font-weight:500;text-transform:uppercase"><t t-esc="t.turno_name"/></div></t>
+                            <div t-att-style="'font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:'+empColor(t.emp_id)"><t t-esc="t.emp_name"/></div>
+                            <div style="font-size:10px;color:#666"><t t-esc="floatToTime(t.hour_start)"/>–<t t-esc="floatToTime(t.hour_end)"/></div>
+                          </div>
+                        </t>
+                        <div style="text-align:center;color:#ddd;font-size:16px;line-height:1.8;border:1px dashed #eee;border-radius:4px;margin:1px">+</div>
+                      </td>
+                    </t>
+                  </tr>
+                </t>
+              </tbody>
+            </table>
+          </div>
+        </t>
+      </div>
+
+      <!-- ── MONTH view ───────────────────────────────────────────────────── -->
+      <div t-else="" style="flex:1;overflow:auto;padding-bottom:16px">
+        <t t-foreach="sedes" t-as="sede" t-key="sede.id">
+          <div style="margin-bottom:20px">
+            <div style="font-size:12px;font-weight:500;color:#555;padding:6px 0;border-bottom:1px solid #e0e0e0;margin-bottom:6px">
+              📍 <t t-esc="sede.name"/>
+            </div>
+            <table style="width:100%;border-collapse:collapse">
+              <thead>
+                <tr style="background:#f5f5f5">
+                  <t t-foreach="['Lun','Mar','Mié','Jue','Vie','Sáb','Dom']" t-as="dayName" t-key="dayName">
+                    <th style="padding:6px;border:1px solid #e0e0e0;font-size:11px;font-weight:500;text-align:center;color:#666;width:14.28%">
+                      <t t-esc="dayName"/>
+                    </th>
+                  </t>
+                </tr>
+              </thead>
+              <tbody>
+                <t t-foreach="weekRows" t-as="week" t-key="week_index">
+                  <tr>
+                    <t t-foreach="week" t-as="d" t-key="d_index">
+                      <!-- Null cell = padding day outside this month -->
+                      <td t-if="!d" style="border:1px solid #e0e0e0;background:#fafafa;min-height:60px"/>
+                      <td t-else=""
+                          t-att-style="'padding:4px;min-height:60px;vertical-align:top;border:1px solid #e0e0e0;cursor:pointer;'+(isToday(d)?'background:#f0f7ff;':'')"
+                          t-on-click="()=>this.openNew(d,sede.name)">
+                        <div t-att-style="'font-size:11px;font-weight:500;margin-bottom:3px;'+(isToday(d)?'color:#1d6ef5;':'color:#666;')">
+                          <t t-esc="d.getDate()"/>
+                        </div>
+                        <t t-foreach="turnosBySede(sede.name,d)" t-as="t" t-key="t.id">
+                          <div t-att-style="'border-radius:3px;padding:2px 4px;margin-bottom:2px;cursor:pointer;background:'+empColor(t.emp_id)+'22;border-left:2px solid '+empColor(t.emp_id)+';'"
+                               t-on-click.stop="()=>this.openEdit(t)">
+                            <div t-att-style="'font-size:10px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:'+empColor(t.emp_id)"><t t-esc="t.emp_name"/></div>
+                            <div style="font-size:9px;color:#888"><t t-esc="floatToTime(t.hour_start)"/>–<t t-esc="floatToTime(t.hour_end)"/></div>
+                          </div>
+                        </t>
+                      </td>
+                    </t>
+                  </tr>
+                </t>
+              </tbody>
+            </table>
+          </div>
+        </t>
+      </div>
+
+      <!-- ── Modal ─────────────────────────────────────────────────────────── -->
+      <div t-if="state.modal"
+           style="position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:9999"
+           t-on-click="closeModal">
+        <div style="background:white;border-radius:8px;padding:24px;width:380px;max-width:95vw;max-height:90vh;overflow-y:auto"
+             t-on-click.stop="">
+          <h5 style="margin:0 0 14px;font-size:15px;font-weight:500">
+            <t t-if="state.modal==='new'">Nuevo turno</t>
+            <t t-else="">Editar turno</t>
+          </h5>
+
+          <!-- Multi-day (solo en nuevo) -->
+          <t t-if="state.modal==='new'">
+            <div style="background:#f0f7ff;border-radius:6px;padding:8px 12px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+              <input type="checkbox" id="multi_day_cb"
+                     t-att-checked="form.multi_day"
+                     t-on-change="onMultiDayChange"/>
+              <label for="multi_day_cb" style="font-size:12px;color:#444;cursor:pointer;margin:0">
+                Asignar a varios días de la semana
+              </label>
+            </div>
+          </t>
+
+          <!-- Día selector multi -->
+          <t t-if="form.multi_day and state.modal==='new'">
+            <div style="margin-bottom:12px">
+              <label style="display:block;font-size:12px;color:#666;margin-bottom:5px">Días</label>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <t t-foreach="[['lun','Lun'],['mar','Mar'],['mie','Mié'],['jue','Jue'],['vie','Vie'],['sab','Sáb'],['dom','Dom']]" t-as="day" t-key="day[0]">
+                  <label t-att-style="'display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:12px;border:1px solid;' + (form.selected_days.includes(day[0]) ? 'background:#1d6ef5;color:white;border-color:#1d6ef5;' : 'background:white;color:#444;border-color:#ddd;')">
+                    <input type="checkbox" t-att-value="day[0]"
+                           t-att-checked="form.selected_days.includes(day[0])"
+                           t-on-change="(ev) => this.onDayCheck(ev, day[0])"
+                           style="display:none"/>
+                    <t t-esc="day[1]"/>
+                  </label>
+                </t>
+              </div>
+            </div>
+          </t>
+
+          <!-- Empleado -->
+          <div style="margin-bottom:10px">
+            <label style="display:block;font-size:12px;color:#666;margin-bottom:3px">Empleado</label>
+            <select class="o_input" t-att-value="form.emp_id" t-on-change="onEmpChange" style="width:100%">
+              <t t-foreach="state.data.employees" t-as="e" t-key="e.id">
+                <option t-att-value="e.id" t-att-selected="e.id == form.emp_id"><t t-esc="e.name"/></option>
+              </t>
+            </select>
+          </div>
+
+          <!-- Sede -->
+          <div style="margin-bottom:10px">
+            <label style="display:block;font-size:12px;color:#666;margin-bottom:3px">Sede</label>
+            <select class="o_input" t-model="form.branch_id" style="width:100%">
+              <t t-foreach="state.data.branches" t-as="b" t-key="b.id">
+                <option t-att-value="b.id"><t t-esc="b.name"/></option>
+              </t>
+            </select>
+          </div>
+
+          <!-- Turno de la sede o manual -->
+          <div style="margin-bottom:10px">
+            <label style="display:block;font-size:12px;color:#666;margin-bottom:3px">Turno</label>
+            <t t-if="sedeTurnos.length">
+              <!-- Sede con turnos configurados: mostrar solo esos -->
+              <select class="o_input" t-on-change="onSedeTurnoChange" style="width:100%">
+                <option value="">— Horario manual —</option>
+                <t t-foreach="sedeTurnos" t-as="turno" t-key="turno.id">
+                  <option t-att-value="turno.id"><t t-esc="turno.name"/></option>
+                </t>
+              </select>
+            </t>
+            <t t-else="">
+              <!-- Sede sin turnos: indicar que es manual -->
+              <div style="font-size:11px;color:#999;padding:3px 0">
+                Ingresá la hora de entrada y salida manualmente.
+              </div>
+            </t>
+          </div>
+
+          <!-- Horario -->
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <div style="flex:1">
+              <label style="display:block;font-size:12px;color:#666;margin-bottom:3px">Entrada</label>
+              <input type="time" class="o_input" t-model="form.hour_start" style="width:100%"/>
+            </div>
+            <div style="flex:1">
+              <label style="display:block;font-size:12px;color:#666;margin-bottom:3px">Salida</label>
+              <input type="time" class="o_input" t-model="form.hour_end" style="width:100%"/>
+            </div>
+          </div>
+
+          <!-- Tarifa -->
+          <div style="margin-bottom:10px">
+            <label style="display:block;font-size:12px;color:#666;margin-bottom:3px">Tarifa/hora (₡)</label>
+            <input type="number" class="o_input" t-model="form.rate" placeholder="0" style="width:100%"/>
+          </div>
+
+          <!-- Asistencia -->
+          <div style="margin-bottom:10px">
+            <label style="display:block;font-size:12px;color:#666;margin-bottom:3px">Asistencia</label>
+            <select class="o_input" t-model="form.state" style="width:100%">
+              <option value="present">Presente</option>
+              <option value="absent">Ausente</option>
+              <option value="partial">Parcial</option>
+              <option value="holiday">Feriado</option>
+            </select>
+          </div>
+
+          <!-- Nota -->
+          <div style="margin-bottom:16px">
+            <label style="display:block;font-size:12px;color:#666;margin-bottom:3px">Nota</label>
+            <input type="text" class="o_input" t-model="form.notes" placeholder="..." style="width:100%"/>
+          </div>
+
+          <!-- Error de validación dentro del modal -->
+          <t t-if="form.errorMsg">
+            <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#991b1b;line-height:1.5;word-break:break-word">
+              <b>⚠ No se pudo guardar:</b><br/>
+              <t t-esc="form.errorMsg"/>
+            </div>
+          </t>
+
+          <!-- Botones -->
+          <div style="display:flex;gap:8px;justify-content:flex-end">
+            <t t-if="state.modal==='edit'">
+              <button class="btn btn-danger btn-sm" t-on-click="deleteModal">Eliminar</button>
+            </t>
+            <button class="btn btn-secondary btn-sm" t-on-click="closeModal">Cancelar</button>
+            <button class="btn btn-primary btn-sm" t-on-click="saveModal"
+                    t-att-disabled="state.saving">
+              <t t-if="state.saving">Guardando...</t>
+              <t t-else="">Guardar</t>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </t>
+</templates>

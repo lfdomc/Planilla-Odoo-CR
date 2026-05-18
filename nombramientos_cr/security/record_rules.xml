@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Q1: Reglas de acceso multi-compañía -->
+    <record id="rule_nombramiento_company" model="ir.rule">
+        <field name="name">Nombramientos: solo empresa propia</field>
+        <field name="model_id" ref="model_nombramientos_nombramiento"/>
+        <field name="domain_force">[('company_id','in',company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_turno_company" model="ir.rule">
+        <field name="name">Turnos: solo empresa propia</field>
+        <field name="model_id" ref="model_nombramientos_turno"/>
+        <field name="domain_force">
+            [('nombramiento_id.company_id','in',company_ids)]
+        </field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="rule_config_company" model="ir.rule">
+        <field name="name">Config Nombramientos: solo empresa propia</field>
+        <field name="model_id" ref="model_nombramientos_config"/>
+        <field name="domain_force">[('company_id','in',company_ids)]</field>
+        <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+</odoo>

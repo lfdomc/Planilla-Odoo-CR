@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_generar_planilla_wizard_form" model="ir.ui.view">
+        <field name="name">nombramientos.generar.planilla.wizard.form</field>
+        <field name="model">nombramientos.generar.planilla.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Generar Planilla desde Nombramientos">
+                <sheet>
+                    <div class="oe_title">
+                        <h2>Generar Planilla Semanal</h2>
+                        <p style="color:#666;font-size:13px;">
+                            Crea una boleta por empleado donde el salario = horas trabajadas × tarifa.
+                            CCSS y Renta se calculan normalmente sobre ese monto.
+                        </p>
+                    </div>
+                    <group>
+                        <group string="Período de la Semana">
+                            <field name="date_start" string="Desde"/>
+                            <field name="date_end" string="Hasta"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Planilla de Destino">
+                            <field name="payroll_run_id"
+                                   string="Agregar a planilla existente"
+                                   placeholder="Dejar vacío para crear nueva..."/>
+                            <field name="auto_confirm"/>
+                        </group>
+                    </group>
+                    <separator string="Nombramientos Confirmados"/>
+                    <field name="nombramiento_ids" widget="many2many_list"
+                           domain="[('state','in',['draft','confirmed'])]">
+                        <list>
+                            <field name="display_name_full" string="Nombramiento"/>
+                            <field name="employee_id" string="Empleado"/>
+                            <field name="branch_id" string="Sede"/>
+                            <field name="total_hours" string="Horas"/>
+                            <field name="total_amount" string="Monto (₡)" widget="monetary"/>
+                            <field name="state" string="Estado" widget="badge"/>
+                            <field name="currency_id" invisible="1"/>
+                        </list>
+                    </field>
+                </sheet>
+                <footer>
+                    <button name="action_generate" type="object"
+                            string="Generar Planilla" class="btn-primary"/>
+                    <button string="Cancelar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_generar_planilla_wizard" model="ir.actions.act_window">
+        <field name="name">Generar Planilla</field>
+        <field name="res_model">nombramientos.generar.planilla.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

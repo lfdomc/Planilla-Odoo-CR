@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Acción que abre el calendario HTML inline ────────────────────────── -->
+    <record id="action_calendario_html" model="ir.actions.client">
+        <field name="name">Calendario Semanal</field>
+        <field name="tag">nombramientos_calendario</field>
+        <field name="context">{"no_breadcrumbs": false}</field>
+    </record>
+
+    <!-- ── Vista lista fallback para el modelo de calendario ────────────────── -->
+    <record id="view_calendario_list" model="ir.ui.view">
+        <field name="name">nombramientos.calendario.list</field>
+        <field name="model">nombramientos.calendario</field>
+        <field name="arch" type="xml">
+            <list string="Calendario">
+                <field name="display_name"/>
+            </list>
+        </field>
+    </record>
+
+</odoo>

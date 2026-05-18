@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <!-- Extend planilla.branch form to show plantillas de turno como M2M -->
+  <record id="view_branch_nom_turnos" model="ir.ui.view">
+    <field name="name">planilla.branch.form.nom.turnos</field>
+    <field name="model">planilla.branch</field>
+    <field name="inherit_id" ref="planilla_cr.view_branch_form"/>
+    <field name="arch" type="xml">
+      <xpath expr="//sheet" position="inside">
+        <separator string="Plantillas de Turno de la Sede"/>
+        <field name="nom_turno_ids"
+               widget="many2many_tags"
+               options="{'no_create': true, 'no_open': true}"
+               placeholder="Seleccioná las plantillas de turno que aplican en esta sede..."/>
+      </xpath>
+    </field>
+  </record>
+
+  <!-- Standalone list/form for Sedes -->
+  <record id="view_nom_branch_list" model="ir.ui.view">
+    <field name="name">planilla.branch.nom.list</field>
+    <field name="model">planilla.branch</field>
+    <field name="arch" type="xml">
+      <list string="Sedes">
+        <field name="name"/>
+        <field name="nom_turno_ids" widget="many2many_tags" string="Turnos"/>
+        <field name="company_id" groups="base.group_multi_company"/>
+      </list>
+    </field>
+  </record>
+
+  <record id="action_nom_branch" model="ir.actions.act_window">
+    <field name="name">Sedes / Sucursales</field>
+    <field name="res_model">planilla.branch</field>
+    <field name="view_mode">list,form</field>
+  </record>
+
+</odoo>
