@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="group_nombramientos_user" model="res.groups">
+        <field name="name">Usuario</field>
+        <field name="category_id" ref="base.module_category_human_resources"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="group_nombramientos_manager" model="res.groups">
+        <field name="name">Administrador</field>
+        <field name="category_id" ref="base.module_category_human_resources"/>
+        <field name="implied_ids" eval="[(4, ref('nombramientos_cr.group_nombramientos_user'))]"/>
+    </record>
+</odoo>

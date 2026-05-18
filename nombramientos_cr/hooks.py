@@ -11,44 +11,51 @@ MODELS_ACCESS = [
     ('access_calendario_view',      'nombramientos.calendario'),
 ]
 
+
 def post_init_hook(env):
-    _create_access_rights(env)
-    _create_record_rules(env)
+    # Obtener el grupo de usuarios del módulo
+    group = env.ref('nombramientos_cr.group_nombramientos_user',
+                    raise_if_not_found=False)
+    _create_access_rights(env, group)
+    _create_record_rules(env, group)
+    # Dar acceso automático a todos los usuarios internos existentes
+    _grant_to_internal_users(env, group)
 
 
-def _create_access_rights(env):
+def _create_access_rights(env, group):
     for xml_id, model_name in MODELS_ACCESS:
         try:
             model = env['ir.model'].sudo().search(
                 [('model', '=', model_name)], limit=1)
             if not model:
-                _logger.warning('nombramientos_cr: modelo %s no encontrado', model_name)
+                _logger.warning(
+                    'nombramientos_cr: modelo %s no encontrado', model_name)
                 continue
-            # Check if already exists
             existing = env['ir.model.access'].sudo().search([
                 ('name', '=', xml_id)], limit=1)
             if existing:
-                # Ensure it has no group restriction
                 existing.sudo().write({
-                    'model_id':   model.id,
-                    'group_id':   False,
-                    'perm_read':  True, 'perm_write':  True,
-                    'perm_create':True, 'perm_unlink': True,
+                    'model_id':    model.id,
+                    'group_id':    group.id if group else False,
+                    'perm_read':   True, 'perm_write':   True,
+                    'perm_create': True, 'perm_unlink':  True,
                 })
                 continue
             env['ir.model.access'].sudo().create({
-                'name':       xml_id,
-                'model_id':   model.id,
-                'group_id':   False,
-                'perm_read':  True, 'perm_write':  True,
-                'perm_create':True, 'perm_unlink': True,
+                'name':        xml_id,
+                'model_id':    model.id,
+                'group_id':    group.id if group else False,
+                'perm_read':   True, 'perm_write':   True,
+                'perm_create': True, 'perm_unlink':  True,
             })
-            _logger.info('nombramientos_cr: acceso creado para %s', model_name)
+            _logger.info(
+                'nombramientos_cr: acceso creado para %s', model_name)
         except Exception as e:
-            _logger.error('nombramientos_cr: error creando acceso %s: %s', model_name, e)
+            _logger.error(
+                'nombramientos_cr: error acceso %s: %s', model_name, e)
 
 
-def _create_record_rules(env):
+def _create_record_rules(env, group):
     RULES = [
         ('rule_nombramiento_company', 'nombramientos.nombramiento',
          "[('company_id','in',company_ids)]"),
@@ -57,15 +64,14 @@ def _create_record_rules(env):
         ('rule_config_company', 'nombramientos.config',
          "[('company_id','in',company_ids)]"),
     ]
-    group_user = env.ref('base.group_user', raise_if_not_found=False)
     for xml_id, model_name, domain in RULES:
         try:
             model = env['ir.model'].sudo().search(
                 [('model', '=', model_name)], limit=1)
             if not model:
                 continue
-            existing = env['ir.rule'].sudo().search([
-                ('name', 'like', xml_id)], limit=1)
+            existing = env['ir.rule'].sudo().search(
+                [('name', '=', xml_id)], limit=1)
             if existing:
                 continue
             vals = {
@@ -73,11 +79,29 @@ def _create_record_rules(env):
                 'model_id':     model.id,
                 'domain_force': domain,
                 'active':       True,
-                'global':       not group_user,
             }
-            if group_user:
-                vals['groups'] = [(4, group_user.id)]
+            if group:
+                vals['groups'] = [(4, group.id)]
             env['ir.rule'].sudo().create(vals)
-            _logger.info('nombramientos_cr: regla creada para %s', model_name)
         except Exception as e:
-            _logger.error('nombramientos_cr: error creando regla %s: %s', xml_id, e)
+            _logger.error(
+                'nombramientos_cr: error regla %s: %s', xml_id, e)
+
+
+def _grant_to_internal_users(env, group):
+    if not group:
+        return
+    try:
+        internal = env.ref('base.group_user', raise_if_not_found=False)
+        if not internal:
+            return
+        users = env['res.users'].sudo().search([
+            ('groups_id', 'in', [internal.id]),
+            ('groups_id', 'not in', [group.id]),
+        ])
+        if users:
+            group.sudo().write({'users': [(4, u.id) for u in users]})
+            _logger.info(
+                'nombramientos_cr: acceso dado a %d usuarios', len(users))
+    except Exception as e:
+        _logger.error('nombramientos_cr: error otorgando acceso: %s', e)

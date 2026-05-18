@@ -1,6 +1,6 @@
 {
     'name': 'Nombramientos CR',
-    'version': '19.0.1.0.65',
+    'version': '19.0.1.0.66',
     'summary': 'Módulo de Nombramientos Semanales y Movilidad entre Sucursales',
     'description': """
         Gestión de nombramientos semanales de empleados con soporte para:
@@ -19,6 +19,7 @@
         ],
     },
     'data': [
+        'security/groups.xml',
         'data/sequences.xml',
         'data/shift_templates_data.xml',
         # Views primero (sin referencias a actions wizard)
