@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="access_nombramiento_all" model="ir.model.access">
+        <field name="name">nombramiento.all</field>
+        <field name="model_id" search="[('model','=','nombramientos.nombramiento')]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="access_turno_all" model="ir.model.access">
+        <field name="name">nombramiento.turno.all</field>
+        <field name="model_id" search="[('model','=','nombramientos.turno')]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="access_generar_wiz" model="ir.model.access">
+        <field name="name">generar.wiz.all</field>
+        <field name="model_id" search="[('model','=','nombramientos.generar.planilla.wizard')]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="access_nombramientos_config" model="ir.model.access">
+        <field name="name">nombramientos.config.all</field>
+        <field name="model_id" search="[('model','=','nombramientos.config')]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="access_shift_template" model="ir.model.access">
+        <field name="name">shift.template.all</field>
+        <field name="model_id" search="[('model','=','nombramientos.shift.template')]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="access_sede_turno" model="ir.model.access">
+        <field name="name">sede.turno.all</field>
+        <field name="model_id" search="[('model','=','nombramientos.sede.turno')]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="access_calendario_view" model="ir.model.access">
+        <field name="name">calendario.view.all</field>
+        <field name="model_id" search="[('model','=','nombramientos.calendario')]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+</odoo>

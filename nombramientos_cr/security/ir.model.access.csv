@@ -1,8 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_nombramiento_all,nombramiento.all,nombramientos_cr.model_nombramientos_nombramiento,,1,1,1,1
-access_turno_all,nombramiento.turno.all,nombramientos_cr.model_nombramientos_turno,,1,1,1,1
-access_generar_wiz,generar.wiz,nombramientos_cr.model_nombramientos_generar_planilla_wizard,,1,1,1,1
-access_calendario_wiz,calendario.wiz,nombramientos_cr.model_nombramientos_calendario_wizard,,1,1,1,1
-access_nombramientos_config,config,nombramientos_cr.model_nombramientos_config,,1,1,1,1
-access_shift_template,shift_template,nombramientos_cr.model_nombramientos_shift_template,,1,1,1,1
-access_sede_turno,sede_turno,nombramientos_cr.model_nombramientos_sede_turno,,1,1,1,1
