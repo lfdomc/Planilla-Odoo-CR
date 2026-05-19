@@ -147,7 +147,12 @@ class Overtime(models.Model):
 
     @api.depends('hours', 'hourly_rate', 'overtime_type')
     def _compute_amount(self):
-        factors = {'simple': 1.5, 'double': 2.0, 'holiday': 2.0}
+        # Art. 148 CT: feriado trabajado = pago DOBLE.
+        # Como el salario mensual (30 días fijos) ya incluye el feriado (1x),
+        # el recargo es solo 1 día adicional (factor 1.0), dando total 2x.
+        # Factor 2.0 generaría pago TRIPLE (1 del mensual + 2 del recargo).
+        # Art. 152 CT: día de descanso trabajado aplica misma lógica.
+        factors = {'simple': 1.5, 'double': 2.0, 'holiday': 1.0}
         for rec in self:
             factor = factors.get(rec.overtime_type, 1.5)
             rec.amount = rec.hours * rec.hourly_rate * factor
@@ -172,7 +177,7 @@ class Overtime(models.Model):
                     hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
             new_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
             if new_rate != old_rate:
-                factors = {'simple': 1.5, 'double': 2.0, 'holiday': 2.0}
+                factors = {'simple': 1.5, 'double': 2.0, 'holiday': 1.0}  # Art. 148 CT
                 factor = factors.get(rec.overtime_type, 1.5)
                 rec.write({
                     'hourly_rate': new_rate,
