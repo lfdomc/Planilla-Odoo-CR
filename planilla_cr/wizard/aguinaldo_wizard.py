@@ -40,6 +40,15 @@ class AguinaldoWizard(models.TransientModel):
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.ref('base.CRC')
     )
+    provision_acumulada = fields.Monetary(
+        string='Provisión Acum. (dic→hoy)', currency_field='currency_id',
+    )
+    initial_amount = fields.Monetary(
+        string='Acumulado Inicial', currency_field='currency_id',
+    )
+    total_acumulado = fields.Monetary(
+        string='Total Acumulado', currency_field='currency_id',
+    )
     computed = fields.Boolean(default=False)
 
     @api.depends('result_ids.aguinaldo_amount')
@@ -166,14 +175,36 @@ class AguinaldoWizard(models.TransientModel):
                 if aguinaldo_year_start <= initial_date <= aguinaldo_year_end:
                     aguinaldo = round(aguinaldo + initial, 2)
 
+            # Acumulado provisión dic anterior → hoy
+            today = date.today()
+            dic_start = date(today.year - 1, 12, 1)
+            prov_slips = self.env['planilla.payslip.cr'].search([
+                ('employee_id', '=', eid),
+                ('state', 'in', ('done', 'confirmed')),
+                ('date_from', '>=', dic_start),
+                ('date_to', '<=', today),
+                ('company_id', '=', self.company_id.id),
+            ])
+            provision_sum = round(
+                sum(s.aguinaldo_provision for s in prov_slips), 2)
+            emp_obj = self.env['hr.employee'].browse(eid)
+            emp_initial = 0.0
+            if (emp_obj.aguinaldo_initial_amount
+                    and emp_obj.aguinaldo_initial_date
+                    and emp_obj.aguinaldo_initial_date >= dic_start):
+                emp_initial = emp_obj.aguinaldo_initial_amount
+
             lines.append({
-                'wizard_id':          self.id,
-                'employee_id':        eid,
-                'total_ordinary':     data['total_ordinary'],
-                'months_worked':      round(months_worked, 1),
-                'slip_count':         data['slip_count'],
-                'aguinaldo_amount':   aguinaldo,
-                'branch':             data['branch'],
+                'wizard_id':           self.id,
+                'employee_id':         eid,
+                'total_ordinary':      data['total_ordinary'],
+                'months_worked':       round(months_worked, 1),
+                'slip_count':          data['slip_count'],
+                'aguinaldo_amount':    aguinaldo,
+                'branch':              data['branch'],
+                'provision_acumulada': provision_sum,
+                'initial_amount':      emp_initial,
+                'total_acumulado':     round(provision_sum + emp_initial, 2),
             })
 
         # Ordenar por nombre
@@ -268,4 +299,13 @@ class AguinaldoLine(models.TransientModel):
     )
     currency_id = fields.Many2one(
         'res.currency', default=lambda self: self.env.ref('base.CRC')
+    )
+    provision_acumulada = fields.Monetary(
+        string='Provisión Acum. (dic→hoy)', currency_field='currency_id',
+    )
+    initial_amount = fields.Monetary(
+        string='Acumulado Inicial', currency_field='currency_id',
+    )
+    total_acumulado = fields.Monetary(
+        string='Total Acumulado', currency_field='currency_id',
     )

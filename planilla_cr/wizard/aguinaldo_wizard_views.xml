@@ -46,12 +46,20 @@
                         <list string="Aguinaldo por Empleado" >
                             <field name="employee_id" string="Empleado"/>
                             <field name="branch" string="Sucursal"/>
-                            <field name="slip_count" string="Boletas"/>
-                            <field name="months_worked" string="Meses"/>
-                            <field name="total_ordinary" string="Salarios Ordinarios (CRC)"
-                                   sum="Total"/>
-                            <field name="aguinaldo_amount" string="Aguinaldo (CRC)"
-                                   sum="Total Aguinaldo"/>
+                            <field name="slip_count" string="Boletas" optional="hide"/>
+                            <field name="months_worked" string="Meses" optional="hide"/>
+                            <field name="total_ordinary" string="Salarios Ordinarios"
+                                   widget="monetary" sum="Total" optional="hide"/>
+                            <field name="aguinaldo_amount" string="Aguinaldo Jun-Nov"
+                                   widget="monetary" sum="Total Aguinaldo"/>
+                            <field name="initial_amount" string="Acum. Inicial"
+                                   widget="monetary" sum="Total Inicial" optional="show"/>
+                            <field name="provision_acumulada"
+                                   string="Provisionado dic→hoy"
+                                   widget="monetary" sum="Total Provisionado"/>
+                            <field name="total_acumulado"
+                                   string="Total Acumulado"
+                                   widget="monetary" sum="Gran Total"/>
                         </list>
                     </field>
                 </sheet>
