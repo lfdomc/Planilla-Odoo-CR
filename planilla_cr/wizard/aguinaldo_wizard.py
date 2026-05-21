@@ -192,24 +192,33 @@ class AguinaldoWizard(models.TransientModel):
                 if aguinaldo_year_start <= initial_date <= aguinaldo_year_end:
                     aguinaldo = round(aguinaldo + initial, 2)
 
-            # Acumulado provisión dic anterior → hoy
+            # Acumulado provisión: SOLO boletas DESPUÉS del acumulado inicial
+            # para evitar doble conteo.
+            # Ejemplo: acumulado_inicial cubre dic-mar → provision busca desde abr.
             today = date.today()
             dic_start = date(today.year - 1, 12, 1)
+            emp_obj = self.env['hr.employee'].browse(eid)
+            emp_initial = 0.0
+            prov_start = dic_start  # fecha inicio por defecto
+
+            if (emp_obj.aguinaldo_initial_amount
+                    and emp_obj.aguinaldo_initial_date
+                    and emp_obj.aguinaldo_initial_date >= dic_start):
+                emp_initial = emp_obj.aguinaldo_initial_amount
+                # Boletas a buscar: solo las posteriores al corte del acumulado
+                # para no contar dos veces el período ya incluido en el inicial
+                import datetime as _dt
+                prov_start = emp_obj.aguinaldo_initial_date + _dt.timedelta(days=1)
+
             prov_slips = self.env['planilla.payslip.cr'].search([
                 ('employee_id', '=', eid),
                 ('state', 'in', ('done', 'confirmed')),
-                ('date_from', '>=', dic_start),
+                ('date_from', '>=', prov_start),
                 ('date_to', '<=', today),
                 ('company_id', '=', self.company_id.id),
             ])
             provision_sum = round(
                 sum(s.aguinaldo_provision for s in prov_slips), 2)
-            emp_obj = self.env['hr.employee'].browse(eid)
-            emp_initial = 0.0
-            if (emp_obj.aguinaldo_initial_amount
-                    and emp_obj.aguinaldo_initial_date
-                    and emp_obj.aguinaldo_initial_date >= dic_start):
-                emp_initial = emp_obj.aguinaldo_initial_amount
 
             lines.append({
                 'wizard_id':           self.id,
