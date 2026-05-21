@@ -719,7 +719,29 @@ class PayslipComputeMixin(models.AbstractModel):
             # causaba que la provision fuera la MITAD de lo correcto.
             # Correcto: provision_quincenal = g_quincenal × rate
             # Aguinaldo anual = g_quincenal × 8.33% × 24 = 1 salario mensual ✓
-            rec.aguinaldo_provision = round(g * agu_rate, 2)
+            # Art. 228 CT: aguinaldo se calcula sobre "salarios ordinarios devengados".
+            # Los días subsidiados por CCSS (incapacidad) no son salario devengado
+            # del patrono -> se excluyen de la base de aguinaldo.
+            # El Excel lo implementa restando: Col20(incap CCSS) + Col22(incap INS)
+            # + Col25+Col27 (permisos sin goce) del sub-total quincenal.
+            # g ya tiene licencias_sg restadas; solo falta restar el subsidio CCSS.
+            subsidio_incap = 0.0
+            if has_disability_in_period and rec.date_from and rec.date_to:
+                for dis in active_dis_period:
+                    if not dis.date_start or not dis.date_end:
+                        continue
+                    ovlp_start = max(rec.date_from, dis.date_start)
+                    ovlp_end   = min(rec.date_to, dis.date_end)
+                    if ovlp_end < ovlp_start:
+                        continue
+                    # El subsidio pagado por CCSS en este periodo no es salario patronal
+                    ovlp_days = (ovlp_end - ovlp_start).days + 1
+                    total_days = max((dis.date_end - dis.date_start).days + 1, 1)
+                    subsidio_incap += (dis.ccss_subsidy or 0.0) * ovlp_days / total_days
+            subsidio_incap = round(subsidio_incap, 2)
+            base_aguinaldo = max(round(g - subsidio_incap, 2), 0.0)
+
+            rec.aguinaldo_provision = round(base_aguinaldo * agu_rate, 2)
             rec.cesantia_provision  = round(g * ces_rate, 2)
             rec.vacation_provision  = round(g * vac_rate, 2)
 

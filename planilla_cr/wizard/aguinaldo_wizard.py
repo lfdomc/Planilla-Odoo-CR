@@ -114,12 +114,29 @@ class AguinaldoWizard(models.TransientModel):
                     'aguinaldo_initial': slip.employee_id.aguinaldo_initial_amount or 0.0,
                     'aguinaldo_initial_date': slip.employee_id.aguinaldo_initial_date,
                 }
-            # Art. 228 CT: usar salario bruto (incluye horas extras, vacaciones)
-            # o solo base segun la seleccion del usuario
+            # Art. 228 CT: "salarios ordinarios devengados" = bruto menos:
+            # - Subsidio CCSS por incapacidad (lo paga la Caja, no el patrono)
+            # - Permisos sin goce de salario
+            # Esto coincide con la fórmula del Excel: Col17 - Col20 - Col22 - Col25 - Col27
             if self.salary_basis == 'gross':
-                employee_data[eid]['total_ordinary'] += slip.gross_salary or 0.0
+                base = slip.gross_salary or 0.0
             else:
-                employee_data[eid]['total_ordinary'] += slip.base_salary or 0.0
+                base = slip.base_salary or 0.0
+            # Restar subsidio CCSS de incapacidades del período
+            subsidio = round(
+                sum(
+                    getattr(d, 'ccss_subsidy', 0.0) or 0.0
+                    for d in slip.disability_ids
+                    if getattr(d, 'state', '') in ('confirmed', 'paid')
+                ), 2)
+            # Restar permisos sin goce (ya descontados en base_cotizable_final)
+            licencias = round(sum(
+                l.amount for l in slip.deduction_line_ids
+                if getattr(l, 'deduction_category', '') in ('licencia_sin_goce', 'ausencia')
+                and getattr(l, 'line_type', '') == 'deduction'
+            ), 2)
+            devengado = max(round(base - subsidio - licencias, 2), 0.0)
+            employee_data[eid]['total_ordinary'] += devengado
             employee_data[eid]['slip_count'] += 1
 
         # Agregar empleados con acumulado inicial aunque no tengan boletas en el sistema todavia
