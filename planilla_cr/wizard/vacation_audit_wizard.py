@@ -48,71 +48,45 @@ class VacationAuditWizard(models.TransientModel):
             if not emp.entry_date:
                 continue
 
-            cutoff = emp.vacation_initial_balance_date
+            # Leer directamente los valores calculados de la ficha del empleado.
+            # _compute_vacation_balance ya ejecutó arriba — no recalcular.
+            cutoff       = emp.vacation_initial_balance_date
             saldo_inicial = emp.vacation_initial_balance or 0.0
-            last_ann_year = emp.vacation_last_anniversary_year or 0
 
-            # --- 1. Acumulacion proporcional desde el punto de partida ---
-            if cutoff and emp.entry_date < cutoff:
-                # Tiene saldo inicial al corte: acumular desde corte a ref
-                dias_desde = (ref - cutoff).days
-                semanas = max(dias_desde, 0) / 7.0
-                acum_post = int((semanas * 7) // 29)  # días completos: floor(días/29)
-                base_calc = saldo_inicial
-            else:
-                # Sin corte o entro despues del corte: acumular desde ingreso
-                start = cutoff if (cutoff and cutoff > emp.entry_date) else emp.entry_date
-                dias_desde = max((ref - start).days, 0)
-                semanas = dias_desde / 7.0
-                acum_post = int((semanas * 7) // 29)  # días completos: floor(días/29)
-                base_calc = 0.0
+            # Acumulado y tomados desde los campos compute del empleado
+            accrued_total = emp.vacation_days_accrued   # inicial + nuevos + aniversarios
+            taken         = round(emp.vacation_days_taken, 2)
+            disponible    = emp.vacation_days_available
 
-            # --- 2. Aniversarios ganados hasta ref ---
+            # Para mostrar en el reporte: nuevos días desde el corte
+            acum_post = round(accrued_total - saldo_inicial, 1)
+
+            # Aniversarios pendientes de aplicar (los que no han sido marcados)
+            from dateutil.relativedelta import relativedelta as _rdelta
             annis_pendientes = []
-            annis_ya_en_saldo = []
+            last_ann_year = emp.vacation_last_anniversary_year or 0
+            _config2 = self.env['planilla.accounting.config'].search(
+                [('company_id', '=', emp.company_id.id)], limit=1)
+            _av_base = _config2.extra_vacation_days_amount if _config2 else 2
+            _av_mode = _config2.extra_vacation_days_mode if _config2 else 'per_year'
             yr = emp.entry_date.year + 1
             while True:
-                try:
-                    ann = emp.entry_date.replace(year=yr)
-                except ValueError:
-                    ann = _date(yr, 3, 1)
+                try:    ann = emp.entry_date.replace(year=yr)
+                except: ann = _date(yr, 3, 1)
                 if ann > ref:
                     break
                 anos = yr - emp.entry_date.year
-                dias_extra = base * anos
-                # Si tiene corte y el aniversario cayo ANTES del corte:
-                # ya esta incluido en saldo_inicial
-                if cutoff and ann <= cutoff:
-                    annis_ya_en_saldo.append((ann, anos, dias_extra))
-                else:
-                    # Aniversario despues del corte: deberia estar aplicado
-                    # si vacation_last_anniversary_year >= ann.year
-                    if last_ann_year >= ann.year:
-                        annis_ya_en_saldo.append((ann, anos, dias_extra))
-                    else:
-                        annis_pendientes.append((ann, anos, dias_extra))
+                dias_extra = (_av_base * anos) if _av_mode == 'per_year' else _av_base
+                if last_ann_year < ann.year and (not cutoff or ann > cutoff):
+                    annis_pendientes.append((ann, anos, dias_extra))
                 yr += 1
 
             dias_anni_pendientes = sum(a[2] for a in annis_pendientes)
 
-            # --- 3. Dias tomados en el sistema ---
-            taken_recs = self.env['planilla.vacation.payment'].search([
-                ('employee_id', '=', emp.id),
-                ('state', 'in', ['approved', 'paid']),
-                ('vacation_type', 'in', ['disfrutadas', 'adelanto']),
-            ])
-            taken = round(sum(taken_recs.mapped('days')), 2)
-
-            # --- 4. Saldo correcto esperado ---
-            # Calcular el saldo 'real ahora' SIN aniversarios pendientes
-            # (esto es lo que el sistema calcularia si el cron corriera ahora)
-            saldo_real_ahora = int(base_calc + acum_post - taken)
-
-            # El saldo correcto INCLUYE los aniversarios que faltan aplicar
-            saldo_correcto = int(base_calc + acum_post + dias_anni_pendientes - taken)
-
-            # La discrepancia real = solo los dias de aniversario pendientes
-            discrepancia = dias_anni_pendientes
+            # Los valores reales vienen del empleado — sin recalcular
+            saldo_real_ahora = int(disponible)
+            saldo_correcto   = int(disponible)
+            discrepancia     = dias_anni_pendientes
             tiene_disc = discrepancia > 0
 
             if tiene_disc:
