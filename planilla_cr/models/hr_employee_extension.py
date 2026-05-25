@@ -1162,10 +1162,8 @@ class HrEmployeeExtension(models.Model):
             )
             base = config.extra_vacation_days_amount if config else 2
             mode = config.extra_vacation_days_mode if config else 'per_year'
-            if mode == 'per_year':
-                emp.next_anniversary_days = base * next_years
-            else:
-                emp.next_anniversary_days = base
+            # Siempre plano: 2 días por aniversario (confirmado Mundopet)
+            emp.next_anniversary_days = base
 
     @api.depends('entry_date', 'exit_date',
                  'vacation_initial_balance', 'vacation_initial_balance_date',
@@ -1282,10 +1280,8 @@ class HrEmployeeExtension(models.Model):
                     yr_count = 1
                     while aniv <= hoy:
                         if aniv > corte:
-                            if _av_mode == 'per_year':
-                                bonus_aniversarios += _av_base * yr_count
-                            else:
-                                bonus_aniversarios += _av_base
+                            # Plano: siempre 2 días por aniversario (no acumulativo)
+                            bonus_aniversarios += _av_base
                         yr_count += 1
                         aniv += _rdelta(years=1)
 
@@ -1307,10 +1303,8 @@ class HrEmployeeExtension(models.Model):
                 aniv = emp.entry_date + _rdelta(years=1)
                 yr_count = 1
                 while aniv <= hoy:
-                    if _av_mode2 == 'per_year':
-                        bonus_aniversarios += _av_base2 * yr_count
-                    else:
-                        bonus_aniversarios += _av_base2
+                    # Plano: siempre 2 días por aniversario
+                    bonus_aniversarios += _av_base2
                     yr_count += 1
                     aniv += _rdelta(years=1)
                 accrued = nuevos_base + bonus_aniversarios

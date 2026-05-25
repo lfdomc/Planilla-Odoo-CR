@@ -36,7 +36,8 @@
                     <div class="o_form_buttons_view" style="margin-bottom:12px;">
                         <button name="action_compute" type="object"
                                 string="Calcular Aguinaldo" class="btn-primary"/>
-                        <button name="action_export_excel" type="object"
+                        <button name="action_print_aguinaldo_pdf" string="Imprimir PDF" type="object" class="btn-secondary" icon="fa-file-pdf-o"/>
+                <button name="action_export_excel" type="object"
                                 string="Exportar Excel" class="btn-success"
                                 invisible="not computed"/>
                     </div>

@@ -247,6 +247,13 @@ class AguinaldoWizard(models.TransientModel):
             'target': 'new',
         }
 
+    def action_print_aguinaldo_pdf(self):
+        """Imprime el reporte de aguinaldo en PDF."""
+        self.ensure_one()
+        if not self.computed:
+            raise UserError('Primero calcule el aguinaldo.')
+        return self.env.ref('planilla_cr.action_report_aguinaldo').report_action(self)
+
     def action_export_excel(self):
         """Exporta el resultado a Excel."""
         self.ensure_one()
@@ -267,28 +274,43 @@ class AguinaldoWizard(models.TransientModel):
         normal = wb.add_format({'border': 1})
         total_fmt = wb.add_format({'bold': True, 'num_format': '#,##0.00', 'bg_color': '#D9E1F2', 'border': 1})
 
-        ws.set_column('A:A', 30)
+        ws.set_column('A:A', 32)
         ws.set_column('B:B', 18)
-        ws.set_column('C:F', 16)
+        ws.set_column('C:D', 14)
+        ws.set_column('E:F', 22)
+        ws.set_column('G:I', 22)
 
-        headers = ['Empleado', 'Sucursal', 'Boletas Jun-Nov', 'Meses Trabajados',
-                   'Total Salarios Ordinarios (CRC)', 'Aguinaldo a Pagar (CRC)']
+        acum_fmt  = wb.add_format({'num_format': '#,##0.00', 'border': 1, 'bg_color': '#EBF5FB'})
+        total_acum_fmt = wb.add_format({'bold': True, 'num_format': '#,##0.00',
+                                        'bg_color': '#1F4E79', 'font_color': 'white', 'border': 1})
+
+        headers = [
+            'Empleado', 'Sucursal', 'Boletas', 'Meses',
+            'Total Salarios Ordinarios', 'Aguinaldo Jun-Nov',
+            'Acum. Inicial (Pre-sistema)', 'Provisionado dic→hoy', 'Total Acumulado',
+        ]
         for col, h in enumerate(headers):
             ws.write(0, col, h, bold)
 
         row = 1
+        sum_acum = 0.0
         for line in self.result_ids:
             ws.write(row, 0, line.employee_id.name, normal)
             ws.write(row, 1, line.branch or '', normal)
             ws.write(row, 2, line.slip_count, normal)
-            ws.write(row, 3, line.months_worked, normal)
+            ws.write(row, 3, round(line.months_worked, 1), normal)
             ws.write(row, 4, line.total_ordinary, money)
             ws.write(row, 5, line.aguinaldo_amount, money)
+            ws.write(row, 6, line.initial_amount, acum_fmt)
+            ws.write(row, 7, line.provision_acumulada, acum_fmt)
+            ws.write(row, 8, line.total_acumulado, acum_fmt)
+            sum_acum += line.total_acumulado or 0.0
             row += 1
 
-        # Total
+        # Totales
         ws.write(row, 4, 'TOTAL', total_fmt)
         ws.write(row, 5, self.total_aguinaldo, total_fmt)
+        ws.write(row, 8, round(sum_acum, 2), total_acum_fmt)
 
         wb.close()
         xlsx_data = base64.b64encode(output.getvalue()).decode()
