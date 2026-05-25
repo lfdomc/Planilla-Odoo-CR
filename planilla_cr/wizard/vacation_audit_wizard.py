@@ -186,7 +186,7 @@ class VacationAuditWizard(models.TransientModel):
 
         wb.close()
         data = base64.b64encode(output.getvalue()).decode()
-        fname = f'Auditoria_Vacaciones_{self.ref_date}.xlsx'
+        fname = f'Auditoria_Vacaciones_{self.reference_date}.xlsx'
 
         att = self.env['ir.attachment'].create({
             'name': fname, 'type': 'binary', 'datas': data,
