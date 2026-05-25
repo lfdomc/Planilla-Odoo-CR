@@ -52,6 +52,7 @@
                                    decoration-warning="discrepancia &gt; 0"
                                    decoration-danger="discrepancia &lt; 0"/>
                             <field name="estado" readonly="1" string="Estado"/>
+                            <field name="provision_crc" readonly="1" string="Provisión (₡)" widget="monetary" optional="show"/>
                         </list>
                     </field>
                 </sheet>

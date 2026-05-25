@@ -128,13 +128,6 @@
               action="action_salary_history"
               sequence="10"/>
 
-    <menuitem id="menu_vacation_balance_report"
-              name="Saldo de Vacaciones"
-              parent="menu_planilla_cr_reports"
-              action="planilla_cr.action_vacation_balance_wizard"
-              sequence="72"
-              groups="planilla_cr.group_planilla_operador"/>
-
     <menuitem id="menu_employer_cost_report"
               name="Costos Patronales Consolidado"
               parent="menu_planilla_cr_reports"

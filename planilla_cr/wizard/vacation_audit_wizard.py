@@ -121,6 +121,7 @@ class VacationAuditWizard(models.TransientModel):
                 'discrepancia':       discrepancia,
                 'estado':             estado,
                 'corregir':           tiene_disc,
+                'provision_crc':      round(max(saldo_correcto, 0) * ((emp.base_salary or 0) / 30), 0),
             }))
 
         self.write({
@@ -167,7 +168,7 @@ class VacationAuditWizard(models.TransientModel):
         headers = ['Empleado', 'Fecha Corte', 'Saldo Inicial',
                    'Nuevos Dias', 'Aniversarios Pend.',
                    'Detalle Aniversarios', 'Dias Tomados',
-                   'Saldo Sistema', 'Saldo Correcto', 'Estado']
+                   'Saldo Sistema', 'Saldo Correcto', 'Estado', 'Provision (CRC)']
         for col, h in enumerate(headers):
             ws.write(0, col, h, bold)
 
@@ -183,6 +184,7 @@ class VacationAuditWizard(models.TransientModel):
             ws.write(row, 7, line.saldo_sistema,     numfmt)
             ws.write(row, 8, line.saldo_correcto,    numfmt)
             ws.write(row, 9, line.estado or 'ok',    fmt)
+            ws.write(row, 10, line.provision_crc,    numfmt)
 
         wb.close()
         data = base64.b64encode(output.getvalue()).decode()
@@ -255,6 +257,10 @@ class VacationAuditLine(models.TransientModel):
     acum_proporcional  = fields.Float(string='Acum. desde Corte', readonly=True)
     aniversarios_pend  = fields.Char(string='Aniversarios Pendientes', readonly=True)
     dias_anni_pend     = fields.Float(string='Dias Aniv.', readonly=True)
+    provision_crc      = fields.Monetary(string='Provisión (₡)',
+                             currency_field='currency_id', readonly=True)
+    currency_id        = fields.Many2one('res.currency', readonly=True,
+                             default=lambda self: self.env.ref('base.CRC', raise_if_not_found=False))
     dias_tomados       = fields.Float(string='Dias Tomados', readonly=True)
     saldo_sistema      = fields.Integer(string='Saldo Sistema', readonly=True)
     saldo_correcto     = fields.Integer(string='Saldo Correcto', readonly=True)
