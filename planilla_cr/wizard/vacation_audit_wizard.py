@@ -22,7 +22,7 @@ class VacationAuditWizard(models.TransientModel):
     )
     show_only_discrepancies = fields.Boolean(
         string='Mostrar solo discrepancias',
-        default=True,
+        default=False,
     )
     line_ids = fields.One2many(
         'planilla.vacation.audit.line', 'wizard_id',
@@ -137,6 +137,64 @@ class VacationAuditWizard(models.TransientModel):
             'view_mode': 'form',
             'target':    'new',
         }
+
+    def action_export_excel(self):
+        """Exporta la auditoria de vacaciones a Excel."""
+        self.ensure_one()
+        if not self.computed:
+            raise UserError('Primero ejecute la auditoria.')
+        try:
+            import xlsxwriter
+        except ImportError:
+            raise UserError('xlsxwriter no esta instalado.')
+        import io, base64
+
+        output = io.BytesIO()
+        wb = xlsxwriter.Workbook(output, {'in_memory': True})
+        ws = wb.add_worksheet('Auditoria Vacaciones')
+
+        bold   = wb.add_format({'bold': True, 'bg_color': '#1F4E79',
+                                'font_color': 'white', 'border': 1})
+        normal = wb.add_format({'border': 1})
+        numfmt = wb.add_format({'num_format': '#,##0.00', 'border': 1})
+        ok_f   = wb.add_format({'border': 1, 'bg_color': '#E2EFDA'})
+        err_f  = wb.add_format({'border': 1, 'bg_color': '#FCE4EC', 'bold': True})
+
+        ws.set_column('A:A', 32); ws.set_column('B:C', 12)
+        ws.set_column('D:E', 10); ws.set_column('F:F', 22)
+        ws.set_column('G:I', 10); ws.set_column('J:J', 10)
+
+        headers = ['Empleado', 'Fecha Corte', 'Saldo Inicial',
+                   'Nuevos Dias', 'Aniversarios Pend.',
+                   'Detalle Aniversarios', 'Dias Tomados',
+                   'Saldo Sistema', 'Saldo Correcto', 'Estado']
+        for col, h in enumerate(headers):
+            ws.write(0, col, h, bold)
+
+        for row, line in enumerate(self.line_ids, 1):
+            fmt = err_f if line.estado != 'ok' else ok_f
+            ws.write(row, 0, line.employee_id.name or '', fmt)
+            ws.write(row, 1, line.cutoff_date.strftime('%d/%m/%Y') if line.cutoff_date else '', fmt)
+            ws.write(row, 2, line.saldo_inicial,     numfmt)
+            ws.write(row, 3, line.acum_proporcional, numfmt)
+            ws.write(row, 4, line.dias_anni_pend,    numfmt)
+            ws.write(row, 5, line.aniversarios_pend or '', fmt)
+            ws.write(row, 6, line.dias_tomados,      numfmt)
+            ws.write(row, 7, line.saldo_sistema,     numfmt)
+            ws.write(row, 8, line.saldo_correcto,    numfmt)
+            ws.write(row, 9, line.estado or 'ok',    fmt)
+
+        wb.close()
+        data = base64.b64encode(output.getvalue()).decode()
+        fname = f'Auditoria_Vacaciones_{self.ref_date}.xlsx'
+
+        att = self.env['ir.attachment'].create({
+            'name': fname, 'type': 'binary', 'datas': data,
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        return {'type': 'ir.actions.act_url',
+                'url': f'/web/content/{att.id}?download=true',
+                'target': 'self'}
 
     def action_apply_corrections(self):
         """Aplica las correcciones marcadas."""

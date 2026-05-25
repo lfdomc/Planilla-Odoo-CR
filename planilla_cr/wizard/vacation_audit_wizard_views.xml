@@ -59,6 +59,10 @@
                     <button name="action_audit" type="object"
                             string="🔍 Auditar Todos los Empleados"
                             class="btn-primary"/>
+                    <button name="action_export_excel" type="object"
+                            string="Exportar Excel" class="btn-secondary"
+                            icon="fa-file-excel-o"
+                            invisible="not computed"/>
                     <button name="action_apply_corrections" type="object"
                             string="✅ Aplicar Correcciones Marcadas"
                             class="btn-success"
