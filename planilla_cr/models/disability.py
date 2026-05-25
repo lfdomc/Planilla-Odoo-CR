@@ -321,17 +321,19 @@ class Disability(models.Model):
                     d * rec.daily_salary * rec.subsidy_percentage / 100, 2
                 )
             else:
-                # Art. 79 CT: dias 1-3 -> 50% patrono + 50% CCSS.
-                # dias 4+ -> subsidy_percentage% CCSS, patrono puede complementar.
-                first_days    = min(d, 3)
+                # Art. 79 CT / Reglamento CCSS:
+                # Días 1-3: el PATRONO paga el 100% del salario al empleado.
+                #           La CCSS NO subsidia estos días → ccss_subsidy = 0.
+                # Días 4+:  la CCSS subsidia (subsidy_percentage%), patrono puede complementar.
+                first_days     = min(d, 3)
                 remaining_days = max(d - 3, 0)
                 rec.employer_cost = round(
-                    (first_days * rec.daily_salary * 0.50) +
+                    (first_days * rec.daily_salary) +
                     (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2
                 )
+                # Subsidio CCSS: solo días 4+ (días 1-3 los asume el patrono, no la CCSS)
                 rec.ccss_subsidy = round(
-                    (first_days * rec.daily_salary * 0.50) +
-                    (remaining_days * rec.daily_salary * rec.subsidy_percentage / 100), 2
+                    remaining_days * rec.daily_salary * rec.subsidy_percentage / 100, 2
                 )
 
     @api.depends('employee_id', 'date_start', 'disability_type')

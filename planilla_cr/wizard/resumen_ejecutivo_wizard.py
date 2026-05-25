@@ -271,7 +271,10 @@ class ResumenEjecutivoWizard(models.TransientModel):
 
             # DEDUCCIONES QUE REDUCEN COTIZABLE
             dias_incap = slip.disability_days_in_period or 0
-            monto_incap = max((slip.base_salary or 0) - (slip.gross_salary or 0), 0)
+            # monto incapacidad = días × tarifa diaria (base_salary/30)
+            # No usar base-gross porque las HE pueden hacer gross>base → da 0 incorrecto
+            _daily_rate = round((slip.base_salary or 0) / 30, 4)
+            monto_incap = round((slip.disability_days_in_period or 0) * _daily_rate, 2)
             licencia_sg = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if l.line_type == 'deduction'
