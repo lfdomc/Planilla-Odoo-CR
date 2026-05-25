@@ -1,16 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-
-  <record id="action_report_aguinaldo" model="ir.actions.report">
-    <field name="name">Reporte de Aguinaldo</field>
-    <field name="model">planilla.aguinaldo.wizard</field>
-    <field name="report_type">qweb-pdf</field>
-    <field name="report_name">planilla_cr.report_aguinaldo_template</field>
-    <field name="report_file">planilla_cr.report_aguinaldo_template</field>
-    <field name="binding_model_id" ref="base.model_res_partner" eval="False"/>
-    <field name="paperformat_id" ref="base.paperformat_a4_landscape"/>
-  </record>
-
   <template id="report_aguinaldo_template">
     <t t-call="web.html_container">
       <t t-call="web.external_layout">
@@ -23,7 +12,6 @@
             Base: <strong t-esc="docs.salary_basis"/> |
             Generado: <strong t-esc="context_timestamp(datetime.datetime.now()).strftime('%d/%m/%Y %H:%M')"/>
           </p>
-
           <table class="table table-sm table-bordered" style="font-size:11px">
             <thead style="background:#1F4E79;color:white">
               <tr>
@@ -45,47 +33,32 @@
                   <td class="text-center" t-esc="line.branch or ''"/>
                   <td class="text-right" t-esc="line.slip_count"/>
                   <td class="text-right" t-esc="'%.1f' % (line.months_worked or 0)"/>
-                  <td class="text-right">
-                    <t t-esc="'{:,.0f}'.format(line.total_ordinary or 0)"/>
-                  </td>
-                  <td class="text-right">
-                    <t t-esc="'{:,.0f}'.format(line.aguinaldo_amount or 0)"/>
-                  </td>
-                  <td class="text-right" style="background:#EBF5FB">
-                    <t t-esc="'{:,.0f}'.format(line.initial_amount or 0)"/>
-                  </td>
-                  <td class="text-right" style="background:#EBF5FB">
-                    <t t-esc="'{:,.0f}'.format(line.provision_acumulada or 0)"/>
-                  </td>
-                  <td class="text-right" style="background:#D6EAF8;font-weight:bold">
-                    <t t-esc="'{:,.0f}'.format(line.total_acumulado or 0)"/>
-                  </td>
+                  <td class="text-right"><t t-esc="'{:,.0f}'.format(line.total_ordinary or 0)"/></td>
+                  <td class="text-right"><t t-esc="'{:,.0f}'.format(line.aguinaldo_amount or 0)"/></td>
+                  <td class="text-right" style="background:#EBF5FB"><t t-esc="'{:,.0f}'.format(line.initial_amount or 0)"/></td>
+                  <td class="text-right" style="background:#EBF5FB"><t t-esc="'{:,.0f}'.format(line.provision_acumulada or 0)"/></td>
+                  <td class="text-right" style="background:#D6EAF8;font-weight:bold"><t t-esc="'{:,.0f}'.format(line.total_acumulado or 0)"/></td>
                 </tr>
               </t>
             </tbody>
             <tfoot style="background:#D9E1F2;font-weight:bold">
               <tr>
                 <td colspan="5" class="text-right">TOTAL</td>
-                <td class="text-right">
-                  <t t-esc="'{:,.0f}'.format(docs.total_aguinaldo or 0)"/>
-                </td>
-                <td/>
-                <td/>
+                <td class="text-right"><t t-esc="'{:,.0f}'.format(docs.total_aguinaldo or 0)"/></td>
+                <td/><td/>
                 <td class="text-right" style="background:#1F4E79;color:white">
                   <t t-esc="'{:,.0f}'.format(sum(docs.result_ids.mapped('total_acumulado')))"/>
                 </td>
               </tr>
             </tfoot>
           </table>
-
           <p style="font-size:10px;color:#888;margin-top:16px">
-            * Acum. Inicial = monto pre-implementación cargado al corte del 31 de marzo.<br/>
-            * Provisionado dic→hoy = suma de provisiones de boletas desde el 1 dic anterior.<br/>
+            * Acum. Inicial = monto pre-implementación al corte del 31 de marzo.<br/>
+            * Provisionado dic→hoy = suma de provisiones en boletas desde 1 dic anterior.<br/>
             * Total Acumulado = Acum. Inicial + Provisionado (sin doble conteo).
           </p>
         </div>
       </t>
     </t>
   </template>
-
 </odoo>

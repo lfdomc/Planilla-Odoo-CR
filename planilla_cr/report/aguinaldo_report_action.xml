@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="action_report_aguinaldo" model="ir.actions.report">
+    <field name="name">Reporte de Aguinaldo</field>
+    <field name="model">planilla.aguinaldo.wizard</field>
+    <field name="report_type">qweb-pdf</field>
+    <field name="report_name">planilla_cr.report_aguinaldo_template</field>
+    <field name="report_file">planilla_cr.report_aguinaldo_template</field>
+    <field name="paperformat_id" ref="base.paperformat_a4_landscape"/>
+  </record>
+</odoo>
