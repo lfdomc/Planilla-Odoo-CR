@@ -366,15 +366,13 @@ class EmployeeTermination(models.Model):
             exit_month = rec.termination_date.month
             exit_year  = rec.termination_date.year
             from datetime import date as _date
-            if exit_month >= 12:
+            # Meses en período aguinaldo: Dic=1, Ene=2, ..., Nov=12
+            # Fórmula: (calendar_month % 12) + 1
+            if exit_month == 12:
                 period_start = _date(exit_year, 12, 1)
-                total_months = 0  # ya cobro aguinaldo de diciembre
-            elif exit_month >= 6:
-                period_start = _date(exit_year - 1, 12, 1)
-                total_months = exit_month - 5   # jun=1 ... nov=6
             else:
                 period_start = _date(exit_year - 1, 12, 1)
-                total_months = exit_month       # ene=1 ... may=5
+            total_months = (exit_month % 12) + 1
 
             # FIX: Si hay acumulado inicial, descontar los meses ya cubiertos
             ag_init_amount = rec.employee_id.aguinaldo_initial_amount or 0.0

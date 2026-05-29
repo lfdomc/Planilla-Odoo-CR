@@ -387,15 +387,11 @@ class TerminationSimulator(models.TransientModel):
             # ag = sum(gross_salary_boletas_en_periodo) / 12
             # Con los 6 campos manuales: ag = sum(sal_nonzero) / 12
             # Número de meses para mostrar (informativo)
-            if exit_date.month >= 12:
+            if exit_date.month == 12:
                 ag_period_start = datetime.date(exit_date.year, 12, 1)
-                total_months = 0
-            elif exit_date.month >= 6:
-                ag_period_start = datetime.date(exit_date.year - 1, 12, 1)
-                total_months = exit_date.month - 5
             else:
                 ag_period_start = datetime.date(exit_date.year - 1, 12, 1)
-                total_months = exit_date.month
+            total_months = (exit_date.month % 12) + 1
 
             # Si hay aguinaldo_initial_amount: solo agregar meses NO cubiertos
             # IDÉNTICO a employee_termination.py para evitar doble conteo.
