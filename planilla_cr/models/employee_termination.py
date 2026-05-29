@@ -243,10 +243,17 @@ class EmployeeTermination(models.Model):
                 rec.preaviso_days = 0
                 continue
             m = rec.months_service
+            # Art. 28 CT — escala oficial por meses exactos:
+            # < 3 meses:        7 dias (periodo prueba)
+            # 3 a < 6 meses:    7 dias (1 semana)
+            # 6 a < 12 meses:  15 dias (Art. 28 inciso b)
+            # >= 12 meses:     30 dias (1 mes)
             if m < 3:
                 rec.preaviso_days = 7
             elif m < 6:
-                rec.preaviso_days = 14
+                rec.preaviso_days = 7
+            elif m < 12:
+                rec.preaviso_days = 15
             else:
                 rec.preaviso_days = 30
 

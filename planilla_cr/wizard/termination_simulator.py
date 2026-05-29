@@ -319,6 +319,9 @@ class TerminationSimulator(models.TransientModel):
                 except: cand = datetime.date(m.year, m.month, _cal2.monthrange(m.year, m.month)[1])
             return count
 
+        # Inicializar para uso posterior en el breakdown
+        accrued_since_cutoff = 0
+
         # Usar directamente los campos calculados de la ficha del empleado
         # _compute_vacation_balance ya tiene la logica correcta (igual a la ficha)
         # Solo recalcular si la fecha de salida difiere de hoy
