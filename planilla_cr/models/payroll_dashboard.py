@@ -266,12 +266,14 @@ class PayrollDashboard(models.TransientModel):
             # Acumuladas hace >22 meses y sin tomar vacaciones recientes
             employees_at_risk = 0
             # L2 FIX: batch query en vez de N+1
-            employees = self.env['hr.employee'].search([
+            # vacation_days_available no es stored — filtrar en Python
+            _all_emps = self.env['hr.employee'].search([
                 ('company_id', '=', company.id),
                 ('active', '=', True),
                 ('entry_date', '!=', False),
-                ('vacation_days_available', '>', 0),
             ])
+            employees = _all_emps.filtered(
+                lambda e: (e.vacation_days_available or 0) > 0)
             if employees:
                 emp_ids = employees.ids
                 # Traer la ultima vacacion de TODOS los empleados en una sola query
@@ -315,12 +317,13 @@ class PayrollDashboard(models.TransientModel):
         }
 
     def action_open_expiring_vacations(self):
-        employees = self.env['hr.employee'].search([
+        _emps_base = self.env['hr.employee'].search([
             ('company_id', '=', self.company_id.id),
             ('active', '=', True),
             ('vacation_balance_alert', '=', False),
-            ('vacation_days_available', '>', 0),
         ])
+        employees = _emps_base.filtered(
+            lambda e: (e.vacation_days_available or 0) > 0)
         # L2 FIX: batch query en vez de N+1
         emp_ids = employees.ids
         # FIX v53: campo correcto es date_start, no date_from
@@ -385,11 +388,16 @@ class PayrollDashboard(models.TransientModel):
             )
 
             # -- Vacaciones negativas ----------------------------------
-            rec.employees_negative_vacation = self.env['hr.employee'].search_count([
+            # vacation_days_available es compute sin store — no se puede usar en domain SQL
+            # Se calcula en Python iterando los empleados activos
+            _emps = self.env['hr.employee'].search([
                 ('company_id', '=', company.id),
                 ('active', '=', True),
-                ('vacation_days_available', '<', 0),
             ])
+            rec.employees_negative_vacation = sum(
+                1 for e in _emps
+                if (e.vacation_days_available or 0) < 0
+            )
 
             # -- Prestamos activos -------------------------------------
             loans = self.env['planilla.employee.loan'].search([

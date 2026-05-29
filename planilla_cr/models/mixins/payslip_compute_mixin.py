@@ -676,7 +676,11 @@ class PayslipComputeMixin(models.AbstractModel):
             # Almacenar la base cotizable final (para Resumen Completo y auditoria)
             rec.base_cotizable_final = g
 
-            rec.ccss_employee = round(g * ccss_emp, 2)
+            # SP: sin CCSS obrero
+            if getattr(rec, 'is_sp', False):
+                rec.ccss_employee = 0.0
+            else:
+                rec.ccss_employee = round(g * ccss_emp, 2)
             if rec.paternity_days > 0:
                 daily = round(g / K.DIAS_MES, 2)
                 rec.paternity_amount = round(daily * rec.paternity_days, 2)
@@ -708,9 +712,14 @@ class PayslipComputeMixin(models.AbstractModel):
             if rec.credit_hijos and rec.income_tax_children_count:
                 parts.append(f"{rec.income_tax_children_count} hijo(s): CRC{rec.credit_hijos:,.2f}")
             rec.tax_credits_detail = '  .  '.join(parts) if parts else ''
-            rec.ccss_employer = round(g * ccss_pat, 2)
-            risk              = rec.employee_id.ins_risk_class or 'II'
-            rec.ins_employer  = round(g * rh.get_ins_rate(risk), 2)
+            # SP: sin CCSS patronal ni INS
+            if getattr(rec, 'is_sp', False):
+                rec.ccss_employer = 0.0
+                rec.ins_employer  = 0.0
+            else:
+                rec.ccss_employer = round(g * ccss_pat, 2)
+                risk              = rec.employee_id.ins_risk_class or 'II'
+                rec.ins_employer  = round(g * rh.get_ins_rate(risk), 2)
             freq        = rec._get_effective_freq()
             # FIX P-02 v58: usar K.FREQ_FACTORS centralizado
             prov_factor = K.FREQ_FACTORS.get(freq, 1.0)

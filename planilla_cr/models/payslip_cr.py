@@ -156,6 +156,12 @@ class PayslipCR(models.Model):
     )
 
     # -- Deducciones Obrero --------------------------------------------
+    is_sp = fields.Boolean(
+        string='Servicios Profesionales',
+        default=False,
+        help='Si True, esta boleta es para un contratista SP: sin CCSS, sin INS, sin ROP.'
+    )
+
     ccss_employee = fields.Monetary(
         string='CCSS Obrero (10.83%)', currency_field='currency_id',
         compute='_compute_deductions', store=True,

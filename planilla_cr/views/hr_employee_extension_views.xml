@@ -98,6 +98,9 @@
                         <group string="CCSS">
                             <field name="ccss_number"/>
                             <field name="ccss_insured"/>
+                            <field name="retencion_renta_sp"
+                                   invisible="ccss_insured"
+                                   string="Retención Renta 15% (Serv. Prof.)"/>
                         </group>
                         <group string="Créditos Fiscales (Art. 34 LIR)">
                             <field name="income_tax_children"

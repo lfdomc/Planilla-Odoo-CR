@@ -77,6 +77,13 @@ class PayrollRunCR(models.Model):
                         f'que sus periodos no se crucen.'
                     )
 
+    payroll_type = fields.Selection([
+        ('normal', 'Normal'),
+        ('sp',     'Servicios Profesionales'),
+    ], string='Tipo de Planilla', default='normal', required=True, tracking=True,
+       help='Normal: empleados con CCSS activo.\n'
+            'Servicios Profesionales: contratistas sin CCSS (Art. 23 LISR).')
+
     name = fields.Char(string='Nombre', required=True, tracking=True)
     company_id = fields.Many2one(
         'res.company', string='Compania',
@@ -617,10 +624,17 @@ class PayrollRunCR(models.Model):
                 message_type='notification',
             )
 
-        # Excluir empleados sin seguro CCSS de la planilla estandar
-        employees_active = employees_active.filtered(
-            lambda e: getattr(e, 'ccss_insured', True)
-        )
+        # Filtrar por tipo de planilla
+        if self.payroll_type == 'sp':
+            # Planilla SP: solo empleados sin CCSS
+            employees_active = employees_active.filtered(
+                lambda e: not getattr(e, 'ccss_insured', True)
+            )
+        else:
+            # Planilla Normal: solo empleados con CCSS
+            employees_active = employees_active.filtered(
+                lambda e: getattr(e, 'ccss_insured', True)
+            )
 
         # -- Verificacion cruzada: detectar empleados ya en otra planilla solapada --
         # Esto previene el error de constraint ANTES de intentar crear las boletas,

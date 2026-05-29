@@ -137,7 +137,7 @@ class TerminationSimulator(models.TransientModel):
                         self.sal_m4, self.sal_m5, self.sal_m6]):
                 slips = self.env['planilla.payslip.cr'].search([
                     ('employee_id', '=', emp.id),
-                    ('state', '=', 'done'),
+                    ('state', 'in', ('done', 'confirmed')),
                 ], order='date_to desc', limit=12)
                 # Agrupar quincenas en meses (suma de las 2 quincenas del mes)
                 from collections import defaultdict
@@ -152,6 +152,10 @@ class TerminationSimulator(models.TransientModel):
                 sal_fields = ['sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6']
                 for i, key in enumerate(months_sorted):
                     setattr(self, sal_fields[i], round(monthly[key], 2))
+                # Si no hay boletas, usar salario base actual para todos los meses
+                if not months_sorted and emp.base_salary:
+                    for f in sal_fields:
+                        setattr(self, f, round(emp.base_salary, 2))
 
     @api.depends('sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6')
     def _compute_sal_promedio(self):
@@ -186,6 +190,7 @@ class TerminationSimulator(models.TransientModel):
 
         exit_date  = self.simulated_date
         entry_date = emp.entry_date
+        extra_vac_days = 2  # Art. 153 CT — configurable en Cuentas Contables
         diff   = relativedelta(exit_date, entry_date)
         years  = diff.years + diff.months / 12.0 + diff.days / 365.0
         # Determinar salario a usar: promedio manual > salario base actual
@@ -223,14 +228,16 @@ class TerminationSimulator(models.TransientModel):
         # 3-6 meses (0.25-0.5):  14 dias
         # 6-12 meses (0.5-1.0):  15 dias  <-- CORREGIDO (antes usaba 30)
         # > 1 ano:               30 dias
-        if years < 0.25:
-            preaviso_days = 7
-        elif years < 0.5:
-            preaviso_days = 14
-        elif years < 1.0:
-            preaviso_days = 15
+        # Art. 28 CT — usar meses exactos (no float) para evitar errores de redondeo
+        _total_months = diff.years * 12 + diff.months
+        if _total_months < 3:
+            preaviso_days = 7   # < 3 meses (periodo de prueba)
+        elif _total_months < 6:
+            preaviso_days = 7   # 3 a menos de 6 meses
+        elif _total_months < 12:
+            preaviso_days = 15  # 6 meses a menos de 1 año
         else:
-            preaviso_days = 30
+            preaviso_days = 30  # 1 año o más
         preaviso_amount = (daily * preaviso_days) if preaviso_applies else 0.0
         # Importante: si el usuario ya simuló y luego desmarcó preaviso_applies,
         # recalcular con el valor actualizado del campo
@@ -312,28 +319,38 @@ class TerminationSimulator(models.TransientModel):
                 except: cand = datetime.date(m.year, m.month, _cal2.monthrange(m.year, m.month)[1])
             return count
 
-        if vac_cutoff:
-            if vac_cutoff >= exit_date:
-                accrued_since_cutoff = 0
-            else:
-                if accrual_method == 'monthly':
-                    accrued_since_cutoff = _sim_meses_desde(vac_cutoff, exit_date)
-                else:
-                    dias_ingreso_corte = max((vac_cutoff - entry_date).days, 0)
-                    parcial_inicial    = dias_ingreso_corte % 29
-                    dias_corte_exit    = (exit_date - vac_cutoff).days
-                    total_ciclo        = dias_corte_exit + parcial_inicial
-                    accrued_since_cutoff = total_ciclo // 29
-            vacation_days_gross = _math.floor(vac_init + accrued_since_cutoff)
+        # Usar directamente los campos calculados de la ficha del empleado
+        # _compute_vacation_balance ya tiene la logica correcta (igual a la ficha)
+        # Solo recalcular si la fecha de salida difiere de hoy
+        import datetime as _dt
+        _today = _dt.date.today()
+        if exit_date == _today:
+            # Fecha de salida = hoy: usar directamente la ficha
+            vacation_days_gross = emp.vacation_days_accrued or 0
         else:
-            if accrual_method == 'monthly':
-                vacation_days_gross = _sim_meses_desde(entry_date, exit_date)
+            # Fecha de salida diferente: calcular desde la ficha + ajuste
+            # Usar saldo_inicial de la ficha como base confiable
+            if vac_cutoff:
+                if vac_cutoff >= exit_date:
+                    accrued_since_cutoff = 0
+                else:
+                    accrued_since_cutoff = _sim_meses_desde(vac_cutoff, exit_date)
+                # Bonus aniversarios post-corte
+                _bonus = 0
+                _aniv = entry_date + _rd4(years=1)
+                while _aniv <= exit_date:
+                    if _aniv > vac_cutoff:
+                        _bonus += extra_vac_days
+                    _aniv += _rd4(years=1)
+                vacation_days_gross = _math.floor(vac_init + accrued_since_cutoff) + _bonus
             else:
-                vacation_days_gross = _math.floor((exit_date - entry_date).days / 29)
-
-        # Bonus por aniversarios POST-corte (o desde entry si no hay corte)
-        vac_desde = vac_cutoff if vac_cutoff else entry_date
-        vacation_days_gross += _aniv_bonus(vac_desde, exit_date)
+                vacation_days_gross = _sim_meses_desde(entry_date, exit_date)
+                _bonus = 0
+                _aniv = entry_date + _rd4(years=1)
+                while _aniv <= exit_date:
+                    _bonus += extra_vac_days
+                    _aniv += _rd4(years=1)
+                vacation_days_gross += _bonus
 
         vac_days   = max(vacation_days_gross - vacation_days_taken, 0)
         daily_vac  = daily

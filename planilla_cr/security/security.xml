@@ -18,4 +18,8 @@
         <field name="comment">Acceso total: configuracion contable, periodos cerrados y administracion de roles.</field>
     </record>
 
+    <record id="group_sp_enabled" model="res.groups">
+        <field name="name">Planilla CR / Servicios Profesionales</field>
+    </record>
+
 </odoo>

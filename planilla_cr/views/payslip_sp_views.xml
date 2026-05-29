@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+  <!-- List view -->
+  <record id="view_payslip_sp_list" model="ir.ui.view">
+    <field name="name">planilla.payslip.sp.list</field>
+    <field name="model">planilla.payslip.sp</field>
+    <field name="arch" type="xml">
+      <list string="Servicios Profesionales" decoration-muted="state=='draft'"
+            decoration-success="state=='paid'">
+        <field name="name"/>
+        <field name="employee_id"/>
+        <field name="branch_id"/>
+        <field name="date_from"/>
+        <field name="date_to"/>
+        <field name="metodo_pago"/>
+        <field name="monto_bruto" widget="monetary"/>
+        <field name="retencion_renta" widget="monetary"/>
+        <field name="neto_a_pagar" widget="monetary" string="Neto"/>
+        <field name="state" widget="badge"
+               decoration-warning="state=='draft'"
+               decoration-info="state=='confirmed'"
+               decoration-success="state=='paid'"/>
+      </list>
+    </field>
+  </record>
+
+  <!-- Form view -->
+  <record id="view_payslip_sp_form" model="ir.ui.view">
+    <field name="name">planilla.payslip.sp.form</field>
+    <field name="model">planilla.payslip.sp</field>
+    <field name="arch" type="xml">
+      <form string="Boleta Servicios Profesionales">
+        <header>
+          <button name="action_confirm" string="Confirmar" type="object"
+                  class="btn-primary" invisible="state != 'draft'"/>
+          <button name="action_pay" string="Marcar Pagado" type="object"
+                  class="btn-primary" invisible="state != 'confirmed'"/>
+          <button name="action_reset_draft" string="Restablecer Borrador" type="object"
+                  class="btn-secondary" invisible="state == 'draft'"/>
+          <field name="state" widget="statusbar"
+                 statusbar_visible="draft,confirmed,paid"/>
+        </header>
+        <sheet>
+          <!-- Aviso si el módulo está desactivado en configuración -->
+          <div class="alert alert-danger" role="alert">
+            <strong>Módulo desactivado</strong> — Para crear boletas de Servicios Profesionales,
+            active "Habilitar Módulo Servicios Profesionales" en
+            <strong>Planillas → Configuración → Cuentas Contables</strong>.
+          </div>
+          <div class="oe_title">
+            <h1><field name="name" readonly="1"/></h1>
+          </div>
+          <group>
+            <group string="Contratista">
+              <field name="employee_id"/>
+              <field name="branch_id"/>
+              <field name="company_id" groups="base.group_multi_company"/>
+            </group>
+            <group string="Período">
+              <field name="date_from"/>
+              <field name="date_to"/>
+            </group>
+          </group>
+
+          <group string="Honorarios">
+            <group>
+              <field name="metodo_pago" widget="radio"/>
+              <field name="horas" invisible="metodo_pago != 'horas'"/>
+              <field name="tarifa_hora" invisible="metodo_pago != 'horas'"/>
+              <field name="monto_fijo" invisible="metodo_pago != 'fijo'"/>
+              <field name="descripcion"/>
+            </group>
+            <group string="Resumen">
+              <field name="monto_bruto" widget="monetary"/>
+              <field name="aplica_retencion" readonly="1"/>
+              <field name="retencion_renta" widget="monetary"
+                     invisible="not aplica_retencion"/>
+              <field name="neto_a_pagar" widget="monetary"/>
+            </group>
+          </group>
+
+          <div class="alert alert-info" role="alert"
+               invisible="aplica_retencion">
+            <strong>Sin retención de renta</strong> — El contratista administra
+            sus propios impuestos. Para aplicar retención del 15% (Art. 23 LISR),
+            active el flag en la ficha del empleado.
+          </div>
+          <div class="alert alert-warning" role="alert"
+               invisible="not aplica_retencion">
+            <strong>Retención 15% aplicada</strong> — Art. 23 inciso c) LISR.
+            Se debe declarar y pagar a Hacienda en el período correspondiente.
+          </div>
+
+        </sheet>
+        <chatter/>
+      </form>
+    </field>
+  </record>
+
+  <!-- Action -->
+  <record id="action_payslip_sp" model="ir.actions.act_window">
+    <field name="name">Servicios Profesionales</field>
+    <field name="res_model">planilla.payslip.sp</field>
+    <field name="view_mode">list,form</field>
+    <field name="context">{'search_default_state': 'draft'}</field>
+  </record>
+
+</odoo>
