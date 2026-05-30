@@ -75,15 +75,23 @@ PROV_CESANTIA: float = 0.0533  # fallback ano 1 aprox.
 #   Impacto maximo por empleado senior (8+ anos, salario CRC800k):
 #     Provision anterior: CRC51,111/mes  |  Provision correcta: CRC48,889/mes
 #   El ajuste contable, si se requiere, debe realizarlo el contador del cliente.
+# Cesantia sub-año (Art. 29 CT + Tabla oficial Ministerio de Trabajo CR):
+# 3 a < 6 meses: 7 días total (pago único)
+# 6 meses a < 1 año: 14 días total (pago único) -- NO proporcional
+CESANTIA_SUB_ANIO: dict = {
+    'tres_seis':   7,   # 3 a < 6 meses
+    'seis_doce':  14,   # 6 meses a < 1 año (pago único fijo)
+}
+
 CESANTIA_TABLA: dict = {
     1: 19.5,
     2: 20.0,
-    3: 20.0,   # Art. 29 CT: ano 3 = 20 dias (corregido)
+    3: 20.0,   # Art. 29 CT: ano 3 = 20 dias
     4: 21.0,
-    5: 21.24,  # Art. 29 CT: ano 5 = 21.24 dias (corregido)
-    6: 21.5,   # Art. 29 CT: ano 6 = 21.5 dias (corregido)
-    7: 22.0,   # Art. 29 CT: ano 7 = 22 dias (corregido)
-    8: 22.0,   # maximo legal -- mas de 8 anos usa esta tasa (corregido)
+    5: 21.24,  # Art. 29 CT: ano 5 = 21.24 dias
+    6: 21.5,   # Art. 29 CT: ano 6 = 21.5 dias
+    7: 22.0,   # Art. 29 CT: ano 7 = 22 dias
+    8: 22.0,   # maximo legal
 }
 #: Ano maximo de cesantia (Art. 29 CT)
 CESANTIA_MAX_ANOS: int = 8

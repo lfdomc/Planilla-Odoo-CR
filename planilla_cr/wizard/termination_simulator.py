@@ -257,26 +257,37 @@ class TerminationSimulator(models.TransientModel):
             # Formula correcta: daily_salary x suma_de_dias_tabla, igual que employee_termination.py.
             # Error anterior: para 4 anos con CRC1M de salario daba CRC800k en vez de CRC2.7M (3.4x menos).
             # FIX CALC-01: usar tabla centralizada K.CESANTIA_TABLA (Art. 29 CT oficial)
-            cesantia_days_table = K.CESANTIA_TABLA
-            years_int = min(int(years), 8)
-            fraction = years - int(years)
-            cesantia_days = 0.0
-            for y in range(1, years_int + 1):
-                cesantia_days += cesantia_days_table.get(y, 22.0)
-            # Fraccion del ano en curso (proporcional)
-            if years_int < 8:
-                days_this_year = cesantia_days_table.get(years_int + 1, 22.0)
-                cesantia_days += days_this_year * fraction
-            cesantia_amount = round(daily * cesantia_days, 2)
-            # Art. 29 CT: la cesantia SI aplica para fracciones del primer ano
-            # (proporcional a los dias de la tabla). Solo si >= 3 meses (0.25 anos).
-            if years < 0.25:
+            # Tabla oficial Ministerio de Trabajo CR (Art. 29 CT):
+            # < 3 meses:        no aplica
+            # 3 a < 6 meses:    7 días total (pago único)
+            # 6 meses a < 1 año: 14 días total (pago único)
+            # 1 año o más:      tabla acumulativa K.CESANTIA_TABLA
+            _tm = diff.years * 12 + diff.months
+            if _tm < 3:
                 cesantia_amount = 0.0
                 notes_lines.append('Cesantia Art.29 CT: menos de 3 meses -- no aplica')
+            elif _tm < 6:
+                cesantia_days = 7.0
+                cesantia_amount = round(daily * cesantia_days, 2)
+                notes_lines.append(f'Cesantia Art.29 CT: 3-6 meses = 7 dias = CRC{cesantia_amount:,.2f}')
+            elif _tm < 12:
+                cesantia_days = 14.0
+                cesantia_amount = round(daily * cesantia_days, 2)
+                notes_lines.append(f'Cesantia Art.29 CT: 6-12 meses = 14 dias = CRC{cesantia_amount:,.2f}')
             else:
+                cesantia_days_table = K.CESANTIA_TABLA
+                years_int = min(int(years), 8)
+                fraction = years - int(years)
+                cesantia_days = 0.0
+                for y in range(1, years_int + 1):
+                    cesantia_days += cesantia_days_table.get(y, 22.0)
+                if years_int < 8:
+                    days_this_year = cesantia_days_table.get(years_int + 1, 22.0)
+                    cesantia_days += days_this_year * fraction
+                cesantia_amount = round(daily * cesantia_days, 2)
                 notes_lines.append(
-                    f'Cesantia Art.29 CT: {years:.2f} anos x {cesantia_days:.1f} dias '
-                    f'(tabla Art. 29) = CRC{cesantia_amount:,.2f}'
+                    f'Cesantia Art.29 CT: {years:.2f} anos x {cesantia_days:.1f} dias'
+                    f' = CRC{cesantia_amount:,.2f}'
                 )
         else:
             cesantia_amount = 0.0

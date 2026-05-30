@@ -304,18 +304,26 @@ class EmployeeTermination(models.Model):
             # Ano 1: 19.5 dias, Ano 2: 20 dias, Ano 3: 20.5 dias...
             # Maximo 8 anos = 22 dias/ano
             if rec.cesantia_applies:
-                # FIX CALC-01: usar tabla centralizada K.CESANTIA_TABLA (Art. 29 CT)
-                # Eliminada tabla local duplicada e inconsistente
-                cesantia_days_table = K.CESANTIA_TABLA
-                years = min(int(rec.years_service), 8)
-                fraction = rec.years_service - int(rec.years_service)
-                cesantia_days = 0
-                for y in range(1, years + 1):
-                    cesantia_days += cesantia_days_table.get(y, 22.0)
-                # Fraccion del ano en curso
-                if years < 8:
-                    days_this_year = cesantia_days_table.get(years + 1, 22.0)
-                    cesantia_days += days_this_year * fraction
+                # Art. 29 CT + Tabla oficial Ministerio de Trabajo CR:
+                # Sub-año: pagos únicos fijos (NO proporcionales)
+                #   3 a < 6 meses  → 7 días total
+                #   6 meses a < 1 año → 14 días total
+                # 1 año cumplido en adelante: tabla K.CESANTIA_TABLA acumulativa
+                m = rec.months_service
+                if m < 6:
+                    cesantia_days = K.CESANTIA_SUB_ANIO['tres_seis']
+                elif m < 12:
+                    cesantia_days = K.CESANTIA_SUB_ANIO['seis_doce']
+                else:
+                    cesantia_days_table = K.CESANTIA_TABLA
+                    years = min(int(rec.years_service), 8)
+                    fraction = rec.years_service - int(rec.years_service)
+                    cesantia_days = 0
+                    for y in range(1, years + 1):
+                        cesantia_days += cesantia_days_table.get(y, 22.0)
+                    if years < 8:
+                        days_this_year = cesantia_days_table.get(years + 1, 22.0)
+                        cesantia_days += days_this_year * fraction
                 rec.cesantia_amount = round(daily_salary * cesantia_days, 2)
             else:
                 rec.cesantia_amount = 0
