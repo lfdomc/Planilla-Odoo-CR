@@ -437,25 +437,23 @@ class TerminationSimulator(models.TransientModel):
                 ('date_from', '>=', period_start),
                 ('date_to', '<=', exit_date),
             ])
-            sum_salaries_system = round(sum(slips_in_period.mapped('gross_salary')), 2)
-            if sum_salaries_system > 0:
-                aguinaldo_from_system = round(sum_salaries_system / 12.0, 2)
-                if ag_init_amount and ag_init_date and ag_init_date >= period_start:
-                    aguinaldo     = round(ag_init_amount + aguinaldo_from_system, 2)
-                    months_worked = total_months
-                    notes_lines.append(
-                        'Aguinaldo Art.228 CT: inicial CRC%s + sistema CRC%s' % (
-                            '{:,.2f}'.format(ag_init_amount),
-                            '{:,.2f}'.format(aguinaldo_from_system))
-                    )
-                else:
-                    aguinaldo     = aguinaldo_from_system
-                    months_worked = len(slips_in_period)
-                    notes_lines.append(
-                        'Aguinaldo Art.228 CT: CRC%s / 12 (%s boletas)' % (
-                            '{:,.2f}'.format(sum_salaries_system),
-                            len(slips_in_period))
-                    )
+            # Art. 228 CT: usar MISMO promedio que preaviso/cesantia (salary)
+            # NO usar sum(gross_salary boletas) porque incluye HE variables
+            # Formula: salary / 12 * total_months (igual que Excel)
+            if ag_init_amount and ag_init_date and ag_init_date >= period_start:
+                months_covered = (
+                    (ag_init_date.year * 12 + ag_init_date.month) -
+                    (period_start.year * 12 + period_start.month) + 1
+                )
+                months_from_system = max(0, total_months - months_covered)
+                aguinaldo_system = round(salary / 12.0 * months_from_system, 2)
+                aguinaldo     = round(ag_init_amount + aguinaldo_system, 2)
+                months_worked = total_months
+                notes_lines.append(
+                    'Aguinaldo Art.228 CT: inicial CRC%s + sistema CRC%s' % (
+                        '{:,.2f}'.format(ag_init_amount),
+                        '{:,.2f}'.format(aguinaldo_system))
+                )
             elif ag_init_amount:
                 aguinaldo     = ag_init_amount
                 months_worked = total_months
