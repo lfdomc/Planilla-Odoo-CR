@@ -345,27 +345,53 @@ class EmployeeTermination(models.Model):
                 ])
                 vacation_days_taken = sum(taken_payments.mapped('days'))
 
-            vac_init    = rec.employee_id.vacation_initial_balance if rec.employee_id else 0.0
-            vac_cutoff  = rec.employee_id.vacation_initial_balance_date if rec.employee_id else False
-            has_initial = bool(vac_cutoff)
-
-            if has_initial:
-                # Acumular solo desde la fecha de corte hasta la fecha de salida
-                if vac_cutoff >= exit_d:
-                    accrued_since_cutoff = 0.0
-                else:
-                    days_since = (exit_d - vac_cutoff).days
-                    accrued_since_cutoff = math.floor(days_since / 29)
-                vacation_days_gross = math.floor(vac_init + accrued_since_cutoff)  # solo días completos
+            # Usar directamente los campos de la ficha del empleado.
+            # _compute_vacation_balance ya calcula correctamente:
+            # saldo_inicial + meses_mensuales + bonos_aniversario - tomados
+            # Esto evita recalcular y garantiza que coincide con lo que ve el usuario.
+            emp = rec.employee_id
+            import datetime as _dt
+            _today = _dt.date.today()
+            if exit_d == _today:
+                # Salida hoy: leer directamente vacation_days_available de la ficha
+                vacation_days_net = max(emp.vacation_days_available or 0.0, 0.0)
             else:
-                # Calculo normal desde fecha de ingreso
-                weeks_worked = rec.days_service / 7
-                # FIX: solo días COMPLETOS (floor) — 1 día por cada 29 días calendario.
-                # round() redondeaba 0.96 → 1, pagando un día que no se completó.
-                # floor() garantiza que solo se pagan días acumulados completos.
-                vacation_days_gross = math.floor(rec.days_service / 29)
+                # Salida en fecha diferente: recalcular con método mensual
+                # para respetar la fecha de salida exacta
+                from dateutil.relativedelta import relativedelta as _rd
+                import calendar as _cal
+                vac_init   = emp.vacation_initial_balance or 0.0
+                vac_cutoff = emp.vacation_initial_balance_date
+                entry_day  = emp.entry_date.day if emp.entry_date else 1
+                extra_days = 2  # días planos por aniversario
 
-            vacation_days_net = max(vacation_days_gross - vacation_days_taken, 0.0)
+                def _meses(desde, hasta):
+                    count = 0
+                    try: cand = _dt.date(desde.year, desde.month, entry_day)
+                    except: cand = _dt.date(desde.year, desde.month, _cal.monthrange(desde.year, desde.month)[1])
+                    if cand <= desde:
+                        m = cand + _rd(months=1)
+                        try: cand = _dt.date(m.year, m.month, entry_day)
+                        except: cand = _dt.date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
+                    while cand <= hasta:
+                        count += 1
+                        m = cand + _rd(months=1)
+                        try: cand = _dt.date(m.year, m.month, entry_day)
+                        except: cand = _dt.date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
+                    return count
+
+                start = vac_cutoff if vac_cutoff else emp.entry_date
+                accrued = vac_init + _meses(start, exit_d)
+
+                # Bonus aniversarios post-corte
+                _aniv = (emp.entry_date + _rd(years=1)) if emp.entry_date else None
+                while _aniv and _aniv <= exit_d:
+                    if _aniv > (vac_cutoff or emp.entry_date):
+                        accrued += extra_days
+                    _aniv += _rd(years=1)
+
+                vacation_days_net = max(accrued - vacation_days_taken, 0.0)
+
             rec.vacation_days_accrued = round(vacation_days_net, 2)
             rec.vacation_amount = round(daily_salary * vacation_days_net, 2)
 
