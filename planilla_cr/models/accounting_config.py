@@ -211,14 +211,6 @@ class PayrollAccountingConfig(models.Model):
              ' Por defecto DESACTIVADO (usa las horas del tipo de horario asignado).'
     )
 
-    enable_servicios_profesionales = fields.Boolean(
-        string='Habilitar Módulo Servicios Profesionales',
-        default=False,
-        help='Activa el menú y las boletas para contratistas independientes '
-             '(sin CCSS). Cuando está desactivado el menú no aparece y no se '
-             'pueden crear boletas SP.'
-    )
-
     skip_ccss_on_termination = fields.Boolean(
         string='No descontar CCSS obrero en liquidaciones',
         default=False,
@@ -656,40 +648,8 @@ class PayrollAccountingConfig(models.Model):
         }
 
     # ── Sincronización bidireccional con nombramientos.config ──────────────
-    def _sync_sp_group(self):
-        """Activa/desactiva el menu y grupo de Servicios Profesionales.
-        Usar active en ir.ui.menu es la unica forma de afectar al admin tambien.
-        """
-        enabled = self.enable_servicios_profesionales
-
-        # 1. Activar/desactivar el menu directamente (afecta TODOS los usuarios)
-        menu = self.env.ref(
-            'planilla_cr.menu_payslip_sp', raise_if_not_found=False)
-        if menu:
-            menu.sudo().write({'active': enabled})
-
-        # 2. Tambien sincronizar el grupo para usuarios no-admin
-        group = self.env.ref(
-            'planilla_cr.group_sp_enabled', raise_if_not_found=False)
-        internal = self.env.ref('base.group_user', raise_if_not_found=False)
-        if group and internal:
-            if enabled:
-                users = self.env['res.users'].sudo().search([
-                    ('group_ids', 'in', [internal.id]),
-                    ('share', '=', False),
-                ])
-                users.sudo().write({'group_ids': [(4, group.id)]})
-            else:
-                users_in_group = self.env['res.users'].sudo().search([
-                    ('group_ids', 'in', [group.id]),
-                ])
-                if users_in_group:
-                    users_in_group.sudo().write({'group_ids': [(3, group.id)]})
-
     def write(self, vals):
         res = super().write(vals)
-        if 'enable_servicios_profesionales' in vals:
-            self._sync_sp_group()
         if ('default_payroll_calendar_id' in vals
                 and not self.env.context.get('skip_planilla_sync')):
             self._sync_to_nombramientos_config()

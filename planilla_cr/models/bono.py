@@ -86,6 +86,14 @@ class Bono(models.Model):
         help='Si es True, el monto se suma al salario gravable para calcular renta. '
              'Subsidio transporte hasta tope legal = False.'
     )
+    afecto_salario_base = fields.Boolean(
+        string='Suma al Salario Base (aguinaldo/vac/cesantía)', default=False,
+        tracking=True,
+        help='Si es True, el monto de este bono se suma al salario base mensual '
+             'para calcular aguinaldo (Art. 228 CT), vacaciones (Art. 153 CT) y '
+             'cesantía (Art. 29 CT). Use esto cuando el bono forma parte del '
+             'salario ordinario real del empleado pero se paga separado.'
+    )
     tope_exento = fields.Monetary(
         string='Tope Exento (CRC/mes)', currency_field='currency_id',
         help='Solo aplica para tipos con exencion parcial (transporte). '

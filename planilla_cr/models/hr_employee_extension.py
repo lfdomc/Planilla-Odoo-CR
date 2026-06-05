@@ -706,13 +706,7 @@ class HrEmployeeExtension(models.Model):
     # -- Datos CCSS --------------------------------------------------
     ccss_number = fields.Char(string='Numero CCSS')
     ccss_insured = fields.Boolean(string='Asegurado CCSS', default=True)
-    retencion_renta_sp = fields.Boolean(
-        string='Aplicar Retención Renta 15% (Art. 23 LISR)',
-        default=False,
-        help='Solo para servicios profesionales. Si está marcado, se retiene el 15%\n'
-             'sobre los honorarios pagados según el Art. 23 inciso c) LISR.\n'
-             'Aplica cuando el contratista es persona física y lo requiere.'
-    )
+
 
     # -- Datos bancarios ---------------------------------------------
     bank_account_number = fields.Char(string='Numero de Cuenta Bancaria')

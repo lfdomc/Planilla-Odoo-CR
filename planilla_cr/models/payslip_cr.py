@@ -150,6 +150,12 @@ class PayslipCR(models.Model):
         help='Bonos con afecto_ccss=True (productividad, asistencia, antiguedad, '
              'comisiones). Se integran al salario bruto para CCSS y Renta.'
     )
+    bono_base_salarial_amount = fields.Monetary(
+        string='Bonos que suman al Salario Base', currency_field='currency_id',
+        compute='_compute_bono_salarial', store=True,
+        help='Suma de bonos con afecto_salario_base=True. '
+             'Se incluye en la base para aguinaldo, vacaciones y cesantia.'
+    )
     gross_salary = fields.Monetary(
         string='Salario Bruto', currency_field='currency_id',
         compute='_compute_gross', store=True

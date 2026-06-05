@@ -90,6 +90,8 @@
                         <group>
                             <field name="afecto_ccss"/>
                             <field name="afecto_renta"/>
+                            <field name="afecto_salario_base"
+                                   widget="boolean_toggle"/>
                             <field name="tope_exento"
                                    invisible="afecto_ccss and afecto_renta"
                                    help="Monto mensual exento de CCSS/Renta (ej: ₡74 000 para transporte)."/>
@@ -121,6 +123,7 @@
                 <field name="percentage" string="%" optional="show"/>
                 <field name="afecto_ccss" string="CCSS" optional="show"/>
                 <field name="afecto_renta" string="Renta" optional="show"/>
+                <field name="afecto_salario_base" string="Suma Base" optional="show"/>
                 <field name="is_recurring" string="Recurrente" optional="show"/>
                 <field name="date_start"/>
                 <field name="date_end" optional="show"/>

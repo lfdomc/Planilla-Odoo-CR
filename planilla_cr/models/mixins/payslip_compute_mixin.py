@@ -506,9 +506,11 @@ class PayslipComputeMixin(models.AbstractModel):
             )
             if not bonus_lines:
                 rec.bono_salarial_amount = 0.0
+                rec.bono_base_salarial_amount = 0.0
                 continue
 
             total = 0.0
+            total_base = 0.0
             for line in bonus_lines:
                 # Preferir bono_id (enlace directo) sobre busqueda por nombre
                 bono_rec = line.bono_id
@@ -525,7 +527,10 @@ class PayslipComputeMixin(models.AbstractModel):
                     ], limit=1)
                 if bono_rec and bono_rec.afecto_ccss:
                     total += line.amount
+                if bono_rec and bono_rec.afecto_salario_base:
+                    total_base += line.amount
             rec.bono_salarial_amount = round(total, 2)
+            rec.bono_base_salarial_amount = round(total_base, 2)
 
     @api.depends('base_salary', 'salario_cotizable', 'costo_patrono_periodo',
                  'disability_days_in_period',
@@ -750,9 +755,17 @@ class PayslipComputeMixin(models.AbstractModel):
             subsidio_incap = round(subsidio_incap, 2)
             base_aguinaldo = max(round(g - subsidio_incap, 2), 0.0)
 
-            rec.aguinaldo_provision = round(base_aguinaldo * agu_rate, 2)
-            rec.cesantia_provision  = round(g * ces_rate, 2)
-            rec.vacation_provision  = round(g * vac_rate, 2)
+            # Bonos con afecto_salario_base=True se suman a la base de prestaciones
+            # aunque no estén en gross (porque afecto_ccss=False)
+            _bono_base_extra = getattr(rec, 'bono_base_salarial_amount', 0.0) or 0.0
+            # Evitar doble conteo: solo sumar si el bono NO está ya en gross
+            # (si afecto_ccss=False, el bono no está en gross, hay que sumarlo)
+            _bono_ccss = getattr(rec, 'bono_salarial_amount', 0.0) or 0.0
+            _bono_solo_base = max(round(_bono_base_extra - _bono_ccss, 2), 0.0)
+
+            rec.aguinaldo_provision = round((base_aguinaldo + _bono_solo_base) * agu_rate, 2)
+            rec.cesantia_provision  = round((g + _bono_solo_base) * ces_rate, 2)
+            rec.vacation_provision  = round((g + _bono_solo_base) * vac_rate, 2)
 
     def _calc_income_tax(self, gross: float, ccss_emp: float = 0.0,
                          one_time_bonus: float = 0.0) -> tuple:
