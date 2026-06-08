@@ -29,7 +29,7 @@ from odoo import models, fields, api
 from odoo.models import Constraint
 from odoo.exceptions import ValidationError
 from . import planilla_const as K
-
+import datetime
 # -- Mapa legal: tipo -> (dias_max, con_goce, base_legal) ----------------------
 LEAVE_LEGAL_MAP = {
     'duelo_primer_grado':  (3,  True,  'Art. 37 bis CT / Ley 8698 -- 3 dias habiles conyuge/hijo/padre/madre/hermano'),
