@@ -279,6 +279,7 @@
             <p>Registre la liquidación de un empleado con cálculo automático de preaviso,
             cesantía, vacaciones y aguinaldo según el Código de Trabajo de Costa Rica.</p>
         </field>
+        <field name="context">{'search_default_current_company': 1}</field>
     </record>
 
     <!-- Server action que abre el formulario en pantalla completa -->
@@ -287,5 +288,6 @@
         <field name="res_model">planilla.termination</field>
         <field name="view_mode">form,list</field>
         <field name="target">current</field>
+        <field name="context">{'search_default_current_company': 1}</field>
     </record>
 </odoo>
