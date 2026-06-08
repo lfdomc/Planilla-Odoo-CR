@@ -187,7 +187,7 @@
             
                 <separator/>
                 <filter name="current_company" string="Empresa Actual"
-                        domain="[('company_id', 'in', allowed_company_ids)]"/>
+                        domain="[('company_id', '=', company_id)]"/>
             </search>
         </field>
     </record>
