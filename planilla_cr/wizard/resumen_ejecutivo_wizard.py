@@ -28,12 +28,21 @@ class ResumenEjecutivoWizard(models.TransientModel):
 
     def action_generate(self):
         self.ensure_one()
-        run = self.payroll_run_id
-        if not run:
-            raise UserError('Seleccione una planilla.')
+
+        # Modo quincena o mes
+        if self.period_mode == 'mes':
+            if not self.payroll_run_id_1 and not self.payroll_run_id_2:
+                raise UserError('Seleccione al menos una quincena para el mes.')
+            runs = (self.payroll_run_id_1 | self.payroll_run_id_2).filtered(lambda r: r)
+            run  = self.payroll_run_id_1 or self.payroll_run_id_2
+        else:
+            if not self.payroll_run_id:
+                raise UserError('Seleccione una planilla.')
+            runs = self.payroll_run_id
+            run  = self.payroll_run_id
 
         slips = self.env['planilla.payslip.cr'].search([
-            ('payroll_run_id', '=', run.id),
+            ('payroll_run_id', 'in', runs.ids),
             ('state', 'in', (['draft', 'confirmed', 'done']
                              if self.include_draft
                              else ['confirmed', 'done'])),
@@ -167,7 +176,10 @@ class ResumenEjecutivoWizard(models.TransientModel):
 
         # ── Título ────────────────────────────────────────────────────────────
         empresa = run.company_id.name or ''
-        periodo = f"{run.date_start.strftime('%d/%m/%Y')} al {run.date_end.strftime('%d/%m/%Y')}"
+        # Rango de fechas (puede ser mensual = dos quincenas)
+        d_start = min(r.date_start for r in runs)
+        d_end   = max(r.date_end   for r in runs)
+        periodo = f"{d_start.strftime('%d/%m/%Y')} al {d_end.strftime('%d/%m/%Y')}"
         freq_map = {'biweekly': 'Quincenal', 'monthly': 'Mensual',
                     'weekly': 'Semanal', 'bimonthly': 'Bimensual'}
         freq = freq_map.get((run.payroll_calendar_id.frequency or ''), run.payroll_calendar_id.frequency or '')

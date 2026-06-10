@@ -14,7 +14,18 @@
           <group>
             <group>
               <field name="company_id"/>
-              <field name="payroll_run_id" options="{'no_create': True}"/>
+              <field name="period_mode" widget="radio" options="{'horizontal': True}"/>
+              <field name="payroll_run_id" string="Planilla (quincena)"
+                     options="{'no_create': True}"
+                     invisible="period_mode != 'quincena'"
+                     required="period_mode == 'quincena'"/>
+              <field name="payroll_run_id_1" string="Primera Quincena"
+                     options="{'no_create': True}"
+                     invisible="period_mode != 'mes'"
+                     required="period_mode == 'mes'"/>
+              <field name="payroll_run_id_2" string="Segunda Quincena"
+                     options="{'no_create': True}"
+                     invisible="period_mode != 'mes'"/>
             </group>
             <group>
               <field name="elaborado_por" string="Elaborado por"/>
