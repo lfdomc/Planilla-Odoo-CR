@@ -12,8 +12,21 @@ class ResumenEjecutivoWizard(models.TransientModel):
         'res.company', required=True,
         default=lambda self: self.env.company
     )
+    period_mode = fields.Selection([
+        ('quincena', 'Por Quincena'),
+        ('mes',      'Por Mes (dos quincenas)'),
+    ], string='Período', default='quincena', required=True)
+
     payroll_run_id = fields.Many2one(
-        'planilla.run.cr', string='Planilla', required=True,
+        'planilla.run.cr', string='Planilla (quincena)',
+        domain="[('company_id', '=', company_id)]"
+    )
+    payroll_run_id_1 = fields.Many2one(
+        'planilla.run.cr', string='Primera Quincena',
+        domain="[('company_id', '=', company_id)]"
+    )
+    payroll_run_id_2 = fields.Many2one(
+        'planilla.run.cr', string='Segunda Quincena',
         domain="[('company_id', '=', company_id)]"
     )
     elaborado_por = fields.Char(
