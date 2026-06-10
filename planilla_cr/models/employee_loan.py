@@ -26,6 +26,12 @@ class EmployeeLoan(models.Model):
     employee_id = fields.Many2one(
         'hr.employee', string='Empleado', required=True, ondelete='restrict', index=True
     )
+    company_id = fields.Many2one(
+        'res.company', string='Empresa',
+        related='employee_id.company_id', store=True, readonly=True,
+        index=True,
+    )
+
     branch_id = fields.Many2one(related='employee_id.branch_id', store=True)
     currency_id = fields.Many2one(related='employee_id.currency_id', store=True)
 

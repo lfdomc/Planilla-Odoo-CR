@@ -144,7 +144,7 @@
             
                 <separator/>
                 <filter name="current_company" string="Empresa Actual"
-                        domain="[('employee_id.company_id', '=', company_id)]"/>
+                        domain="[('company_id', '=', company_id)]"/>
             </search>
         </field>
     </record>

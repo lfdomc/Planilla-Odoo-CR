@@ -23,6 +23,12 @@ class Disability(models.Model):
     employee_id = fields.Many2one(
         'hr.employee', string='Empleado', required=True, tracking=True, index=True
     )
+    company_id = fields.Many2one(
+        'res.company', string='Empresa',
+        related='employee_id.company_id', store=True, readonly=True,
+        index=True,
+    )
+
     branch_id = fields.Many2one(
         related='employee_id.branch_id', string='Sucursal', store=True
     )
