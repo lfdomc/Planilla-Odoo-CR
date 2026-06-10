@@ -202,7 +202,9 @@ class ResumenEjecutivoWizard(models.TransientModel):
         sub_fmt    = F(sz=9, bg='#D6E4F0', align='left')
 
         ws.merge_range(0, 0, 0, N-1,
-            f'RESUMEN EJECUTIVO DE PLANILLA — {run.name}{draft_warn}', titulo_fmt)
+            f'RESUMEN EJECUTIVO DE PLANILLA — '
+            f'{'Mes ' + d_start.strftime('%B %Y').title() if self.period_mode == 'mes' else run.name}'
+            f'{draft_warn}', titulo_fmt)
         ws.merge_range(1, 0, 1, N-1,
             f'{empresa}  |  Período: {periodo}  |  Frecuencia: {freq}  |  '
             f'Elaborado por: {self.elaborado_por or ""}', sub_fmt)
@@ -253,6 +255,49 @@ class ResumenEjecutivoWizard(models.TransientModel):
         prev_dept = None
         dept_start_row = 4
         dept_totals = [0.0] * N
+
+        # En modo mensual: consolidar las dos quincenas por empleado
+        if self.period_mode == 'mes':
+            from collections import defaultdict
+            # Agrupar slips por empleado conservando orden por dept+nombre
+            emp_order = {}
+            emp_slips = defaultdict(list)
+            for _s in slips:
+                eid = _s.employee_id.id
+                if eid not in emp_order:
+                    emp_order[eid] = len(emp_order)
+                emp_slips[eid].append(_s)
+            # Crear iterable de 'slip virtual' con datos sumados
+            class _MergedSlip:
+                def __init__(self, slips_list):
+                    s0 = slips_list[0]
+                    self.employee_id = s0.employee_id
+                    self.branch_id   = s0.branch_id
+                    def _sum(attr): return sum(getattr(s, attr) or 0 for s in slips_list)
+                    self.dias_laborados_periodo   = _sum('dias_laborados_periodo') or _sum('days_worked')
+                    self.base_salary              = s0.base_salary  # salario base = del empleado
+                    self.overtime_amount          = _sum('overtime_amount')
+                    self.bono_salarial_amount     = _sum('bono_salarial_amount')
+                    self.vacation_amount          = _sum('vacation_amount')
+                    self.other_income             = _sum('other_income')
+                    self.disability_days_in_period= _sum('disability_days_in_period')
+                    self.ccss_subsidy_total       = _sum('ccss_subsidy_total')
+                    self.paternity_amount         = _sum('paternity_amount')
+                    self.base_cotizable_final     = _sum('base_cotizable_final')
+                    self.ccss_employee            = _sum('ccss_employee')
+                    self.income_tax               = _sum('income_tax')
+                    self.total_employee_deductions= _sum('total_employee_deductions')
+                    self.deposito_patrono         = _sum('deposito_patrono')
+                    self.ccss_employer            = _sum('ccss_employer')
+                    self.ins_employer             = _sum('ins_employer')
+                    self.aguinaldo_provision      = _sum('aguinaldo_provision')
+                    self.cesantia_provision       = _sum('cesantia_provision')
+                    self.vacation_provision       = _sum('vacation_provision')
+                    self.total_employer_cost      = _sum('total_employer_cost')
+                    # Sumar deduction_line_ids de todos los slips
+                    self.deduction_line_ids = sum((list(s.deduction_line_ids) for s in slips_list), [])
+            slips = [_MergedSlip(emp_slips[eid])
+                     for eid in sorted(emp_order, key=lambda e: emp_order[e])]
 
         for slip in slips:
             emp = slip.employee_id
@@ -321,8 +366,8 @@ class ResumenEjecutivoWizard(models.TransientModel):
             def _sum_cat(*cats):
                 return round(sum(
                     l.amount for l in slip.deduction_line_ids
-                    if l.line_type == 'deduction'
-                    and l.deduction_category in cats
+                    if getattr(l, 'line_type', '') == 'deduction'
+                    and getattr(l, 'deduction_category', '') in cats
                 ), 2)
 
             pension_al = _sum_cat('pension_alimentaria')
@@ -424,7 +469,10 @@ class ResumenEjecutivoWizard(models.TransientModel):
         wb.close()
         xlsx_data = base64.b64encode(output.getvalue()).decode()
 
-        slug = run.name.replace(' ', '_')[:40]
+        if self.period_mode == 'mes':
+            slug = f"Mes_{d_start.strftime('%B_%Y').title()}"
+        else:
+            slug = run.name.replace(' ', '_')[:40]
         filename = f'ResumenEjecutivo_{slug}.xlsx'
 
         attach = self.env['ir.attachment'].create({
