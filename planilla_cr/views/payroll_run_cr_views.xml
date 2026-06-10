@@ -134,10 +134,12 @@
                     <div class="alert alert-warning" role="alert"
                          invisible="count_missing_schedule == 0">
                         <i class="fa fa-exclamation-triangle" title="Advertencia"/>
-                        <strong><field name="count_missing_schedule" readonly="1"/> empleado(s) sin tipo de horario configurado.</strong>
-                        El cálculo de horas extras y jornadas puede ser impreciso.
-                        Configure el tipo de horario en:
-                        <strong>Empleados → pestaña Planilla CR → Horario y Pago → Tipo de Horario.</strong>
+                        <strong><field name="count_missing_schedule" readonly="1"/> empleado(s) sin tipo de horario:</strong>
+                        <br/><span style="font-style:italic;margin-left:8px">
+                            <field name="missing_schedule_names" readonly="1"/>
+                        </span>
+                        <br/>El cálculo de horas extras puede ser impreciso.
+                        Configure en: <strong>Empleados → Planilla CR → Tipo de Horario.</strong>
                     </div>
 
                     <div class="oe_button_box" name="button_box">

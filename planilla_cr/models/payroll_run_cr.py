@@ -191,6 +191,10 @@ class PayrollRunCR(models.Model):
         compute='_compute_totals', store=True,
         help='Cantidad de boletas donde el empleado no tiene tipo de horario configurado.'
     )
+    missing_schedule_names = fields.Char(
+        string='Empleados sin horario (nombres)',
+        compute='_compute_totals', store=False,
+    )
     # -- Totales desglosados para vista de lista -------------------------------
     total_salario_cotizable = fields.Monetary(
         string='Total Salario Cotizable', currency_field='currency_id',
@@ -561,10 +565,12 @@ class PayrollRunCR(models.Model):
                 1 for s in active_slips
                 if not s.employee_id.payroll_calendar_id
             )
-            rec.count_missing_schedule = sum(
-                1 for s in active_slips
+            _miss = sorted(set(
+                s.employee_id.name for s in active_slips
                 if not s.employee_id.schedule_type_id
-            )
+            ))
+            rec.count_missing_schedule = len(_miss)
+            rec.missing_schedule_names = ', '.join(_miss) if _miss else ''
 
     def action_generate_payslips(self):
         """
