@@ -39,7 +39,7 @@ def pre_init_hook(env):
 
 def post_init_hook(env):
     _create_email_templates(env)
-    _setup_accounting_config(env)
+    _setup_all_companies_config(env)
     _ensure_schedule_types(env)
     try:
         from .models.migrate_codes import migrate_codes
@@ -84,7 +84,7 @@ def post_migrate_hook(env):
         logging.getLogger(__name__).warning(
             'planilla_cr.migrate_codes: %s (no critico)', _e
         )
-    _setup_accounting_config(env)
+    _setup_all_companies_config(env)
     _ensure_deduction_codes(env)
     _ensure_schedule_types(env)
     _fix_hour_license_date_end(env)
@@ -494,6 +494,14 @@ def _setup_accounting_config(env):
         if vals:
             existing.write(vals)
 
+
+
+
+def _setup_all_companies_config(env):
+    """Llama _setup_accounting_config para cada empresa del sistema."""
+    all_companies = env['res.company'].sudo().search([])
+    for company in all_companies:
+        _setup_accounting_config(env.with_company(company))
 
 
 def _create_email_templates(env):
