@@ -459,6 +459,21 @@ def _setup_accounting_config(env):
         for field_name, (code, name, acc_type) in ACCOUNT_MAP.items():
             account = get_or_create_account(code, name, acc_type)
             vals[field_name] = account.id
+
+        # Copiar preferencias de usuario de otra empresa si existe
+        # para que los checks configurables no queden en default inesperado
+        other_config = env['planilla.accounting.config'].search([], limit=1)
+        user_pref_fields = [
+            'show_vacation_on_payslip',
+            'overtime_fixed_8h',
+            'skip_ccss_on_termination',
+            'accrual_method',
+        ]
+        if other_config:
+            for f in user_pref_fields:
+                if hasattr(other_config, f):
+                    vals[f] = getattr(other_config, f)
+
         env['planilla.accounting.config'].create(vals)
     else:
         # -- Actualizar config existente: solo rellenar campos vacios --
