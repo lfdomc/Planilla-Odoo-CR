@@ -60,6 +60,15 @@ def post_migrate_hook(env):
     """
     # Garantizar que columnas nuevas existan aunque el ORM no las creara automaticamente
     _ensure_missing_columns(env)
+    # Preserve show_vacation_on_payslip: ensure column exists without resetting
+    # Use ALTER TABLE with no DEFAULT to avoid overwriting user's False setting
+    env.cr.execute("""
+        ALTER TABLE planilla_accounting_config
+        ADD COLUMN IF NOT EXISTS show_vacation_on_payslip BOOLEAN;
+        UPDATE planilla_accounting_config
+        SET show_vacation_on_payslip = TRUE
+        WHERE show_vacation_on_payslip IS NULL;
+    """)
     try:
         from .models.migrate_codes import migrate_codes
         migrate_codes(env)
@@ -642,6 +651,8 @@ def _ensure_missing_columns(env):
     Crea columnas que pueden faltar en BDs existentes cuando Odoo no las
     agrega automaticamente en la actualizacion del modulo.
     Usa ADD COLUMN IF NOT EXISTS para ser idempotente.
+    IMPORTANTE: los campos configurables por usuario (como show_vacation_on_payslip)
+    NO se agregan aqui para evitar resetearlos. Odoo ORM los maneja directamente.
     """
     import logging
     _logger = logging.getLogger(__name__)
