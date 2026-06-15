@@ -501,6 +501,16 @@ class PayslipCR(models.Model):
     # CONSTRAINTS ORM
     # ==================================================================
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Auto-activa is_sp si el empleado tiene exento_deducciones."""
+        for vals in vals_list:
+            if 'employee_id' in vals and not vals.get('is_sp'):
+                emp = self.env['hr.employee'].browse(vals['employee_id'])
+                if emp and getattr(emp, 'exento_deducciones', False):
+                    vals['is_sp'] = True
+        return super().create(vals_list)
+
     def write(self, vals):
         """Proteger boletas pagadas contra escritura accidental en campos criticos."""
         campos_criticos = {

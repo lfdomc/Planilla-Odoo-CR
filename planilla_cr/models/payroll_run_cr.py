@@ -632,14 +632,16 @@ class PayrollRunCR(models.Model):
 
         # Filtrar por tipo de planilla
         if self.payroll_type == 'sp':
-            # Planilla SP: solo empleados sin CCSS
+            # Planilla SP: empleados sin CCSS que NO son exentos en planilla normal
             employees_active = employees_active.filtered(
                 lambda e: not getattr(e, 'ccss_insured', True)
+                          and not getattr(e, 'exento_deducciones', False)
             )
         else:
-            # Planilla Normal: solo empleados con CCSS
+            # Planilla Normal: empleados con CCSS + empleados exentos (sin CCSS pero en planilla normal)
             employees_active = employees_active.filtered(
                 lambda e: getattr(e, 'ccss_insured', True)
+                          or getattr(e, 'exento_deducciones', False)
             )
 
         # -- Verificacion cruzada: detectar empleados ya en otra planilla solapada --

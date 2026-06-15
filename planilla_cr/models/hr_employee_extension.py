@@ -706,6 +706,13 @@ class HrEmployeeExtension(models.Model):
     # -- Datos CCSS --------------------------------------------------
     ccss_number = fields.Char(string='Numero CCSS')
     ccss_insured = fields.Boolean(string='Asegurado CCSS', default=True)
+    exento_deducciones = fields.Boolean(
+        string='Exento de CCSS y Renta',
+        default=False,
+        help='Si está activo, el empleado se incluye en la planilla normal '
+             'pero NO se le descuentan CCSS ni Renta. Aplica solo a empleados '
+             'no asegurados (CCSS desactivado). Ej: directivos, socios, etc.'
+    )
 
 
     # -- Datos bancarios ---------------------------------------------

@@ -98,6 +98,10 @@
                         <group string="CCSS">
                             <field name="ccss_number"/>
                             <field name="ccss_insured"/>
+                            <field name="exento_deducciones"
+                                   invisible="ccss_insured"
+                                   string="Exento de CCSS y Renta (incluir en planilla normal)"
+                                   widget="boolean_toggle"/>
                         </group>
                         <group string="Créditos Fiscales (Art. 34 LIR)">
                             <field name="income_tax_children"
