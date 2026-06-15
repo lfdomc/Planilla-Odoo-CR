@@ -138,7 +138,8 @@
                         <tr>
                             <td style="padding:2px 8px 2px 20px;">Bonos / Incentivos:</td>
                             <td style="padding:2px 8px; text-align:right;">
-                                <t t-if="doc.bono_salarial_amount &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.bono_salarial_amount)"/></t>
+                                <t t-set="_total_bonos" t-value="(doc.bono_salarial_amount or 0) + (doc.amount_bonos_exentos or 0)"/>
+                                <t t-if="_total_bonos &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(_total_bonos)"/></t>
                                 <t t-else="">-</t>
                             </td>
                             <td/>
