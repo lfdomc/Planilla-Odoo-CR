@@ -52,8 +52,11 @@
                                 Puesto: <t t-out="doc.employee_id.job_id.name"/>
                                 &#160;&#160;|&#160;&#160;
                                 Dias laborados: <t t-out="str(doc.dias_laborados_periodo)"/>
+                                <t t-set="_cfg" t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',doc.company_id.id)],limit=1)"/>
+                                <t t-if="not _cfg or _cfg.show_vacation_on_payslip">
                                 &#160;&#160;|&#160;&#160;
                                 Saldo vacac.: <t t-out="'{:.1f}'.format(doc.employee_id.vacation_days_available or 0)"/> dias
+                                </t>
                             </td>
                         </tr>
                         </t>

@@ -211,6 +211,13 @@ class PayrollAccountingConfig(models.Model):
              ' Por defecto DESACTIVADO (usa las horas del tipo de horario asignado).'
     )
 
+    show_vacation_on_payslip = fields.Boolean(
+        string='Mostrar saldo de vacaciones en boleta',
+        default=True,
+        help='Si está activo, la boleta PDF del empleado muestra el saldo '
+             'de días de vacaciones disponibles. Desactive para ocultar este dato.'
+    )
+
     skip_ccss_on_termination = fields.Boolean(
         string='No descontar CCSS obrero en liquidaciones',
         default=False,
