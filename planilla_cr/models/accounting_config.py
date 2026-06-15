@@ -9,6 +9,11 @@ class PayrollAccountingConfig(models.Model):
     _description = 'Configuracion Contable de Planilla'
     _rec_name = 'company_id'
 
+    _sql_constraints = [
+        ('unique_company', 'UNIQUE(company_id)',
+         'Solo puede existir una configuracion contable por empresa.'),
+    ]
+
     company_id = fields.Many2one(
         'res.company', string='Compania',
         required=True, default=lambda self: self.env.company,
@@ -655,6 +660,13 @@ class PayrollAccountingConfig(models.Model):
         }
 
     # ── Sincronización bidireccional con nombramientos.config ──────────────
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if not vals.get('company_id'):
+                vals['company_id'] = self.env.company.id
+        return super().create(vals_list)
+
     def write(self, vals):
         res = super().write(vals)
         if ('default_payroll_calendar_id' in vals

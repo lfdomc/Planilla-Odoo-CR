@@ -61,13 +61,20 @@ def post_migrate_hook(env):
     # Garantizar que columnas nuevas existan aunque el ORM no las creara automaticamente
     _ensure_missing_columns(env)
     # Preserve show_vacation_on_payslip: ensure column exists without resetting
-    # Use ALTER TABLE with no DEFAULT to avoid overwriting user's False setting
     env.cr.execute("""
         ALTER TABLE planilla_accounting_config
         ADD COLUMN IF NOT EXISTS show_vacation_on_payslip BOOLEAN;
         UPDATE planilla_accounting_config
         SET show_vacation_on_payslip = TRUE
         WHERE show_vacation_on_payslip IS NULL;
+    """)
+
+    # Fix configs without company_id: assign current company
+    # This prevents the 'same change affects all companies' bug
+    env.cr.execute("""
+        UPDATE planilla_accounting_config
+        SET company_id = (SELECT id FROM res_company LIMIT 1)
+        WHERE company_id IS NULL;
     """)
     try:
         from .models.migrate_codes import migrate_codes
