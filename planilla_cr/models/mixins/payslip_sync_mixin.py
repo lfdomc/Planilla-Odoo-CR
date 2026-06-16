@@ -371,6 +371,17 @@ class PayslipSyncMixin(models.AbstractModel):
         if not self.employee_id or not self.date_from or not self.date_to:
             return
 
+        # GUARD: si ya es proporcional por fecha de salida, no agregar licencias sin goce
+        _emp_lic = self.employee_id
+        if self.is_proportional and _emp_lic.exit_date:
+            from odoo.fields import Date as _Date
+            _exit_d = _emp_lic.exit_date if hasattr(_emp_lic.exit_date, 'year') else _Date.from_string(_emp_lic.exit_date)
+            _per_end = self.date_to if hasattr(self.date_to, 'year') else _Date.from_string(self.date_to)
+            _per_start = self.date_from if hasattr(self.date_from, 'year') else _Date.from_string(self.date_from)
+            if _per_start <= _exit_d <= _per_end:
+                # La proporcionalidad ya descuenta los días no laborados
+                return
+
         # -- Codigos de deduccion ----------------------------------------------
         def _get_or_create_code(code, name, ded_type):
             dc = self.env['planilla.deduction.code'].search([('code', '=', code)], limit=1)
@@ -501,6 +512,18 @@ class PayslipSyncMixin(models.AbstractModel):
             return
         if not self.employee_id or not self.date_from or not self.date_to:
             return
+
+        # GUARD: si la boleta ya es proporcional por fecha de salida del empleado,
+        # no agregar ausencias para los días no trabajados — sería doble descuento.
+        emp = self.employee_id
+        if self.is_proportional and emp.exit_date:
+            from odoo.fields import Date
+            exit_d = emp.exit_date if hasattr(emp.exit_date, 'year') else Date.from_string(emp.exit_date)
+            period_end = self.date_to if hasattr(self.date_to, 'year') else Date.from_string(self.date_to)
+            period_start = self.date_from if hasattr(self.date_from, 'year') else Date.from_string(self.date_from)
+            if period_start <= exit_d <= period_end:
+                # La proporcionalidad ya descuenta los días no trabajados → skip
+                return
 
         # Codigo de deduccion para ausencias
         absence_code = self.env['planilla.deduction.code'].search(

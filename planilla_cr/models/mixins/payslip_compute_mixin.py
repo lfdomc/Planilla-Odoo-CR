@@ -147,17 +147,47 @@ class PayslipComputeMixin(models.AbstractModel):
                 rec.base_salary = round(raw * freq_factor * prop_factor, 2)
 
     @api.onchange('date_from', 'date_to', 'employee_id')
+    @staticmethod
+    def _count_schedule_days(date_from, date_to, days_per_week):
+        """Cuenta los dias laborables segun el horario entre date_from y date_to (exclusive).
+        days_per_week=5 → Lun-Vie, 6 → Lun-Sab, 2 → Sab-Dom, 7 → todos.
+        Se excluye date_to para no contar el dia de corte del periodo.
+        """
+        import datetime as _dt
+        if days_per_week >= 7:
+            return (date_to - date_from).days
+        # weekday(): 0=Lun, 1=Mar, 2=Mie, 3=Jue, 4=Vie, 5=Sab, 6=Dom
+        if days_per_week == 6:   valid = {0,1,2,3,4,5}  # Lun-Sab
+        elif days_per_week == 5: valid = {0,1,2,3,4}    # Lun-Vie
+        elif days_per_week == 2: valid = {5,6}           # Sab-Dom
+        else:                    valid = set(range(days_per_week))  # fallback
+        count = 0
+        cur = date_from
+        while cur < date_to:  # exclusive de date_to
+            if cur.weekday() in valid:
+                count += 1
+            cur += _dt.timedelta(days=1)
+        return count
+
     def _onchange_auto_proportional(self):
-        """Auto-detecta si el empleado ingreso o salio durante el periodo."""
+        """Auto-detecta si el empleado ingreso o salio durante el periodo.
+        Usa dias habiles del horario (Lun-Vie, Lun-Sab, etc.) para coincidir
+        con el metodo de calculo proporcional usado por el Excel.
+        """
         for rec in self:
             emp = rec.employee_id
             if emp and emp.entry_date and rec.date_from and rec.date_to:
+                dpw = emp.schedule_type_id.days_per_week if emp.schedule_type_id else 5
                 if rec.date_from <= emp.entry_date <= rec.date_to:
                     rec.is_proportional = True
-                    rec.days_worked = (rec.date_to - emp.entry_date).days + 1
+                    # Dias habiles desde entry_date hasta date_to (exclusive)
+                    rec.days_worked = self._count_schedule_days(
+                        emp.entry_date, rec.date_to, dpw) or 1
                 elif emp.exit_date and rec.date_from <= emp.exit_date <= rec.date_to:
                     rec.is_proportional = True
-                    rec.days_worked = (emp.exit_date - rec.date_from).days + 1
+                    # Dias habiles desde date_from hasta exit_date (inclusive → +1)
+                    rec.days_worked = self._count_schedule_days(
+                        rec.date_from, emp.exit_date, dpw) + 1
 
     @api.depends('employee_id', 'date_from', 'date_to', 'attendance_hours', 'is_proportional',
                  'proportional_factor',
