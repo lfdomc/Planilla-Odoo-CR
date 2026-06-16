@@ -340,10 +340,16 @@ class PayslipComputeMixin(models.AbstractModel):
                                 ccss_subsidy_periodo += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
                         else:
                             # CCSS Enfermedad/Accidente (Art. 79 CT)
-                            days_since_group_start = (overlap_start - group_start).days
-                            employer_remaining = max(3 - days_since_group_start, 0)
-                            dias_patrono_overlap     = min(dias_overlap, employer_remaining)
-                            dias_subsidiados_overlap = dias_overlap - dias_patrono_overlap
+                            # Si es prórroga: los 3 días patronales ya se agotaron
+                            # en el certificado original → patrono NO paga nada aquí
+                            if getattr(dis, 'es_prorroga', False):
+                                dias_patrono_overlap     = 0
+                                dias_subsidiados_overlap = dias_overlap
+                            else:
+                                days_since_group_start = (overlap_start - group_start).days
+                                employer_remaining = max(3 - days_since_group_start, 0)
+                                dias_patrono_overlap     = min(dias_overlap, employer_remaining)
+                                dias_subsidiados_overlap = dias_overlap - dias_patrono_overlap
                             subsidy_rate = (dis.subsidy_percentage or 60.0) / 100.0
                             costo_patrono_periodo += round(dias_patrono_overlap * daily * 0.50, 2)
                             ccss_subsidy_periodo   += round(dias_subsidiados_overlap * daily * subsidy_rate, 2)
