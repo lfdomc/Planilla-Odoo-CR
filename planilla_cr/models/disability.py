@@ -576,6 +576,16 @@ class Disability(models.Model):
 
     def write(self, vals):
         res = super().write(vals)
+        # Si cambia es_prorroga, invalidar compute de boletas relacionadas
+        if 'es_prorroga' in vals:
+            slips = self.env['planilla.payslip.cr'].search([
+                ('employee_id', 'in', self.mapped('employee_id').ids),
+            ])
+            if slips:
+                slips.invalidate_recordset(['costo_patrono_periodo',
+                                            'ccss_subsidy_total',
+                                            'deposito_patrono'])
+                slips._compute_incapacidades()
         # Si cambia el empleado o tipo, forzar recalculo del salario promedio
         if any(f in vals for f in ('employee_id', 'disability_type', 'date_start', 'fecha_parto')):
             self._compute_daily_salary()

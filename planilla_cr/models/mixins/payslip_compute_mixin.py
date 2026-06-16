@@ -206,6 +206,7 @@ class PayslipComputeMixin(models.AbstractModel):
                  'disability_ids.disability_type',
                  'disability_ids.maternity_avg_salary',
                  'disability_ids.daily_salary',
+                 'disability_ids.es_prorroga',
                  'date_from', 'date_to',
                  'employee_id.base_salary')
     def _compute_extras(self):
@@ -544,6 +545,7 @@ class PayslipComputeMixin(models.AbstractModel):
                  'bono_salarial_amount',
                  'disability_ids.state', 'disability_ids.date_start',
                  'disability_ids.date_end', 'disability_ids.disability_type',
+                 'disability_ids.es_prorroga',
                  'date_from', 'date_to')
     def _compute_gross(self) -> None:
         for rec in self:
