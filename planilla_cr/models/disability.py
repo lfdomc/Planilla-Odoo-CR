@@ -582,10 +582,11 @@ class Disability(models.Model):
                 ('employee_id', 'in', self.mapped('employee_id').ids),
             ])
             if slips:
+                # _compute_extras contiene el calculo de incapacidades
                 slips.invalidate_recordset(['costo_patrono_periodo',
                                             'ccss_subsidy_total',
                                             'deposito_patrono'])
-                slips._compute_incapacidades()
+                slips._compute_extras()
         # Si cambia el empleado o tipo, forzar recalculo del salario promedio
         if any(f in vals for f in ('employee_id', 'disability_type', 'date_start', 'fecha_parto')):
             self._compute_daily_salary()

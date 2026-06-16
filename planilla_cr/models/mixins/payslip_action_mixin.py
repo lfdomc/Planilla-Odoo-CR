@@ -149,7 +149,9 @@ class PayslipActionMixin(models.AbstractModel):
                 'dias_laborados_periodo', 'deposito_patrono',
                 'total_employer_cost', 'employer_disability_cost',
             ])
-            rec._compute_incapacidades()
+            rec._compute_extras()   # contiene calculo de incapacidades
+            rec._compute_gross()
+            rec._compute_deductions()
             rec._compute_totals()
         return {
             'type': 'ir.actions.client',
