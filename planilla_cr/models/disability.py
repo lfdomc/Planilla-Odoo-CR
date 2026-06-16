@@ -577,7 +577,7 @@ class Disability(models.Model):
     def write(self, vals):
         res = super().write(vals)
         # Si cambia es_prorroga, invalidar compute de boletas relacionadas
-        if 'es_prorroga' in vals:
+        if 'is_prorroga' in vals:
             slips = self.env['planilla.payslip.cr'].search([
                 ('employee_id', 'in', self.mapped('employee_id').ids),
             ])

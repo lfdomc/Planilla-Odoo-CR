@@ -136,6 +136,32 @@ class PayslipActionMixin(models.AbstractModel):
             rec._compute_totals()
         return True
 
+    def action_recalculate_incapacidad(self):
+        """Recalcula SOLO los campos de incapacidad (costo patrono, subsidio CCSS).
+        Funciona en estado Confirmado. Útil cuando se cambia Es Prórroga
+        en la incapacidad después de confirmar la boleta.
+        """
+        for rec in self:
+            # Forzar recompute de la cadena de incapacidades
+            rec.invalidate_recordset([
+                'costo_patrono_periodo', 'ccss_subsidy_total',
+                'ins_subsidy_total', 'disability_days_in_period',
+                'dias_laborados_periodo', 'deposito_patrono',
+                'total_employer_cost', 'employer_disability_cost',
+            ])
+            rec._compute_incapacidades()
+            rec._compute_totals()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Recalculado',
+                'message': 'Incapacidades recalculadas correctamente.',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
     def action_confirm(self) -> None:
         """FIX B-06 v58: write() batch -- atomicidad total."""
         if not self.env.su and not self.env.user.has_group('planilla_cr.group_planilla_aprobador'):

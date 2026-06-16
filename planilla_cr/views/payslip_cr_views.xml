@@ -92,6 +92,11 @@
                             invisible="state != 'draft'"
                             class="btn-secondary"
                             help="Fuerza el recálculo completo de salario, deducciónes e impuesto de renta. Útil cuando se modifican tramos de renta u otras tasas en la configuración."/>
+                    <button name="action_recalculate_incapacidad" type="object"
+                            string="↺ Recalcular Incapacidad"
+                            invisible="state != 'confirmed'"
+                            class="btn-secondary"
+                            help="Recalcula los montos de incapacidad (costo patrono y subsidio CCSS) sin afectar el estado de la boleta. Use cuando se cambia 'Es Prórroga' después de confirmar."/>
                     <button name="action_reset_to_draft" type="object" string="Volver a Borrador"
                             invisible="state not in ('cancelled', 'confirmed')"
                             class="btn-warning"/>
