@@ -780,6 +780,7 @@ class EmployeeTermination(models.Model):
 
         move = self.env['account.move'].sudo().create({
             'journal_id': journal.id,
+            'company_id': self.company_id.id,
             'date': self.termination_date or fields.Date.context_today(self),
             'ref': f'Liquidacion -- {emp} -- {self.termination_date}',
             'move_type': 'entry',

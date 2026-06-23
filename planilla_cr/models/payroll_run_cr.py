@@ -1102,6 +1102,7 @@ class PayrollRunCR(models.Model):
 
         move = self.env['account.move'].sudo().create({
             'journal_id': config.journal_id.id,
+            'company_id': self.company_id.id,
             'date': self.date_end,
             'ref': ref,
             'move_type': 'entry',

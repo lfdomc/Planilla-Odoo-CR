@@ -274,6 +274,7 @@ class EmployeeLoan(models.Model):
 
         move = self.env['account.move'].sudo().create({
             'journal_id':  config.journal_id.id,
+            'company_id':  self.employee_id.company_id.id,
             'date':        self.date_granted or fields.Date.context_today(self),
             'ref':         f'Prestamo -- {emp} -- {self.name}',
             'move_type':   'entry',

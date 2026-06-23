@@ -442,6 +442,7 @@ class PayslipAccountingMixin(models.AbstractModel):
 
         move = self.env['account.move'].sudo().create({
             'journal_id': config.journal_id.id,
+            'company_id': self.company_id.id,
             'date': self.date_to,
             'ref': f'Planilla: {self.name}',
             'move_type': 'entry',

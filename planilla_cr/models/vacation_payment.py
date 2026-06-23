@@ -224,6 +224,7 @@ class VacationPayment(models.Model):
         ]
         move = self.env['account.move'].sudo().create({
             'journal_id': config.journal_id.id,
+            'company_id': self.employee_id.company_id.id,
             'date': self.date_start or fields.Date.context_today(self),
             'ref': f'Vacaciones -- {emp} -- {self.name}',
             'move_type': 'entry',
