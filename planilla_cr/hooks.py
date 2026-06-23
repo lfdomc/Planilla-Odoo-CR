@@ -502,6 +502,92 @@ def _setup_all_companies_config(env):
     all_companies = env['res.company'].sudo().search([])
     for company in all_companies:
         _setup_accounting_config(env.with_company(company))
+    _repair_cross_company_accounts(env)
+
+
+def _repair_cross_company_accounts(env):
+    """
+    Repara configuraciones contables cuyas cuentas (account.account) NO
+    pertenecen a la empresa de la configuracion. Esto ocurre con datos
+    heredados de antes del soporte multi-empresa, donde una cuenta con
+    el mismo codigo se reutilizo entre empresas sin estar correctamente
+    asociada a company_ids.
+
+    Para cada empresa, para cada campo de cuenta en la config, si la
+    cuenta actual no incluye esa empresa en su company_ids, se busca o
+    crea una cuenta CON ESE CODIGO correctamente asociada y se reasigna.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+    Account = env['account.account'].sudo()
+    Config  = env['planilla.accounting.config'].sudo()
+
+    # Mismo mapa que en _setup_accounting_config (duplicado para evitar
+    # depender de variables locales de esa funcion).
+    ACCOUNT_MAP = {
+        'account_salary_expense':              ('630000', 'Sueldos y Salarios',                          'expense'),
+        'account_social_charges_expense':      ('630100', 'Cargas Sociales Patronales (CCSS+INS)',       'expense'),
+        'account_vacation_expense':            ('630200', 'Provision para Vacaciones',                   'expense'),
+        'account_aguinaldo_expense':           ('630300', 'Provision para Aguinaldo',                    'expense'),
+        'account_cesantia_expense':            ('630400', 'Provision para Cesantia / Auxilio',           'expense'),
+        'account_preaviso_expense':            ('630500', 'Gasto por Preaviso',                          'expense'),
+        'account_bono_expense':                ('630600', 'Bonos e Incentivos al Personal',              'expense'),
+        'account_subsidio_expense':            ('630700', 'Subsidios al Personal (Transporte/Alim.)',    'expense'),
+        'account_licencia_expense':            ('630800', 'Licencias y Permisos con Goce',               'expense'),
+        'account_salary_payable':              ('230000', 'Salarios por Pagar',                          'liability_current'),
+        'account_income_tax_payable':          ('230100', 'Retencion de Renta por Pagar',               'liability_current'),
+        'account_ccss_payable':                ('230300', 'CCSS por Pagar (Obrero + Patronal)',          'liability_current'),
+        'account_ins_payable':                 ('230400', 'INS por Pagar (Riesgos del Trabajo)',         'liability_current'),
+        'account_aguinaldo_provision':         ('230500', 'Provision Aguinaldo por Pagar',               'liability_current'),
+        'account_cesantia_provision':          ('230600', 'Provision Cesantia por Pagar',                'liability_current'),
+        'account_vacation_provision':          ('230700', 'Provision Vacaciones por Pagar',              'liability_current'),
+        'account_termination_payable':         ('230800', 'Liquidaciones por Pagar',                     'liability_current'),
+        'account_loans_payable':               ('230900', 'Cuotas Prestamos Retenidos por Pagar',        'liability_current'),
+        'account_rop_payable':                 ('230350', 'ROP por Pagar (Obrero+Patronal)',             'liability_current'),
+        'account_pension_alimentaria_payable': ('230950', 'Pensiones Alimentarias por Pagar',            'liability_current'),
+        'account_embargo_payable':             ('230960', 'Embargos Judiciales por Pagar',               'liability_current'),
+        'account_cobro_empleado_payable':      ('230970', 'Cobros al Empleado por Liquidar',             'liability_current'),
+        'account_loans_receivable':            ('115000', 'Prestamos a Empleados por Cobrar',            'asset_current'),
+        'account_ccss_subsidy_receivable':     ('120500', 'Subsidio CCSS por Cobrar',                    'asset_current'),
+    }
+
+    configs = Config.search([])
+    fixed_count = 0
+    for cfg in configs:
+        company = cfg.company_id
+        if not company:
+            continue
+        for field_name, (code, name, acc_type) in ACCOUNT_MAP.items():
+            current = getattr(cfg, field_name, False)
+            if current and company.id in current.company_ids.ids:
+                continue  # ya esta bien asociada
+            # Buscar cuenta correcta para ESTA empresa
+            correct = Account.search([
+                ('code', '=', code),
+                ('company_ids', 'in', company.id),
+            ], limit=1)
+            if not correct:
+                # Si existe una cuenta con ese codigo pero de otra empresa,
+                # usar un codigo alternativo para no chocar con la unicidad
+                # del codigo dentro del mismo plan contable compartido.
+                same_code_other_co = Account.search([('code', '=', code)], limit=1)
+                use_code = code
+                if same_code_other_co:
+                    use_code = f'{code}-{company.id}'
+                correct = Account.create({
+                    'code': use_code,
+                    'name': name,
+                    'account_type': acc_type,
+                    'company_ids': [(4, company.id)],
+                })
+            cfg.sudo().write({field_name: correct.id})
+            fixed_count += 1
+
+    if fixed_count:
+        _logger.info(
+            'planilla_cr._repair_cross_company_accounts: %d campo(s) de cuenta '
+            'reasignados a su empresa correcta.', fixed_count
+        )
 
 
 def _create_email_templates(env):

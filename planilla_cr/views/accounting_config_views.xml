@@ -12,6 +12,11 @@
                             type="object"
                             class="btn-primary"
                             help="Completa automáticamente las cuentas usando los códigos estándar del plan de cuentas de Costa Rica (l10n_cr). Solo rellena campos vacíos, no sobreescribe los ya configurados."/>
+                    <button name="action_repair_cross_company_accounts"
+                            string="🔧 Reparar Cuentas Multi-Empresa"
+                            type="object"
+                            class="btn-secondary"
+                            help="Use esto si ve el error 'cruce entre empresas' al pagar boletas. Verifica y corrige cuentas contables que quedaron asociadas a la empresa incorrecta."/>
                 </header>
                 <sheet>
                     <div class="oe_title">

@@ -377,6 +377,23 @@ class PayrollAccountingConfig(models.Model):
              'como fallback. Se recomienda una cuenta separada para mayor control.'
     )
 
+    def action_repair_cross_company_accounts(self):
+        """Boton manual: repara cuentas mal asociadas entre empresas.
+        Util cuando hay un error 'cruce entre empresas' al postear boletas.
+        """
+        from .. import hooks
+        hooks._repair_cross_company_accounts(self.env)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Reparación completada',
+                'message': 'Las cuentas contables fueron verificadas y corregidas por empresa.',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
     @api.model
     def get_config(self, company_id=None):
         company = company_id or self.env.company.id
