@@ -627,7 +627,7 @@ class EmployeeTermination(models.Model):
     def _create_termination_accounting_entry(self):
         # FIX BUG-N01 v52: pasar company_id del registro de liquidacion, no la compania
         # activa en sesion. En multi-empresa esto asegura usar la config correcta.
-        config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
+        config = self.env['planilla.accounting.config'].sudo().get_config(self.company_id.id)
         if not config:
             return False
 
@@ -778,7 +778,7 @@ class EmployeeTermination(models.Model):
                 f'(Planilla -> Configuracion -> Contabilidad ->  Autocompletar).'
             )
 
-        move = self.env['account.move'].create({
+        move = self.env['account.move'].sudo().create({
             'journal_id': journal.id,
             'date': self.termination_date or fields.Date.context_today(self),
             'ref': f'Liquidacion -- {emp} -- {self.termination_date}',

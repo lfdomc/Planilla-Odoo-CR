@@ -202,7 +202,7 @@ class VacationPayment(models.Model):
 
     def _create_vacation_accounting_entry(self):
         self.ensure_one()
-        config = self.env['planilla.accounting.config'].get_config(
+        config = self.env['planilla.accounting.config'].sudo().get_config(
             self.employee_id.company_id.id if self.employee_id.company_id else None
         )
         if not config or not config.journal_id:
@@ -222,7 +222,7 @@ class VacationPayment(models.Model):
                     'name': f'Vacaciones por pagar -- {emp}',
                     'debit': 0.0, 'credit': amount, 'currency_id': _cur.id}),
         ]
-        move = self.env['account.move'].create({
+        move = self.env['account.move'].sudo().create({
             'journal_id': config.journal_id.id,
             'date': self.date_start or fields.Date.context_today(self),
             'ref': f'Vacaciones -- {emp} -- {self.name}',

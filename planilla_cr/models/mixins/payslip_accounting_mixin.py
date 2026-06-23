@@ -15,7 +15,7 @@ class PayslipAccountingMixin(models.AbstractModel):
 
     def _create_accounting_entry(self):
         self.ensure_one()
-        config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
+        config = self.env['planilla.accounting.config'].sudo().get_config(self.company_id.id)
 
         # C3 -- Avisar explicitamente si no hay configuracion contable
         if not config:
@@ -440,7 +440,7 @@ class PayslipAccountingMixin(models.AbstractModel):
                 f'Verifique la configuracion contable en Planilla -> Configuracion -> Contabilidad.'
             )
 
-        move = self.env['account.move'].create({
+        move = self.env['account.move'].sudo().create({
             'journal_id': config.journal_id.id,
             'date': self.date_to,
             'ref': f'Planilla: {self.name}',

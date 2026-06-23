@@ -790,7 +790,7 @@ class PayrollRunCR(models.Model):
                 'Todas las boletas estan canceladas o ya fueron pagadas.'
             )
 
-        config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
+        config = self.env['planilla.accounting.config'].sudo().get_config(self.company_id.id)
         mode = config.accounting_entry_mode if config else 'per_employee'
 
         if mode == 'per_run':
@@ -808,7 +808,7 @@ class PayrollRunCR(models.Model):
         if not payslips:
             return
 
-        config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
+        config = self.env['planilla.accounting.config'].sudo().get_config(self.company_id.id)
         if not config:
             raise UserError(
                 'No hay configuracion contable para esta compania. '
@@ -1100,7 +1100,7 @@ class PayrollRunCR(models.Model):
                 f'Detalle de lineas:\n{detail}'
             )
 
-        move = self.env['account.move'].create({
+        move = self.env['account.move'].sudo().create({
             'journal_id': config.journal_id.id,
             'date': self.date_end,
             'ref': ref,
@@ -1375,7 +1375,7 @@ class PayrollRunCR(models.Model):
             )
         # Si no hay asiento previo, simplemente generar uno nuevo
         if not self.move_id:
-            config = self.env['planilla.accounting.config'].get_config(self.company_id.id)
+            config = self.env['planilla.accounting.config'].sudo().get_config(self.company_id.id)
             mode = config.accounting_entry_mode if config else 'per_employee'
             if mode == 'per_run':
                 # Estado 'done' = pagado en boletas (no 'paid')

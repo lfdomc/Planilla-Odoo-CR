@@ -197,7 +197,7 @@ class EmployeeLoan(models.Model):
         y registra una advertencia en el chatter.
         """
         self.ensure_one()
-        config = self.env['planilla.accounting.config'].get_config(
+        config = self.env['planilla.accounting.config'].sudo().get_config(
             self.employee_id.company_id.id
         )
         if not config or not config.journal_id:
@@ -272,7 +272,7 @@ class EmployeeLoan(models.Model):
         for _l in lines:
             _l[2]['currency_id'] = _cur.id
 
-        move = self.env['account.move'].create({
+        move = self.env['account.move'].sudo().create({
             'journal_id':  config.journal_id.id,
             'date':        self.date_granted or fields.Date.context_today(self),
             'ref':         f'Prestamo -- {emp} -- {self.name}',
