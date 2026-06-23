@@ -268,12 +268,16 @@ class EmployeeLoan(models.Model):
                 'credit': round(self.amount_total, 2),
             }),
         ]
+        _cur = config.journal_id.currency_id or self.company_id.currency_id
+        for _l in lines:
+            _l[2]['currency_id'] = _cur.id
 
         move = self.env['account.move'].create({
             'journal_id':  config.journal_id.id,
             'date':        self.date_granted or fields.Date.context_today(self),
             'ref':         f'Prestamo -- {emp} -- {self.name}',
             'move_type':   'entry',
+            'currency_id': _cur.id,
             'line_ids':    lines,
         })
         move.action_post()

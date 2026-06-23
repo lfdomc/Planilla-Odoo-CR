@@ -30,6 +30,7 @@ class PayslipAccountingMixin(models.AbstractModel):
             )
 
         lines = []
+        _move_currency = config.journal_id.currency_id or self.company_id.currency_id
 
         def add_line(account, debit=0.0, credit=0.0, name=''):
             if not account:
@@ -37,7 +38,11 @@ class PayslipAccountingMixin(models.AbstractModel):
             debit, credit = round(debit, 2), round(credit, 2)
             if debit == 0.0 and credit == 0.0:
                 return
-            lines.append((0, 0, {'account_id': account.id, 'name': name, 'debit': debit, 'credit': credit}))
+            lines.append((0, 0, {
+                'account_id': account.id, 'name': name,
+                'debit': debit, 'credit': credit,
+                'currency_id': _move_currency.id,
+            }))
 
         emp = self.employee_id.name
 
@@ -440,6 +445,7 @@ class PayslipAccountingMixin(models.AbstractModel):
             'date': self.date_to,
             'ref': f'Planilla: {self.name}',
             'move_type': 'entry',
+            'currency_id': _move_currency.id,
             'line_ids': lines,
         })
         move.action_post()

@@ -213,19 +213,21 @@ class VacationPayment(models.Model):
             return False
         emp = self.employee_id.name
         amount = round(self.total_amount, 2)
+        _cur = config.journal_id.currency_id or self.employee_id.company_id.currency_id
         lines = [
             (0, 0, {'account_id': exp_account.id,
                     'name': f'Vacaciones -- {emp} -- {self.days} dias',
-                    'debit': amount, 'credit': 0.0}),
+                    'debit': amount, 'credit': 0.0, 'currency_id': _cur.id}),
             (0, 0, {'account_id': pay_account.id,
                     'name': f'Vacaciones por pagar -- {emp}',
-                    'debit': 0.0, 'credit': amount}),
+                    'debit': 0.0, 'credit': amount, 'currency_id': _cur.id}),
         ]
         move = self.env['account.move'].create({
             'journal_id': config.journal_id.id,
             'date': self.date_start or fields.Date.context_today(self),
             'ref': f'Vacaciones -- {emp} -- {self.name}',
             'move_type': 'entry',
+            'currency_id': _cur.id,
             'line_ids': lines,
         })
         move.action_post()

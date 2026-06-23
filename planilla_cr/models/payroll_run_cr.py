@@ -924,6 +924,8 @@ class PayrollRunCR(models.Model):
         ref = f'Planilla: {self.name} ({len(payslips)} empleados)'
         lines = []
 
+        _move_currency = config.journal_id.currency_id or self.company_id.currency_id
+
         def add_line(account, debit=0.0, credit=0.0, name=''):
             if not account or (round(debit, 2) == 0.0 and round(credit, 2) == 0.0):
                 return
@@ -932,6 +934,7 @@ class PayrollRunCR(models.Model):
                 'name': name,
                 'debit': round(debit, 2),
                 'credit': round(credit, 2),
+                'currency_id': _move_currency.id,
             }))
 
         # -- DEBITOS (Gastos del patrono) ------------------------------------
@@ -1102,6 +1105,7 @@ class PayrollRunCR(models.Model):
             'date': self.date_end,
             'ref': ref,
             'move_type': 'entry',
+            'currency_id': _move_currency.id,
             'line_ids': lines,
         })
         move.action_post()

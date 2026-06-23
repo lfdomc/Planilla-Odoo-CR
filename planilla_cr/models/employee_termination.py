@@ -637,6 +637,7 @@ class EmployeeTermination(models.Model):
             return False
 
         lines = []
+        _move_currency = journal.currency_id or self.company_id.currency_id
 
         def add_line(account, debit=0.0, credit=0.0, name=''):
             if not account or (debit == 0 and credit == 0):
@@ -646,6 +647,7 @@ class EmployeeTermination(models.Model):
                 'name': name,
                 'debit': round(debit, 2),
                 'credit': round(credit, 2),
+                'currency_id': _move_currency.id,
             }))
 
         # -- DEBITOS (gastos) -----------------------------------------
@@ -781,6 +783,7 @@ class EmployeeTermination(models.Model):
             'date': self.termination_date or fields.Date.context_today(self),
             'ref': f'Liquidacion -- {emp} -- {self.termination_date}',
             'move_type': 'entry',
+            'currency_id': _move_currency.id,
             'line_ids': lines,
         })
         move.action_post()
