@@ -388,7 +388,7 @@ class PayrollAccountingConfig(models.Model):
             'tag': 'display_notification',
             'params': {
                 'title': 'Reparación completada',
-                'message': 'Las cuentas contables fueron verificadas y corregidas por empresa.',
+                'message': 'Cuentas y diario contable verificados y corregidos por empresa.',
                 'type': 'success',
                 'sticky': False,
             }

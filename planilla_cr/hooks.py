@@ -583,10 +583,52 @@ def _repair_cross_company_accounts(env):
             cfg.sudo().write({field_name: correct.id})
             fixed_count += 1
 
-    if fixed_count:
+    # --- Reparar journal_id (el diario, igual que las cuentas, pertenece
+    #     a UNA sola empresa -- no es Many2many como account.account) ---
+    Journal = env['account.journal'].sudo()
+    journal_fixed = 0
+    for cfg in configs:
+        company = cfg.company_id
+        if not company:
+            continue
+        jrn = cfg.journal_id
+        if jrn and jrn.company_id.id == company.id:
+            continue  # ya esta bien
+        # Buscar diario de planilla ya existente para esta empresa
+        correct_jrn = Journal.search([
+            ('company_id', '=', company.id),
+            ('type', 'in', ['general', 'purchase']),
+            '|', '|',
+            ('name', 'ilike', 'salario'),
+            ('name', 'ilike', 'nomina'),
+            ('name', 'ilike', 'planilla'),
+        ], limit=1)
+        if not correct_jrn:
+            correct_jrn = Journal.search([
+                ('company_id', '=', company.id),
+                ('type', '=', 'general'),
+            ], limit=1)
+        if not correct_jrn:
+            # Crear uno nuevo para esta empresa, con codigo unico
+            base_code = 'PLAN'
+            use_code = base_code
+            suffix = 1
+            while Journal.search([('code', '=', use_code), ('company_id', '=', company.id)], limit=1):
+                use_code = f'{base_code}{suffix}'
+                suffix += 1
+            correct_jrn = Journal.create({
+                'name': 'Planilla de Salarios',
+                'code': use_code,
+                'type': 'general',
+                'company_id': company.id,
+            })
+        cfg.sudo().write({'journal_id': correct_jrn.id})
+        journal_fixed += 1
+
+    if fixed_count or journal_fixed:
         _logger.info(
-            'planilla_cr._repair_cross_company_accounts: %d campo(s) de cuenta '
-            'reasignados a su empresa correcta.', fixed_count
+            'planilla_cr._repair_cross_company_accounts: %d cuenta(s) y %d diario(s) '
+            'reasignados a su empresa correcta.', fixed_count, journal_fixed
         )
 
 
