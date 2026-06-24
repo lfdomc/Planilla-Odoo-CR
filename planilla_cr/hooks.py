@@ -573,7 +573,7 @@ def _repair_cross_company_accounts(env):
                 same_code_other_co = Account.search([('code', '=', code)], limit=1)
                 use_code = code
                 if same_code_other_co:
-                    use_code = f'{code}-{company.id}'
+                    use_code = f'{code}.{company.id}'
                 correct = Account.create({
                     'code': use_code,
                     'name': name,
