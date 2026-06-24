@@ -784,7 +784,29 @@ class PayrollRunCR(models.Model):
             )
 
         payslips_to_pay = self.payslip_ids.filtered(lambda p: p.state == 'confirmed')
+        already_done = self.payslip_ids.filtered(lambda p: p.state == 'done')
+        cancelled    = self.payslip_ids.filtered(lambda p: p.state == 'cancelled')
+
         if not payslips_to_pay:
+            # No hay nada pendiente por pagar. Si TODAS las boletas activas
+            # (no canceladas) ya estan en 'done' (pagadas manualmente o por
+            # un proceso anterior), simplemente marcar la planilla como
+            # pagada para mantener consistencia -- no es un error real.
+            if already_done and (already_done | cancelled) == self.payslip_ids:
+                self.state = 'done'
+                return {
+                    'type': 'ir.actions.client',
+                    'tag': 'display_notification',
+                    'params': {
+                        'title': 'Planilla marcada como pagada',
+                        'message': (
+                            'Todas las boletas ya estaban pagadas individualmente. '
+                            'La planilla se actualizo al estado Pagado.'
+                        ),
+                        'type': 'success',
+                        'sticky': False,
+                    }
+                }
             raise UserError(
                 'No hay boletas confirmadas para pagar. '
                 'Todas las boletas estan canceladas o ya fueron pagadas.'
