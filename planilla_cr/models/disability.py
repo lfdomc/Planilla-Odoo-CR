@@ -328,16 +328,18 @@ class Disability(models.Model):
                 )
             else:
                 # Art. 79 CT / Reglamento CCSS:
-                # Días 1-3: el PATRONO paga el 100% del salario al empleado.
-                #           La CCSS NO subsidia estos días → ccss_subsidy = 0.
+                # Días 1-3: el PATRONO paga el 50% del salario al empleado.
+                #           La CCSS NO subsidia estos días → ccss_subsidy = 0
+                #           en ese tramo (el otro 50% no se paga -- es parte de
+                #           la carencia legal, ni patrono ni CCSS lo cubren).
                 # Días 4+:  la CCSS subsidia (subsidy_percentage%), patrono puede complementar.
                 first_days     = min(d, 3)
                 remaining_days = max(d - 3, 0)
                 rec.employer_cost = round(
-                    (first_days * rec.daily_salary) +
+                    (first_days * rec.daily_salary * 0.50) +
                     (remaining_days * rec.daily_salary * rec.employer_percentage / 100), 2
                 )
-                # Subsidio CCSS: solo días 4+ (días 1-3 los asume el patrono, no la CCSS)
+                # Subsidio CCSS: solo días 4+ (días 1-3 los asume el patrono al 50%)
                 rec.ccss_subsidy = round(
                     remaining_days * rec.daily_salary * rec.subsidy_percentage / 100, 2
                 )
