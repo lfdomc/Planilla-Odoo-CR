@@ -122,6 +122,13 @@ class PayslipCR(models.Model):
         string='Monto Horas Extras', currency_field='currency_id',
         compute='_compute_extras', store=True
     )
+    overtime_amount_ccss = fields.Monetary(
+        string='HE afecto CCSS/Renta', currency_field='currency_id',
+        compute='_compute_extras', store=True,
+        help='Suma de horas extras con afecto_ccss=True. Se usa para calcular '
+             'la base cotizable de CCSS, Renta y provisiones. Las horas extras '
+             'con afecto_ccss=False se pagan al empleado pero no afectan estas cargas.'
+    )
     overtime_hours_total = fields.Float(
         string='Total Horas Extras',
         compute='_compute_extras', store=True,

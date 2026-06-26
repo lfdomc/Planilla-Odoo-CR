@@ -1,6 +1,6 @@
 from odoo import models, fields, api
 from odoo.models import Constraint
-from odoo.exceptions import ValidationError
+from odoo.exceptions import ValidationError, UserError
 
 
 class Disability(models.Model):
@@ -597,6 +597,20 @@ class Disability(models.Model):
 
     def action_confirm(self):
         self.write({'state': 'confirmed'})
+
+    def action_reset_to_draft(self):
+        """Permite volver una incapacidad confirmada a borrador para editarla.
+        No permitido si ya esta procesada en una boleta de planilla (state='paid'),
+        ya que eso podria descuadrar boletas ya pagadas.
+        """
+        for rec in self:
+            if rec.state == 'paid':
+                raise UserError(
+                    f'La incapacidad "{rec.name}" ya esta procesada en una boleta de '
+                    f'planilla y no se puede volver a borrador. Si necesita corregirla, '
+                    f'primero revierta la boleta relacionada a Borrador.'
+                )
+        self.write({'state': 'draft'})
 
     def action_cancel(self):
         self.write({'state': 'cancelled'})

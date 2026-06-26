@@ -35,6 +35,11 @@
                     <button name="action_recompute" type="object" string="Recalcular Montos"
                             invisible="state != 'draft'" class="btn-secondary"
                             help="Fuerza el recálculo del salario diario y subsidio CCSS"/>
+                    <button name="action_reset_to_draft" type="object"
+                            string="↺ Volver a Borrador"
+                            invisible="state != 'confirmed'"
+                            class="btn-warning"
+                            help="Permite editar nuevamente la incapacidad. No disponible si ya esta procesada en una boleta de planilla."/>
                     <button name="action_cancel" type="object" string="Cancelar"
                             invisible="state not in ('draft', 'confirmed')"/>
                     <field name="state" widget="statusbar"

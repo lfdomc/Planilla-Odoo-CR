@@ -217,6 +217,10 @@ class PayslipComputeMixin(models.AbstractModel):
             # Incluir HE aprobadas Y pagadas (las pagadas ya pertenecen a esta boleta)
             billable_ot = [o for o in rec.overtime_ids if o.state in ('approved', 'paid')]
             rec.overtime_amount         = sum(o.amount for o in billable_ot)
+            rec.overtime_amount_ccss    = sum(
+                o.amount for o in billable_ot
+                if getattr(o, 'afecto_ccss', True)
+            )
             rec.overtime_hours_total    = round(sum(o.hours  for o in billable_ot), 2)
             rec.overtime_holiday_hours  = round(sum(
                 o.hours for o in billable_ot if o.overtime_type == 'holiday'
@@ -665,12 +669,16 @@ class PayslipComputeMixin(models.AbstractModel):
                 g = (
                     (rec.salario_cotizable  or 0.0) +
                     (rec.bono_salarial_amount or 0.0) +
-                    (rec.overtime_amount    or 0.0)
+                    (rec.overtime_amount_ccss or 0.0)
                 )
             else:
                 # Sin incapacidad: base = salario bruto del periodo
                 # (gross_salary ya incluye overtime + bono)
-                g = rec.gross_salary or 0.0
+                # Restar la porcion de HE que NO es afecto CCSS/Renta
+                # (el empleado SI la recibe via gross_salary, pero no debe
+                # cotizar sobre ella si el check afecto_ccss esta desactivado).
+                _ot_no_ccss = (rec.overtime_amount or 0.0) - (rec.overtime_amount_ccss or 0.0)
+                g = (rec.gross_salary or 0.0) - _ot_no_ccss
 
             # FIX LICENCIAS: restar licencias sin goce y ausencias de la base cotizable.
             # Un dia no laborado no genera salario -> no debe generar CCSS obrero,

@@ -55,6 +55,19 @@ class Overtime(models.Model):
         string='Monto Total', currency_field='currency_id',
         compute='_compute_amount', store=True
     )
+    afecto_ccss = fields.Boolean(
+        string='Afecto CCSS', default=True, tracking=True,
+        help='Art. 139 CT: las horas extra son salario ordinario y por defecto '
+             'SI generan cargas CCSS (obrera y patronal). Desactive solo si tiene '
+             'un criterio legal especifico para excluirlas -- la practica estandar '
+             'es mantenerlo activo.'
+    )
+    afecto_renta = fields.Boolean(
+        string='Afecto Renta', default=True, tracking=True,
+        help='Art. 33 LISR: las horas extra son ingreso gravable y por defecto '
+             'SI afectan la base de Impuesto de Renta. Desactive solo si tiene '
+             'un criterio legal especifico para excluirlas.'
+    )
 
     state = fields.Selection([
         ('draft', 'Borrador'),

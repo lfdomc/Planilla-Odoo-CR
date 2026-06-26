@@ -20,6 +20,8 @@
                 <field name="hours"/>
                 <field name="hourly_rate" string="Tarifa/Hora" optional="show"/>
                 <field name="amount"/>
+                <field name="afecto_ccss" string="CCSS" optional="show"/>
+                <field name="afecto_renta" string="Renta" optional="show"/>
                 <field name="state"/>
             </list>
         </field>
@@ -60,6 +62,18 @@
                             <field name="hourly_rate"/>
                             <field name="amount"/>
                         </group>
+                    </group>
+                    <group string="⚖ Afectación Fiscal">
+                        <group>
+                            <field name="afecto_ccss" widget="boolean_toggle"/>
+                            <field name="afecto_renta" widget="boolean_toggle"/>
+                        </group>
+                        <div class="text-muted" colspan="2"
+                             invisible="afecto_ccss and afecto_renta">
+                            ⚠ Art. 139 CT: las horas extra son salario ordinario y por ley
+                            generan CCSS y Renta. Desactivar estos checks puede generar
+                            riesgo de incumplimiento ante una inspección de la CCSS.
+                        </div>
                     </group>
                     <field name="note" placeholder="Observaciones..."/>
                 </sheet>
