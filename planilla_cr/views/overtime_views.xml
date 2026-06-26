@@ -63,7 +63,9 @@
                             <field name="amount"/>
                         </group>
                     </group>
-                    <group string="⚖ Afectación Fiscal">
+                    <field name="allow_overtime_exemption" invisible="1"/>
+                    <group string="⚖ Afectación Fiscal"
+                           invisible="not allow_overtime_exemption">
                         <group>
                             <field name="afecto_ccss" widget="boolean_toggle"/>
                             <field name="afecto_renta" widget="boolean_toggle"/>

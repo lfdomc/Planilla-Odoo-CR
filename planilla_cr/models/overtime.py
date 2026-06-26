@@ -68,6 +68,19 @@ class Overtime(models.Model):
              'SI afectan la base de Impuesto de Renta. Desactive solo si tiene '
              'un criterio legal especifico para excluirlas.'
     )
+    allow_overtime_exemption = fields.Boolean(
+        string='Permitir excepcion HE (config)',
+        compute='_compute_allow_overtime_exemption',
+        help='Refleja el check global en Configuracion Contable. Controla si '
+             'los campos Afecto CCSS/Renta son visibles y editables aqui.'
+    )
+
+    def _compute_allow_overtime_exemption(self):
+        for rec in self:
+            cfg = self.env['planilla.accounting.config'].sudo().get_config(
+                rec.company_id.id if rec.company_id else self.env.company.id
+            )
+            rec.allow_overtime_exemption = bool(cfg and cfg.enable_overtime_exemption)
 
     state = fields.Selection([
         ('draft', 'Borrador'),

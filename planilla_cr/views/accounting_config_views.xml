@@ -33,6 +33,10 @@
                                    widget="boolean_toggle"
                                    string="HE: formula fija salario / 30 / 8h"
                                    help="ON = horas extra con salario/30/8h fijo. OFF = usa horas del tipo de horario del empleado."/>
+                            <field name="enable_overtime_exemption"
+                                   widget="boolean_toggle"
+                                   string="Permitir excluir HE de CCSS/Renta"
+                                   help="OFF (recomendado) = las horas extra siempre llevan CCSS y Renta. ON = habilita los checks Afecto CCSS/Renta en cada hora extra para casos excepcionales."/>
                         </group>
                         <group>
                             <field name="show_vacation_on_payslip"

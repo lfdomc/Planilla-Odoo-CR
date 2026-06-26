@@ -223,6 +223,16 @@ class PayrollAccountingConfig(models.Model):
              'de días de vacaciones disponibles. Desactive para ocultar este dato.'
     )
 
+    enable_overtime_exemption = fields.Boolean(
+        string='Permitir excluir Horas Extra de CCSS/Renta',
+        default=False,
+        help='Por defecto, las horas extra SIEMPRE llevan CCSS y Renta '
+             '(Art. 139 CT -- son salario ordinario). Active este check '
+             'SOLO si tiene un criterio legal especifico para permitir '
+             'excepciones. Al activarlo, apareceran los checks "Afecto CCSS" '
+             'y "Afecto Renta" en cada hora extra individual.'
+    )
+
     skip_ccss_on_termination = fields.Boolean(
         string='No descontar CCSS obrero en liquidaciones',
         default=False,
