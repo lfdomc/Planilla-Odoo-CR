@@ -501,7 +501,8 @@ def _setup_all_companies_config(env):
     """Llama _setup_accounting_config para cada empresa del sistema."""
     all_companies = env['res.company'].sudo().search([])
     for company in all_companies:
-        _setup_accounting_config(env.with_company(company))
+        _company_env = env['res.company'].with_company(company).env
+        _setup_accounting_config(_company_env)
     _repair_cross_company_accounts(env)
 
 
