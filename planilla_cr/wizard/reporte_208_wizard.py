@@ -48,7 +48,7 @@ class Reporte208Wizard(models.TransientModel):
                     bruto=0.0, creditos=0.0, renta=0.0, rebajo=0.0)
             r = by_emp[eid]
             r['bruto']   += s.gross_salary or 0
-            r['creditos'] += s.total_fiscal_credits or 0
+            r['creditos'] += getattr(s, "income_tax_credits", 0) or 0
             r['renta']   += s.income_tax or 0
             r['rebajo']  += s.rebajo_renta_amount or 0
         rows = []
