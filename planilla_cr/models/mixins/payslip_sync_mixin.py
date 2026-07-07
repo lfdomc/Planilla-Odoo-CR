@@ -739,6 +739,24 @@ class PayslipSyncMixin(models.AbstractModel):
             monto_emp, monto_pat, emp.name, self.name
         )
 
+    def _sync_rebajo_renta(self) -> None:
+        """Sincroniza el rebajo consolidado de renta activo del empleado."""
+        self.ensure_one()
+        if self.state != 'draft':
+            return
+        if not self.employee_id or not self.date_from or not self.date_to:
+            return
+        rebajos = self.env['planilla.rebajo.renta'].search([
+            ('employee_id', '=', self.employee_id.id),
+            ('date_from', '<=', self.date_to),
+            '|',
+            ('date_to', '=', False),
+            ('date_to', '>=', self.date_from),
+        ])
+        freq = self._get_effective_freq()
+        total = sum(reb.get_amount_for_period(freq) for reb in rebajos)
+        self.rebajo_renta_amount = round(total, 2)
+
     def _sync_embargos(self) -> None:
         """
         Sincroniza embargos judiciales activos del empleado con las lineas de deduccion.

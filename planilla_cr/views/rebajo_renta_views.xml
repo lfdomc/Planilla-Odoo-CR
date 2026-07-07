@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_rebajo_renta_form" model="ir.ui.view">
+        <field name="name">planilla.rebajo.renta.form</field>
+        <field name="model">planilla.rebajo.renta</field>
+        <field name="arch" type="xml">
+            <form string="Rebajo Consolidado de Renta">
+                <sheet>
+                    <div class="oe_title"><h1><field name="name" readonly="1"/></h1></div>
+                    <group>
+                        <group string="Empleado">
+                            <field name="employee_id"/>
+                            <field name="company_id" readonly="1"/>
+                            <field name="reason"/>
+                            <field name="reference_doc" placeholder="N° documento firmado por empleado"/>
+                        </group>
+                        <group string="Monto y Período">
+                            <field name="amount"/>
+                            <field name="frequency"/>
+                            <field name="date_from"/>
+                            <field name="date_to" placeholder="Vacío = sin vencimiento"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning" role="alert" invisible="reason != 'multiempleo'">
+                        <strong>Multiempleo:</strong> Este empleado declaró tener otro trabajo simultáneo.
+                        Hacienda lo detecta automáticamente vía TRIBU-CR. Asegúrese de contar con
+                        la declaración escrita y firmada por el empleado (Art. 23 Ley 7092).
+                    </div>
+                    <field name="notes" placeholder="Observaciones..."/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_rebajo_renta_list" model="ir.ui.view">
+        <field name="name">planilla.rebajo.renta.list</field>
+        <field name="model">planilla.rebajo.renta</field>
+        <field name="arch" type="xml">
+            <list string="Rebajos Consolidados de Renta">
+                <field name="employee_id"/>
+                <field name="reason"/>
+                <field name="amount"/>
+                <field name="frequency"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="reference_doc" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_rebajo_renta_search" model="ir.ui.view">
+        <field name="name">planilla.rebajo.renta.search</field>
+        <field name="model">planilla.rebajo.renta</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="employee_id"/>
+                <filter name="multiempleo" string="Multiempleo" domain="[('reason','=','multiempleo')]"/>
+                <filter name="vigentes" string="Vigentes" domain="[('date_from','&lt;=',context_today()),'|',('date_to','=',False),('date_to','&gt;=',context_today())]"/>
+                <separator/>
+                <filter name="current_company" string="Empresa Actual" domain="[('company_id','=',allowed_company_ids[0])]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_rebajo_renta" model="ir.actions.act_window">
+        <field name="name">Rebajos Consolidados de Renta</field>
+        <field name="res_model">planilla.rebajo.renta</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_current_company': 1, 'search_default_vigentes': 1}</field>
+    </record>
+</odoo>

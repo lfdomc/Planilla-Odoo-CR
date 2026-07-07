@@ -705,6 +705,12 @@ class HrEmployeeExtension(models.Model):
 
     # -- Datos CCSS --------------------------------------------------
     ccss_number = fields.Char(string='Numero CCSS')
+    es_multiempleado = fields.Boolean(
+        string='Es Multiempleado',
+        default=False, tracking=True,
+        help='El empleado tiene otro trabajo simultáneo. Se activa automáticamente '
+             'al crear un Rebajo Consolidado con motivo Multiempleo.'
+    )
     ccss_insured = fields.Boolean(string='Asegurado CCSS', default=True)
     exento_deducciones = fields.Boolean(
         string='Exento de CCSS y Renta',
@@ -783,6 +789,13 @@ class HrEmployeeExtension(models.Model):
              'las boletas del sistema ya cubren el aguinaldo (evita doble conteo).'
     )
 
+    disability_days_total = fields.Float(
+        string='Total Días de Incapacidad (no maternidad)',
+        compute='_compute_disability_days_total', store=False,
+        help='Suma de días de incapacidad por enfermedad/accidente confirmadas o pagadas '
+             'desde el corte de vacaciones. Excluye maternidad (Art. 95 CT). '
+             'Se usa para calcular el descuento de vacaciones cuando está configurado.'
+    )
     vacation_initial_balance = fields.Float(
         string='Saldo Inicial de Vacaciones (dias)',
         default=0.0,
@@ -1363,6 +1376,21 @@ class HrEmployeeExtension(models.Model):
             emp.vacation_days_available = available
             emp.vacation_balance_alert  = available < 0
 
+
+    def _compute_disability_days_total(self):
+        """Suma días de incapacidad (no maternidad) desde el corte de vacaciones."""
+        for emp in self:
+            domain = [
+                ('employee_id', '=', emp.id),
+                ('state', 'in', ['confirmed', 'paid']),
+                ('disability_type', 'not in', ['maternity']),
+            ]
+            if emp.vacation_initial_balance_date:
+                domain.append(('date_start', '>=', emp.vacation_initial_balance_date))
+            elif emp.entry_date:
+                domain.append(('date_start', '>=', emp.entry_date))
+            recs = self.env['planilla.disability'].search(domain)
+            emp.disability_days_total = sum(r.days or 0 for r in recs)
 
     def _check_minimum_salary_warning(self):
         """FIX B-08 v53: Advertencia de salario minimo como notificacion (no UserError).

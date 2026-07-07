@@ -157,6 +157,12 @@ class PayslipCR(models.Model):
         help='Bonos con afecto_ccss=True (productividad, asistencia, antiguedad, '
              'comisiones). Se integran al salario bruto para CCSS y Renta.'
     )
+    rebajo_renta_amount = fields.Monetary(
+        string='Rebajo Consolidado Renta', currency_field='currency_id',
+        default=0.0,
+        help='Retención adicional de renta por multiempleo u otro ajuste (formulario 208/138).'
+    )
+
     bono_base_salarial_amount = fields.Monetary(
         string='Bonos que suman al Salario Base', currency_field='currency_id',
         compute='_compute_bono_salarial', store=True,

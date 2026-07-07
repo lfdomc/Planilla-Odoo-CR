@@ -33,6 +33,7 @@ class PayslipActionMixin(models.AbstractModel):
             rec._sync_rop()
             rec._sync_bonos()
             rec._sync_embargos()
+            rec._sync_rebajo_renta()
             rec._sync_loan_deductions()
             rec._sync_employee_charges()
         else:
@@ -58,6 +59,7 @@ class PayslipActionMixin(models.AbstractModel):
                     rec._sync_rop()
                     rec._sync_bonos()
                     rec._sync_embargos()
+                    rec._sync_rebajo_renta()
                     rec._sync_loan_deductions()
                     rec._sync_employee_charges()
         # Forzar recompute completo despues del sync en modo batch.
@@ -104,6 +106,7 @@ class PayslipActionMixin(models.AbstractModel):
                 rec._sync_rop()
                 rec._sync_bonos()
                 rec._sync_embargos()
+                rec._sync_rebajo_renta()
                 rec._sync_loan_deductions()  # FIX-N2: faltaba -- prestamos no se sincronizaban
                 rec._sync_employee_charges() # Cobros al empleado (almuerzos, productos, etc.)
         return True

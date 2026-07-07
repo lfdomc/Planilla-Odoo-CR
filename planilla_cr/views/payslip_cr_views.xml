@@ -448,6 +448,11 @@
                                             <td style="padding:6px 0;color:var(--color-text-secondary);">Impuesto de Renta (tabla progresiva DGT)</td>
                                             <td style="text-align:right;color:var(--color-text-danger);">− <field name="income_tax" readonly="1" nolabel="1"/></td>
                                         </tr>
+                                        <tr invisible="rebajo_renta_amount == 0">
+                                            <td style="padding:2px 8px 2px 20px;">Rebajo Consolidado Renta:</td>
+                                            <td style="padding:2px 8px; text-align:right; color:var(--color-text-danger);">− <field name="rebajo_renta_amount" readonly="1" nolabel="1"/></td>
+                                            <td/>
+                                        </tr>
                                         <tr invisible="income_tax_credits == 0">
                                             <td style="padding:6px 0;color:var(--color-text-success);">
                                                 Créditos Fiscales — cargas familiares (Art. 34 LIR)

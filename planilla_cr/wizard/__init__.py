@@ -22,3 +22,4 @@ from . import payroll_accounting_review
 from . import vacation_initial_balance_wizard
 from . import resumen_ejecutivo_wizard
 from . import confirm_warnings_wizard
+from . import reporte_208_wizard

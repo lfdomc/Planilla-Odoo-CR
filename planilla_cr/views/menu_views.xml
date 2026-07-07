@@ -335,4 +335,16 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
               action="planilla_cr.action_resumen_ejecutivo_wizard"
               sequence="4"/>
 
+    <menuitem id="menu_rebajo_renta"
+              name="Rebajos Consolidados de Renta"
+              parent="menu_planilla_novedades"
+              action="planilla_cr.action_rebajo_renta"
+              sequence="55"/>
+
+    <menuitem id="menu_reporte_208"
+              name="Retenciones Renta 208/138 (TRIBU-CR)"
+              parent="menu_planilla_reportes"
+              action="planilla_cr.action_reporte_208_wizard"
+              sequence="35"/>
+
 </odoo>

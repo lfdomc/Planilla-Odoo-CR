@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_reporte_208_wizard_form" model="ir.ui.view">
+        <field name="name">planilla.reporte.208.wizard.form</field>
+        <field name="model">planilla.reporte.208.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reporte Retenciones Renta 208/138 TRIBU-CR">
+                <sheet>
+                    <group>
+                        <field name="company_id"/>
+                        <field name="filter_mode" widget="radio" options="{'horizontal': True}"/>
+                        <field name="month" invisible="filter_mode != 'month'" required="filter_mode == 'month'"/>
+                        <field name="year"  invisible="filter_mode != 'month'" required="filter_mode == 'month'"/>
+                        <field name="date_from" invisible="filter_mode != 'range'" required="filter_mode == 'range'"/>
+                        <field name="date_to"   invisible="filter_mode != 'range'" required="filter_mode == 'range'"/>
+                    </group>
+                    <div class="alert alert-info" role="alert">
+                        Consolida renta retenida por empleado. Identifica multiempleados con/sin rebajo.
+                        Compatible con formularios <strong>208</strong> (informativa PJ) y <strong>138</strong> (autoliquidativa PJ) de TRIBU-CR.
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_show_report" type="object" string="Ver en Pantalla" class="btn-primary"/>
+                    <button name="action_export_excel" type="object" string="Exportar Excel" class="btn-secondary"/>
+                    <button special="cancel" string="Cancelar"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_reporte_208_result_list" model="ir.ui.view">
+        <field name="name">planilla.reporte.208.result.list</field>
+        <field name="model">planilla.reporte.208.result</field>
+        <field name="arch" type="xml">
+            <list string="Reporte 208/138 TRIBU-CR" create="false" delete="false">
+                <field name="cedula"/>
+                <field name="nombre"/>
+                <field name="estado_multi" widget="badge"
+                       decoration-success="estado_multi == 'con_rebajo'"
+                       decoration-danger="estado_multi == 'sin_rebajo'"/>
+                <field name="bruto" sum="Total"/>
+                <field name="creditos" sum="Total"/>
+                <field name="base_imp" sum="Total"/>
+                <field name="renta_normal" sum="Total"/>
+                <field name="rebajo_renta" sum="Total"/>
+                <field name="total_renta" sum="Total"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_reporte_208_wizard" model="ir.actions.act_window">
+        <field name="name">Reporte Retenciones Renta 208/138</field>
+        <field name="res_model">planilla.reporte.208.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

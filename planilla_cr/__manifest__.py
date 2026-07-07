@@ -1,6 +1,6 @@
 {
     'name': 'Sistema Planilla v5.28.51-PROD',
-    'version': '19.0.5.28.417',
+    'version': '19.0.5.28.418',
     
     'category': 'Human Resources/Payroll',
     'summary': 'Sistema de Planilla Costa Rica v5.14 - Legislacion CR 2026',
@@ -61,6 +61,7 @@
         'views/embargo_views.xml',
         'views/bono_views.xml',
         'views/leave_cr_views.xml',
+        'views/rebajo_renta_views.xml',
         'views/bono_antiguedad_config_views.xml',
         'views/employee_charge_views.xml',
         'views/payslip_cr_views.xml',
@@ -99,6 +100,7 @@
         'wizard/vacation_initial_balance_wizard_views.xml',
         'wizard/confirm_warnings_wizard_views.xml',
         'wizard/resumen_ejecutivo_wizard_views.xml',
+        'wizard/reporte_208_wizard_views.xml',
         'wizard/employer_cost_wizard_views.xml',
         'wizard/wizard_views_v24.xml',
         'wizard/aguinaldo_wizard_views.xml',
