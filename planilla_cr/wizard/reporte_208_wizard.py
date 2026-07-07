@@ -25,13 +25,19 @@ class Reporte208Wizard(models.TransientModel):
 
     def _build_data(self):
         df, dt = self._get_range()
-        # Buscar boletas del período: incluir las que solapan con el rango
-        slips = self.env['planilla.payslip.cr'].search([
-            ('company_id','=',self.company_id.id),
-            ('state','in',['confirmed','done']),
+        # Incluir todos los estados (draft, confirmed, done) excepto cancelados
+        slips = self.env['planilla.payslip.cr'].sudo().search([
+            ('state','!=','cancelled'),
             ('date_from','<=',dt),
             ('date_to','>=',df),
         ])
+        # Filtrar por empresa manualmente (más confiable que el domain SQL)
+        slips = slips.filtered(
+            lambda s: (
+                s.company_id.id == self.company_id.id or
+                s.employee_id.company_id.id == self.company_id.id
+            )
+        )
         by_emp = {}
         for s in slips:
             eid = s.employee_id.id
