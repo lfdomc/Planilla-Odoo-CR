@@ -337,7 +337,7 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
 
     <menuitem id="menu_rebajo_renta"
               name="Rebajos Consolidados de Renta"
-              parent="menu_planilla_novedades"
+              parent="menu_planilla_cr_novedades"
               action="planilla_cr.action_rebajo_renta"
               sequence="55"/>
 

@@ -152,6 +152,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # ── Deducciones legales ───────────────────────────────────────────
             ('CCSS\nObrero 10.83%',    11, 'ded', fd_ded),
             ('Impuesto\nRenta',        10, 'ded', fd_ded),
+            ('Rebajo\nConsolidado',    12, 'ded', fd_ded),
             ('Pensión\nAlimenticia',   10, 'ded', fd_ded),
             ('Embargo\nJudicial',      10, 'ded', fd_ded),
             ('Cobros\nEmpleado',       10, 'ded', fd_ded),
@@ -286,6 +287,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
                     self.base_cotizable_final     = _sum('base_cotizable_final')
                     self.ccss_employee            = _sum('ccss_employee')
                     self.income_tax               = _sum('income_tax')
+                    self.rebajo_renta_amount      = _sum('rebajo_renta_amount')
                     self.total_employee_deductions= _sum('total_employee_deductions')
                     self.deposito_patrono         = _sum('deposito_patrono')
                     self.ccss_employer            = _sum('ccss_employer')
@@ -361,6 +363,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # DEDUCCIONES LEGALES Y ADICIONALES
             ccss_emp   = slip.ccss_employee or 0
             renta      = slip.income_tax or 0
+            rebajo_renta = getattr(slip, 'rebajo_renta_amount', 0) or 0
 
             # Leer cada categoría desde deduction_line_ids
             def _sum_cat(*cats):
@@ -378,7 +381,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             pension_vol = _sum_cat('pension_vol')
             otras_ded  = max(round(
                 (slip.total_employee_deductions or 0)
-                - ccss_emp - renta - pension_al - embargo
+                - ccss_emp - renta - rebajo_renta - pension_al - embargo
                 - cobros_emp - prestamos - seguro - pension_vol, 2), 0)
 
             total_ded  = slip.total_employee_deductions or 0
@@ -406,7 +409,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 float(dias_incap), monto_incap, licencia_sg,
                 subsid_mat,
                 bruto_cotiz,
-                ccss_emp, renta, pension_al, embargo,
+                ccss_emp, renta, rebajo_renta, pension_al, embargo,
                 cobros_emp, prestamos, seguro, pension_vol, otras_ded,
                 total_ded,
                 neto_dep,

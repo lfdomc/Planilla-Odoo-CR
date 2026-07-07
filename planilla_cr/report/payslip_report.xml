@@ -275,6 +275,12 @@
                             </td>
                             <td/>
                         </tr>
+                                <tr t-if="(_cfg.show_vacation_on_payslip or True) and doc.rebajo_renta_amount &gt; 0">
+                                    <td style="padding:2px 8px 2px 20px;">Rebajo Consol. Renta:</td>
+                                    <td style="padding:2px 8px; text-align:right; color:#C00000;">
+                                        − <t t-out="'&#8353; {:,.0f}'.format(doc.rebajo_renta_amount)"/>
+                                    </td>
+                                </tr>
 
                         <!-- Pension Alimentaria -->
                         <tr>
