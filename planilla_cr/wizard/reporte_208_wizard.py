@@ -25,10 +25,12 @@ class Reporte208Wizard(models.TransientModel):
 
     def _build_data(self):
         df, dt = self._get_range()
+        # Buscar boletas del período: incluir las que solapan con el rango
         slips = self.env['planilla.payslip.cr'].search([
             ('company_id','=',self.company_id.id),
             ('state','in',['confirmed','done']),
-            ('date_from','>=',df), ('date_to','<=',dt),
+            ('date_from','<=',dt),
+            ('date_to','>=',df),
         ])
         by_emp = {}
         for s in slips:
@@ -54,18 +56,22 @@ class Reporte208Wizard(models.TransientModel):
 
     def action_show_report(self):
         rows, df, dt = self._build_data()
+        # Crear registros transitorios y guardar IDs para que no se pierdan
         self.env['planilla.reporte.208.result'].search([('wizard_id','=',self.id)]).unlink()
+        ids = []
         for r in rows:
-            self.env['planilla.reporte.208.result'].create({
+            rec = self.env['planilla.reporte.208.result'].create({
                 'wizard_id': self.id, 'cedula': r['cedula'], 'nombre': r['nombre'],
                 'es_multiempleado': r['multi'], 'estado_multi': r['estado'],
                 'bruto': r['bruto'], 'creditos': r['creditos'], 'base_imp': r['base'],
                 'renta_normal': r['renta'], 'rebajo_renta': r['rebajo'], 'total_renta': r['total'],
             })
-        return {'type':'ir.actions.act_window','name':f'Reporte 208/138',
+            ids.append(rec.id)
+        titulo = f'Reporte 208/138 — {self.company_id.name} ({df.strftime("%d/%m/%Y")} al {dt.strftime("%d/%m/%Y")})'
+        return {'type':'ir.actions.act_window','name': titulo,
                 'res_model':'planilla.reporte.208.result','view_mode':'list',
-                'domain':[('wizard_id','=',self.id)],'target':'current',
-                'context':{'no_create':True}}
+                'domain':[('id','in',ids)],'target':'main',
+                'context':{'no_create':True,'no_delete':True}}
 
     def action_export_excel(self):
         rows, df, dt = self._build_data()
