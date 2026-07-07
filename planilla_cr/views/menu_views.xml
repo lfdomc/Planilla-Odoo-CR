@@ -343,7 +343,7 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
 
     <menuitem id="menu_reporte_208"
               name="Retenciones Renta 208/138 (TRIBU-CR)"
-              parent="menu_planilla_reportes"
+              parent="menu_planilla_cr_reports"
               action="planilla_cr.action_reporte_208_wizard"
               sequence="35"/>
 
