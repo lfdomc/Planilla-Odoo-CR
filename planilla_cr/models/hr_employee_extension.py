@@ -1332,6 +1332,31 @@ class HrEmployeeExtension(models.Model):
             taken_recs = self.env['planilla.vacation.payment'].search(domain_taken)
             taken      = int(sum(taken_recs.mapped('days')))
 
+            # Fase 5 (opcional): descontar días de incapacidad si la config lo requiere
+            # Art. 153 CT: vacaciones sobre tiempo laborado.
+            # Maternidad NUNCA se descuenta (Art. 95 CT).
+            _config = self.env['planilla.accounting.config'].sudo().get_config(emp.company_id.id)
+            if _config and _config.exclude_disability_from_vacation:
+                _cutoff_date = emp.vacation_initial_balance_date
+                _dis_domain = [
+                    ('employee_id', '=', emp.id),
+                    ('state', 'in', ['confirmed', 'paid']),
+                    ('disability_type', 'not in', ['maternity']),  # Art. 95 CT
+                ]
+                if _cutoff_date:
+                    _dis_domain.append(('date_start', '>=', _cutoff_date))
+                elif emp.entry_date:
+                    _dis_domain.append(('date_start', '>=', emp.entry_date))
+                _dis_recs = self.env['planilla.disability'].search(_dis_domain)
+                # Días 1-3 los paga el patrono pero el empleado no trabajó:
+                # incluirlos en el descuento (criterio conservador Art. 153 CT)
+                _dis_total_days = sum(d.days or 0 for d in _dis_recs)
+                # 1 día vacaciones = 29 días calendario trabajados (método legal)
+                # Descuento = floor(días_incapacidad / 29)
+                import math as _m
+                _vac_deduction = _m.floor(_dis_total_days / 29)
+                accrued = max(0.0, accrued - _vac_deduction)
+
             available = accrued - taken
             emp.vacation_days_accrued   = accrued
             emp.vacation_days_taken     = taken

@@ -33,6 +33,10 @@
                                    widget="boolean_toggle"
                                    string="HE: formula fija salario / 30 / 8h"
                                    help="ON = horas extra con salario/30/8h fijo. OFF = usa horas del tipo de horario del empleado."/>
+                            <field name="exclude_disability_from_vacation"
+                                   widget="boolean_toggle"
+                                   string="Excluir incapacidades de vacaciones (Art. 153 CT)"
+                                   help="ON = los días de incapacidad (excepto maternidad) se descuentan del tiempo base para acumular vacaciones. OFF = práctica habitual en CR (incluir)."/>
                             <field name="enable_overtime_exemption"
                                    widget="boolean_toggle"
                                    string="Permitir excluir HE de CCSS/Renta"

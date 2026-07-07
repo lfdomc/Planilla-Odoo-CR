@@ -223,6 +223,16 @@ class PayrollAccountingConfig(models.Model):
              'de días de vacaciones disponibles. Desactive para ocultar este dato.'
     )
 
+    exclude_disability_from_vacation = fields.Boolean(
+        string='Excluir incapacidades del cómputo de vacaciones',
+        default=False,
+        help='Art. 153 CT: las vacaciones se calculan sobre tiempo laborado. '
+             'Al activar este check, los días de incapacidad por enfermedad/accidente '
+             'se descuentan de la base de acumulación de vacaciones. '
+             'Las incapacidades por maternidad NUNCA se descuentan (Art. 95 CT). '
+             'Desactivado por defecto (práctica habitual en CR es incluirlas).'
+    )
+
     enable_overtime_exemption = fields.Boolean(
         string='Permitir excluir Horas Extra de CCSS/Renta',
         default=False,
