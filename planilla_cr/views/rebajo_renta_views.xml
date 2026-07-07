@@ -28,7 +28,6 @@
                     </div>
                     <field name="notes" placeholder="Observaciones..."/>
                 </sheet>
-                <chatter/>
             </form>
         </field>
     </record>

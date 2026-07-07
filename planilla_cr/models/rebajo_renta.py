@@ -15,14 +15,14 @@ class RebajoRenta(models.Model):
     frequency   = fields.Selection([
         ('biweekly', 'Por Quincena'),
         ('monthly',  'Mensual (÷2 en nómina quincenal)'),
-    ], default='biweekly', required=True)
-    date_from   = fields.Date(required=True, default=fields.Date.today)
-    date_to     = fields.Date(help='Vacío = sin vencimiento')
+    ], string='Frecuencia', default='biweekly', required=True)
+    date_from   = fields.Date(string='Vigente Desde', required=True, default=fields.Date.today)
+    date_to     = fields.Date(string='Vigente Hasta', help='Vacío = sin vencimiento')
     reason      = fields.Selection([
         ('multiempleo',       'Multiempleo (segundo patrono)'),
         ('ajuste_voluntario', 'Ajuste voluntario de renta'),
         ('otro',              'Otro'),
-    ], default='multiempleo', required=True)
+    ], string='Motivo', default='multiempleo', required=True)
     reference_doc = fields.Char(string='N° Declaración del Empleado')
     notes         = fields.Text()
 
