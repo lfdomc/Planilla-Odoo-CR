@@ -59,6 +59,10 @@
                             <field name="amount_paid"/>
                             <field name="amount_pending"/>
                         </group>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not has_active_loan_warning">
+                        <field name="has_active_loan_warning" readonly="1" nolabel="1"/>
+                    </div>
                     </group>
                     <group>
                         <group string="Fechas">

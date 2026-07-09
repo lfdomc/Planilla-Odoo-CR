@@ -127,30 +127,35 @@ class EmployeeLoan(models.Model):
             if rec.installments <= 0:
                 raise ValidationError('Las cuotas deben ser al menos 1.')
 
-    @api.constrains('employee_id', 'date_granted', 'loan_type', 'state')
-    def _check_duplicate_active(self):
-        """
-        FIX I-04 v54: Validacion ORM para evitar multiples prestamos activos del
-        mismo tipo en el mismo empleado. Un empleado no deberia tener dos prestamos
-        simultaneos del mismo tipo (podria ser un error de carga de datos).
-        Solo aplica a prestamos en estado activo/aprobado, no a borradores ni cancelados.
-        """
+    has_active_loan_warning = fields.Char(
+        string='Alerta préstamo activo',
+        compute='_compute_active_loan_warning',
+        help='Alerta informativa si el empleado ya tiene un préstamo activo del mismo tipo.'
+    )
+
+    def _compute_active_loan_warning(self):
         for rec in self:
-            if rec.state not in ('approved', 'active'):
-                continue
-            duplicates = self.search([
-                ('employee_id', '=', rec.employee_id.id),
-                ('loan_type', '=', rec.loan_type),
-                ('state', 'in', ('approved', 'active')),
-                ('id', '!=', rec.id),
-            ])
-            if duplicates:
-                tipo = dict(self._fields['loan_type'].selection).get(rec.loan_type, rec.loan_type)
-                raise ValidationError(
-                    f'El empleado {rec.employee_id.name} ya tiene un {tipo} activo '
-                    f'({duplicates[0].name}). Cancele o liquide el prestamo existente '
-                    f'antes de aprobar uno nuevo del mismo tipo.'
-                )
+            if rec.state in ('draft', 'cancelled') and rec.employee_id and rec.loan_type:
+                duplicates = self.search([
+                    ('employee_id', '=', rec.employee_id.id),
+                    ('loan_type', '=', rec.loan_type),
+                    ('state', 'in', ('approved', 'active')),
+                    ('id', '!=', rec.id or 0),
+                ], limit=1)
+                if duplicates:
+                    tipo = dict(rec._fields['loan_type'].selection).get(rec.loan_type, rec.loan_type)
+                    rec.has_active_loan_warning = (
+                        f'⚠ El empleado ya tiene un {tipo} activo: '
+                        f'{duplicates[0].name} (pendiente por pagar). '
+                        f'Se puede registrar este nuevo adelanto, pero considere '
+                        f'la capacidad de pago del empleado.'
+                    )
+                else:
+                    rec.has_active_loan_warning = False
+            else:
+                rec.has_active_loan_warning = False
+
+    # _check_duplicate_active eliminado — ahora es alerta informativa, no bloqueo
 
     @api.depends('employee_id', 'employee_id.base_salary')
     def _compute_max_installment(self):
