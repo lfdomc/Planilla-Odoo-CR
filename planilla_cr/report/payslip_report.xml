@@ -177,22 +177,46 @@
                         </tr>
 
                         <!-- Incapacidad CCSS (dias de incapacidad del periodo) -->
-                        <tr>
-                            <td style="padding:2px 8px 2px 20px;">
-                                Incapacidad CCSS<t t-if="doc.disability_days_in_period &gt; 0">
-                                    <span style="font-size:10px; color:#666;"> (<t t-out="str(doc.disability_days_in_period)"/> dias)</span>
-                                </t>:
-                            </td>
-                            <td style="padding:2px 8px; text-align:right;">
-                                <t t-set="incap_normal" t-value="doc.disability_ids.filtered(lambda d: d.disability_type not in ('maternity','ins') and d.state in ('confirmed','paid'))"/>
-                                <t t-if="incap_normal and doc.disability_days_in_period &gt; 0">
-                                    <t t-set="dias_sin_sueldo" t-value="doc.disability_days_in_period"/>
-                                    &#8353; <t t-out="'{:,.0f}'.format(round(doc.employee_id.base_salary / 30 * dias_sin_sueldo, 0))"/>
-                                </t>
-                                <t t-else="">-</t>
-                            </td>
-                            <td/>
-                        </tr>
+                        <!-- Para días 1-3: patrono paga 50%, empleado pierde 50% -->
+                        <!-- Para días 4+: CCSS paga 60%, patrono puede complementar -->
+                        <!-- Lo que mostramos es el monto que el empleado PIERDE de su salario -->
+                        <t t-set="incap_normal" t-value="doc.disability_ids.filtered(lambda d: d.disability_type not in ('maternity','ins') and d.state in ('confirmed','paid'))"/>
+                        <t t-if="incap_normal and doc.disability_days_in_period &gt; 0">
+                            <t t-set="_daily_pdf" t-value="doc.employee_id.base_salary / 30"/>
+                            <!-- costo_patrono_periodo = patrono paga 50% días 1-3 -->
+                            <!-- descuento neto al empleado = total días - subsidio patrono -->
+                            <t t-set="_bruto_incap" t-value="round(_daily_pdf * doc.disability_days_in_period, 0)"/>
+                            <t t-set="_subsidio_pat" t-value="doc.costo_patrono_periodo or 0"/>
+                            <t t-set="_neto_desc_empleado" t-value="max(_bruto_incap - _subsidio_pat, 0)"/>
+                            <tr>
+                                <td style="padding:2px 8px 2px 20px;">
+                                    Desc. Incapacidad
+                                    <span style="font-size:10px; color:#666;"> (<t t-out="str(doc.disability_days_in_period)"/> dias)</span>:
+                                </td>
+                                <td style="padding:2px 8px; text-align:right;">
+                                    &#8353; <t t-out="'{:,.0f}'.format(_neto_desc_empleado)"/>
+                                </td>
+                                <td/>
+                            </tr>
+                            <!-- Subsidio patrono días 1-3 (si aplica) -->
+                            <tr t-if="_subsidio_pat &gt; 0">
+                                <td style="padding:2px 8px 2px 20px; color:#1a7a3d;">
+                                    Subsidio Patrono (50% días 1-3)
+                                    <span style="font-size:10px;"> (Art. 79 CT)</span>:
+                                </td>
+                                <td style="padding:2px 8px; text-align:right; color:#1a7a3d;">
+                                    &#8353; <t t-out="'{:,.0f}'.format(_subsidio_pat)"/>
+                                </td>
+                                <td/>
+                            </tr>
+                        </t>
+                        <t t-else="">
+                            <tr>
+                                <td style="padding:2px 8px 2px 20px;">Incapacidad CCSS:</td>
+                                <td style="padding:2px 8px; text-align:right;">-</td>
+                                <td/>
+                            </tr>
+                        </t>
 
                         <!-- Incapacidad INS -->
                         <tr>
