@@ -198,17 +198,7 @@
                                 </td>
                                 <td/>
                             </tr>
-                            <!-- Subsidio patrono días 1-3 (si aplica) -->
-                            <tr t-if="_subsidio_pat &gt; 0">
-                                <td style="padding:2px 8px 2px 20px; color:#1a7a3d;">
-                                    Subsidio Patrono (50% días 1-3)
-                                    <span style="font-size:10px;"> (Art. 79 CT)</span>:
-                                </td>
-                                <td style="padding:2px 8px; text-align:right; color:#1a7a3d;">
-                                    &#8353; <t t-out="'{:,.0f}'.format(_subsidio_pat)"/>
-                                </td>
-                                <td/>
-                            </tr>
+
                         </t>
                         <t t-else="">
                             <tr>
@@ -426,6 +416,18 @@
                             <td style="padding:1px 8px; text-align:right; font-size:11px; color:#555;"><t t-out="str(doc.disability_days_in_period)"/> dias</td>
                             <td/>
                         </tr>
+                        <!-- Subsidio patrono días 1-3 como nota informativa -->
+                        <t t-if="(doc.costo_patrono_periodo or 0) &gt; 0">
+                        <tr>
+                            <td style="padding:1px 8px 1px 20px; font-size:11px; color:#1a7a3d;">
+                                Subsidio patrono días 1-3 (Art. 79 CT — 50% a cargo del patrono):
+                            </td>
+                            <td style="padding:1px 8px; text-align:right; font-size:11px; color:#1a7a3d;">
+                                &#8353; <t t-out="'{:,.0f}'.format(doc.costo_patrono_periodo)"/>
+                            </td>
+                            <td/>
+                        </tr>
+                        </t>
                         </t>
                         <t t-if="doc.vacation_amount &gt; 0">
                         <tr>
