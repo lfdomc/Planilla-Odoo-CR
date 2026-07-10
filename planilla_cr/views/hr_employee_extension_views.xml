@@ -98,6 +98,9 @@
                         <group string="CCSS">
                             <field name="ccss_number"/>
                             <field name="es_multiempleado" widget="boolean_toggle" string="¿Es Multiempleado? (Hacienda)"/>
+                            <field name="num_empleadores"
+                                   invisible="not es_multiempleado"
+                                   string="N° Empleadores (divide créditos fiscales)"/>
                             <field name="ccss_insured"/>
                             <field name="exento_deducciones"
                                    invisible="ccss_insured"

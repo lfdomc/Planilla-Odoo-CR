@@ -876,6 +876,15 @@ class PayslipComputeMixin(models.AbstractModel):
         credito_conyuge = K.CREDITO_FISCAL_CONYUGE * freq_factor if emp.income_tax_spouse_credit else 0.0
         total_creditos  = credito_hijos + credito_conyuge
 
+        # Multiempleo: el empleado trabaja en dos empresas y declara compartir
+        # los créditos fiscales entre ambas proporcional mente.
+        # El crédito mensual se divide ÷2 empleadores y luego ÷2 quincenas.
+        # En la práctica: si es_multiempleado=True, el crédito quincenal
+        # se divide entre el número de empleadores (default 2).
+        if getattr(emp, 'es_multiempleado', False):
+            num_empleadores = getattr(emp, 'num_empleadores', 2) or 2
+            total_creditos = round(total_creditos / num_empleadores, 2)
+
         # Los creditos solo reducen hasta CRC0 -- nunca generan reembolso
         creditos_aplicados = min(total_creditos, tax_raw)
         tax_neto           = max(tax_raw - total_creditos, 0.0)

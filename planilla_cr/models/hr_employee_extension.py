@@ -711,6 +711,13 @@ class HrEmployeeExtension(models.Model):
         help='El empleado tiene otro trabajo simultáneo. Se activa automáticamente '
              'al crear un Rebajo Consolidado con motivo Multiempleo.'
     )
+    num_empleadores = fields.Integer(
+        string='N° de Empleadores',
+        default=2,
+        help='Número de empresas donde trabaja simultáneamente. '
+             'Los créditos fiscales (cónyuge/hijos) se dividen entre este número. '
+             'Solo aplica cuando Es Multiempleado está activo. Default: 2.'
+    )
     ccss_insured = fields.Boolean(string='Asegurado CCSS', default=True)
     exento_deducciones = fields.Boolean(
         string='Exento de CCSS y Renta',
