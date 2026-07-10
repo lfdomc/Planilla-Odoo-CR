@@ -467,10 +467,12 @@ class PayslipComputeMixin(models.AbstractModel):
                     ff = K.FREQ_FACTORS.get(freq, 1.0)
                     prop = rec.proportional_factor if rec.is_proportional else 1.0
                     base_quincenal = round(_sal_hist * ff * prop, 2)
+                    # Art. 79 CT: el subsidio patrono días 1-3 NO es salario
+                    # → NO genera cargas CCSS ni Renta. NO se incluye en base cotizable.
+                    # Solo se suma al neto que recibe el empleado (fuera de la base).
                     rec.salario_cotizable = round(
                         base_quincenal
-                        - (dias_incap_periodo * salario_diario)
-                        + costo_patrono_periodo,
+                        - (dias_incap_periodo * salario_diario),
                         2
                     )
             else:
