@@ -115,6 +115,7 @@ class PayslipValidationMixin(models.AbstractModel):
 
     @api.depends(
         'gross_salary', 'ccss_employee', 'income_tax', 'other_deductions',
+        'rebajo_renta_amount',
         'paternity_amount',
         'ccss_employer', 'ins_employer', 'rop_employer', 'aguinaldo_provision',
         'cesantia_provision', 'vacation_provision', 'deduction_line_ids.amount',
