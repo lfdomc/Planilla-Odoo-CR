@@ -435,7 +435,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 # FIX DIAS-16: usar freq_factor si la licencia cubre todo el periodo
                 dias_periodo_local = (self.date_to - self.date_from).days + 1 if (self.date_from and self.date_to) else 15
                 if overlap_days >= dias_periodo_local:
-                    from planilla_cr.models.planilla_const import FREQ_FACTORS as _FF, DIAS_MES as _DM
+                    from ..planilla_const import FREQ_FACTORS as _FF, DIAS_MES as _DM
                     _ff = _FF.get(self._get_effective_freq() if hasattr(self, '_get_effective_freq') else 'biweekly', 0.5)
                     monto = round(daily_rate * _DM * _ff, 2)
                 else:
@@ -633,7 +633,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 if self.employee_id and self.employee_id.base_salary
                 else (self.base_salary or 0.0)
             )
-            from planilla_cr.models.planilla_const import DIAS_MES as _DIAS_MES
+            from ..planilla_const import DIAS_MES as _DIAS_MES
             salary_daily = round(emp_monthly / _DIAS_MES, 4)
             amount = round(salary_daily * days_absent, 2)
             if amount <= 0:
@@ -1141,7 +1141,7 @@ class PayslipSyncMixin(models.AbstractModel):
             if self.employee_id and self.employee_id.base_salary
             else (self.base_salary or 0.0)
         )
-        from planilla_cr.models.planilla_const import DIAS_MES as _DIAS_MES2
+        from ..planilla_const import DIAS_MES as _DIAS_MES2
         salary_daily = round(emp_monthly2 / _DIAS_MES2, 4)
         amount = round(salary_daily * days_absent, 2)
         if amount <= 0:
@@ -1257,7 +1257,7 @@ class PayslipSyncMixin(models.AbstractModel):
             # FIX DIAS-16: usar freq_factor si la licencia cubre todo el periodo
             dias_periodo_s = (self.date_to - self.date_from).days + 1 if (self.date_from and self.date_to) else 15
             if overlap_days >= dias_periodo_s:
-                from planilla_cr.models.planilla_const import FREQ_FACTORS as _FF2, DIAS_MES as _DM2
+                from ..planilla_const import FREQ_FACTORS as _FF2, DIAS_MES as _DM2
                 _ff2  = _FF2.get(self._get_effective_freq() if hasattr(self, '_get_effective_freq') else 'biweekly', 0.5)
                 monto = round(daily_rate * _DM2 * _ff2, 2)
             else:
