@@ -266,6 +266,7 @@ class PayslipValidationMixin(models.AbstractModel):
             rec.net_salary = round(
                 (rec.gross_salary or 0.0) - rec.total_employee_deductions +
                 (rec.ccss_subsidy_total or 0.0) +
+                (rec.costo_patrono_periodo or 0.0) +  # Art. 79 CT: no es salario pero sí ingreso
                 (rec.paternity_amount or 0.0) +
                 extra_income, 2
             )
@@ -363,10 +364,13 @@ class PayslipValidationMixin(models.AbstractModel):
 
                 else:
                     # Incapacidad normal CCSS (dias 1-3 patrono, dias 4+ CCSS) o INS.
-                    # gross_salary = salario_cotizable (dias laborados + 50% dias patrono).
+                    # Art. 79 CT: costo_patrono_periodo (50% dias 1-3) no genera
+                    # cargas CCSS/Renta (excluido de salario_cotizable), pero SÍ
+                    # se paga al empleado → debe sumarse al neto.
                     # INS total: gross_salary = 0, patrono no deposita nada (INS paga fuera).
                     rec.neto_por_patrono = round(
                         (rec.gross_salary or 0.0) - rec.total_employee_deductions +
+                        (rec.costo_patrono_periodo or 0.0) +
                         (rec.paternity_amount or 0.0) +
                         extra_income, 2
                     )
