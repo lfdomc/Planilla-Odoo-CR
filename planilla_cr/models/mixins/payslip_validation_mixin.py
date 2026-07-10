@@ -168,10 +168,11 @@ class PayslipValidationMixin(models.AbstractModel):
                 if l.line_type == 'deduction'
             )
 
-            # Total Deducciones Obrero = CCSS + Renta + otras legales + deducciones adicionales
+            # Total Deducciones Obrero = CCSS + Renta + Rebajo Consolidado + otras + adicionales
             rec.total_employee_deductions = round(
                 (rec.ccss_employee or 0.0) +
                 (rec.income_tax or 0.0) +
+                (rec.rebajo_renta_amount or 0.0) +
                 (rec.other_deductions or 0.0) +
                 extra_deductions, 2
             )

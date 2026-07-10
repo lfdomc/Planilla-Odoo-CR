@@ -815,7 +815,9 @@ class PayslipSyncMixin(models.AbstractModel):
         # Art. 172 CT: el neto disponible se calcula descontando CCSS, renta,
         # pensiones alimentarias, ausencias sin goce Y licencias sin goce,
         # antes de aplicar el tope del 25% de embargo.
-        neto_disponible = max(0.0, gross - ccss_emp - renta - pensiones - ausencias_sg - licencias_sg)
+        neto_disponible = max(0.0, gross - ccss_emp - renta
+                              - (self.rebajo_renta_amount or 0.0)
+                              - pensiones - ausencias_sg - licencias_sg)
         limite_total    = round(neto_disponible * K.MAX_PCT_EMBARGO / 100, 2)
         ya_embargado    = sum(
             l.amount for l in self.deduction_line_ids
