@@ -39,9 +39,10 @@ class Overtime(models.Model):
     hours = fields.Float(string='Horas Extras', required=True, tracking=True,
                          default=1.0)
     overtime_type = fields.Selection([
-        ('simple', 'Simple (1.5x)'),
-        ('double', 'Doble (2x)'),
-        ('holiday', 'Dia Feriado'),
+        ('simple',    'Simple (1.5x)'),
+        ('double',    'Doble (2x)'),
+        ('nocturna',  'Nocturna (2x)'),
+        ('holiday',   'Dia Feriado'),
     ], string='Tipo', default='simple', required=True, tracking=True)
 
     hourly_rate = fields.Monetary(
@@ -174,6 +175,9 @@ class Overtime(models.Model):
                 hours_per_day = 8.0
                 if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
                     hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
+            # Jornada nocturna (Art. 136 CT): 6 horas
+            if rec.overtime_type == 'nocturna':
+                hours_per_day = 6.0
             # Tarifa por hora = Salario mensual / 30 dias / horas_jornada
             rec.hourly_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
 
@@ -184,7 +188,7 @@ class Overtime(models.Model):
         # el recargo es solo 1 día adicional (factor 1.0), dando total 2x.
         # Factor 2.0 generaría pago TRIPLE (1 del mensual + 2 del recargo).
         # Art. 152 CT: día de descanso trabajado aplica misma lógica.
-        factors = {'simple': 1.5, 'double': 2.0, 'holiday': 1.0}
+        factors = {'simple': 1.5, 'double': 2.0, 'nocturna': 1.5, 'holiday': 1.0}
         for rec in self:
             factor = factors.get(rec.overtime_type, 1.5)
             rec.amount = rec.hours * rec.hourly_rate * factor
@@ -207,9 +211,11 @@ class Overtime(models.Model):
                 hours_per_day = 8.0
                 if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
                     hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
+            if rec.overtime_type == 'nocturna':
+                hours_per_day = 6.0  # Art. 136 CT: jornada nocturna = 6 horas
             new_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
             if new_rate != old_rate:
-                factors = {'simple': 1.5, 'double': 2.0, 'holiday': 1.0}  # Art. 148 CT
+                factors = {'simple': 1.5, 'double': 2.0, 'nocturna': 1.5, 'holiday': 1.0}  # nocturna: daily/6 × 1.5
                 factor = factors.get(rec.overtime_type, 1.5)
                 rec.write({
                     'hourly_rate': new_rate,
