@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #333; }
+        h1 { color: #1e293b; border-bottom: 3px solid #3b82f6; padding-bottom: 12px; }
+        h2 { color: #334155; }
+        .badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:0.85rem; font-weight:600; margin:4px; }
+        .badge-blue { background:#dbeafe; color:#1d4ed8; }
+        .badge-green { background:#dcfce7; color:#15803d; }
+        .feature-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0; }
+        .feature-card { border:1px solid #e2e8f0; border-radius:10px; padding:16px; }
+        .feature-card h3 { margin:0 0 8px 0; color:#1e293b; }
+        .feature-card p { margin:0; color:#64748b; font-size:0.9rem; }
+        pre { background:#f1f5f9; border-radius:8px; padding:16px; font-size:0.85rem; overflow-x:auto; }
+        .step { border-left:4px solid #3b82f6; padding-left:16px; margin:12px 0; }
+        .warning { background:#fef3c7; border:1px solid #fbbf24; border-radius:8px; padding:12px 16px; margin:12px 0; }
+        .tip { background:#d1fae5; border:1px solid #34d399; border-radius:8px; padding:12px 16px; margin:12px 0; }
+    </style>
+</head>
+<body>
+    <h1>📷 Reconocimiento Facial — Asistencias</h1>
+    <p>
+        <span class="badge badge-blue">Odoo 19</span>
+        <span class="badge badge-green">hr.attendance</span>
+        <span class="badge badge-blue">face_recognition</span>
+        <span class="badge badge-green">OWL 3</span>
+    </p>
+
+    <p>
+        Módulo completo de reconocimiento facial integrado con <strong>hr.attendance</strong> de Odoo 19.
+        Permite a los empleados registrar entradas y salidas usando la cámara web, sin tarjetas ni PINs.
+    </p>
+
+    <h2>✨ Características</h2>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <h3>🎯 Reconocimiento Automático</h3>
+            <p>Detecta y reconoce rostros automáticamente cada 2.5 segundos. No requiere interacción manual.</p>
+        </div>
+        <div class="feature-card">
+            <h3>🔗 Integración hr.attendance</h3>
+            <p>Crea y cierra registros de asistencia directamente en el módulo nativo de Odoo.</p>
+        </div>
+        <div class="feature-card">
+            <h3>🖥️ Quiosco de Asistencia</h3>
+            <p>Pantalla dedicada en tiempo real con reloj, resultado y estado visual para colocar en la entrada.</p>
+        </div>
+        <div class="feature-card">
+            <h3>⚡ Entrada/Salida Automática</h3>
+            <p>Detecta automáticamente si el empleado está entrando o saliendo según su estado actual.</p>
+        </div>
+        <div class="feature-card">
+            <h3>📊 Historial Completo</h3>
+            <p>Registro detallado de cada reconocimiento: confianza, imagen capturada, IP del dispositivo.</p>
+        </div>
+        <div class="feature-card">
+            <h3>⚙️ Configuración Flexible</h3>
+            <p>Tolerancia, umbral de confianza y modelo de detección configurables desde Ajustes.</p>
+        </div>
+    </div>
+
+    <h2>📋 Requisitos</h2>
+    <h3>Python (servidor Odoo)</h3>
+    <pre>pip install face_recognition numpy Pillow</pre>
+    <div class="warning">
+        <strong>⚠️ Nota:</strong> <code>face_recognition</code> requiere <code>dlib</code> y compiladores C++.
+        En Ubuntu/Debian: <code>sudo apt install cmake build-essential libopenblas-dev liblapack-dev</code>
+    </div>
+
+    <h3>Modelos de detección</h3>
+    <ul>
+        <li><strong>HOG</strong> (recomendado): Rápido, funciona en CPU. Ideal para producción.</li>
+        <li><strong>CNN</strong>: Más preciso, requiere GPU/CUDA. Para entornos con GPU disponible.</li>
+    </ul>
+
+    <h2>🚀 Instalación</h2>
+    <div class="step">
+        <strong>1.</strong> Copie la carpeta <code>facial_attendance/</code> al directorio de addons de Odoo.
+    </div>
+    <div class="step">
+        <strong>2.</strong> Instale las dependencias Python en el entorno del servidor.
+    </div>
+    <div class="step">
+        <strong>3.</strong> Reinicie el servidor Odoo.
+    </div>
+    <div class="step">
+        <strong>4.</strong> Active el modo desarrollador en Odoo (Ajustes → Modo Desarrollador).
+    </div>
+    <div class="step">
+        <strong>5.</strong> Vaya a Aplicaciones → Actualizar lista de aplicaciones.
+    </div>
+    <div class="step">
+        <strong>6.</strong> Busque "Reconocimiento Facial" e instale el módulo.
+    </div>
+
+    <h2>🔧 Uso</h2>
+    <h3>Registrar rostro de un empleado</h3>
+    <ol>
+        <li>Vaya a <em>Empleados → [Empleado] → Pestaña "Reconocimiento Facial"</em></li>
+        <li>Haga clic en <strong>"Registrar Rostro"</strong></li>
+        <li>Permita el acceso a la cámara en el navegador</li>
+        <li>Capture la foto y haga clic en <strong>"Guardar Registro"</strong></li>
+    </ol>
+
+    <h3>Quiosco de asistencia</h3>
+    <ol>
+        <li>Vaya a <em>Asistencias → Reconocimiento Facial → Abrir Quiosco</em></li>
+        <li>La pantalla mostrará la cámara en tiempo real</li>
+        <li>Los empleados solo deben mirar a la cámara para registrar su asistencia</li>
+    </ol>
+
+    <div class="tip">
+        <strong>💡 Consejo:</strong> Para uso como quiosco permanente, abra la URL
+        <code>/facial_attendance/kiosk/public</code> en modo pantalla completa (F11).
+        Esta URL no requiere login de Odoo.
+    </div>
+</body>
+</html>

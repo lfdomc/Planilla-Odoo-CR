@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Configuración del quiosco por defecto -->
+        <record id="facial_attendance_config_default" model="facial.attendance.config">
+            <field name="name">Quiosco Principal</field>
+            <field name="location">Entrada Principal</field>
+            <field name="tolerance">0.55</field>
+            <field name="confidence_threshold">60.0</field>
+            <field name="save_captured_images" eval="True"/>
+            <field name="auto_action" eval="True"/>
+            <field name="active" eval="True"/>
+        </record>
+
+        <!-- Parámetros de configuración por defecto -->
+        <record id="facial_attendance_tolerance_param" model="ir.config_parameter">
+            <field name="key">facial_attendance.tolerance</field>
+            <field name="value">0.55</field>
+        </record>
+        <record id="facial_attendance_confidence_param" model="ir.config_parameter">
+            <field name="key">facial_attendance.confidence_threshold</field>
+            <field name="value">60.0</field>
+        </record>
+        <record id="facial_attendance_save_images_param" model="ir.config_parameter">
+            <field name="key">facial_attendance.save_images</field>
+            <field name="value">True</field>
+        </record>
+        <record id="facial_attendance_auto_action_param" model="ir.config_parameter">
+            <field name="key">facial_attendance.auto_action</field>
+            <field name="value">True</field>
+        </record>
+        <record id="facial_attendance_model_param" model="ir.config_parameter">
+            <field name="key">facial_attendance.recognition_model</field>
+            <field name="value">hog</field>
+        </record>
+
+    </data>
+</odoo>

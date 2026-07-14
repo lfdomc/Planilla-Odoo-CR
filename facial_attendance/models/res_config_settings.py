@@ -1,0 +1,38 @@
+# -*- coding: ascii -*-
+from odoo import api, fields, models
+
+
+class ResConfigSettings(models.TransientModel):
+    _inherit = 'res.config.settings'
+
+    facial_recognition_tolerance = fields.Float(
+        string='Tolerancia de Reconocimiento Facial',
+        default=0.55,
+        config_parameter='facial_attendance.tolerance',
+        digits=(3, 2),
+        help='Distancia maxima para considerar un match valido (0.4=estricto, 0.6=tolerante)',
+    )
+    facial_confidence_threshold = fields.Float(
+        string='Umbral Minimo de Confianza (%)',
+        default=60.0,
+        config_parameter='facial_attendance.confidence_threshold',
+        digits=(5, 2),
+    )
+    facial_save_images = fields.Boolean(
+        string='Guardar imagenes capturadas',
+        default=True,
+        config_parameter='facial_attendance.save_images',
+    )
+    facial_auto_action = fields.Boolean(
+        string='Accion automatica (entrada/salida)',
+        default=True,
+        config_parameter='facial_attendance.auto_action',
+        help='Determina automaticamente si es entrada o salida segun estado del empleado',
+    )
+    facial_recognition_model = fields.Selection([
+        ('hog', 'HOG (Rapido, CPU)'),
+        ('cnn', 'CNN (Preciso, requiere GPU)'),
+    ], string='Modelo de Deteccion',
+        default='hog',
+        config_parameter='facial_attendance.recognition_model',
+    )

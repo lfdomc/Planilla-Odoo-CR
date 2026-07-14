@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Menú principal dentro de Asistencias -->
+    <menuitem id="menu_facial_attendance_root"
+              name="Reconocimiento Facial"
+              parent="hr_attendance.menu_hr_attendance_root"
+              sequence="50"
+              groups="hr.group_hr_user"/>
+
+    <!-- Quiosco -->
+    <menuitem id="menu_facial_attendance_kiosk"
+              name="Abrir Quiosco"
+              parent="menu_facial_attendance_root"
+              action="action_facial_kiosk_view"
+              sequence="10"
+              groups="hr.group_hr_user"/>
+
+    <!-- Registros -->
+    <menuitem id="menu_facial_attendance_logs"
+              name="Registros de Reconocimiento"
+              parent="menu_facial_attendance_root"
+              action="facial_attendance_log_action"
+              sequence="20"
+              groups="hr.group_hr_user"/>
+
+    <!-- Empleados con rostro registrado -->
+    <menuitem id="menu_facial_attendance_employees"
+              name="Empleados Registrados"
+              parent="menu_facial_attendance_root"
+              action="hr.open_view_employee_list_my"
+              sequence="30"
+              groups="hr.group_hr_manager"/>
+
+    <!-- Configuración -->
+    <menuitem id="menu_facial_attendance_config"
+              name="Configuración"
+              parent="menu_facial_attendance_root"
+              action="base_setup.action_general_configuration"
+              sequence="90"
+              groups="hr.group_hr_manager"/>
+
+</odoo>

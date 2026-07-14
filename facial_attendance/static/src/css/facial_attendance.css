@@ -1,0 +1,403 @@
+/* ─── Quiosco de Asistencia Facial ─────────────────────────────────────────── */
+
+.o_facial_kiosk_body {
+    background: #0f172a;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    overflow: hidden;
+}
+
+/* ─── Contenedor principal del quiosco ─────────────────────────────────────── */
+
+.o_facial_kiosk {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+    color: white;
+    padding: 24px;
+    box-sizing: border-box;
+}
+
+.o_facial_kiosk_header {
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.o_facial_kiosk_header .company-logo {
+    max-height: 60px;
+    max-width: 200px;
+    object-fit: contain;
+    margin-bottom: 16px;
+    filter: brightness(0) invert(1);
+}
+
+.o_facial_kiosk_header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.025em;
+}
+
+.o_facial_kiosk_header .subtitle {
+    font-size: 1rem;
+    color: #94a3b8;
+}
+
+/* ─── Cámara ────────────────────────────────────────────────────────────────── */
+
+.o_facial_camera_wrapper {
+    position: relative;
+    width: 480px;
+    height: 360px;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #1e293b;
+    border: 2px solid #334155;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.o_facial_camera_wrapper.detecting {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3), 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.o_facial_camera_wrapper.success {
+    border-color: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3), 0 25px 50px rgba(0, 0, 0, 0.5);
+    animation: successPulse 0.5s ease;
+}
+
+.o_facial_camera_wrapper.error {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.3), 0 25px 50px rgba(0, 0, 0, 0.5);
+    animation: errorShake 0.4s ease;
+}
+
+@keyframes successPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+@keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+}
+
+.o_facial_video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* Efecto espejo */
+}
+
+.o_facial_canvas {
+    display: none;
+}
+
+/* ─── Overlay de estado ─────────────────────────────────────────────────────── */
+
+.o_facial_overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+}
+
+.o_facial_overlay .overlay-icon {
+    font-size: 4rem;
+    margin-bottom: 12px;
+}
+
+.o_facial_overlay .overlay-text {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: white;
+    text-align: center;
+    max-width: 300px;
+}
+
+.o_facial_overlay .overlay-sub {
+    font-size: 0.875rem;
+    color: #94a3b8;
+    margin-top: 8px;
+    text-align: center;
+}
+
+/* ─── Guía de posición facial ───────────────────────────────────────────────── */
+
+.o_facial_guide {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.o_facial_guide-oval {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 200px;
+    height: 260px;
+    border: 3px solid rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    transition: border-color 0.3s ease;
+}
+
+.detecting .o_facial_guide-oval {
+    border-color: rgba(59, 130, 246, 0.8);
+    animation: guidePulse 1.5s ease-in-out infinite;
+}
+
+.success .o_facial_guide-oval {
+    border-color: rgba(34, 197, 94, 0.9);
+}
+
+@keyframes guidePulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ─── Resultado del reconocimiento ─────────────────────────────────────────── */
+
+.o_facial_result {
+    margin-top: 24px;
+    text-align: center;
+    min-height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.o_facial_result_card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 20px 32px;
+    max-width: 400px;
+    width: 100%;
+    backdrop-filter: blur(10px);
+    animation: slideUp 0.4s ease;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.o_facial_result_card.success-card {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+.o_facial_result_card.error-card {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.o_facial_result_name {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 4px;
+}
+
+.o_facial_result_action {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 8px;
+}
+
+.o_facial_result_action.check_in {
+    color: #4ade80;
+}
+
+.o_facial_result_action.check_out {
+    color: #f87171;
+}
+
+.o_facial_result_time {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #f8fafc;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.05em;
+}
+
+.o_facial_result_confidence {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 4px;
+}
+
+.o_facial_result_error {
+    font-size: 1rem;
+    color: #fca5a5;
+    font-weight: 500;
+}
+
+/* ─── Indicador de escaneo ──────────────────────────────────────────────────── */
+
+.o_facial_scanning {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+    animation: scanLine 2s linear infinite;
+}
+
+@keyframes scanLine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* ─── Reloj del quiosco ─────────────────────────────────────────────────────── */
+
+.o_facial_clock {
+    position: fixed;
+    top: 24px;
+    right: 32px;
+    text-align: right;
+}
+
+.o_facial_clock .clock-time {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #f8fafc;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.05em;
+}
+
+.o_facial_clock .clock-date {
+    font-size: 0.875rem;
+    color: #64748b;
+    text-transform: capitalize;
+}
+
+/* ─── Estado del quiosco (pie) ──────────────────────────────────────────────── */
+
+.o_facial_kiosk_footer {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.o_facial_status_dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: dotPulse 2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.o_facial_status_label {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* ─── Widget de cámara en wizard ────────────────────────────────────────────── */
+
+.o_facial_camera_container {
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+}
+
+.o_facial_wizard_video {
+    width: 320px;
+    height: 240px;
+    border-radius: 8px;
+    object-fit: cover;
+    transform: scaleX(-1);
+    background: #e2e8f0;
+    border: 2px solid #e2e8f0;
+}
+
+.o_facial_wizard_preview {
+    width: 320px;
+    height: 240px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 2px solid #22c55e;
+}
+
+.o_facial_wizard_canvas {
+    display: none;
+}
+
+.o_facial_capture_btn {
+    margin-top: 12px;
+    padding: 10px 24px;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.o_facial_capture_btn:hover {
+    background: #2563eb;
+}
+
+.o_facial_capture_btn:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+}
+
+.o_facial_retake_btn {
+    margin-top: 12px;
+    padding: 10px 24px;
+    background: transparent;
+    color: #3b82f6;
+    border: 2px solid #3b82f6;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.o_facial_retake_btn:hover {
+    background: #3b82f6;
+    color: white;
+}
+
+/* ─── Responsive ────────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+    .o_facial_camera_wrapper {
+        width: 100%;
+        height: 280px;
+    }
+    .o_facial_kiosk_header h1 {
+        font-size: 1.5rem;
+    }
+    .o_facial_result_time {
+        font-size: 1.75rem;
+    }
+}

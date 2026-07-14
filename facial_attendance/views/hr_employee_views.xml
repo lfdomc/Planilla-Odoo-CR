@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Heredar vista de formulario de empleado -->
+    <record id="hr_employee_view_form_facial" model="ir.ui.view">
+        <field name="name">hr.employee.view.form.inherit.facial_attendance</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Botón de estado en el encabezado -->
+            <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
+                <button name="action_view_facial_logs"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-camera"
+                        invisible="not id">
+                    <field name="facial_attendance_count" widget="statinfo"
+                           string="Registros Faciales"/>
+                </button>
+            </xpath>
+
+            <!-- Pestaña de Reconocimiento Facial -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Reconocimiento Facial" name="facial_recognition"
+                      groups="hr.group_hr_user">
+                    <group>
+                        <group string="Estado">
+                            <field name="face_registered" widget="boolean_toggle"
+                                   readonly="1"/>
+                            <field name="face_registration_date" readonly="1"/>
+                        </group>
+                        <group string="Imagen de Referencia">
+                            <field name="face_image" widget="image"
+                                   options="{'size': [200, 200]}"
+                                   readonly="1"
+                                   nolabel="1"/>
+                        </group>
+                    </group>
+
+                    <div class="o_face_actions mt-3">
+                        <button name="action_register_face"
+                                type="object"
+                                string="📷 Registrar Rostro"
+                                class="btn btn-primary me-2"
+                                invisible="not id"/>
+                        <button name="action_clear_face"
+                                type="object"
+                                string="🗑️ Eliminar Registro Facial"
+                                class="btn btn-outline-danger"
+                                confirm="¿Está seguro de eliminar el registro facial de este empleado?"
+                                invisible="not face_registered"/>
+                    </div>
+
+                    <div class="alert alert-info mt-3"
+                         invisible="face_registered">
+                        <i class="fa fa-info-circle me-2"/>
+                        Este empleado aún no tiene un rostro registrado.
+                        Haga clic en <strong>"Registrar Rostro"</strong> para configurarlo.
+                    </div>
+                    <div class="alert alert-success mt-3"
+                         invisible="not face_registered">
+                        <i class="fa fa-check-circle me-2"/>
+                        El empleado tiene un rostro registrado y puede usar el quiosco de asistencia.
+                    </div>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- Heredar vista de lista de empleados -->
+    <record id="hr_employee_view_list_facial" model="ir.ui.view">
+        <field name="name">hr.employee.view.list.inherit.facial_attendance</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.view_employee_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="inside">
+                <field name="face_registered" optional="show"
+                       string="Rostro Registrado" widget="boolean"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

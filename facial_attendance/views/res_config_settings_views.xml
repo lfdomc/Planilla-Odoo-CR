@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_facial" model="ir.ui.view">
+        <field name="name">res.config.settings.view.facial.attendance</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('settings')]" position="inside">
+                <div class="app_settings_block" data-string="Reconocimiento Facial"
+                     data-key="facial_attendance"
+                     groups="hr.group_hr_manager">
+                    <h2>Reconocimiento Facial — Asistencias</h2>
+                    <div class="row mt16 o_settings_container">
+
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane"/>
+                            <div class="o_setting_right_pane">
+                                <label string="Modelo de Detección Facial"/>
+                                <div class="text-muted">
+                                    HOG es más rápido (CPU). CNN es más preciso (requiere GPU).
+                                </div>
+                                <field name="facial_recognition_model" widget="radio"/>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane"/>
+                            <div class="o_setting_right_pane">
+                                <label for="facial_recognition_tolerance"
+                                       string="Tolerancia de Reconocimiento"/>
+                                <div class="text-muted">
+                                    0.4 = muy estricto | 0.55 = recomendado | 0.6 = tolerante
+                                </div>
+                                <field name="facial_recognition_tolerance"/>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane"/>
+                            <div class="o_setting_right_pane">
+                                <label for="facial_confidence_threshold"
+                                       string="Umbral Mínimo de Confianza (%)"/>
+                                <div class="text-muted">
+                                    Porcentaje mínimo para aceptar el reconocimiento. Recomendado: 60%
+                                </div>
+                                <field name="facial_confidence_threshold"/>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane">
+                                <field name="facial_save_images" widget="boolean_toggle"/>
+                            </div>
+                            <div class="o_setting_right_pane">
+                                <label for="facial_save_images"
+                                       string="Guardar Imágenes Capturadas"/>
+                                <div class="text-muted">
+                                    Guarda la foto de cada reconocimiento exitoso en el log.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane">
+                                <field name="facial_auto_action" widget="boolean_toggle"/>
+                            </div>
+                            <div class="o_setting_right_pane">
+                                <label for="facial_auto_action"
+                                       string="Acción Automática Entrada/Salida"/>
+                                <div class="text-muted">
+                                    Detecta automáticamente si el empleado está entrando o saliendo.
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

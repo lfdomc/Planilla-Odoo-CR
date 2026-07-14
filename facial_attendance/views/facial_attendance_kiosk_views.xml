@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Template del quiosco HTML -->
+    <template id="kiosk_template" name="Quiosco de Reconocimiento Facial">
+        <t t-call="web.layout">
+            <t t-set="head">
+                <link rel="stylesheet"
+                      href="/facial_attendance/static/src/css/facial_attendance.css"/>
+                <title>Quiosco de Asistencia - <t t-esc="company.name"/></title>
+            </t>
+            <t t-set="body_classname">o_facial_kiosk_body</t>
+            <div id="facial_kiosk_app"
+                 t-att-data-company="company.name"
+                 t-att-data-logo="'/web/image/res.company/%d/logo' % company.id">
+                <!-- El componente OWL monta aquí -->
+            </div>
+            <script type="module">
+                // El módulo OWL se monta automáticamente vía assets
+            </script>
+        </t>
+    </template>
+
+    <!-- Vista de acceso al quiosco (acción URL) -->
+    <record id="action_facial_kiosk" model="ir.actions.act_url">
+        <field name="name">Abrir Quiosco de Asistencia</field>
+        <field name="url">/facial_attendance/kiosk</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Acción para quiosco como vista de formulario web -->
+    <record id="action_facial_kiosk_view" model="ir.actions.client">
+        <field name="name">Quiosco de Reconocimiento Facial</field>
+        <field name="tag">facial_attendance.Kiosk</field>
+    </record>
+
+</odoo>

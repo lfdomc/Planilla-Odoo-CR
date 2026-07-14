@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Vista lista de registros faciales -->
+    <record id="facial_attendance_log_view_list" model="ir.ui.view">
+        <field name="name">facial.attendance.log.view.list</field>
+        <field name="model">facial.attendance.log</field>
+        <field name="arch" type="xml">
+            <list string="Registros de Reconocimiento Facial"
+                  decoration-success="state == 'success'"
+                  decoration-danger="state == 'failed'"
+                  decoration-muted="state == 'manual'">
+                <field name="recognition_date" string="Fecha y Hora"/>
+                <field name="employee_id" string="Empleado"/>
+                <field name="department_id" string="Departamento" optional="show"/>
+                <field name="action_type" string="Acción"/>
+                <field name="confidence" string="Confianza (%)"/>
+                <field name="state" string="Estado" widget="badge"
+                       decoration-success="state == 'success'"
+                       decoration-danger="state == 'failed'"
+                       decoration-muted="state == 'manual'"/>
+                <field name="attendance_id" string="Registro Asistencia" optional="show"/>
+                <field name="device_ip" string="IP Dispositivo" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Vista formulario de registro facial -->
+    <record id="facial_attendance_log_view_form" model="ir.ui.view">
+        <field name="name">facial.attendance.log.view.form</field>
+        <field name="model">facial.attendance.log</field>
+        <field name="arch" type="xml">
+            <form string="Registro de Reconocimiento Facial" create="false">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="employee_id" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Información del Reconocimiento">
+                            <field name="recognition_date" readonly="1"/>
+                            <field name="action_type" readonly="1"/>
+                            <field name="confidence" readonly="1"/>
+                            <field name="state" readonly="1" widget="badge"
+                                   decoration-success="state == 'success'"
+                                   decoration-danger="state == 'failed'"
+                                   decoration-muted="state == 'manual'"/>
+                            <field name="attendance_id" readonly="1"/>
+                            <field name="device_ip" readonly="1"/>
+                        </group>
+                        <group string="Empleado">
+                            <field name="department_id" readonly="1"/>
+                            <field name="job_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Imagen Capturada" invisible="not captured_image">
+                        <field name="captured_image" widget="image"
+                               options="{'size': [300, 300]}"
+                               nolabel="1" readonly="1"/>
+                    </group>
+                    <group string="Notas" invisible="not notes">
+                        <field name="notes" nolabel="1" readonly="1"/>
+                    </group>
+                    <group string="Error" invisible="not error_message">
+                        <field name="error_message" nolabel="1" readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Acción ventana -->
+    <record id="facial_attendance_log_action" model="ir.actions.act_window">
+        <field name="name">Registros de Reconocimiento Facial</field>
+        <field name="res_model">facial.attendance.log</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Aún no hay registros de reconocimiento facial.
+            </p>
+            <p>
+                Configure el quiosco de asistencia y registre los rostros
+                de sus empleados para comenzar.
+            </p>
+        </field>
+    </record>
+
+    <!-- Vista formulario wizard registro facial -->
+    <record id="facial_register_wizard_view_form" model="ir.ui.view">
+        <field name="name">facial.register.wizard.view.form</field>
+        <field name="model">facial.register.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Registrar Rostro">
+                <sheet>
+                    <div class="o_facial_wizard_container">
+                        <group>
+                            <field name="employee_id"
+                                   readonly="state != 'capture'"/>
+                        </group>
+
+                        <!-- Estado: captura -->
+                        <div invisible="state != 'capture'">
+                            <div class="alert alert-warning"
+                                 invisible="not face_already_registered">
+                                <i class="fa fa-exclamation-triangle me-2"/>
+                                Este empleado ya tiene un rostro registrado. Si continúa,
+                                se <strong>sobreescribirá</strong> el registro anterior.
+                            </div>
+                            <div id="facial_camera_widget"
+                                 class="o_facial_camera_container"
+                                 style="text-align: center; padding: 20px;">
+                                <widget name="facial_camera"/>
+                            </div>
+                            <field name="captured_image" invisible="1"/>
+                        </div>
+
+                        <!-- Estado: completado -->
+                        <div invisible="state != 'done'">
+                            <div class="alert alert-success text-center">
+                                <i class="fa fa-check-circle fa-3x mb-3 d-block"/>
+                                <h4>¡Rostro registrado exitosamente!</h4>
+                                <p>El empleado ya puede usar el quiosco de reconocimiento facial.</p>
+                            </div>
+                        </div>
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_save_face" type="object"
+                            string="Guardar Registro"
+                            class="btn btn-primary"
+                            invisible="state not in ['capture']"/>
+                    <button name="action_retake" type="object"
+                            string="Volver a Capturar"
+                            class="btn btn-secondary"
+                            invisible="state not in ['confirm']"/>
+                    <button special="cancel" string="Cerrar"
+                            class="btn btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>
