@@ -12,8 +12,6 @@ class ScheduleType(models.Model):
     code = fields.Char(string='Codigo')
     active = fields.Boolean(default=True)
     hours_per_day = fields.Float(string='Horas por Dia', default=8.0)
-    hours_per_week = fields.Float(string='Horas por Semana', default=40.0)
-    days_per_week = fields.Integer(string='Dias por Semana', default=5)
     # Hora de entrada/salida para detección automática de HE
     hora_entrada  = fields.Float(
         string='Hora de Entrada', default=8.0,
@@ -32,22 +30,32 @@ class ScheduleType(models.Model):
     sabado    = fields.Boolean(string='Sábado',    default=False)
     domingo   = fields.Boolean(string='Domingo',   default=False)
 
-    @api.onchange('lunes','martes','miercoles','jueves','viernes','sabado','domingo')
-    def _onchange_working_days(self):
-        """Auto-actualiza days_per_week y hours_per_week cuando cambian los días."""
-        day_fields = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo']
-        count = sum(1 for d in day_fields if getattr(self, d, False))
-        if count > 0:
-            self.days_per_week = count
-            hpd = self.hours_per_day or 8.0
-            self.hours_per_week = round(count * hpd, 2)
+    # Calculados automáticamente desde los días marcados y horas_por_dia.
+    # store=True para que sean persistidos y visibles en reportes/filtros.
+    days_per_week = fields.Integer(
+        string='Dias por Semana',
+        compute='_compute_jornada',
+        store=True,
+        readonly=True,
+    )
+    hours_per_week = fields.Float(
+        string='Horas por Semana',
+        compute='_compute_jornada',
+        store=True,
+        readonly=True,
+    )
 
-    @api.onchange('hours_per_day')
-    def _onchange_hours_per_day(self):
-        """Auto-actualiza hours_per_week cuando cambian las horas por día."""
-        dpw = self.days_per_week or 5
-        hpd = self.hours_per_day or 8.0
-        self.hours_per_week = round(dpw * hpd, 2)
+    @api.depends(
+        'lunes', 'martes', 'miercoles', 'jueves',
+        'viernes', 'sabado', 'domingo', 'hours_per_day',
+    )
+    def _compute_jornada(self):
+        """Recalcula dias y horas por semana cada vez que cambia un dia o las horas por dia."""
+        day_fields = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+        for rec in self:
+            count = sum(1 for d in day_fields if getattr(rec, d, False))
+            rec.days_per_week = count
+            rec.hours_per_week = round(count * (rec.hours_per_day or 8.0), 2)
 
     def action_populate_defaults(self):
         """Botón/acción para poblar días y horas desde la lista."""
@@ -99,10 +107,10 @@ class ScheduleType(models.Model):
 
     @api.constrains('days_per_week')
     def _check_days_per_week(self):
-        """Validar rango de dias por semana."""
+        """Validar rango de dias por semana (0 = ningun dia marcado aun)."""
         for rec in self:
-            if rec.days_per_week < 1 or rec.days_per_week > 7:
-                raise ValidationError('Los dias por semana deben estar entre 1 y 7.')
+            if rec.days_per_week > 7:
+                raise ValidationError('Los dias por semana no pueden superar 7.')
 
 
 class PayrollCalendar(models.Model):
