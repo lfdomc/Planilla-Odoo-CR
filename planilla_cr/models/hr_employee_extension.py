@@ -1394,6 +1394,7 @@ class HrEmployeeExtension(models.Model):
     attendance_schedule_warning = fields.Char(
         string='Advertencia configuración horario',
         compute='_compute_attendance_schedule_warning',
+        store=False,
         help='Alerta cuando el empleado es Por Horas pero el horario no está completamente configurado.'
     )
 

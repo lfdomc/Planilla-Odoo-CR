@@ -390,7 +390,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             total_ded  = slip.total_employee_deductions or 0
 
             # NETO DEPÓSITO
-            neto_dep = slip.deposito_patrono or 0
+            neto_dep = slip.deposito_patrono if slip.deposito_patrono is not None else 0
 
             # CARGAS PATRONALES
             ccss_pat   = slip.ccss_employer or 0

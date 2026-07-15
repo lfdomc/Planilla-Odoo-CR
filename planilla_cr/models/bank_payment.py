@@ -127,7 +127,7 @@ class BankPaymentWizard(models.TransientModel):
                 errors.append(f'{emp.name}: IBAN invalido ({iban})')
                 continue
 
-            net = round(payslip.deposito_patrono or payslip.salary_payable, 2)
+            net = round((payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable), 2)
             nombre = emp.name or ''
             writer.writerow([iban, nombre, f'{net:.2f}', concept, concept, concept])
 
@@ -212,7 +212,7 @@ class BankPaymentWizard(models.TransientModel):
                 errors.append(f'{emp.name}: IBAN invalido ({iban})')
                 continue
 
-            net = payslip.deposito_patrono or payslip.salary_payable
+            net = (payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable)
             total_monto += net
 
             # Correlativo = posicion 23-28 del IBAN (indices 22-28 en 0-based del string IBAN completo)
@@ -380,7 +380,7 @@ class BankPaymentWizard(models.TransientModel):
                 errors.append(f'{emp.name}: telefono invalido ({phone_clean}) -- debe tener 8 digitos')
                 continue
 
-            net = round(payslip.deposito_patrono or payslip.salary_payable, 2)
+            net = round((payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable), 2)
             cedula = emp.identification_id or ''
             writer.writerow([phone_clean, f'{net:.2f}', concept, emp.name, cedula])
             count += 1
@@ -436,7 +436,7 @@ class BankPaymentWizard(models.TransientModel):
             if not cedula:
                 errors.append(f'{emp.name}: sin cedula registrada')
                 continue
-            net = round(payslip.deposito_patrono or payslip.salary_payable, 2)
+            net = round((payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable), 2)
             writer.writerow([cedula, emp.name or '', f'{net:.2f}'])
             total += net
             count += 1
@@ -526,7 +526,7 @@ class BankPaymentWizard(models.TransientModel):
             if not cedula:
                 errors.append(f'{emp.name}: sin cedula registrada')
                 continue
-            net = round(payslip.deposito_patrono or payslip.salary_payable, 2)
+            net = round((payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable), 2)
             sheet.write(row, 0, cedula,    fmt_cedula)
             sheet.write(row, 1, emp.name,  fmt_nombre)
             sheet.write(row, 2, net,       fmt_monto)

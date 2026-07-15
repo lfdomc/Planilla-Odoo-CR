@@ -67,7 +67,6 @@
                         </div>
                     </group>
 
-                    <field name="attendance_schedule_warning" invisible="1"/>
                     <div class="alert alert-warning" role="alert"
                          invisible="not attendance_schedule_warning">
                         <field name="attendance_schedule_warning" nolabel="1" readonly="1"/>
