@@ -438,15 +438,18 @@ def _ensure_schedule_types(env):
     companies = env['res.company'].search([])
     ScheduleType = env['planilla.schedule.type']
 
+    # days_per_week y hours_per_week son ahora campos computados; se derivan
+    # automaticamente de los booleanos de dias y hours_per_day.
+    # Los booleanos se definen aqui explicitamente para que el calculo sea correcto.
     PART_TIME_SCHEDULES = [
         {
             'code':           'MEDI',
             'name':           'Medio Tiempo (4 horas)',
             'hours_per_day':  4.0,
-            'hours_per_week': 20.0,
-            'days_per_week':  5,
             'overtime_factor': 1.5,
             'is_part_time':   True,
+            'lunes': True, 'martes': True, 'miercoles': True,
+            'jueves': True, 'viernes': True, 'sabado': False, 'domingo': False,
             'description':    'Jornada a tiempo parcial. Art. 136 CT. '
                               'Proporcional en salario, vacaciones y prestaciones.',
         },
@@ -454,10 +457,10 @@ def _ensure_schedule_types(env):
             'code':           'TRCR',
             'name':           'Tres Cuartos (6 horas)',
             'hours_per_day':  6.0,
-            'hours_per_week': 30.0,
-            'days_per_week':  5,
             'overtime_factor': 1.5,
             'is_part_time':   True,
+            'lunes': True, 'martes': True, 'miercoles': True,
+            'jueves': True, 'viernes': True, 'sabado': False, 'domingo': False,
             'description':    'Jornada parcial de 6 horas diurnas. '
                               'Proporcional en salario, vacaciones y prestaciones segun CT.',
         },
@@ -640,51 +643,78 @@ def _setup_accounting_config(env):
 
 def _populate_schedule_defaults(env):
     """Pobla hora_entrada, hora_salida y días laborales en tipos de horario
-    existentes según su configuración de days_per_week y código.
-    Se ejecuta una sola vez en post_migrate; no sobreescribe si ya tiene valor.
+    existentes que aun no tienen configurados los dias booleanos.
+
+    Se ejecuta en post_migrate; no sobreescribe registros que ya tienen
+    al menos un dia marcado. Sirve de fallback para horarios creados antes
+    de que existiera la funcionalidad de dias booleanos.
+
+    NOTA: days_per_week y hours_per_week son ahora campos computados derivados
+    de los booleanos de dias. Esta funcion ya no puede usar sch.days_per_week
+    para inferir los dias porque ese valor es 0 cuando todos los booleanos
+    estan en False. En su lugar usa el campo 'code' para determinar el patron
+    de dias de cada horario.
     """
     import logging
     _logger = logging.getLogger(__name__)
+
+    # Mapeo codigo (fragmento) -> dias a activar.
+    # El orden importa: se evalua el primero que coincida con el codigo.
+    # Para horarios sin codigo reconocido se aplica el default Lun-Vie.
+    CODE_DAYS_MAP = [
+        ('FDSM',  {'sabado': True, 'domingo': True}),
+        ('COMP6', {'lunes':True,'martes':True,'miercoles':True,
+                   'jueves':True,'viernes':True,'sabado':True}),
+        ('NOCT',  {'lunes':True,'martes':True,'miercoles':True,
+                   'jueves':True,'viernes':True,'sabado':True}),
+        ('MIXT',  {'lunes':True,'martes':True,'miercoles':True,
+                   'jueves':True,'viernes':True,'sabado':True}),
+        ('ACU4',  {'lunes':True,'martes':True,'miercoles':True,'jueves':True}),
+        ('ACU3',  {'lunes':True,'martes':True,'miercoles':True}),
+        ('GRD24', {'lunes':True,'miercoles':True,'viernes':True}),
+        ('PRM',   {'martes':True,'miercoles':True,'jueves':True,
+                   'viernes':True,'sabado':True}),
+        ('PROM',  {'martes':True,'miercoles':True,'jueves':True,
+                   'viernes':True,'sabado':True}),
+    ]
+    DEFAULT_DAYS = {'lunes':True,'martes':True,'miercoles':True,
+                    'jueves':True,'viernes':True}
 
     schedules = env['planilla.schedule.type'].sudo().search([])
     updated = 0
     for sch in schedules:
         vals = {}
-        # Hora entrada/salida: poner defaults si no están configuradas
+        code = (sch.code or '').upper()
+        hpd  = sch.hours_per_day or 8.0
+
+        # Hora entrada/salida: poner defaults si no estan configuradas
         if not sch.hora_entrada and not sch.hora_salida:
-            dpw = sch.days_per_week or 5
-            hpd = sch.hours_per_day or 8
-            code = (sch.code or '').upper()
-            # Jornada nocturna: entrada 10pm, salida 4am
             if 'NOCT' in code:
                 vals['hora_entrada'] = 22.0
                 vals['hora_salida']  = 4.0
             else:
                 vals['hora_entrada'] = 8.0
                 vals['hora_salida']  = 8.0 + hpd
-        # Días laborales: configurar según days_per_week si todos están en False
+
+        # Dias laborales: configurar solo si todos los booleanos estan en False.
+        # Usa el codigo del horario para determinar el patron correcto.
         day_fields = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo']
         if not any(getattr(sch, d, False) for d in day_fields):
-            dpw = sch.days_per_week or 5
-            code = (sch.code or '').upper()
-            if 'FDSM' in code:  # Fines de semana
-                vals.update({'sabado': True, 'domingo': True})
-            elif dpw >= 7:
-                vals.update({d: True for d in day_fields})
-            elif dpw == 6:
-                vals.update({'lunes':True,'martes':True,'miercoles':True,
-                             'jueves':True,'viernes':True,'sabado':True})
-            elif 'PRM' in code or 'PROM' in code:  # Martes a Sábado
-                vals.update({'martes':True,'miercoles':True,'jueves':True,
-                             'viernes':True,'sabado':True})
-            else:  # default 5 días Lun-Vie
-                vals.update({'lunes':True,'martes':True,'miercoles':True,
-                             'jueves':True,'viernes':True})
+            day_vals = None
+            for fragment, days in CODE_DAYS_MAP:
+                if fragment in code:
+                    day_vals = days
+                    break
+            if day_vals is None:
+                day_vals = DEFAULT_DAYS
+            vals.update(day_vals)
+
         if vals:
             sch.write(vals)
             updated += 1
+
     if updated:
-        _logger.info('planilla_cr: %d tipos de horario actualizados con días/horas', updated)
+        _logger.info('planilla_cr: %d tipos de horario actualizados con dias/horas', updated)
 
 
 def _setup_all_companies_config(env):
