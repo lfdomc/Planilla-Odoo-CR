@@ -36,6 +36,104 @@ def pre_init_hook(env):
     if created:
         _logger.info('planilla_cr pre_init_hook: columnas creadas: %s', ', '.join(created))
 
+    # FIX: Re-registrar codigos de deduccion huerfanos en ir_model_data.
+    # Problema: cuando el modulo se desinstala, Odoo elimina los registros
+    # de ir_model_data pero deja las filas reales en planilla_deduction_code.
+    # Al reinstalar, el XML intenta INSERT de nuevo y choca con la restriccion
+    # unica (code, company_id). La solucion es re-vincular esos registros
+    # existentes en ir_model_data ANTES de que el loader XML los intente crear,
+    # para que el mecanismo noupdate="1" los omita correctamente.
+    _relink_orphan_deduction_codes(cr, _logger)
+
+
+def _relink_orphan_deduction_codes(cr, logger):
+    """
+    FIX reinstalacion: evita UniqueViolation en planilla_deduction_code.
+
+    Cuando el modulo se desinstala, Odoo borra los registros de ir_model_data
+    pero deja las filas reales en planilla_deduction_code intactas (por diseño,
+    para no borrar datos de produccion). Al reinstalar, deduction_code_data.xml
+    (noupdate="1") intenta INSERT de nuevo y choca con la restriccion unica
+    (code, company_id).
+
+    Solucion: antes de que el loader XML corra, detectar registros que ya
+    existen en la tabla pero NO tienen entrada en ir_model_data para este
+    modulo, y registrarlos ahi. Asi el mecanismo noupdate="1" los reconoce
+    como ya existentes y los omite sin intentar crearlos.
+
+    Es seguro en instalaciones limpias: si la tabla no existe o no hay filas
+    con esos codigos, simplemente no hace nada.
+    """
+    # Mapa xmlid -> codigo de deduccion (debe coincidir con deduction_code_data.xml)
+    XMLID_TO_CODE = {
+        'deduction_ccss_employee':    'CCSS_OBR',
+        'deduction_ccss_pensionado':  'CCSS_OBR_PENSIONADO',
+        'deduction_ccss_employer':    'CCSS_PAT',
+        'deduction_ins_employer':     'INS_PAT',
+        'deduction_income_tax':       'RENTA',
+        'deduction_aguinaldo':        'AGUINALDO',
+        'deduction_cesantia':         'CESANTIA',
+        'deduction_vacaciones':       'VACACIONES',
+        'deduction_prestamo':         'PRESTAMO',
+        'deduction_code_vac_pago':    'VAC-PAG',
+        'deduction_code_paternidad':  'PAT-LIC',
+        'deduction_code_sindical':    'SIND',
+        'deduction_code_cooperativa': 'COOP',
+        'deduction_code_embargo':     'EMB',
+        'deduction_code_pension_ali': 'PENS-ALI',
+        'deduction_code_rop':         'ROP',
+        'deduction_code_bono':        'BONO',
+    }
+
+    # Verificar que la tabla exista (instalacion limpia: puede no existir aun)
+    cr.execute("""
+        SELECT 1 FROM information_schema.tables
+        WHERE table_name = 'planilla_deduction_code'
+    """)
+    if not cr.fetchone():
+        return  # Primera instalacion, nada que hacer
+
+    relinked = []
+    for xml_name, code in XMLID_TO_CODE.items():
+        # ¿Ya existe una entrada en ir_model_data para este modulo+nombre?
+        cr.execute("""
+            SELECT 1 FROM ir_model_data
+            WHERE module = 'planilla_cr' AND name = %s
+        """, (xml_name,))
+        if cr.fetchone():
+            continue  # Ya esta registrado, OK
+
+        # ¿Existe la fila real en la tabla?
+        cr.execute("""
+            SELECT id FROM planilla_deduction_code
+            WHERE code = %s
+            ORDER BY id
+            LIMIT 1
+        """, (code,))
+        row = cr.fetchone()
+        if not row:
+            continue  # No existe, el XML la creara normalmente
+
+        res_id = row[0]
+
+        # Re-registrar en ir_model_data para que noupdate="1" la omita
+        cr.execute("""
+            INSERT INTO ir_model_data
+                (module, name, model, res_id, noupdate, date_init, date_update)
+            VALUES
+                ('planilla_cr', %s, 'planilla.deduction.code', %s,
+                 TRUE, NOW(), NOW())
+            ON CONFLICT (module, name) DO NOTHING
+        """, (xml_name, res_id))
+        relinked.append(code)
+
+    if relinked:
+        logger.info(
+            'planilla_cr pre_init_hook: %d codigos de deduccion re-vinculados '
+            'en ir_model_data para evitar UniqueViolation: %s',
+            len(relinked), ', '.join(relinked)
+        )
+
 
 def post_init_hook(env):
     _create_email_templates(env)
