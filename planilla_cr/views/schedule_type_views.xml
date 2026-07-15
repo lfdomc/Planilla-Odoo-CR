@@ -5,7 +5,7 @@
         <field name="name">planilla.schedule.type.list</field>
         <field name="model">planilla.schedule.type</field>
         <field name="arch" type="xml">
-            <list string="Tipos de Horario" editable="top">
+            <list string="Tipos de Horario">
                 <field name="code"/>
                 <field name="name"/>
                 <field name="hours_per_day"/>
@@ -13,6 +13,13 @@
                 <field name="days_per_week"/>
                 <field name="hora_entrada" widget="float_time" string="Entrada" optional="show"/>
                 <field name="hora_salida"  widget="float_time" string="Salida"  optional="show"/>
+                <field name="lunes"     widget="boolean_toggle" string="L" optional="show"/>
+                <field name="martes"    widget="boolean_toggle" string="M" optional="show"/>
+                <field name="miercoles" widget="boolean_toggle" string="X" optional="show"/>
+                <field name="jueves"    widget="boolean_toggle" string="J" optional="show"/>
+                <field name="viernes"   widget="boolean_toggle" string="V" optional="show"/>
+                <field name="sabado"    widget="boolean_toggle" string="S" optional="show"/>
+                <field name="domingo"   widget="boolean_toggle" string="D" optional="show"/>
                 <field name="overtime_factor"/>
                 <field name="is_part_time" widget="boolean_toggle"/>
                 <field name="active"/>
