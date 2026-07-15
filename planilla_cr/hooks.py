@@ -52,38 +52,26 @@ def _relink_orphan_deduction_codes(cr, logger):
 
     Cuando el modulo se desinstala, Odoo borra los registros de ir_model_data
     pero deja las filas reales en planilla_deduction_code intactas (por diseño,
-    para no borrar datos de produccion). Al reinstalar, deduction_code_data.xml
-    (noupdate="1") intenta INSERT de nuevo y choca con la restriccion unica
+    para no borrar datos de produccion). Al reinstalar, los archivos XML con
+    noupdate="1" intentan INSERT de nuevo y chocan con la restriccion unica
     (code, company_id).
 
-    Solucion: antes de que el loader XML corra, detectar registros que ya
-    existen en la tabla pero NO tienen entrada en ir_model_data para este
-    modulo, y registrarlos ahi. Asi el mecanismo noupdate="1" los reconoce
-    como ya existentes y los omite sin intentar crearlos.
+    Solucion: antes de que el loader XML corra, parsear TODOS los XMLs del
+    modulo para encontrar cada <record model="planilla.deduction.code">,
+    verificar si la fila ya existe en la tabla, y si es asi re-registrarla
+    en ir_model_data. Asi el mecanismo noupdate="1" la reconoce como ya
+    existente y la omite sin intentar crearla.
 
-    Es seguro en instalaciones limpias: si la tabla no existe o no hay filas
-    con esos codigos, simplemente no hace nada.
+    Al parsear los XMLs dinamicamente, el fix cubre automaticamente cualquier
+    codigo nuevo que se agregue en el futuro sin necesidad de actualizar
+    un mapa hardcodeado.
+
+    Es seguro en instalaciones limpias: si la tabla no existe o los codigos
+    no existen, simplemente no hace nada.
     """
-    # Mapa xmlid -> codigo de deduccion (debe coincidir con deduction_code_data.xml)
-    XMLID_TO_CODE = {
-        'deduction_ccss_employee':    'CCSS_OBR',
-        'deduction_ccss_pensionado':  'CCSS_OBR_PENSIONADO',
-        'deduction_ccss_employer':    'CCSS_PAT',
-        'deduction_ins_employer':     'INS_PAT',
-        'deduction_income_tax':       'RENTA',
-        'deduction_aguinaldo':        'AGUINALDO',
-        'deduction_cesantia':         'CESANTIA',
-        'deduction_vacaciones':       'VACACIONES',
-        'deduction_prestamo':         'PRESTAMO',
-        'deduction_code_vac_pago':    'VAC-PAG',
-        'deduction_code_paternidad':  'PAT-LIC',
-        'deduction_code_sindical':    'SIND',
-        'deduction_code_cooperativa': 'COOP',
-        'deduction_code_embargo':     'EMB',
-        'deduction_code_pension_ali': 'PENS-ALI',
-        'deduction_code_rop':         'ROP',
-        'deduction_code_bono':        'BONO',
-    }
+    import os
+    import glob
+    from xml.etree import ElementTree as ET
 
     # Verificar que la tabla exista (instalacion limpia: puede no existir aun)
     cr.execute("""
@@ -93,8 +81,32 @@ def _relink_orphan_deduction_codes(cr, logger):
     if not cr.fetchone():
         return  # Primera instalacion, nada que hacer
 
+    # Construir mapa xmlid -> code leyendo todos los XMLs del modulo
+    module_dir = os.path.dirname(os.path.abspath(__file__))
+    xmlid_to_code = {}
+    xml_files = glob.glob(os.path.join(module_dir, 'data', '*.xml'))
+    for xml_path in xml_files:
+        try:
+            tree = ET.parse(xml_path)
+            root = tree.getroot()
+            for record in root.iter('record'):
+                if record.get('model') != 'planilla.deduction.code':
+                    continue
+                xmlid = record.get('id')
+                code_field = record.find("field[@name='code']")
+                if xmlid and code_field is not None and code_field.text:
+                    xmlid_to_code[xmlid] = code_field.text.strip()
+        except Exception as parse_err:
+            logger.warning(
+                'planilla_cr _relink_orphan_deduction_codes: '
+                'no se pudo parsear %s: %s', xml_path, parse_err
+            )
+
+    if not xmlid_to_code:
+        return
+
     relinked = []
-    for xml_name, code in XMLID_TO_CODE.items():
+    for xml_name, code in xmlid_to_code.items():
         # ¿Ya existe una entrada en ir_model_data para este modulo+nombre?
         cr.execute("""
             SELECT 1 FROM ir_model_data
