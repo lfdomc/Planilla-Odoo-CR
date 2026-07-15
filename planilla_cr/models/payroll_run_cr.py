@@ -600,18 +600,42 @@ class PayrollRunCR(models.Model):
         if self.payroll_calendar_id:
             domain.append(('payroll_calendar_id', '=', self.payroll_calendar_id.id))
 
+        # Buscar empleados activos del período
         employees = self.env['hr.employee'].search(domain)
 
+        # Incluir también empleados inactivos (archivados) cuya fecha de salida
+        # esté dentro del período — tienen derecho a pago proporcional
+        inactive_domain = domain + [
+            ('active', '=', False),
+        ]
+        inactive_emp = self.env['hr.employee'].with_context(
+            active_test=False
+        ).search(inactive_domain)
+        # Solo incluir los que salieron durante este período o después
+        inactive_in_period = inactive_emp.filtered(
+            lambda e: (
+                getattr(e, 'exit_date', None) and
+                self.date_start <= e.exit_date <= self.date_end
+            )
+        )
+        employees = employees | inactive_in_period
+
         # Excluir empleados cuya fecha de ingreso sea posterior al fin del periodo
-        # Ej: empleado ingresa el 6 de abril no debe aparecer en planilla 16-31 marzo
         employees = employees.filtered(
             lambda e: not e.entry_date or e.entry_date <= self.date_end
         )
 
         # Excluir empleados cuya fecha de salida sea anterior al inicio del periodo
-        employees = employees.filtered(
-            lambda e: not e.departure_date or e.departure_date >= self.date_start
-        )
+        # Usar exit_date (campo del módulo) como referencia principal
+        def _salida_valida(e):
+            exit_d = getattr(e, 'exit_date', None)
+            dep_d  = getattr(e, 'departure_date', None)
+            fecha  = exit_d or dep_d
+            if not fecha:
+                return True  # sin fecha de salida → incluir
+            return fecha >= self.date_start  # salió en este período o después
+
+        employees = employees.filtered(_salida_valida)
 
         # Advertir sobre empleados sin employee_status_id
         without_status = employees.filtered(lambda e: not e.employee_status_id)
