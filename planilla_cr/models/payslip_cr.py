@@ -30,6 +30,7 @@ class PayslipCR(models.Model):
         'planilla.payslip.compute.mixin',
         'planilla.payslip.sync.mixin',
         'planilla.payslip.accounting.mixin',
+        'planilla.payslip.auto.overtime.mixin',
         'planilla.payslip.validation.mixin',
         'planilla.payslip.action.mixin',
     ]

@@ -233,6 +233,17 @@ class PayrollAccountingConfig(models.Model):
              'Desactivado por defecto (práctica habitual en CR es incluirlas).'
     )
 
+    enable_auto_overtime = fields.Boolean(
+        string='Detectar HE automáticamente desde asistencias',
+        default=False,
+        help='Solo aplica a empleados con método Por Horas Trabajadas. '
+             'Al sincronizar boletas, el sistema analiza las asistencias del período, '
+             'detecta horas extra por día (vs. jornada del horario), '
+             'cruza contra feriados nacionales y crea HE en estado Borrador '
+             'para que el supervisor las revise y apruebe antes del pago. '
+             'OFF = HE siempre manuales (comportamiento actual).'
+    )
+
     enable_overtime_exemption = fields.Boolean(
         string='Permitir excluir Horas Extra de CCSS/Renta',
         default=False,

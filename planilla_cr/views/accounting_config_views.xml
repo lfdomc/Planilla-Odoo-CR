@@ -37,6 +37,10 @@
                                    widget="boolean_toggle"
                                    string="Excluir incapacidades de vacaciones (Art. 153 CT)"
                                    help="ON = los días de incapacidad (excepto maternidad) se descuentan del tiempo base para acumular vacaciones. OFF = práctica habitual en CR (incluir)."/>
+                            <field name="enable_auto_overtime"
+                                   widget="boolean_toggle"
+                                   string="Detectar HE automáticamente desde asistencias"
+                                   help="ON = el sistema analiza asistencias, detecta HE y crea borradores para aprobación. OFF = HE siempre manuales."/>
                             <field name="enable_overtime_exemption"
                                    widget="boolean_toggle"
                                    string="Permitir excluir HE de CCSS/Renta"

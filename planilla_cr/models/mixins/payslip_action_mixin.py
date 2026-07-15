@@ -28,6 +28,7 @@ class PayslipActionMixin(models.AbstractModel):
         if len(records) == 1:
             # Creacion individual (UI): sync normal por boleta
             rec = records
+            rec._auto_detect_overtime()  # HE auto antes de sync
             rec._sync_novedades()
             rec._sync_recurring_benefits()
             rec._sync_rop()
@@ -54,6 +55,7 @@ class PayslipActionMixin(models.AbstractModel):
             else:
                 # Periodos distintos -> sync individual seguro
                 for rec in records:
+                    rec._auto_detect_overtime()  # HE auto antes de sync
                     rec._sync_novedades()
                     rec._sync_recurring_benefits()
                     rec._sync_rop()
@@ -101,6 +103,7 @@ class PayslipActionMixin(models.AbstractModel):
                 # para no borrar entradas manuales
                 if incap_lines and rec.disability_ids:
                     incap_lines.unlink()
+                rec._auto_detect_overtime()  # HE auto antes de sync
                 rec._sync_novedades()        # incluye _sync_licencias() internamente
                 rec._sync_recurring_benefits()
                 rec._sync_rop()

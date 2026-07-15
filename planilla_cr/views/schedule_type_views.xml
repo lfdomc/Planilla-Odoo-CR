@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Tipos de Horario -->
+    <!-- Tipos de Horario — Lista -->
     <record id="view_schedule_type_list" model="ir.ui.view">
         <field name="name">planilla.schedule.type.list</field>
         <field name="model">planilla.schedule.type</field>
@@ -11,6 +11,8 @@
                 <field name="hours_per_day"/>
                 <field name="hours_per_week"/>
                 <field name="days_per_week"/>
+                <field name="hora_entrada" widget="float_time" string="Entrada" optional="show"/>
+                <field name="hora_salida"  widget="float_time" string="Salida"  optional="show"/>
                 <field name="overtime_factor"/>
                 <field name="is_part_time" widget="boolean_toggle"/>
                 <field name="active"/>
@@ -18,9 +20,58 @@
         </field>
     </record>
 
+    <!-- Tipos de Horario — Formulario -->
+    <record id="view_schedule_type_form" model="ir.ui.view">
+        <field name="name">planilla.schedule.type.form</field>
+        <field name="model">planilla.schedule.type</field>
+        <field name="arch" type="xml">
+            <form string="Tipo de Horario">
+                <sheet>
+                    <group>
+                        <group string="Identificación">
+                            <field name="code"/>
+                            <field name="name"/>
+                            <field name="active" widget="boolean_toggle"/>
+                            <field name="is_part_time" widget="boolean_toggle"/>
+                        </group>
+                        <group string="Jornada">
+                            <field name="hours_per_day"/>
+                            <field name="hours_per_week"/>
+                            <field name="days_per_week"/>
+                            <field name="overtime_factor"/>
+                        </group>
+                    </group>
+                    <group string="⏰ Horario y Detección Automática de HE">
+                        <group string="Hora de Entrada / Salida">
+                            <field name="hora_entrada" widget="float_time"
+                                   string="Hora de Entrada"
+                                   help="Ej: 8.0 = 8:00am, 8.5 = 8:30am"/>
+                            <field name="hora_salida"  widget="float_time"
+                                   string="Hora de Salida"
+                                   help="Ej: 17.0 = 5:00pm. Las horas trabajadas después de este límite se detectan como HE."/>
+                        </group>
+                        <group string="Días Laborales">
+                            <field name="lunes"     widget="boolean_toggle"/>
+                            <field name="martes"    widget="boolean_toggle"/>
+                            <field name="miercoles" widget="boolean_toggle"/>
+                            <field name="jueves"    widget="boolean_toggle"/>
+                            <field name="viernes"   widget="boolean_toggle"/>
+                            <field name="sabado"    widget="boolean_toggle"/>
+                            <field name="domingo"   widget="boolean_toggle"/>
+                        </group>
+                        <div class="alert alert-info" role="alert" colspan="2">
+                            Estos datos se usan cuando la detección automática de HE está activa
+                            (Configuración → Cuentas Contables → Opciones Especiales).
+                        </div>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
     <record id="action_schedule_type" model="ir.actions.act_window">
         <field name="name">Tipos de Horario</field>
         <field name="res_model">planilla.schedule.type</field>
-        <field name="view_mode">list</field>
+        <field name="view_mode">list,form</field>
     </record>
 </odoo>

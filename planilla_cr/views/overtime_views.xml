@@ -5,7 +5,8 @@
         <field name="model">planilla.overtime</field>
         <field name="arch" type="xml">
             <list string="Horas Extras" decoration-success="state=='approved'"
-                  decoration-muted="state=='paid'" decoration-danger="state=='cancelled'">
+                  decoration-muted="state=='paid'" decoration-danger="state=='cancelled'"
+                  decoration-info="state=='draft' and source=='auto'">
                 <header>
                     <button name="action_recalculate_all_rates" type="object"
                             string="Recalcular Tarifas (corregir errores)"
@@ -22,6 +23,7 @@
                 <field name="amount"/>
                 <field name="afecto_ccss" string="CCSS" optional="show"/>
                 <field name="afecto_renta" string="Renta" optional="show"/>
+                <field name="source" optional="show"/>
                 <field name="state"/>
             </list>
         </field>
@@ -64,6 +66,11 @@
                         </group>
                     </group>
                     <field name="allow_overtime_exemption" invisible="1"/>
+                    <div class="alert alert-info" role="alert"
+                         invisible="source != 'auto'">
+                        ⚡ <strong>Auto-detectada desde asistencias.</strong>
+                        Verifique el tipo antes de aprobar. Si es incorrecta (nocturna, feriado), corrija el tipo aquí.
+                    </div>
                     <group string="⚖ Afectación Fiscal"
                            invisible="not allow_overtime_exemption">
                         <group>
@@ -93,6 +100,9 @@
                 <field name="employee_id"/>
                 <field name="date"/>
                 <filter string="Sin aprobar" name="draft"    domain="[('state','=','draft')]"/>
+                <filter string="⚡ Auto-detectadas" name="auto_detected"
+                        domain="[('source','=','auto'),('state','=','draft')]"
+                        help="HE creadas automáticamente desde asistencias — pendientes de aprobación"/>
                 <filter string="Aprobadas"   name="approved" domain="[('state','=','approved')]"/>
                 <filter string="Pagadas"     name="paid"     domain="[('state','=','paid')]"/>
                 <separator/>

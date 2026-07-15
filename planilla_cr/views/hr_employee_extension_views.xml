@@ -67,6 +67,11 @@
                         </div>
                     </group>
 
+                    <field name="attendance_schedule_warning" invisible="1"/>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not attendance_schedule_warning">
+                        <field name="attendance_schedule_warning" nolabel="1" readonly="1"/>
+                    </div>
                     <group string="Método de Cálculo">
                         <field name="payroll_calculation_method" widget="radio"/>
                     </group>

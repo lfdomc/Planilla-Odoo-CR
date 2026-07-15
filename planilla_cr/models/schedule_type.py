@@ -14,6 +14,31 @@ class ScheduleType(models.Model):
     hours_per_day = fields.Float(string='Horas por Dia', default=8.0)
     hours_per_week = fields.Float(string='Horas por Semana', default=40.0)
     days_per_week = fields.Integer(string='Dias por Semana', default=5)
+    # Hora de entrada/salida para detección automática de HE
+    hora_entrada  = fields.Float(
+        string='Hora de Entrada', default=8.0,
+        help='Hora de inicio de la jornada en formato decimal (8.5 = 8:30am)'
+    )
+    hora_salida   = fields.Float(
+        string='Hora de Salida', default=17.0,
+        help='Hora de fin de la jornada en formato decimal (17.0 = 5:00pm)'
+    )
+    # Días laborales — para detectar HE en días de descanso
+    lunes     = fields.Boolean(string='Lunes',     default=True)
+    martes    = fields.Boolean(string='Martes',    default=True)
+    miercoles = fields.Boolean(string='Miércoles', default=True)
+    jueves    = fields.Boolean(string='Jueves',    default=True)
+    viernes   = fields.Boolean(string='Viernes',   default=True)
+    sabado    = fields.Boolean(string='Sábado',    default=False)
+    domingo   = fields.Boolean(string='Domingo',   default=False)
+
+    def is_working_day(self, date):
+        """Retorna True si la fecha es un día laboral según este horario."""
+        self.ensure_one()
+        day_map = {0:'lunes',1:'martes',2:'miercoles',3:'jueves',
+                   4:'viernes',5:'sabado',6:'domingo'}
+        field = day_map.get(date.weekday(), 'lunes')
+        return getattr(self, field, False)
     is_part_time = fields.Boolean(
         string='Jornada de Medio Tiempo / Parcial',
         default=False,

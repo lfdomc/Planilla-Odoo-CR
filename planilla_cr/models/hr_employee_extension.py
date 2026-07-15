@@ -1384,6 +1384,43 @@ class HrEmployeeExtension(models.Model):
             emp.vacation_balance_alert  = available < 0
 
 
+    attendance_schedule_warning = fields.Char(
+        string='Advertencia configuración horario',
+        compute='_compute_attendance_schedule_warning',
+        help='Alerta cuando el empleado es Por Horas pero el horario no está completamente configurado.'
+    )
+
+    def _compute_attendance_schedule_warning(self):
+        for emp in self:
+            if emp.payroll_calculation_method != 'attendance':
+                emp.attendance_schedule_warning = False
+                continue
+            sch = emp.schedule_type_id
+            if not sch:
+                emp.attendance_schedule_warning = (
+                    '⚠ Este empleado está configurado como Por Horas Trabajadas pero '
+                    'NO tiene un Tipo de Horario asignado. Asigne uno para que la '
+                    'detección automática de HE funcione correctamente.'
+                )
+                continue
+            # Check if schedule has entry/exit times and working days configured
+            missing = []
+            if not getattr(sch, 'hora_entrada', None) and not getattr(sch, 'hora_salida', None):
+                missing.append('hora de entrada/salida')
+            # Check at least one working day is configured
+            day_fields = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo']
+            has_any_day = any(getattr(sch, d, False) for d in day_fields)
+            if not has_any_day:
+                missing.append('días laborales')
+            if missing:
+                emp.attendance_schedule_warning = (
+                    f'⚠ El horario "{sch.name}" no tiene configurado: {", ".join(missing)}. '
+                    f'Configure esto en Configuración → Tipos de Horario para que la '
+                    f'detección automática de HE funcione.'
+                )
+            else:
+                emp.attendance_schedule_warning = False
+
     def _compute_disability_days_total(self):
         """Suma días de incapacidad (no maternidad) desde el corte de vacaciones."""
         for emp in self:

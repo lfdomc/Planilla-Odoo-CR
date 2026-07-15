@@ -7,6 +7,7 @@
             <list string="Feriados Nacionales CR" editable="top">
                 <field name="date"/>
                 <field name="name"/>
+                <field name="is_paid" widget="boolean_toggle" string="Obligatorio"/>
                 <field name="type"/>
                 <field name="company_id"/>
                 <field name="active"/>

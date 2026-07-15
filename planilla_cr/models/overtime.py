@@ -91,7 +91,12 @@ class Overtime(models.Model):
     ], string='Estado', default='draft', tracking=True)
 
     payslip_id = fields.Many2one('planilla.payslip.cr', string='Boleta de Pago')
-    note = fields.Text(string='Observaciones')
+    note   = fields.Text(string='Observaciones')
+    source = fields.Selection([
+        ('manual', 'Manual'),
+        ('auto',   'Auto-detectado desde asistencias'),
+    ], string='Origen', default='manual', readonly=True,
+       help='Indica si la hora extra fue creada manualmente o detectada automáticamente.')
     source = fields.Selection([
         ('manual', 'Ingreso Manual'),
         ('attendance', 'Importado de Asistencias'),
