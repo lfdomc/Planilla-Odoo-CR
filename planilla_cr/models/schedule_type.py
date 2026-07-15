@@ -32,6 +32,23 @@ class ScheduleType(models.Model):
     sabado    = fields.Boolean(string='Sábado',    default=False)
     domingo   = fields.Boolean(string='Domingo',   default=False)
 
+    @api.onchange('lunes','martes','miercoles','jueves','viernes','sabado','domingo')
+    def _onchange_working_days(self):
+        """Auto-actualiza days_per_week y hours_per_week cuando cambian los días."""
+        day_fields = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo']
+        count = sum(1 for d in day_fields if getattr(self, d, False))
+        if count > 0:
+            self.days_per_week = count
+            hpd = self.hours_per_day or 8.0
+            self.hours_per_week = round(count * hpd, 2)
+
+    @api.onchange('hours_per_day')
+    def _onchange_hours_per_day(self):
+        """Auto-actualiza hours_per_week cuando cambian las horas por día."""
+        dpw = self.days_per_week or 5
+        hpd = self.hours_per_day or 8.0
+        self.hours_per_week = round(dpw * hpd, 2)
+
     def action_populate_defaults(self):
         """Botón/acción para poblar días y horas desde la lista."""
         from odoo.addons.planilla_cr import hooks

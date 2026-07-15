@@ -89,7 +89,22 @@ class PayslipAutoOvertimeMixin(models.AbstractModel):
         created = 0
         OT = self.env['planilla.overtime.cr']
 
+        def _get_schedule_for_day(day):
+            """Retorna el horario activo para un día específico.
+            Prioriza el horario secundario si el día encaja en él.
+            """
+            if emp.schedule_secondary_id:
+                sec = emp.schedule_secondary_id
+                if hasattr(sec, 'is_working_day') and sec.is_working_day(day):
+                    return sec
+            return schedule
+
         for day, total_hours in sorted(by_day.items()):
+
+            # Obtener el horario que aplica para este día específico
+            day_schedule = _get_schedule_for_day(day)
+            hours_per_day = day_schedule.hours_per_day or 8.0
+            hora_salida   = day_schedule.hora_salida   or 17.0
 
             # 1. ¿Es feriado?
             if day in holidays:
@@ -115,7 +130,14 @@ class PayslipAutoOvertimeMixin(models.AbstractModel):
                 continue  # No procesar más para este día
 
             # 2. ¿Es día de descanso (fuera de jornada laboral)?
-            is_workday = schedule.is_working_day(day) if hasattr(schedule, 'is_working_day') else True
+            # Día de descanso: no está en el horario principal NI en el secundario
+            is_workday_primary = schedule.is_working_day(day) if hasattr(schedule, 'is_working_day') else True
+            is_workday_secondary = (
+                emp.schedule_secondary_id and
+                hasattr(emp.schedule_secondary_id, 'is_working_day') and
+                emp.schedule_secondary_id.is_working_day(day)
+            )
+            is_workday = is_workday_primary or is_workday_secondary
             if not is_workday:
                 ot_hours = round(total_hours, 2)
                 ot_type  = 'double'
@@ -135,7 +157,7 @@ class PayslipAutoOvertimeMixin(models.AbstractModel):
                     created += 1
                 continue
 
-            # 3. Día laboral — detectar exceso sobre jornada
+            # 3. Día laboral — detectar exceso sobre jornada (usando horario del día)
             extra_hours = max(round(total_hours - hours_per_day, 2), 0.0)
             if extra_hours <= 0:
                 continue

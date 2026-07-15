@@ -45,6 +45,13 @@ class HrEmployeeExtension(models.Model):
     schedule_type_id = fields.Many2one(
         'planilla.schedule.type', string='Tipo de Horario'
     )
+    schedule_secondary_id = fields.Many2one(
+        'planilla.schedule.type',
+        string='Horario Secundario',
+        help='Horario especial para días adicionales (ej: SAB-MED para sábados medio día). '
+             'Si el empleado trabaja un día que encaja en este horario, se usa en vez del principal. '
+             'Ejemplo: Horario principal Lun-Vie 8h, Horario secundario Sáb 4h.'
+    )
     # -- ROP -- Regimen Obligatorio de Pensiones (Ley 7983) ------------------
     rop_applies = fields.Boolean(
         string='Aplicar ROP en Planilla',
