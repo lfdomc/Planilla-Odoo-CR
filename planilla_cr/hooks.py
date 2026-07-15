@@ -48,102 +48,131 @@ def pre_init_hook(env):
 
 def _relink_orphan_deduction_codes(cr, logger):
     """
-    FIX reinstalacion: evita UniqueViolation en planilla_deduction_code.
+    FIX reinstalacion: evita UniqueViolation / @constrains en TODOS los modelos
+    de datos del modulo.
 
     Cuando el modulo se desinstala, Odoo borra los registros de ir_model_data
-    pero deja las filas reales en planilla_deduction_code intactas (por diseño,
-    para no borrar datos de produccion). Al reinstalar, los archivos XML con
-    noupdate="1" intentan INSERT de nuevo y chocan con la restriccion unica
-    (code, company_id).
+    pero deja las filas reales en cada tabla intactas (por diseno, para no
+    borrar datos de produccion). Al reinstalar, los archivos XML con
+    noupdate="1" intentan INSERT de nuevo y chocan con restricciones unicas
+    (a nivel de BD o Python @constrains).
 
-    Solucion: antes de que el loader XML corra, parsear TODOS los XMLs del
-    modulo para encontrar cada <record model="planilla.deduction.code">,
-    verificar si la fila ya existe en la tabla, y si es asi re-registrarla
-    en ir_model_data. Asi el mecanismo noupdate="1" la reconoce como ya
-    existente y la omite sin intentar crearla.
+    Solucion: parsear TODOS los XMLs de data/ buscando <record> de cualquier
+    modelo planilla.*, verificar si la fila ya existe en la tabla usando el
+    campo 'code' (o 'name' o 'date' como fallback), y si existe registrarla
+    en ir_model_data. Con eso el mecanismo noupdate="1" la omite completamente
+    sin llamar a create(), por lo que ninguna restriccion se dispara.
 
-    Al parsear los XMLs dinamicamente, el fix cubre automaticamente cualquier
-    codigo nuevo que se agregue en el futuro sin necesidad de actualizar
-    un mapa hardcodeado.
+    El parseo dinamico cubre automaticamente cualquier record nuevo que se
+    agregue en el futuro. Es seguro en instalaciones limpias: si la tabla no
+    existe o el valor de lookup no existe, simplemente no hace nada.
 
-    Es seguro en instalaciones limpias: si la tabla no existe o los codigos
-    no existen, simplemente no hace nada.
+    Odoo convierte nombres de modelo a tabla reemplazando puntos por
+    guiones bajos: planilla.charge.type -> planilla_charge_type.
     """
     import os
     import glob
     from xml.etree import ElementTree as ET
 
-    # Verificar que la tabla exista (instalacion limpia: puede no existir aun)
-    cr.execute("""
-        SELECT 1 FROM information_schema.tables
-        WHERE table_name = 'planilla_deduction_code'
-    """)
-    if not cr.fetchone():
-        return  # Primera instalacion, nada que hacer
-
-    # Construir mapa xmlid -> code leyendo todos los XMLs del modulo
     module_dir = os.path.dirname(os.path.abspath(__file__))
-    xmlid_to_code = {}
     xml_files = glob.glob(os.path.join(module_dir, 'data', '*.xml'))
+
+    # Recopilar todos los <record model="planilla.*"> de todos los XMLs.
+    # Para cada uno extraer: xmlid, model, campo de lookup y su valor.
+    records_to_check = []
     for xml_path in xml_files:
         try:
             tree = ET.parse(xml_path)
             root = tree.getroot()
             for record in root.iter('record'):
-                if record.get('model') != 'planilla.deduction.code':
+                model = record.get('model', '')
+                if not model.startswith('planilla.'):
                     continue
                 xmlid = record.get('id')
-                code_field = record.find("field[@name='code']")
-                if xmlid and code_field is not None and code_field.text:
-                    xmlid_to_code[xmlid] = code_field.text.strip()
+                if not xmlid:
+                    continue
+                # Prioridad de lookup: code > name > date
+                lookup_field = None
+                lookup_value = None
+                for field_name in ('code', 'name', 'date'):
+                    field_el = record.find("field[@name='%s']" % field_name)
+                    if field_el is not None and field_el.text and field_el.text.strip():
+                        lookup_field = field_name
+                        lookup_value = field_el.text.strip()
+                        break
+                if lookup_field:
+                    records_to_check.append((xmlid, model, lookup_field, lookup_value))
         except Exception as parse_err:
             logger.warning(
                 'planilla_cr _relink_orphan_deduction_codes: '
                 'no se pudo parsear %s: %s', xml_path, parse_err
             )
 
-    if not xmlid_to_code:
+    if not records_to_check:
         return
 
     relinked = []
-    for xml_name, code in xmlid_to_code.items():
-        # ¿Ya existe una entrada en ir_model_data para este modulo+nombre?
-        cr.execute("""
-            SELECT 1 FROM ir_model_data
-            WHERE module = 'planilla_cr' AND name = %s
-        """, (xml_name,))
+    tables_checked = {}  # cache: table -> bool (existe)
+    columns_checked = {}  # cache: (table, col) -> bool
+
+    for xml_name, model, lookup_field, lookup_value in records_to_check:
+        # Nombre de tabla: puntos -> guiones bajos
+        table = model.replace('.', '_')
+
+        # Verificar que la tabla exista (instalacion limpia)
+        if table not in tables_checked:
+            cr.execute(
+                "SELECT 1 FROM information_schema.tables WHERE table_name = %s",
+                (table,)
+            )
+            tables_checked[table] = bool(cr.fetchone())
+        if not tables_checked[table]:
+            continue
+
+        # ¿Ya existe entrada en ir_model_data para este modulo+xmlid?
+        cr.execute(
+            "SELECT 1 FROM ir_model_data WHERE module = 'planilla_cr' AND name = %s",
+            (xml_name,)
+        )
         if cr.fetchone():
-            continue  # Ya esta registrado, OK
+            continue  # Ya registrado, OK
+
+        # Verificar que la columna de lookup exista en la tabla
+        col_key = (table, lookup_field)
+        if col_key not in columns_checked:
+            cr.execute(
+                "SELECT 1 FROM information_schema.columns "
+                "WHERE table_name = %s AND column_name = %s",
+                (table, lookup_field)
+            )
+            columns_checked[col_key] = bool(cr.fetchone())
+        if not columns_checked[col_key]:
+            continue
 
         # ¿Existe la fila real en la tabla?
-        cr.execute("""
-            SELECT id FROM planilla_deduction_code
-            WHERE code = %s
-            ORDER BY id
-            LIMIT 1
-        """, (code,))
+        cr.execute(
+            'SELECT id FROM %s WHERE %s = %%s ORDER BY id LIMIT 1' % (table, lookup_field),
+            (lookup_value,)
+        )
         row = cr.fetchone()
         if not row:
-            continue  # No existe, el XML la creara normalmente
+            continue  # No existe: el XML la creara normalmente
 
         res_id = row[0]
 
         # Re-registrar en ir_model_data para que noupdate="1" la omita.
-        # Odoo 19 elimino las columnas date_init/date_update de ir_model_data;
-        # se insertan solo las columnas que existen en esta version.
+        # Odoo 19 elimino las columnas date_init/date_update de ir_model_data.
         cr.execute("""
-            INSERT INTO ir_model_data
-                (module, name, model, res_id, noupdate)
-            VALUES
-                ('planilla_cr', %s, 'planilla.deduction.code', %s, TRUE)
+            INSERT INTO ir_model_data (module, name, model, res_id, noupdate)
+            VALUES ('planilla_cr', %s, %s, %s, TRUE)
             ON CONFLICT (module, name) DO NOTHING
-        """, (xml_name, res_id))
-        relinked.append(code)
+        """, (xml_name, model, res_id))
+        relinked.append('%s:%s' % (model.split('.')[-1], lookup_value))
 
     if relinked:
         logger.info(
-            'planilla_cr pre_init_hook: %d codigos de deduccion re-vinculados '
-            'en ir_model_data para evitar UniqueViolation: %s',
+            'planilla_cr pre_init_hook: %d registros re-vinculados en '
+            'ir_model_data para evitar UniqueViolation: %s',
             len(relinked), ', '.join(relinked)
         )
 
