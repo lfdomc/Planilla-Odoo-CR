@@ -638,10 +638,26 @@ class PayrollRunCR(models.Model):
         employees = employees.filtered(_salida_valida)
 
         # Advertir sobre empleados sin employee_status_id
-        without_status = employees.filtered(lambda e: not e.employee_status_id)
-        employees_active = employees.filtered(
-            lambda e: e.employee_status_id and e.employee_status_id.is_active_payroll
+        without_status = employees.filtered(
+            lambda e: not e.employee_status_id and
+            not getattr(e, 'exit_date', None)  # los que salen tienen estado aunque sea inactivo
         )
+        def _incluir_en_planilla(e):
+            """Incluir si:
+            1. Tiene estado activo en planilla (is_active_payroll=True), O
+            2. Es renunciante/despedido pero su exit_date está en este período
+               (le corresponde pago proporcional por los días trabajados antes de salir)
+            """
+            status_ok = e.employee_status_id and e.employee_status_id.is_active_payroll
+            if status_ok:
+                return True
+            # Renunciante/Despedido con salida en este período → incluir para pago proporcional
+            exit_d = getattr(e, 'exit_date', None) or getattr(e, 'departure_date', None)
+            if exit_d and self.date_start <= exit_d <= self.date_end:
+                return True
+            return False
+
+        employees_active = employees.filtered(_incluir_en_planilla)
         if without_status:
             names = ', '.join(without_status.mapped('name'))
             self.message_post(
