@@ -76,10 +76,7 @@
         <field name="binding_model_id" ref="model_planilla_schedule_type"/>
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
-        <field name="code">
-from odoo.addons.planilla_cr import hooks
-hooks._populate_schedule_defaults(env)
-        </field>
+        <field name="code">records.action_populate_defaults()</field>
     </record>
 
     <record id="action_schedule_type" model="ir.actions.act_window">

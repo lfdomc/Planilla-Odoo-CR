@@ -32,6 +32,21 @@ class ScheduleType(models.Model):
     sabado    = fields.Boolean(string='Sábado',    default=False)
     domingo   = fields.Boolean(string='Domingo',   default=False)
 
+    def action_populate_defaults(self):
+        """Botón/acción para poblar días y horas desde la lista."""
+        from odoo.addons.planilla_cr import hooks
+        hooks._populate_schedule_defaults(self.env)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Listo',
+                'message': 'Días laborales y horas actualizados en todos los horarios.',
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
     def is_working_day(self, date):
         """Retorna True si la fecha es un día laboral según este horario."""
         self.ensure_one()
