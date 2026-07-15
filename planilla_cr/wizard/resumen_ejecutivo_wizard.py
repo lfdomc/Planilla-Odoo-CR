@@ -140,6 +140,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             ('Salario\nBase',          12, 'ing', fd_ing),
             ('Horas\nExtras',          10, 'ing', fd_ing),
             ('Bonos\nSalariales',      10, 'ing', fd_ing),
+            ('Bonos\nExentos CCSS',    12, 'ing', fd_ing),
             ('Vacaciones\nPagadas',    10, 'ing', fd_ing),
             ('Otros\nIngresos',        10, 'ing', fd_ing),
             # ── Deducciones (rebajan el bruto cotizable) ──────────────────────
@@ -279,6 +280,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
                     self.base_salary              = s0.base_salary  # salario base = del empleado
                     self.overtime_amount          = _sum('overtime_amount')
                     self.bono_salarial_amount     = _sum('bono_salarial_amount')
+                    self.amount_bonos_exentos     = _sum('amount_bonos_exentos')
                     self.vacation_amount          = _sum('vacation_amount')
                     self.other_income             = _sum('other_income')
                     self.disability_days_in_period= _sum('disability_days_in_period')
@@ -337,6 +339,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             sal_base     = slip.base_salary or 0
             horas_extras = slip.overtime_amount or 0
             bonos        = slip.bono_salarial_amount or 0
+            bonos_exentos = getattr(slip, 'amount_bonos_exentos', 0) or 0
             vacaciones   = slip.vacation_amount or 0
             # Otros ingresos = residual (bonos no salariales, incentivos, etc.)
             otros_ing    = slip.other_income or 0
@@ -404,7 +407,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 emp.job_id.name or '',
                 slip.branch_id.name or '',
                 float(dias_lab),
-                sal_base, horas_extras, bonos, vacaciones,
+                sal_base, horas_extras, bonos, bonos_exentos, vacaciones,
                 otros_ing,
                 float(dias_incap), monto_incap, licencia_sg,
                 subsid_mat,
