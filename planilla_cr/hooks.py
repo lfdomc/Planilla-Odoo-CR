@@ -85,6 +85,7 @@ def post_migrate_hook(env):
             'planilla_cr.migrate_codes: %s (no critico)', _e
         )
     _setup_all_companies_config(env)
+    _populate_schedule_defaults(env)
     _ensure_deduction_codes(env)
     _ensure_schedule_types(env)
     _fix_hour_license_date_end(env)
@@ -495,6 +496,55 @@ def _setup_accounting_config(env):
             existing.write(vals)
 
 
+
+
+def _populate_schedule_defaults(env):
+    """Pobla hora_entrada, hora_salida y días laborales en tipos de horario
+    existentes según su configuración de days_per_week y código.
+    Se ejecuta una sola vez en post_migrate; no sobreescribe si ya tiene valor.
+    """
+    import logging
+    _logger = logging.getLogger(__name__)
+
+    schedules = env['planilla.schedule.type'].sudo().search([])
+    updated = 0
+    for sch in schedules:
+        vals = {}
+        # Hora entrada/salida: poner defaults si no están configuradas
+        if not sch.hora_entrada and not sch.hora_salida:
+            dpw = sch.days_per_week or 5
+            hpd = sch.hours_per_day or 8
+            code = (sch.code or '').upper()
+            # Jornada nocturna: entrada 10pm, salida 4am
+            if 'NOCT' in code:
+                vals['hora_entrada'] = 22.0
+                vals['hora_salida']  = 4.0
+            else:
+                vals['hora_entrada'] = 8.0
+                vals['hora_salida']  = 8.0 + hpd
+        # Días laborales: configurar según days_per_week si todos están en False
+        day_fields = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo']
+        if not any(getattr(sch, d, False) for d in day_fields):
+            dpw = sch.days_per_week or 5
+            code = (sch.code or '').upper()
+            if 'FDSM' in code:  # Fines de semana
+                vals.update({'sabado': True, 'domingo': True})
+            elif dpw >= 7:
+                vals.update({d: True for d in day_fields})
+            elif dpw == 6:
+                vals.update({'lunes':True,'martes':True,'miercoles':True,
+                             'jueves':True,'viernes':True,'sabado':True})
+            elif 'PRM' in code or 'PROM' in code:  # Martes a Sábado
+                vals.update({'martes':True,'miercoles':True,'jueves':True,
+                             'viernes':True,'sabado':True})
+            else:  # default 5 días Lun-Vie
+                vals.update({'lunes':True,'martes':True,'miercoles':True,
+                             'jueves':True,'viernes':True})
+        if vals:
+            sch.write(vals)
+            updated += 1
+    if updated:
+        _logger.info('planilla_cr: %d tipos de horario actualizados con días/horas', updated)
 
 
 def _setup_all_companies_config(env):
