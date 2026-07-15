@@ -116,13 +116,14 @@ def _relink_orphan_deduction_codes(cr, logger):
 
         res_id = row[0]
 
-        # Re-registrar en ir_model_data para que noupdate="1" la omita
+        # Re-registrar en ir_model_data para que noupdate="1" la omita.
+        # Odoo 19 elimino las columnas date_init/date_update de ir_model_data;
+        # se insertan solo las columnas que existen en esta version.
         cr.execute("""
             INSERT INTO ir_model_data
-                (module, name, model, res_id, noupdate, date_init, date_update)
+                (module, name, model, res_id, noupdate)
             VALUES
-                ('planilla_cr', %s, 'planilla.deduction.code', %s,
-                 TRUE, NOW(), NOW())
+                ('planilla_cr', %s, 'planilla.deduction.code', %s, TRUE)
             ON CONFLICT (module, name) DO NOTHING
         """, (xml_name, res_id))
         relinked.append(code)
