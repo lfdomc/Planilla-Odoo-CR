@@ -6,7 +6,7 @@
         <field name="model">res.config.settings</field>
         <field name="inherit_id" ref="base.res_config_settings_view_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//div[hasclass('settings')]" position="inside">
+            <xpath expr="//form" position="inside">
                 <div class="app_settings_block" data-string="Reconocimiento Facial"
                      data-key="facial_attendance"
                      groups="hr.group_hr_manager">
