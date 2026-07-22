@@ -2,22 +2,32 @@
 
 import { Component, useState, useRef, onMounted, onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
 import { rpc } from "@web/core/network/rpc";
 import { FacialCameraUtils } from "./face_api_loader";
 
-// ─── Intervalo de reconocimiento (ms) ────────────────────────────────────────
+// ─── Constantes ───────────────────────────────────────────────────────────────
+
+/** Intervalo entre intentos de reconocimiento en el quiosco (ms). */
 const RECOGNITION_INTERVAL = 2500;
-// Tiempo que se muestra el resultado antes de volver a escanear (ms)
+/** Tiempo que se muestra la tarjeta de resultado antes de volver a escanear (ms). */
 const RESULT_DISPLAY_TIME = 4000;
 
 // ─── Componente Quiosco ───────────────────────────────────────────────────────
 
 export class FacialAttendanceKiosk extends Component {
     static template = "facial_attendance.Kiosk";
+    /**
+     * Acepta props de forma flexible porque puede montarse de dos maneras:
+     *  1. Via ir.actions.client (backend): Odoo inyecta props estandar del framework.
+     *  2. Via kiosk_standalone.js (pagina publica): se pasa { recognizeUrl }.
+     */
+    static props = ["*"];
 
     setup() {
-        this.notification = useService("notification");
+        // recognizeUrl: ruta del endpoint de reconocimiento. Llega como prop
+        // en modo standalone (tablet publica). En modo backend (ir.actions.client)
+        // usa la ruta autenticada por defecto.
+        this.recognizeUrl = this.props?.recognizeUrl || "/facial_attendance/recognize";
 
         this.videoRef = useRef("video");
         this.canvasRef = useRef("canvas");
@@ -53,16 +63,10 @@ export class FacialAttendanceKiosk extends Component {
         const update = () => {
             const now = new Date();
             this.state.clockTime = now.toLocaleTimeString('es-MX', {
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                hour12: false,
+                hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
             });
             this.state.clockDate = now.toLocaleDateString('es-MX', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
             });
         };
         update();
@@ -79,8 +83,7 @@ export class FacialAttendanceKiosk extends Component {
         }
         try {
             this.state.status = "loading";
-            const videoEl = this.videoRef.el;
-            this._stream = await FacialCameraUtils.startCamera(videoEl);
+            this._stream = await FacialCameraUtils.startCamera(this.videoRef.el);
             this.state.status = "ready";
             // Esperar un momento para que la cámara se estabilice
             setTimeout(() => this._startRecognitionLoop(), 1000);
@@ -94,8 +97,7 @@ export class FacialAttendanceKiosk extends Component {
 
     _startRecognitionLoop() {
         this._recognitionTimer = setInterval(async () => {
-            if (this._isRecognizing) return;
-            if (this.state.status === "success") return;
+            if (this._isRecognizing || this.state.status === "success") return;
             await this._doRecognition();
         }, RECOGNITION_INTERVAL);
     }
@@ -112,7 +114,7 @@ export class FacialAttendanceKiosk extends Component {
         this.state.status = "scanning";
 
         try {
-            const result = await rpc("/facial_attendance/recognize", {
+            const result = await rpc(this.recognizeUrl, {
                 image_data: frame,
                 device_ip: null,
             });
@@ -121,23 +123,21 @@ export class FacialAttendanceKiosk extends Component {
                 this.state.status = "success";
                 this.state.result = result;
 
-                // Volver a escanear después de mostrar resultado
                 clearTimeout(this._resultTimer);
                 this._resultTimer = setTimeout(() => {
                     this.state.status = "ready";
                     this.state.result = null;
                 }, RESULT_DISPLAY_TIME);
-
             } else {
-                const ignoredErrors = ["no_face_detected", "no_match"];
-                if (ignoredErrors.includes(result.error)) {
+                // no_face_detected y no_match son condiciones normales del quiosco,
+                // no errores: simplemente volver al estado "listo" en silencio.
+                const silentErrors = ["no_face_detected", "no_match"];
+                if (silentErrors.includes(result.error)) {
                     this.state.status = "ready";
                 } else {
                     this.state.status = "error";
                     this.state.errorMsg = result.error_detail || "Error desconocido";
-                    setTimeout(() => {
-                        this.state.status = "ready";
-                    }, 3000);
+                    setTimeout(() => { this.state.status = "ready"; }, 3000);
                 }
             }
         } catch (err) {
@@ -157,39 +157,22 @@ export class FacialAttendanceKiosk extends Component {
         FacialCameraUtils.stopCamera(this._stream);
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────────
+    // ─── Computed getters ─────────────────────────────────────────────────────
 
     get cameraState() {
-        const { status, result } = this.state;
+        const { status } = this.state;
         if (status === "success") return "success";
         if (status === "scanning") return "detecting";
         if (status === "error") return "error";
         return "";
     }
 
-    get showScanning() {
-        return this.state.status === "scanning";
-    }
-
-    get showResult() {
-        return this.state.status === "success" && this.state.result;
-    }
-
-    get showError() {
-        return this.state.status === "error";
-    }
-
-    get showNoCamera() {
-        return this.state.status === "no_camera";
-    }
-
-    get showLoading() {
-        return this.state.status === "loading";
-    }
-
-    get actionClass() {
-        return this.state.result?.action_type || "";
-    }
+    get showScanning() { return this.state.status === "scanning"; }
+    get showResult()   { return this.state.status === "success" && this.state.result; }
+    get showError()    { return this.state.status === "error"; }
+    get showNoCamera() { return this.state.status === "no_camera"; }
+    get showLoading()  { return this.state.status === "loading"; }
+    get actionClass()  { return this.state.result?.action_type || ""; }
 }
 
 // ─── Componente Widget de Cámara para el Wizard ───────────────────────────────
@@ -199,32 +182,25 @@ export class FacialCameraWidget extends Component {
     static props = ["*"];
 
     setup() {
-        this.videoRef = useRef("wizardVideo");
-        this.canvasRef = useRef("wizardCanvas");
+        this.videoRef   = useRef("wizardVideo");
+        this.canvasRef  = useRef("wizardCanvas");
         this.previewRef = useRef("wizardPreview");
 
         this.state = useState({
             streaming: false,
             captured: false,
             error: null,
-            captureCount: 0,
         });
 
         this._stream = null;
 
-        onMounted(async () => {
-            await this._startCamera();
-        });
-
-        onWillUnmount(() => {
-            this._stopCamera();
-        });
+        onMounted(async () => { await this._startCamera(); });
+        onWillUnmount(() => { this._stopCamera(); });
     }
 
     async _startCamera() {
         try {
-            const videoEl = this.videoRef.el;
-            this._stream = await FacialCameraUtils.startCamera(videoEl);
+            this._stream = await FacialCameraUtils.startCamera(this.videoRef.el);
             this.state.streaming = true;
         } catch (err) {
             this.state.error = err.message;
@@ -237,50 +213,40 @@ export class FacialCameraWidget extends Component {
     }
 
     captureImage() {
-        const videoEl = this.videoRef.el;
-        const canvasEl = this.canvasRef.el;
-        const previewEl = this.previewRef.el;
-
-        const imageData = FacialCameraUtils.captureFrame(videoEl, canvasEl, 0.92);
+        const imageData = FacialCameraUtils.captureFrame(
+            this.videoRef.el, this.canvasRef.el, 0.92
+        );
         if (!imageData) return;
 
-        // Mostrar preview
-        if (previewEl) {
-            previewEl.src = imageData;
+        if (this.previewRef.el) {
+            this.previewRef.el.src = imageData;
         }
-
         this.state.captured = true;
-        this.state.captureCount++;
-
-        // Actualizar el campo en el wizard
-        // Buscamos el campo oculto del wizard y seteamos el valor
         this._updateWizardField(imageData);
     }
 
+    retakeImage() {
+        if (this.previewRef.el) this.previewRef.el.src = "";
+        this.state.captured = false;
+        this._updateWizardField(null);
+    }
+
     _updateWizardField(imageData) {
-        // Actualizar directamente el registro del wizard a traves del prop "record"
-        // que Odoo inyecta automaticamente en los widgets genericos de vista.
-        // (Antes se emitia un CustomEvent con this.el.dispatchEvent(), pero
-        // this.el puede ser undefined para widgets de vista genericos y nada
-        // escuchaba ese evento, por lo que el campo nunca se actualizaba.)
+        // Actualizar directamente el registro del wizard a traves del prop
+        // "record" que Odoo inyecta automaticamente en los widgets genericos
+        // de vista (view_widgets registry).
         if (this.props.record) {
             this.props.record.update({ captured_image: imageData });
         }
-    }
-
-    retakeImage() {
-        const previewEl = this.previewRef.el;
-        if (previewEl) previewEl.src = "";
-        this.state.captured = false;
-        this._updateWizardField(null);
     }
 }
 
 // ─── Registrar componentes ────────────────────────────────────────────────────
 
+// Accion cliente para el menu backend "Abrir Quiosco"
 registry.category("actions").add("facial_attendance.Kiosk", FacialAttendanceKiosk);
 
-// Registrar como widget de campo para el wizard
+// Widget embebido en el formulario del wizard de registro facial
 registry.category("view_widgets").add("facial_camera", {
     component: FacialCameraWidget,
 });

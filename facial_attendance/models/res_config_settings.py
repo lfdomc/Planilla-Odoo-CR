@@ -35,4 +35,15 @@ class ResConfigSettings(models.TransientModel):
     ], string='Modelo de Deteccion',
         default='hog',
         config_parameter='facial_attendance.recognition_model',
+        help='Se usa tanto para el reconocimiento en el quiosco como para '
+             'el registro inicial del rostro del empleado.',
+    )
+    facial_enable_public_kiosk = fields.Boolean(
+        string='Habilitar quiosco publico (sin login)',
+        default=False,
+        config_parameter='facial_attendance.enable_public_kiosk',
+        help='Permite usar /facial_attendance/kiosk/public sin iniciar sesion, '
+             'pensado para una tablet dedicada en la entrada. '
+             'Activelo solo si el dispositivo esta en una red controlada, '
+             'ya que expone el reconocimiento facial sin autenticacion.',
     )

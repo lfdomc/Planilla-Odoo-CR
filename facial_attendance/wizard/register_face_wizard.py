@@ -19,7 +19,6 @@ class FacialRegisterWizard(models.TransientModel):
     )
     state = fields.Selection([
         ('capture', 'Capturar Imagen'),
-        ('confirm', 'Confirmar'),
         ('done', 'Completado'),
     ], default='capture', string='Estado')
 
@@ -27,10 +26,6 @@ class FacialRegisterWizard(models.TransientModel):
         related='employee_id.face_registered',
         readonly=True,
     )
-
-    def action_capture(self):
-        """Accion del wizard: abrir captura de camara (manejado en JS)."""
-        return {'type': 'ir.actions.do_nothing'}
 
     def action_save_face(self):
         """Guarda la imagen capturada como encoding facial del empleado."""
@@ -59,10 +54,9 @@ class FacialRegisterWizard(models.TransientModel):
             },
         }
 
-    def action_retake(self):
-        """Volver a capturar imagen."""
-        self.write({
-            'state': 'capture',
-            'captured_image': False,
-        })
-        return {'type': 'ir.actions.do_nothing'}
+    # Nota: el "retake" (volver a capturar) se maneja enteramente en el
+    # widget de camara (JS): FacialCameraWidget.retakeImage() vuelve a
+    # mostrar el video y limpia el campo captured_image via record.update().
+    # El boton de footer "Volver a Capturar" que dependia de un estado
+    # 'confirm' nunca asignado se elimino junto con action_retake() y el
+    # estado 'confirm' mismo, que nunca se usaron.

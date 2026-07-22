@@ -22,9 +22,11 @@ class FacialAttendanceLog(models.Model):
     employee_id = fields.Many2one(
         'hr.employee',
         string='Empleado',
-        required=True,
+        required=False,
         ondelete='cascade',
         index=True,
+        help='Vacio cuando el intento fallo antes de identificar a un empleado '
+             '(rostro no detectado, sin coincidencia, etc.).',
     )
     attendance_id = fields.Many2one(
         'hr.attendance',
@@ -41,7 +43,8 @@ class FacialAttendanceLog(models.Model):
     action_type = fields.Selection([
         ('check_in', 'Entrada'),
         ('check_out', 'Salida'),
-    ], string='Tipo de Accion', required=True)
+    ], string='Tipo de Accion', required=False,
+        help='Vacio en los intentos fallidos, donde no se determino accion alguna.')
 
     confidence = fields.Float(
         string='Confianza (%)',
@@ -73,40 +76,36 @@ class FacialAttendanceLog(models.Model):
         store=True,
     )
 
-    @api.depends('employee_id', 'action_type', 'recognition_date')
+    @api.depends('employee_id', 'action_type', 'recognition_date', 'state')
     def _compute_name(self):
         action_sel = dict(self._fields['action_type'].selection)
+        state_sel = dict(self._fields['state'].selection)
         for rec in self:
-            action_label = action_sel.get(rec.action_type, '')
             date_str = (
                 rec.recognition_date.strftime('%d/%m/%Y %H:%M')
                 if rec.recognition_date else ''
             )
-            rec.name = '%s - %s (%s)' % (
-                rec.employee_id.name or '',
-                action_label,
-                date_str,
-            )
+            if rec.state == 'failed':
+                employee_label = rec.employee_id.name or 'Desconocido'
+                state_label = state_sel.get('failed', 'Fallido')
+                rec.name = '%s - %s (%s)' % (employee_label, state_label, date_str)
+            else:
+                action_label = action_sel.get(rec.action_type, '')
+                rec.name = '%s - %s (%s)' % (
+                    rec.employee_id.name or '',
+                    action_label,
+                    date_str,
+                )
 
-    def _compute_display_name(self):
-        action_sel = dict(self._fields['action_type'].selection)
-        for rec in self:
-            action_label = action_sel.get(rec.action_type, '')
-            date_str = (
-                rec.recognition_date.strftime('%d/%m/%Y %H:%M')
-                if rec.recognition_date else ''
-            )
-            rec.display_name = '%s - %s (%s)' % (
-                rec.employee_id.name or '',
-                action_label,
-                date_str,
-            )
+    # display_name no se sobreescribe: Odoo usa el campo 'name' (definido
+    # arriba con _compute_name) como _rec_name por defecto, asi que una
+    # implementacion propia de _compute_display_name solo duplicaria logica.
 
     @api.model
     def create_from_recognition(self, employee_id, action_type, confidence,
                                  captured_image_b64=None, device_ip=None):
         """
-        Crea un log de reconocimiento y actualiza hr.attendance.
+        Crea un log de reconocimiento exitoso y actualiza hr.attendance.
         """
         employee = self.env['hr.employee'].browse(employee_id)
         if not employee.exists():
@@ -133,6 +132,27 @@ class FacialAttendanceLog(models.Model):
         _logger.info(
             'Reconocimiento facial: %s - %s (Confianza: %.1f%%)',
             employee.name, action_type, confidence,
+        )
+        return log
+
+    @api.model
+    def create_failed_log(self, error_code, error_detail, employee_id=False,
+                           confidence=0.0, device_ip=None):
+        """
+        Registra un intento de reconocimiento fallido para dejar rastro
+        auditable: rostro no detectado, sin coincidencia, error interno, etc.
+        """
+        log = self.create({
+            'employee_id': employee_id or False,
+            'recognition_date': fields.Datetime.now(),
+            'confidence': confidence,
+            'device_ip': device_ip,
+            'state': 'failed',
+            'error_message': error_detail,
+        })
+        _logger.info(
+            'Intento de reconocimiento fallido (%s): %s',
+            error_code, error_detail,
         )
         return log
 
@@ -181,42 +201,8 @@ class FacialAttendanceLog(models.Model):
 
         return False
 
-
-class FacialAttendanceConfig(models.Model):
-    _name = 'facial.attendance.config'
-    _description = 'Configuracion de Quiosco Facial'
-    _rec_name = 'name'
-
-    name = fields.Char(
-        string='Nombre del Quiosco',
-        required=True,
-        default='Quiosco Principal',
-    )
-    active = fields.Boolean(default=True)
-    location = fields.Char(string='Ubicacion')
-    tolerance = fields.Float(
-        string='Tolerancia de Reconocimiento',
-        default=0.55,
-        digits=(3, 2),
-        help='Distancia maxima para considerar un match valido (0.4=estricto, 0.6=tolerante)',
-    )
-    confidence_threshold = fields.Float(
-        string='Umbral de Confianza (%)',
-        default=60.0,
-        digits=(5, 2),
-        help='Porcentaje minimo de confianza requerido para aceptar el reconocimiento',
-    )
-    save_captured_images = fields.Boolean(
-        string='Guardar Imagenes Capturadas',
-        default=True,
-    )
-    auto_action = fields.Boolean(
-        string='Accion Automatica',
-        default=True,
-        help='Determinar automaticamente si es entrada o salida',
-    )
-    kiosk_mode = fields.Boolean(
-        string='Modo Quiosco',
-        default=False,
-        help='Activar modo quiosco (pantalla completa, sin navegacion)',
-    )
+# Nota: el modelo 'facial.attendance.config' (configuracion de quiosco) se
+# elimino en v19.0.1.1.0 porque no estaba conectado a ninguna logica real:
+# el backend siempre lee configuracion desde ir.config_parameter (via
+# res.config.settings), por lo que el modelo era una fuente de configuracion
+# paralela sin efecto. La fuente unica de verdad es ahora res.config.settings.

@@ -19,6 +19,7 @@
                        decoration-success="state == 'success'"
                        decoration-danger="state == 'failed'"
                        decoration-muted="state == 'manual'"/>
+                <field name="error_message" string="Error" optional="show"/>
                 <field name="attendance_id" string="Registro Asistencia" optional="show"/>
                 <field name="device_ip" string="IP Dispositivo" optional="hide"/>
             </list>
@@ -59,11 +60,11 @@
                                options="{'size': [300, 300]}"
                                nolabel="1" readonly="1"/>
                     </group>
-                    <group string="Notas" invisible="not notes">
-                        <field name="notes" nolabel="1" readonly="1"/>
-                    </group>
                     <group string="Error" invisible="not error_message">
                         <field name="error_message" nolabel="1" readonly="1"/>
+                    </group>
+                    <group string="Notas" invisible="not notes">
+                        <field name="notes" nolabel="1" readonly="1"/>
                     </group>
                 </sheet>
             </form>
@@ -130,10 +131,6 @@
                             string="Guardar Registro"
                             class="btn btn-primary"
                             invisible="state not in ['capture']"/>
-                    <button name="action_retake" type="object"
-                            string="Volver a Capturar"
-                            class="btn btn-secondary"
-                            invisible="state not in ['confirm']"/>
                     <button special="cancel" string="Cerrar"
                             class="btn btn-secondary"/>
                 </footer>

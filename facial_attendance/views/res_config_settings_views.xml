@@ -19,6 +19,7 @@
                                 <label string="Modelo de Detección Facial"/>
                                 <div class="text-muted">
                                     HOG es más rápido (CPU). CNN es más preciso (requiere GPU).
+                                    Se aplica tanto al registro del rostro como al reconocimiento.
                                 </div>
                                 <field name="facial_recognition_model" widget="radio"/>
                             </div>
@@ -70,6 +71,21 @@
                                        string="Acción Automática Entrada/Salida"/>
                                 <div class="text-muted">
                                     Detecta automáticamente si el empleado está entrando o saliendo.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-lg-6 o_setting_box">
+                            <div class="o_setting_left_pane">
+                                <field name="facial_enable_public_kiosk" widget="boolean_toggle"/>
+                            </div>
+                            <div class="o_setting_right_pane">
+                                <label for="facial_enable_public_kiosk"
+                                       string="Habilitar Quiosco Público (sin login)"/>
+                                <div class="text-muted">
+                                    ⚠️ Activa <code>/facial_attendance/kiosk/public</code> para tablets
+                                    dedicadas en la entrada sin requerir inicio de sesión de Odoo.
+                                    Use solo en redes controladas.
                                 </div>
                             </div>
                         </div>

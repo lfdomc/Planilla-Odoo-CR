@@ -6,6 +6,7 @@ import io
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import ormcache
 
 _logger = logging.getLogger(__name__)
 
@@ -91,6 +92,8 @@ class HrEmployee(models.Model):
             'face_image_filename': False,
             'face_registration_date': False,
         })
+        # Invalidar cache de encodings para que el quiosco no use datos obsoletos
+        self.get_all_face_encodings.clear_cache(self)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -134,7 +137,12 @@ class HrEmployee(models.Model):
             image = Image.open(io.BytesIO(image_data)).convert('RGB')
             image_np = np.array(image)
 
-            face_locations = face_recognition.face_locations(image_np, model='hog')
+            # Usar el mismo modelo configurado en Ajustes para consistencia
+            # entre el registro y el reconocimiento posterior.
+            recognition_model = self.env['ir.config_parameter'].sudo().get_param(
+                'facial_attendance.recognition_model', 'hog'
+            )
+            face_locations = face_recognition.face_locations(image_np, model=recognition_model)
             if not face_locations:
                 raise ValidationError(_(
                     "No se detecto ningun rostro en la imagen. "
@@ -153,8 +161,7 @@ class HrEmployee(models.Model):
                     "Por favor intente con una imagen de mejor calidad."
                 ))
 
-            encoding_list = face_encodings[0].tolist()
-            encoding_json = json.dumps(encoding_list)
+            encoding_json = json.dumps(face_encodings[0].tolist())
 
             self.write({
                 'face_encoding': encoding_json,
@@ -162,6 +169,8 @@ class HrEmployee(models.Model):
                 'face_image_filename': 'face_%s.jpg' % self.id,
                 'face_registration_date': fields.Datetime.now(),
             })
+            # Invalidar cache para que el quiosco detecte el nuevo rostro
+            self.get_all_face_encodings.clear_cache(self)
             _logger.info(
                 'Rostro registrado exitosamente para el empleado: %s (ID: %s)',
                 self.name, self.id,
@@ -175,15 +184,19 @@ class HrEmployee(models.Model):
                 'Error al procesar imagen facial para empleado %s: %s',
                 self.name, str(e),
             )
-            raise UserError(_(
-                "Error al procesar la imagen: %s"
-            ) % str(e))
+            raise UserError(_("Error al procesar la imagen: %s") % str(e))
 
     @api.model
+    @ormcache()
     def get_all_face_encodings(self):
         """
         Retorna todas las codificaciones faciales registradas.
-        Usado por el controlador de reconocimiento.
+
+        El resultado se cachea en memoria (ormcache) para evitar
+        deserializar el JSON de todos los empleados en cada ciclo del
+        quiosco (~2.5 s). El cache se invalida explicitamente en
+        save_face_encoding() y action_clear_face(), los dos unicos
+        puntos donde face_encoding cambia.
         """
         employees = self.search([('face_encoding', '!=', False)])
         result = []
@@ -195,7 +208,7 @@ class HrEmployee(models.Model):
                     'employee_name': emp.name,
                     'encoding': encoding,
                 })
-            except (json.JSONDecodeError, Exception) as e:
+            except Exception as e:
                 _logger.warning(
                     'Codificacion facial invalida para empleado %s: %s',
                     emp.name, str(e),

@@ -2,17 +2,6 @@
 <odoo>
     <data noupdate="1">
 
-        <!-- Configuración del quiosco por defecto -->
-        <record id="facial_attendance_config_default" model="facial.attendance.config">
-            <field name="name">Quiosco Principal</field>
-            <field name="location">Entrada Principal</field>
-            <field name="tolerance">0.55</field>
-            <field name="confidence_threshold">60.0</field>
-            <field name="save_captured_images" eval="True"/>
-            <field name="auto_action" eval="True"/>
-            <field name="active" eval="True"/>
-        </record>
-
         <!-- Parámetros de configuración por defecto -->
         <record id="facial_attendance_tolerance_param" model="ir.config_parameter">
             <field name="key">facial_attendance.tolerance</field>
@@ -33,6 +22,13 @@
         <record id="facial_attendance_model_param" model="ir.config_parameter">
             <field name="key">facial_attendance.recognition_model</field>
             <field name="value">hog</field>
+        </record>
+        <!-- Deshabilitado por defecto: exponer un endpoint de reconocimiento
+             sin login es una decision de seguridad que debe activar
+             explicitamente un administrador desde Ajustes. -->
+        <record id="facial_attendance_public_kiosk_param" model="ir.config_parameter">
+            <field name="key">facial_attendance.enable_public_kiosk</field>
+            <field name="value">False</field>
         </record>
 
     </data>

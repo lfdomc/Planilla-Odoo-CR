@@ -48,6 +48,32 @@
     color: #94a3b8;
 }
 
+/* ─── Quiosco publico deshabilitado ─────────────────────────────────────────── */
+
+.o_facial_kiosk_disabled {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: #0f172a;
+    color: #f8fafc;
+    text-align: center;
+    padding: 32px;
+    box-sizing: border-box;
+}
+
+.o_facial_kiosk_disabled h1 {
+    font-size: 1.75rem;
+    margin-bottom: 12px;
+}
+
+.o_facial_kiosk_disabled p {
+    color: #94a3b8;
+    max-width: 480px;
+    line-height: 1.5;
+}
+
 /* ─── Cámara ────────────────────────────────────────────────────────────────── */
 
 .o_facial_camera_wrapper {
@@ -192,7 +218,7 @@
 
 @keyframes slideUp {
     from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: translateY(0); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .o_facial_result_card.success-card {
@@ -218,13 +244,8 @@
     margin-bottom: 8px;
 }
 
-.o_facial_result_action.check_in {
-    color: #4ade80;
-}
-
-.o_facial_result_action.check_out {
-    color: #f87171;
-}
+.o_facial_result_action.check_in  { color: #4ade80; }
+.o_facial_result_action.check_out { color: #f87171; }
 
 .o_facial_result_time {
     font-size: 2.5rem;
@@ -259,7 +280,7 @@
 }
 
 @keyframes scanLine {
-    0% { transform: translateX(-100%); }
+    0%   { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
 }
 
@@ -308,7 +329,7 @@
 
 @keyframes dotPulse {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+    50%       { opacity: 0.4; }
 }
 
 .o_facial_status_label {
@@ -325,21 +346,23 @@
     text-align: center;
 }
 
-.o_facial_wizard_video {
-    width: 320px;
-    height: 240px;
+.o_facial_wizard_video,
+.o_facial_wizard_preview {
+    width: 100%;
+    max-width: 320px;
+    height: auto;
+    aspect-ratio: 4 / 3;
     border-radius: 8px;
     object-fit: cover;
-    transform: scaleX(-1);
     background: #e2e8f0;
+}
+
+.o_facial_wizard_video {
+    transform: scaleX(-1); /* Efecto espejo */
     border: 2px solid #e2e8f0;
 }
 
 .o_facial_wizard_preview {
-    width: 320px;
-    height: 240px;
-    border-radius: 8px;
-    object-fit: cover;
     border: 2px solid #22c55e;
 }
 
@@ -360,14 +383,8 @@
     transition: background 0.2s;
 }
 
-.o_facial_capture_btn:hover {
-    background: #2563eb;
-}
-
-.o_facial_capture_btn:disabled {
-    background: #94a3b8;
-    cursor: not-allowed;
-}
+.o_facial_capture_btn:hover    { background: #2563eb; }
+.o_facial_capture_btn:disabled { background: #94a3b8; cursor: not-allowed; }
 
 .o_facial_retake_btn {
     margin-top: 12px;
@@ -387,17 +404,82 @@
     color: white;
 }
 
-/* ─── Responsive ────────────────────────────────────────────────────────────── */
+/* ─── Responsive — móvil (< 600 px) ────────────────────────────────────────── */
 
-@media (max-width: 600px) {
+@media (max-width: 599px) {
     .o_facial_camera_wrapper {
         width: 100%;
-        height: 280px;
+        height: 260px;
     }
     .o_facial_kiosk_header h1 {
-        font-size: 1.5rem;
+        font-size: 1.4rem;
     }
     .o_facial_result_time {
         font-size: 1.75rem;
+    }
+    .o_facial_result_name {
+        font-size: 1.3rem;
+    }
+    .o_facial_clock {
+        top: 12px;
+        right: 16px;
+    }
+    .o_facial_clock .clock-time {
+        font-size: 1.25rem;
+    }
+}
+
+/* ─── Responsive — tablet horizontal (600 – 1024 px) ───────────────────────── */
+
+@media (min-width: 600px) and (max-width: 1024px) {
+    .o_facial_kiosk {
+        /* Reducir padding vertical para que el contenido
+           no quede cortado en pantallas bajas en landscape */
+        padding: 12px 24px;
+        justify-content: flex-start;
+        padding-top: 8vh;
+    }
+    .o_facial_kiosk_header {
+        margin-bottom: 16px;
+    }
+    .o_facial_kiosk_header h1 {
+        font-size: 1.6rem;
+    }
+    .o_facial_camera_wrapper {
+        /* Ancho adaptativo: ocupa hasta el 90 % del viewport
+           pero no mas de 420 px en este rango */
+        width: min(420px, 90vw);
+        height: min(315px, 55vh);
+    }
+    .o_facial_result {
+        margin-top: 12px;
+        min-height: 80px;
+    }
+    .o_facial_result_time {
+        font-size: 2rem;
+    }
+    .o_facial_clock .clock-time {
+        font-size: 1.5rem;
+    }
+    /* En landscape, reloj y pie pueden solaparse con contenido en pantallas
+       muy bajas: moverlos a posicion relativa en vez de fixed */
+}
+
+@media (min-width: 600px) and (max-width: 1024px) and (orientation: landscape) and (max-height: 650px) {
+    .o_facial_clock,
+    .o_facial_kiosk_footer {
+        /* Evitar solapamiento en landscape/corto */
+        position: relative;
+        top: auto;
+        right: auto;
+        bottom: auto;
+        left: auto;
+        transform: none;
+        margin: 4px auto;
+        text-align: center;
+    }
+    .o_facial_kiosk {
+        padding-top: 8px;
+        gap: 8px;
     }
 }
