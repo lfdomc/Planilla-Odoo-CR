@@ -1,6 +1,7 @@
 import logging
 import re
 import datetime
+from dateutil.relativedelta import relativedelta
 from odoo import models, fields, api
 from .. import planilla_const as K
 from odoo.exceptions import UserError, ValidationError
@@ -52,6 +53,51 @@ class PayslipComputeMixin(models.AbstractModel):
         en condiciones invisible de la vista sin dot notation."""
         for rec in self:
             rec.effective_frequency = rec._get_effective_freq()
+
+    @api.depends('date_to', 'employee_id', 'payroll_calendar_id',
+                 'payroll_run_id.payroll_calendar_id')
+    def _compute_is_last_payslip_of_month(self):
+        """Determina si esta es la ULTIMA boleta del mes calendario para este
+        empleado -- regla determinista, sin consultar boletas hermanas:
+
+          es_ultima = (el empleado tiene fecha de salida dentro de este mismo
+                       mes) O (el siguiente periodo de la calendarizacion
+                       empieza en un mes distinto al de esta boleta)
+
+        Quincenal: la Q2 (16-fin de mes) siempre es ultima por construccion,
+        ya que planilla.calendar.get_period_dates() ajusta el fin de periodo
+        al ultimo dia calendario del mes. Mensual: siempre es ultima (trivial).
+        Terminacion: prevalece sobre la regla de calendario -- un empleado que
+        sale a mitad de mes no va a tener una boleta despues que reconcilie.
+        """
+        for rec in self:
+            if not rec.date_to or not rec.employee_id:
+                rec.is_last_payslip_of_month = True
+                continue
+
+            termination = self.env['planilla.termination'].search([
+                ('employee_id', '=', rec.employee_id.id),
+                ('termination_date', '>=', rec.date_to.replace(day=1)),
+                ('termination_date', '<', rec.date_to + relativedelta(months=1, day=1)),
+                ('state', '!=', 'cancelled'),
+            ], limit=1)
+            if termination:
+                rec.is_last_payslip_of_month = True
+                continue
+
+            calendar = rec.payroll_calendar_id or (
+                rec.payroll_run_id.payroll_calendar_id if rec.payroll_run_id else False)
+            if not calendar:
+                # Sin calendarizacion configurada: no se puede determinar con
+                # certeza -- por seguridad se trata como ultima (equivale al
+                # comportamiento actual, sin reconciliacion incompleta).
+                rec.is_last_payslip_of_month = True
+                continue
+
+            _next_start, _next_end = calendar.get_period_dates(
+                ref_date=rec.date_to + relativedelta(days=1))
+            rec.is_last_payslip_of_month = (_next_start.month != rec.date_to.month
+                                             or _next_start.year != rec.date_to.year)
 
 
     @api.depends('date_from', 'date_to', 'is_proportional', 'days_worked')
@@ -118,7 +164,7 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.base_salary')
     def _compute_base_salary(self):
         for rec in self:
-            if rec.state == 'paid':
+            if rec.state == 'done':
                 continue  # Boleta pagada: valores congelados
             emp = rec.employee_id
             if not emp:
@@ -211,7 +257,7 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.base_salary')
     def _compute_extras(self):
         for rec in self:
-            if rec.state == 'paid':
+            if rec.state == 'done':
                 continue  # Boleta pagada: valores congelados
             approved_ot = [o for o in rec.overtime_ids if o.state == 'approved']
             # Incluir HE aprobadas Y pagadas (las pagadas ya pertenecen a esta boleta)
@@ -512,7 +558,7 @@ class PayslipComputeMixin(models.AbstractModel):
         # con el indice por nombre. bono_id es el enlace directo y es inmune
         # a cambios de formato en la descripcion.
         for rec in self:
-            if rec.state == 'paid':
+            if rec.state == 'done':
                 continue  # Boleta pagada: valores congelados
             bonus_lines = rec.deduction_line_ids.filtered(
                 lambda l: l.line_type == 'income' and l.deduction_category == 'bonus'
@@ -555,7 +601,7 @@ class PayslipComputeMixin(models.AbstractModel):
                  'date_from', 'date_to')
     def _compute_gross(self) -> None:
         for rec in self:
-            if rec.state == 'paid':
+            if rec.state == 'done':
                 continue  # Boleta pagada: valores congelados
             # -- Base salarial segun incapacidad ------------------------------
             # REGLA LEGAL (Art. 79 y 94 CT):
@@ -601,6 +647,7 @@ class PayslipComputeMixin(models.AbstractModel):
 
     @api.depends('gross_salary', 'salario_cotizable', 'bono_salarial_amount', 'overtime_amount', 'company_id', 'paternity_days',
                  'payroll_calendar_id',
+                 'is_last_payslip_of_month',
                  'deduction_line_ids.amount',
                  'deduction_line_ids.line_type',
                  'deduction_line_ids.deduction_category',
@@ -613,8 +660,13 @@ class PayslipComputeMixin(models.AbstractModel):
                  'employee_id.income_tax_spouse_credit',
                  'employee_id.pensioner_type')
     def _compute_deductions(self) -> None:
+        # PERF FIX: cachear planilla.accounting.config por empresa -- se
+        # consulta 2 veces por boleta dentro del loop (BMC + metodo de renta);
+        # para una planilla grupal de 200 empleados eso son 400 queries
+        # redundantes por algo que es el mismo valor para toda la empresa.
+        _cfg_by_company = {}
         for rec in self:
-            if rec.state == 'paid':
+            if rec.state == 'done':
                 continue  # Boleta pagada: valores congelados
             rh       = rec.env['planilla.rate.helper'].with_company(rec.company_id)
             # F3: tasa CCSS obrero depende del tipo de pensionado
@@ -699,11 +751,58 @@ class PayslipComputeMixin(models.AbstractModel):
             # Almacenar la base cotizable final (para Resumen Completo y auditoria)
             rec.base_cotizable_final = g
 
+            # -- Base Minima Contributiva CCSS (piso de cotizacion) -----------
+            # Si el salario cotizable del periodo es menor al piso BMC vigente,
+            # CCSS (obrero y patronal) se calcula sobre el piso, no sobre el
+            # salario real. Aplica sobre todo a empleados de tiempo parcial.
+            # Requerido por la CCSS -- ver planilla_const.CCSS_BMC_MENSUAL.
+            #
+            # EXCLUIDO cuando: hay incapacidad activa en el periodo (ya tiene
+            # su propia base legal, Art. 79/94 CT) o cuando hay licencias sin
+            # goce/ausencias (esos dias ya reducen legitimamente la base y no
+            # deben forzarse de vuelta al piso). Tambien excluido si is_sp
+            # (sin CCSS obrero de por si).
+            ccss_base = g
+            _cid = rec.company_id.id
+            if _cid not in _cfg_by_company:
+                _cfg_by_company[_cid] = rec.env['planilla.accounting.config'].search(
+                    [('company_id', '=', _cid)], limit=1)
+            _cfg = _cfg_by_company[_cid]
+            _bmc_on = (_cfg.apply_ccss_bmc if _cfg else True)
+            _bmc_amt = (_cfg.ccss_bmc_amount if _cfg and _cfg.ccss_bmc_amount
+                        else K.CCSS_BMC_MENSUAL)
+            # BMC Reducida: trabajadores de tiempo parcial (schedule_type.is_part_time)
+            # menores de 35 anos cotizan sobre su SALARIO REAL, sin piso alguno --
+            # ese es el objetivo del programa (Reforma Art. 63 Regl. SEM / Arts. 2 y 34
+            # Regl. IVM, vigente para todos los trabajadores desde 2025). Se detecta
+            # con datos que ya existen en el sistema: horario marcado como medio
+            # tiempo + fecha de nacimiento del empleado.
+            _is_part_time = bool(rec.employee_id.schedule_type_id.is_part_time)
+            _is_under_35 = False
+            if rec.employee_id.birthday and rec.date_from:
+                _edad = rec.date_from.year - rec.employee_id.birthday.year - (
+                    (rec.date_from.month, rec.date_from.day)
+                    < (rec.employee_id.birthday.month, rec.employee_id.birthday.day)
+                )
+                _is_under_35 = _edad < 35
+            _bmc_reducida_eligible = _is_part_time and _is_under_35
+            if (_bmc_on and not _bmc_reducida_eligible
+                    and not has_disability_in_period and licencias_sg <= 0
+                    and not getattr(rec, 'is_sp', False) and g > 0):
+                _freq_bmc = rec._get_effective_freq() if hasattr(rec, '_get_effective_freq') else 'biweekly'
+                _bmc_periodo = round(_bmc_amt * K.FREQ_FACTORS.get(_freq_bmc, 0.5), 2)
+                if g < _bmc_periodo:
+                    ccss_base = _bmc_periodo
+            rec.ccss_base_used = ccss_base
+            rec.ccss_bmc_reducida_applied = _bmc_reducida_eligible and g < round(
+                _bmc_amt * K.FREQ_FACTORS.get(
+                    rec._get_effective_freq() if hasattr(rec, '_get_effective_freq') else 'biweekly', 0.5), 2)
+
             # SP: sin CCSS obrero
             if getattr(rec, 'is_sp', False):
                 rec.ccss_employee = 0.0
             else:
-                rec.ccss_employee = round(g * ccss_emp, 2)
+                rec.ccss_employee = round(ccss_base * ccss_emp, 2)
             if rec.paternity_days > 0:
                 daily = round(g / K.DIAS_MES, 2)
                 rec.paternity_amount = round(daily * rec.paternity_days, 2)
@@ -718,7 +817,18 @@ class PayslipComputeMixin(models.AbstractModel):
                 and not l.is_recurring_bono
             )
             # F1 + F2: toggle base renta + creditos fiscales
-            tax_neto, creditos = rec._calc_income_tax(g, rec.ccss_employee, one_time_bonus)
+            _cid2 = rec.company_id.id
+            if _cid2 not in _cfg_by_company:
+                _cfg_by_company[_cid2] = rec.env['planilla.accounting.config'].search(
+                    [('company_id', '=', _cid2)], limit=1)
+            _tax_cfg = _cfg_by_company[_cid2]
+            tax_neto, creditos = rec._calc_income_tax(
+                g, rec.ccss_employee, one_time_bonus, _cfg=_tax_cfg)
+            # Metodo Mensual Consolidado: si esta es la ultima boleta del mes,
+            # reconciliar contra el ingreso real acumulado del mes completo.
+            if (_tax_cfg and _tax_cfg.income_tax_method == 'monthly_consolidated'
+                    and rec.is_last_payslip_of_month):
+                tax_neto, creditos = rec._reconcile_monthly_income_tax(g, creditos, _cfg=_tax_cfg)
             rec.income_tax        = round(tax_neto, 2)
             rec.income_tax_credits = round(creditos, 2)
             # Desglose de creditos para mostrar en Resumen
@@ -740,7 +850,7 @@ class PayslipComputeMixin(models.AbstractModel):
                 rec.ccss_employer = 0.0
                 rec.ins_employer  = 0.0
             else:
-                rec.ccss_employer = round(g * ccss_pat, 2)
+                rec.ccss_employer = round(ccss_base * ccss_pat, 2)
                 risk              = rec.employee_id.ins_risk_class or 'II'
                 rec.ins_employer  = round(g * rh.get_ins_rate(risk), 2)
             freq        = rec._get_effective_freq()
@@ -786,7 +896,9 @@ class PayslipComputeMixin(models.AbstractModel):
             rec.vacation_provision  = round((g + _bono_solo_base) * vac_rate, 2)
 
     def _calc_income_tax(self, gross: float, ccss_emp: float = 0.0,
-                         one_time_bonus: float = 0.0) -> tuple:
+                         one_time_bonus: float = 0.0,
+                         already_monthly: bool = False,
+                         _cfg=None) -> tuple:
         """
         Calculo progresivo de renta usando tramos configurados en la UI.
 
@@ -794,6 +906,20 @@ class PayslipComputeMixin(models.AbstractModel):
         Los bonos puntuales (is_recurring=False) NO se anualizan porque no
         se repetiran en el proximo periodo. Anualizarlos generaria un impuesto
         incorrecto proyectando ingresos que no existiran.
+
+        NUEVO PARAMETRO: already_monthly -- usado por la reconciliacion del
+        metodo "Mensual Consolidado" (ver _reconcile_monthly_income_tax).
+        Cuando es True, `gross` ya es el ingreso gravable REAL del mes
+        completo (no una proyeccion) -- se aplica directo a los tramos sin
+        anualizar y sin dividir entre periodos, porque no hay nada que
+        proyectar: ya es el dato real.
+
+        NUEVO PARAMETRO: _cfg -- registro de planilla.accounting.config ya
+        cargado por el llamador (PERF: evita una busqueda redundante -- para
+        la ultima boleta del mes con "Mensual Consolidado" activo, este
+        metodo se llama 2 veces en el mismo ciclo de computo; sin este
+        parametro cada llamada repetia la misma busqueda). Si no se provee,
+        se busca aqui como antes.
 
         Logica correcta (DGT-R-016-2026, Art. 33 LIR):
           - base recurrente = gross - one_time_bonus -> se anualiza x periodos/mes
@@ -809,7 +935,7 @@ class PayslipComputeMixin(models.AbstractModel):
         Esto evita que un quincenal pague menos renta de la que corresponde.
         """
         # -- Toggle base de calculo (Feature 1) -------------------------------
-        config = self.env['planilla.accounting.config'].search(
+        config = _cfg if _cfg is not None else self.env['planilla.accounting.config'].search(
             [('company_id', '=', self.company_id.id)], limit=1
         )
         tax_base_mode = (config.income_tax_base or K.RENTA_BASE_DEFAULT) if config else K.RENTA_BASE_DEFAULT
@@ -820,11 +946,16 @@ class PayslipComputeMixin(models.AbstractModel):
         freq = self._get_effective_freq()
         # FIX B-04 v58: usar K.PERIODOS_POR_MES corregido (bimonthly = 0.5)
         periods_per_month = K.PERIODOS_POR_MES.get(freq, 1)
-        # FIX RENTA-BONO: solo anualizar la parte recurrente del salario.
-        # Los bonos puntuales (is_recurring=False) no se proyectan al mes
-        # porque no se repetiran en el siguiente periodo.
-        base_recurrente = max(gross - one_time_bonus, 0.0)
-        monthly_equiv = base_recurrente * periods_per_month + one_time_bonus
+        if already_monthly:
+            # Reconciliacion mensual consolidada: gross YA es el ingreso
+            # gravable real del mes completo -- no proyectar, no dividir.
+            monthly_equiv = gross
+        else:
+            # FIX RENTA-BONO: solo anualizar la parte recurrente del salario.
+            # Los bonos puntuales (is_recurring=False) no se proyectan al mes
+            # porque no se repetiran en el siguiente periodo.
+            base_recurrente = max(gross - one_time_bonus, 0.0)
+            monthly_equiv = base_recurrente * periods_per_month + one_time_bonus
 
         brackets = self.env['planilla.income.tax.bracket'].search(
             # Buscar tramos especificos de la empresa actual O globales.
@@ -865,13 +996,14 @@ class PayslipComputeMixin(models.AbstractModel):
             if taxable > 0:
                 tax_monthly += taxable * (bracket.rate / 100)
 
-        tax_raw = tax_monthly / periods_per_month if periods_per_month else 0.0
+        tax_raw = tax_monthly if already_monthly else (
+            tax_monthly / periods_per_month if periods_per_month else 0.0)
 
         # -- Creditos fiscales (Feature 2) -- Art. 34 LIR ----------------------
         # Solo aplican si hay impuesto calculado. Se descuentan del impuesto
         # ya calculado. El resultado nunca puede ser negativo.
         emp             = self.employee_id
-        freq_factor     = K.FREQ_FACTORS.get(freq, 1.0)
+        freq_factor     = 1.0 if already_monthly else K.FREQ_FACTORS.get(freq, 1.0)
         credito_hijos   = (emp.income_tax_children or 0) * K.CREDITO_FISCAL_HIJO * freq_factor
         credito_conyuge = K.CREDITO_FISCAL_CONYUGE * freq_factor if emp.income_tax_spouse_credit else 0.0
         total_creditos  = credito_hijos + credito_conyuge
@@ -891,4 +1023,60 @@ class PayslipComputeMixin(models.AbstractModel):
         # ---------------------------------------------------------------------
 
         return tax_neto, creditos_aplicados
+
+    def _reconcile_monthly_income_tax(self, own_gross: float, own_creditos_pre: float, _cfg=None) -> tuple:
+        """
+        Metodo "Mensual Consolidado" -- solo se llama para la ULTIMA boleta
+        del mes (rec.is_last_payslip_of_month == True).
+
+        Reconcilia el impuesto de renta del mes completo:
+          1. Suma el ingreso gravable REAL de todas las boletas hermanas
+             confirmadas/pagadas de este mismo mes (mismo empleado, misma
+             empresa, misma calendarizacion) + el ingreso de esta boleta.
+          2. Calcula el impuesto sobre ese total real (sin proyectar, ya
+             es el dato real) -- los creditos fiscales se aplican UNA
+             sola vez sobre el total del mes (freq_factor=1.0 dentro de
+             _calc_income_tax con already_monthly=True), nunca por boleta,
+             para no duplicarlos.
+          3. Resta lo que ya se retuvo (income_tax neto, DESPUES de
+             creditos) en las boletas hermanas -- el resultado puede ser
+             negativo (devolucion al empleado) si esta boleta o una
+             anterior sobre-retuvo.
+
+        Nota: la suma usa base_cotizable_final, la misma base que ya usa
+        _calc_income_tax hoy -- excluye subsidios de incapacidad (Art. 79/94
+        CT) igual que el metodo por periodo, asi que no le mete renta a
+        ingreso legalmente exonerado.
+        """
+        self.ensure_one()
+        month_start = self.date_to.replace(day=1)
+        month_end   = self.date_to + relativedelta(months=1, day=1) - relativedelta(days=1)
+
+        hermanas = self.env['planilla.payslip.cr'].search([
+            ('id', '!=', self.id),
+            ('employee_id', '=', self.employee_id.id),
+            ('company_id', '=', self.company_id.id),
+            ('payroll_calendar_id', '=', self.payroll_calendar_id.id),
+            ('date_to', '>=', month_start),
+            ('date_to', '<=', month_end),
+            ('state', 'in', ('confirmed', 'done')),
+        ])
+
+        ingreso_gravable_mes = own_gross + sum(hermanas.mapped('base_cotizable_final'))
+        ccss_emp_mes         = (self.ccss_employee or 0.0) + sum(hermanas.mapped('ccss_employee'))
+        tax_neto_ya_retenido = sum(hermanas.mapped('income_tax'))
+
+        tax_neto_mes, creditos_mes = self._calc_income_tax(
+            ingreso_gravable_mes, ccss_emp_mes, one_time_bonus=0.0,
+            already_monthly=True, _cfg=_cfg)
+
+        tax_neto_periodo = tax_neto_mes - tax_neto_ya_retenido
+        # Creditos reportados en ESTA boleta: lo que quedo pendiente de
+        # aplicar del credito mensual total, despues de lo ya usado por
+        # las hermanas -- solo para mostrar en el desglose, no afecta el
+        # calculo (los creditos ya estan netos dentro de tax_neto_mes).
+        creditos_ya_aplicados = sum(hermanas.mapped('income_tax_credits'))
+        creditos_periodo = max(creditos_mes - creditos_ya_aplicados, 0.0)
+
+        return tax_neto_periodo, creditos_periodo
 

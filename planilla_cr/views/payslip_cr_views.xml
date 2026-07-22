@@ -115,6 +115,18 @@
                            statusbar_visible="draft,confirmed,done"/>
                 </header>
                 <sheet>
+                    <!-- Alerta: reconciliacion de renta mensual consolidada desactualizada -->
+                    <div class="alert alert-danger" role="alert"
+                         invisible="not renta_reconciliation_stale">
+                        <i class="fa fa-exclamation-circle" title="Error"/>
+                        <strong>Reconciliación de renta desactualizada.</strong>
+                        Una boleta anterior de este mismo mes fue modificada después
+                        de que esta boleta (la última del mes) ya fue confirmada.
+                        El monto de renta reconciliado puede ya no reflejar el ingreso
+                        real del mes. Revise y, si corresponde, reabra y recalcule
+                        esta boleta manualmente.
+                    </div>
+
                     <!-- Alerta salario variable: empleado con comisiones sin bonos en boleta -->
                     <div class="alert alert-warning" role="alert"
                          invisible="not employee_id or not employee_id.has_variable_income or bono_salarial_amount > 0">
@@ -404,6 +416,13 @@
                                             <td style="padding:6px 0;">Base cotizable real (CCSS, Renta, provisiónes)</td>
                                             <td style="text-align:right;"><field name="base_cotizable_final" readonly="1" nolabel="1"/></td>
                                         </tr>
+                                        <tr invisible="ccss_base_used == base_cotizable_final" style="color:var(--color-text-info);">
+                                            <td style="padding:6px 0;"><i class="fa fa-info-circle"/> Base CCSS usada (piso BMC aplicado)</td>
+                                            <td style="text-align:right;"><field name="ccss_base_used" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="not ccss_bmc_reducida_applied" style="color:var(--color-text-success);">
+                                            <td style="padding:6px 0;" colspan="2"><i class="fa fa-check-circle"/> BMC Reducida aplicada (tiempo parcial, menor de 35 anos) -- cotiza sobre salario real, sin piso.</td>
+                                        </tr>
                                     </table>
                                     <div style="font-size:11px;color:var(--color-text-secondary);margin-top:6px;font-style:italic;">
                                         Días no laborados no generan salario → no aplican cargas sociales (Arts. 31 y 79 CT / Circular CCSS DSA-1183).
@@ -651,6 +670,10 @@
                                             <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'weekly'">Base cotizable Semanal (cargas CCSS, provisiónes)</td>
                                             <td style="padding:6px 0;color:var(--color-text-secondary);" invisible="effective_frequency != 'bimonthly'">Base cotizable Bimensual (cargas CCSS, provisiónes)</td>
                                             <td style="text-align:right;"><field name="base_cotizable_final" readonly="1" nolabel="1"/></td>
+                                        </tr>
+                                        <tr invisible="ccss_base_used == base_cotizable_final" style="color:var(--color-text-info);">
+                                            <td style="padding:6px 0;" colspan="4"><i class="fa fa-info-circle"/> Base CCSS usada (piso BMC aplicado)</td>
+                                            <td style="text-align:right;"><field name="ccss_base_used" readonly="1" nolabel="1"/></td>
                                         </tr>
                                         <tr>
                                             <td style="padding:6px 0;color:var(--color-text-secondary);">CCSS Patronal 26.83%</td>

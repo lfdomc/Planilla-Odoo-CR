@@ -9,6 +9,7 @@ from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K
+from ..import_parse_utils import _map, _parse_date, _parse_float
 
 _logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class ImportProcessorLoans(models.AbstractModel):
                 })
                 continue
 
+            vals = {}  # BUG FIX: inicializar antes del try (el except usa vals.items())
             try:
                 with self.env.cr.savepoint():
                     amount_total = _parse_float(v('Monto Total', 'Monto'))
@@ -89,8 +91,9 @@ class ImportProcessorLoans(models.AbstractModel):
 
             except Exception as e:
                 err_count += 1
-                # FIX-L3: _process_loans no usa dict 'vals' (crea el loan directamente).
-                # Usar locals() como fallback para no lanzar un NameError secundario.
+                # FIX-A3: _process_loans no usa dict 'vals' (crea el objeto loan directamente).
+                # El bloque except referenciaba vals.items() que causa NameError secundario
+                # cuando el error ocurre antes de que loan se cree. Usar locals() como fallback.
                 _safe_vals = locals().get('vals', {}) or {}
                 errors.append({
                     'hoja': 'PRESTAMOS', 'fila': row_num, 'cedula': cedula,
@@ -125,6 +128,7 @@ class ImportProcessorLoans(models.AbstractModel):
                 })
                 continue
 
+            vals = {}  # BUG FIX: inicializar antes del try (el except usa vals.items())
             try:
                 with self.env.cr.savepoint():
                     calc_type = _map(PENSION_CALC, v('Tipo de Calculo', 'Tipo Calculo')) or 'fixed'
@@ -191,6 +195,7 @@ class ImportProcessorLoans(models.AbstractModel):
                 })
                 continue
 
+            vals = {}  # BUG FIX: inicializar antes del try (el except usa vals.items())
             try:
                 with self.env.cr.savepoint():
                     benefit_type = _map(BENEFIT_TYPE, v('Tipo')) or 'deduction'

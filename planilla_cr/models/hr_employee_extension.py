@@ -158,6 +158,72 @@ class HrEmployeeExtension(models.Model):
         string='Moneda'
     )
     salary_effective_date = fields.Date(string='Fecha Vigencia Salarial')
+    hourly_rate = fields.Monetary(
+        string='Salario por Hora', currency_field='currency_id',
+        compute='_compute_hourly_rate', store=True,
+        help='Se calcula automaticamente: Salario Base / 30 dias / horas de '
+             'jornada (segun el horario del empleado, o la formula fija de '
+             '8h si esta activada en Configuracion Contable). '
+             'Es la misma tarifa que usa el modulo de Horas Extra -- se '
+             'actualiza sola cuando cambia el salario base o el horario.'
+    )
+
+    # -- Documentos personales (NO es dato de planilla -- cumplimiento/RRHH) --
+    document_ids = fields.One2many(
+        'planilla.employee.document', 'employee_id', string='Documentos'
+    )
+    document_alert_count = fields.Integer(
+        string='Documentos por vencer/vencidos', compute='_compute_document_alert_count'
+    )
+
+    @api.depends('document_ids.state')
+    def _compute_document_alert_count(self):
+        for emp in self:
+            emp.document_alert_count = len(emp.document_ids.filtered(
+                lambda d: d.state in ('por_vencer', 'vencido')))
+
+    # -- Historial de amonestaciones (RRHH -- Art. 81 inciso d) CT) ---------
+    amonestacion_ids = fields.One2many(
+        'planilla.amonestacion', 'employee_id', string='Amonestaciones'
+    )
+    amonestacion_count_total = fields.Integer(
+        string='Amonestaciones (Total)', compute='_compute_amonestacion_counts',
+        help='Total de amonestaciones emitidas o recibidas por el empleado '
+             '(no cuenta borradores ni canceladas).'
+    )
+    amonestacion_count_12m = fields.Integer(
+        string='Amonestaciones (Últimos 12 meses)', compute='_compute_amonestacion_counts',
+        help='Relevante para Art. 81 inciso d) CT -- reincidencia despues '
+             'de amonestacion escrita como causal de despido sin '
+             'responsabilidad patronal.'
+    )
+
+    @api.depends('amonestacion_ids.state', 'amonestacion_ids.date')
+    def _compute_amonestacion_counts(self):
+        hoy = date.today()
+        hace_12m = hoy - timedelta(days=365)
+        for emp in self:
+            validas = emp.amonestacion_ids.filtered(
+                lambda a: a.state in ('issued', 'acknowledged'))
+            emp.amonestacion_count_total = len(validas)
+            emp.amonestacion_count_12m = len(validas.filtered(
+                lambda a: a.date and a.date >= hace_12m))
+
+    # -- Activos asignados (control patrimonial -- NO es dato de planilla) --
+    asset_ids = fields.One2many(
+        'planilla.employee.asset', 'employee_id', string='Activos Asignados'
+    )
+    asset_pending_count = fields.Integer(
+        string='Activos sin Devolver', compute='_compute_asset_pending_count',
+        help='Activos actualmente en estado "Asignado" -- revisar antes de '
+             'procesar una liquidacion.'
+    )
+
+    @api.depends('asset_ids.state')
+    def _compute_asset_pending_count(self):
+        for emp in self:
+            emp.asset_pending_count = len(emp.asset_ids.filtered(
+                lambda a: a.state == 'asignado'))
 
     # -- Datos INS - Riesgos del Trabajo ----------------------------
     ins_include = fields.Boolean(
@@ -1107,6 +1173,39 @@ class HrEmployeeExtension(models.Model):
         return employees
 
     def write(self, vals):
+        # -- Bloquear cambio de calendarizacion a mitad de mes ------------
+        # Requisito para el calculo mensual consolidado de renta: agrupa
+        # boletas por "mismo mes calendario" para un empleado, y eso solo
+        # es una agrupacion segura si la calendarizacion nunca cambia a
+        # mitad de un mes en curso. Sin esta validacion, alguien podria
+        # cambiar payroll_calendar_id entre a Q1 y Q2 del mismo mes y la
+        # reconciliacion mezclaria boletas de dos frecuencias distintas.
+        if 'payroll_calendar_id' in vals:
+            today = fields.Date.context_today(self)
+            month_start = today.replace(day=1)
+            for employee in self:
+                old_cal = employee.payroll_calendar_id
+                new_cal_id = vals['payroll_calendar_id']
+                if not old_cal or old_cal.id == new_cal_id:
+                    continue
+                boletas_mes_actual = self.env['planilla.payslip.cr'].search([
+                    ('employee_id', '=', employee.id),
+                    ('payroll_calendar_id', '=', old_cal.id),
+                    ('date_to', '>=', month_start),
+                    ('date_to', '<=', today),
+                ], limit=1)
+                if boletas_mes_actual:
+                    raise ValidationError(
+                        f'No se puede cambiar la calendarizacion de {employee.name} '
+                        f'a mitad de mes.\n\n'
+                        f'Ya existen boletas de este mes con la calendarizacion actual '
+                        f'({old_cal.name}). Espere a que termine el mes en curso '
+                        f'(hasta la ultima boleta del mes) antes de cambiar la '
+                        f'calendarizacion, o el calculo de renta consolidado mensual '
+                        f'mezclaria boletas de dos frecuencias distintas dentro del '
+                        f'mismo mes.'
+                    )
+
         # Sync a contrato nativo al guardar cambios relevantes
         sync_fields = {'base_salary', 'entry_date', 'job_id'}
         needs_sync = bool(sync_fields & set(vals.keys()))
@@ -1169,10 +1268,45 @@ class HrEmployeeExtension(models.Model):
         )
         return True
 
+    @api.depends('base_salary', 'schedule_type_id', 'schedule_type_id.hours_per_day')
+    def _compute_hourly_rate(self):
+        """
+        Salario por hora = Salario Base / 30 dias / horas de jornada REAL
+        del empleado.
+
+        IMPORTANTE: a diferencia del calculo de horas extra, este campo
+        NUNCA aplica el toggle "Horas extra: formula fija 8h" -- ese toggle
+        esta explicitamente scoped a como se calculan las HORAS EXTRA
+        (asi lo dice su propio nombre/ayuda en Configuracion Contable), no
+        a cual es el salario por hora real del empleado. Si se le aplicara
+        aqui, un empleado de tiempo parcial (ej. jornada de 4h) en una
+        empresa con ese toggle activado mostraria su salario por hora
+        calculado sobre 8h -- la mitad de lo que realmente gana por hora.
+
+        UNICA fuente de verdad para la tarifa horaria REAL del empleado.
+        overtime.py reutiliza este campo para el calculo normal de horas
+        extra, pero si la empresa tiene activo el toggle de formula fija,
+        overtime.py calcula su propio valor con 8h (es una simplificacion
+        de calculo de HE que la empresa eligio explicitamente, no cambia
+        cual es el salario por hora real del empleado).
+        """
+        for emp in self:
+            if not emp.base_salary:
+                emp.hourly_rate = 0.0
+                continue
+            hours_per_day = 8.0
+            if emp.schedule_type_id and emp.schedule_type_id.hours_per_day:
+                hours_per_day = emp.schedule_type_id.hours_per_day
+            emp.hourly_rate = round(emp.base_salary / 30 / hours_per_day, 2)
+
     @api.depends('entry_date')
     def _compute_years_of_service(self):
         from datetime import date as _date
         today = _date.today()
+        # PERF: cachear config por empresa -- misma razon que en
+        # _compute_vacation_balance, esto es un campo informativo pero se
+        # calcula para cada empleado visible en la lista.
+        _cfg_by_company = {}
         for emp in self:
             if not emp.entry_date:
                 emp.years_of_service = 0
@@ -1190,15 +1324,22 @@ class HrEmployeeExtension(models.Model):
                 next_ann = _date(today.year + 1, 3, 1)
             emp.next_anniversary_date = next_ann
             next_years = (next_ann - emp.entry_date).days // 365
-            # Dias extra = config.base_days * anos, o 2 si no hay config
-            config = emp.env['planilla.accounting.config'].search(
-                [('company_id', '=', emp.company_id.id),
-                 ('extra_vacation_days_enabled', '=', True)], limit=1
-            )
-            base = config.extra_vacation_days_amount if config else 2
-            mode = config.extra_vacation_days_mode if config else 'per_year'
-            # Siempre plano: 2 días por aniversario (confirmado Mundopet)
-            emp.next_anniversary_days = base
+            # Dias extra segun configuracion de la empresa -- si el beneficio
+            # no esta activado para esta empresa, no hay dias que mostrar.
+            _cid_yos = emp.company_id.id
+            if _cid_yos not in _cfg_by_company:
+                _cfg_by_company[_cid_yos] = emp.env['planilla.accounting.config'].search(
+                    [('company_id', '=', _cid_yos),
+                     ('extra_vacation_days_enabled', '=', True)], limit=1
+                )
+            config = _cfg_by_company[_cid_yos]
+            if not config:
+                emp.next_anniversary_days = 0
+                continue
+            # Muestra el TOTAL que recibe ese mes de aniversario (no solo el
+            # aporte del bono) -- el ciclo normal ya da 1 dia ese mes y el
+            # bono completa hasta este monto configurado.
+            emp.next_anniversary_days = config.extra_vacation_days_amount or 0
 
     @api.depends('entry_date', 'exit_date',
                  'vacation_initial_balance', 'vacation_initial_balance_date',
@@ -1230,6 +1371,13 @@ class HrEmployeeExtension(models.Model):
         """
         from dateutil.relativedelta import relativedelta as _rdelta
 
+        # PERF: cachear planilla.accounting.config por empresa -- antes
+        # calc_vacation_accrual() disparaba su propia busqueda por CADA
+        # empleado; para una lista de 100+ empleados de la misma empresa
+        # eso son 100+ consultas redundantes por el mismo registro.
+        _cfg_by_company = {}
+        rh = self.env['planilla.rate.helper']
+
         for emp in self:
             if not emp.entry_date:
                 emp.vacation_days_accrued  = 0.0
@@ -1259,92 +1407,20 @@ class HrEmployeeExtension(models.Model):
 
             has_cutoff = bool(emp.vacation_initial_balance_date)
 
-            # Metodo de acumulacion configurado en Configuracion Contable
-            # monthly = mismo dia cada mes (default, practica mas comun CR)
-            # days29  = cada 29 dias calendario (metodo legal estricto Art. 153 CT)
-            _config = self.env['planilla.accounting.config'].search(
-                [('company_id', '=', emp.company_id.id)], limit=1)
-            accrual_method = _config.vacation_accrual_method if _config else 'monthly'
-
-            def _meses_desde(desde, hasta):
-                # Meses completos ganados contando el mismo dia de cada mes
-                # que corresponde al dia de ingreso del empleado
-                import calendar as _cal
-                entry_day = emp.entry_date.day
-                count = 0
-                # Primer candidato despues de 'desde'
-                try:    cand = date(desde.year, desde.month, entry_day)
-                except: cand = date(desde.year, desde.month, _cal.monthrange(desde.year, desde.month)[1])
-                if cand <= desde:
-                    m = cand + _rdelta(months=1)
-                    try:    cand = date(m.year, m.month, entry_day)
-                    except: cand = date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
-                while cand <= hasta:
-                    count += 1
-                    m = cand + _rdelta(months=1)
-                    try:    cand = date(m.year, m.month, entry_day)
-                    except: cand = date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
-                return count
-
-            if has_cutoff:
-                corte    = emp.vacation_initial_balance_date
-                init_bal = emp.vacation_initial_balance or 0.0
-
-                if corte >= hoy:
-                    accrued = int(init_bal)
-                else:
-                    if accrual_method == 'monthly':
-                        nuevos_base = _meses_desde(corte, hoy)
-                    else:
-                        # Cada 29 dias: Fase 1 parcial
-                        dias_ingreso_corte = max((corte - emp.entry_date).days, 0)
-                        parcial_inicial    = dias_ingreso_corte % 29
-                        dias_corte_hoy = max(
-                            (hoy - corte).days - disability_days_excluded, 0)
-                        total_ciclo = dias_corte_hoy + parcial_inicial
-                        nuevos_base = total_ciclo // 29
-
-                    # Aniversarios DESPUES del corte hasta hoy (ambos metodos)
-                    # Modo per_year: en el aniversario N se dan 2*N dias (ej: 3er aniv = 6 dias)
-                    _config2 = self.env['planilla.accounting.config'].search(
-                        [('company_id', '=', emp.company_id.id)], limit=1)
-                    _av_base = _config2.extra_vacation_days_amount if _config2 else 2
-                    _av_mode = _config2.extra_vacation_days_mode if _config2 else 'per_year'
-                    bonus_aniversarios = 0
-                    aniv = emp.entry_date + _rdelta(years=1)
-                    yr_count = 1
-                    while aniv <= hoy:
-                        if aniv > corte:
-                            # Plano: siempre 2 días por aniversario (no acumulativo)
-                            bonus_aniversarios += _av_base
-                        yr_count += 1
-                        aniv += _rdelta(years=1)
-
-                    accrued = int(init_bal) + nuevos_base + bonus_aniversarios
-
-            else:
-                # Sin punto de control: formula completa desde entry_date
-                if accrual_method == 'monthly':
-                    nuevos_base = _meses_desde(emp.entry_date, hoy)
-                else:
-                    dias_totales = max(
-                        (hoy - emp.entry_date).days - disability_days_excluded, 0)
-                    nuevos_base  = dias_totales // 29
-                _config3 = self.env['planilla.accounting.config'].search(
-                    [('company_id', '=', emp.company_id.id)], limit=1)
-                _av_base2 = _config3.extra_vacation_days_amount if _config3 else 2
-                _av_mode2 = _config3.extra_vacation_days_mode if _config3 else 'per_year'
-                bonus_aniversarios = 0
-                aniv = emp.entry_date + _rdelta(years=1)
-                yr_count = 1
-                while aniv <= hoy:
-                    # Plano: siempre 2 días por aniversario
-                    bonus_aniversarios += _av_base2
-                    yr_count += 1
-                    aniv += _rdelta(years=1)
-                accrued = nuevos_base + bonus_aniversarios
-
-            # Fase 4: dias tomados en el sistema
+            # -- Acumulacion de vacaciones -------------------------------
+            # UNICA fuente de verdad: rate_helper.calc_vacation_accrual().
+            # Antes esta logica estaba copiada aqui, en termination_simulator.py
+            # y en employee_termination.py -- las 3 copias se desincronizaron
+            # con el tiempo (el bug de extra_vacation_days_enabled sin
+            # filtrar sobrevivio en las 4 a la vez). Ahora las 3 llaman a la
+            # misma funcion, solo cambia la fecha de referencia.
+            _cid_vac = emp.company_id.id
+            if _cid_vac not in _cfg_by_company:
+                _cfg_by_company[_cid_vac] = self.env['planilla.accounting.config'].search(
+                    [('company_id', '=', _cid_vac)], limit=1)
+            accrued, _nb, _ba = rh.calc_vacation_accrual(
+                emp, hoy, disability_days_excluded=disability_days_excluded,
+                _cfg=_cfg_by_company[_cid_vac])
             # Solo contar registros POSTERIORES al corte (los anteriores
             # ya estan incluidos en vacation_initial_balance)
             domain_taken = [

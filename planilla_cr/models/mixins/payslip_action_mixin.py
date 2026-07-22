@@ -50,6 +50,12 @@ class PayslipActionMixin(models.AbstractModel):
                 records._sync_rop_batch()
                 records._sync_bonos_batch()
                 records._sync_embargos_batch()
+                # BUG FIX: faltaba en el path batch -- no existe una version
+                # _sync_rebajo_renta_batch() todavia, asi que se recorre por
+                # registro. Sin esto, la planilla grupal (el caso normal de
+                # produccion) nunca aplicaba los Rebajos Consolidados de Renta.
+                for rec in records:
+                    rec._sync_rebajo_renta()
                 records._sync_loan_deductions_batch()
                 records._sync_employee_charges_batch()
             else:
@@ -180,6 +186,13 @@ class PayslipActionMixin(models.AbstractModel):
         for rec in self:
             if rec.state != 'draft':
                 raise UserError('La boleta %s no esta en borrador.' % rec.name)
+        # Recalcular is_last_payslip_of_month justo antes de confirmar --
+        # depende de una busqueda de planilla.termination que Odoo no puede
+        # rastrear via @api.depends (no es una relacion de campo). Si se creo
+        # una liquidacion despues del ultimo calculo de esta boleta, el valor
+        # guardado podria estar desactualizado -- se refresca aqui porque es
+        # el momento donde mas importa que sea correcto.
+        self._compute_is_last_payslip_of_month()
         # NO re-sincronizar novedades aqui -- causaria recalculo de boletas
         # ya revisadas y ajustadas manualmente, perdiendo correcciones aplicadas.
         self._validate_before_confirm()
@@ -336,6 +349,11 @@ class PayslipActionMixin(models.AbstractModel):
         for rec in self:
             if rec.state not in ('cancelled', 'confirmed'):
                 raise UserError('Solo se pueden reactivar boletas canceladas o confirmadas.')
+
+            # Al reabrir esta boleta se resuelve la alerta de reconciliacion
+            # de renta desactualizada -- se va a recalcular al reconfirmar.
+            if rec.renta_reconciliation_stale:
+                rec.renta_reconciliation_stale = False
 
             # FIX BUG-UNLINK-01: restaurar TODOS los objetos vinculados al volver
             # a borrador, no solo leave_cr. Permite resincronizar completamente.

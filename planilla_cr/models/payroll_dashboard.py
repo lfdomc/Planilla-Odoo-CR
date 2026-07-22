@@ -55,6 +55,15 @@ class PayrollDashboard(models.TransientModel):
     urgent_active_disabilities = fields.Integer(
         compute='_compute_urgent_alerts', string='Incapacidades Activas'
     )
+    urgent_documents_expiring = fields.Integer(
+        compute='_compute_urgent_alerts', string='Documentos por Vencer/Vencidos'
+    )
+    urgent_assets_pending = fields.Integer(
+        compute='_compute_urgent_alerts', string='Activos sin Devolver'
+    )
+    amonestaciones_period = fields.Integer(
+        compute='_compute_urgent_alerts', string='Amonestaciones (Periodo)'
+    )
 
     # -- Comparacion periodos -----------------------------------------
     compare_date_from = fields.Date(string='Periodo Anterior Desde')
@@ -104,6 +113,13 @@ class PayrollDashboard(models.TransientModel):
     delta_gross_pct      = fields.Float(compute='_compute_advanced_kpis', string='D Bruto (%)', digits=(5,1))
     delta_net_pct        = fields.Float(compute='_compute_advanced_kpis', string='D Neto (%)', digits=(5,1))
     delta_cost_pct       = fields.Float(compute='_compute_advanced_kpis', string='D Costo (%)', digits=(5,1))
+
+    # -- Desglose de costo por sucursal --------------------------------
+    branch_cost_summary = fields.Html(
+        string='Costo por Sucursal', compute='_compute_branch_cost',
+        help='Costo total de planilla (bruto + cargas patronales) por '
+             'sucursal, dentro del rango de fechas seleccionado.'
+    )
 
     @api.depends('company_id', 'date_from', 'date_to')
     def _compute_advanced_kpis(self):
@@ -301,6 +317,26 @@ class PayrollDashboard(models.TransientModel):
             rec.urgent_active_disabilities = self.env['planilla.disability'].search_count([
                 ('employee_id.company_id', '=', company.id),
                 ('state', '=', 'confirmed'),
+            ])
+
+            # 4. Documentos de empleado por vencer o vencidos
+            rec.urgent_documents_expiring = self.env['planilla.employee.document'].search_count([
+                ('company_id', '=', company.id),
+                ('state', 'in', ('por_vencer', 'vencido')),
+            ])
+
+            # 5. Activos de empresa asignados sin devolver
+            rec.urgent_assets_pending = self.env['planilla.employee.asset'].search_count([
+                ('company_id', '=', company.id),
+                ('state', '=', 'asignado'),
+            ])
+
+            # 6. Amonestaciones emitidas dentro del periodo del dashboard
+            rec.amonestaciones_period = self.env['planilla.amonestacion'].search_count([
+                ('company_id', '=', company.id),
+                ('state', 'in', ('issued', 'acknowledged')),
+                ('date', '>=', rec.date_from),
+                ('date', '<=', rec.date_to),
             ])
 
     def action_open_overdue_loans(self):
@@ -577,6 +613,44 @@ class PayrollDashboard(models.TransientModel):
             'target': 'new',
         }
 
+    def action_open_documents_expiring(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Documentos por Vencer / Vencidos',
+            'res_model': 'planilla.employee.document',
+            'view_mode': 'list',
+            'domain': [
+                ('company_id', '=', self.company_id.id),
+                ('state', 'in', ('por_vencer', 'vencido')),
+            ],
+        }
+
+    def action_open_assets_pending(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Activos sin Devolver',
+            'res_model': 'planilla.employee.asset',
+            'view_mode': 'list',
+            'domain': [
+                ('company_id', '=', self.company_id.id),
+                ('state', '=', 'asignado'),
+            ],
+        }
+
+    def action_open_amonestaciones_period(self):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Amonestaciones del Periodo',
+            'res_model': 'planilla.amonestacion',
+            'view_mode': 'list,form',
+            'domain': [
+                ('company_id', '=', self.company_id.id),
+                ('state', 'in', ('issued', 'acknowledged')),
+                ('date', '>=', self.date_from),
+                ('date', '<=', self.date_to),
+            ],
+        }
+
     def action_refresh(self):
         """Recalcula las metricas con el rango actual."""
         return {
@@ -589,3 +663,47 @@ class PayrollDashboard(models.TransientModel):
                 'default_date_to': self.date_to,
             }
         }
+
+    @api.depends('company_id', 'date_from', 'date_to')
+    def _compute_branch_cost(self):
+        """
+        Desglose de costo total de planilla por sucursal, dentro del rango
+        de fechas del dashboard. Usa read_group (una sola query agregada)
+        en vez de iterar boleta por boleta.
+        """
+        for rec in self:
+            if not rec.date_from or not rec.date_to:
+                rec.branch_cost_summary = '<p>Seleccione un rango de fechas.</p>'
+                continue
+            groups = self.env['planilla.payslip.cr'].read_group(
+                domain=[
+                    ('company_id', '=', rec.company_id.id),
+                    ('date_from', '<=', rec.date_to),
+                    ('date_to', '>=', rec.date_from),
+                    ('state', '=', 'done'),
+                ],
+                fields=['total_employer_cost:sum', 'employee_id:count_distinct'],
+                groupby=['branch_id'],
+            )
+            if not groups:
+                rec.branch_cost_summary = '<p>Sin boletas pagadas en este rango.</p>'
+                continue
+            rows = []
+            for g in groups:
+                branch = g.get('branch_id')
+                branch_name = branch[1] if branch else 'Sin sucursal asignada'
+                cost = g.get('total_employer_cost') or 0.0
+                count = g.get('employee_id') or 0
+                rows.append((branch_name, cost, count))
+            rows.sort(key=lambda r: r[1], reverse=True)
+            html = ['<table class="table table-sm">',
+                    '<thead><tr><th>Sucursal</th><th>Costo Total</th>'
+                    '<th># Empleados</th></tr></thead><tbody>']
+            for name, cost, count in rows:
+                html.append(
+                    f'<tr><td>{name}</td>'
+                    f'<td>&#8353; {cost:,.0f}</td>'
+                    f'<td>{count}</td></tr>'
+                )
+            html.append('</tbody></table>')
+            rec.branch_cost_summary = ''.join(html)

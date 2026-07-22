@@ -105,6 +105,23 @@
                                    readonly="state != 'draft'"/>
                         </group>
                     </group>
+
+                    <group string="Testigos (opcional)">
+                        <group>
+                            <field name="witness1_name"
+                                   readonly="state != 'draft'"/>
+                            <field name="witness1_id"
+                                   string="Cedula"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="witness2_name"
+                                   readonly="state != 'draft'"/>
+                            <field name="witness2_id"
+                                   string="Cedula"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                    </group>
                 </sheet>
                 <!-- Odoo 18/19: chatter simplificado -->
                 <chatter/>

@@ -1,8 +1,10 @@
+import math
+import calendar
+import datetime
 from odoo import models, fields, api
 from ..models import planilla_const as K
 from odoo.exceptions import UserError
 from dateutil.relativedelta import relativedelta
-import datetime
 
 
 class TerminationSimulatorLoan(models.TransientModel):
@@ -190,7 +192,6 @@ class TerminationSimulator(models.TransientModel):
 
         exit_date  = self.simulated_date
         entry_date = emp.entry_date
-        extra_vac_days = 2  # Art. 153 CT — configurable en Cuentas Contables
         diff   = relativedelta(exit_date, entry_date)
         years  = diff.years + diff.months / 12.0 + diff.days / 365.0
         # Determinar salario a usar: promedio manual > salario base actual
@@ -295,7 +296,6 @@ class TerminationSimulator(models.TransientModel):
 
         # -- Vacaciones pendientes (Art. 153 CT) ------------------------------
         # MISMA LÓGICA que employee_termination.py — usar exit_date como referencia.
-        import math as _math
         vac_init   = emp.vacation_initial_balance or 0.0
         vac_cutoff = emp.vacation_initial_balance_date
 
@@ -306,65 +306,22 @@ class TerminationSimulator(models.TransientModel):
         ])
         vacation_days_taken = sum(taken_recs.mapped('days'))
 
-        # Método de acumulación configurado en Configuración Contable
-        _sim_config = self.env['planilla.accounting.config'].search(
-            [('company_id', '=', self.env.company.id)], limit=1)
-        accrual_method = _sim_config.vacation_accrual_method if _sim_config else 'monthly'
-
-        def _sim_meses_desde(desde, hasta):
-            import calendar as _cal2
-            entry_day = entry_date.day
-            count = 0
-            try:    cand = datetime.date(desde.year, desde.month, entry_day)
-            except: cand = datetime.date(desde.year, desde.month, _cal2.monthrange(desde.year, desde.month)[1])
-            if cand <= desde:
-                from dateutil.relativedelta import relativedelta as _rd3
-                m = cand + _rd3(months=1)
-                try:    cand = datetime.date(m.year, m.month, entry_day)
-                except: cand = datetime.date(m.year, m.month, _cal2.monthrange(m.year, m.month)[1])
-            while cand <= hasta:
-                count += 1
-                from dateutil.relativedelta import relativedelta as _rd4
-                m = cand + _rd4(months=1)
-                try:    cand = datetime.date(m.year, m.month, entry_day)
-                except: cand = datetime.date(m.year, m.month, _cal2.monthrange(m.year, m.month)[1])
-            return count
-
         # Inicializar para uso posterior en el breakdown
         accrued_since_cutoff = 0
 
-        # Usar directamente los campos calculados de la ficha del empleado
-        # _compute_vacation_balance ya tiene la logica correcta (igual a la ficha)
-        # Solo recalcular si la fecha de salida difiere de hoy
-        import datetime as _dt
-        _today = _dt.date.today()
+        # UNICA fuente de verdad: rate_helper.calc_vacation_accrual() --
+        # misma funcion que usa el saldo en vivo del empleado y la
+        # liquidacion real, solo cambia la fecha de referencia (exit_date
+        # simulada en vez de hoy). Elimina la logica duplicada que existia
+        # aqui antes (_sim_meses_desde + loop de aniversarios propio).
+        _today = datetime.date.today()
         if exit_date == _today:
             # Fecha de salida = hoy: usar directamente la ficha
             vacation_days_gross = emp.vacation_days_accrued or 0
         else:
-            # Fecha de salida diferente: calcular desde la ficha + ajuste
-            # Usar saldo_inicial de la ficha como base confiable
-            if vac_cutoff:
-                if vac_cutoff >= exit_date:
-                    accrued_since_cutoff = 0
-                else:
-                    accrued_since_cutoff = _sim_meses_desde(vac_cutoff, exit_date)
-                # Bonus aniversarios post-corte
-                _bonus = 0
-                _aniv = entry_date + _rd4(years=1)
-                while _aniv <= exit_date:
-                    if _aniv > vac_cutoff:
-                        _bonus += extra_vac_days
-                    _aniv += _rd4(years=1)
-                vacation_days_gross = _math.floor(vac_init + accrued_since_cutoff) + _bonus
-            else:
-                vacation_days_gross = _sim_meses_desde(entry_date, exit_date)
-                _bonus = 0
-                _aniv = entry_date + _rd4(years=1)
-                while _aniv <= exit_date:
-                    _bonus += extra_vac_days
-                    _aniv += _rd4(years=1)
-                vacation_days_gross += _bonus
+            rh_vac = self.env['planilla.rate.helper']
+            vacation_days_gross, accrued_since_cutoff, _bonus = rh_vac.calc_vacation_accrual(
+                emp, exit_date)
 
         vac_days   = max(vacation_days_gross - vacation_days_taken, 0)
         daily_vac  = daily

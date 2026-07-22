@@ -41,7 +41,7 @@ class Overtime(models.Model):
     overtime_type = fields.Selection([
         ('simple',    'Simple (1.5x)'),
         ('double',    'Doble (2x)'),
-        ('nocturna',  'Nocturna (2x)'),
+        ('nocturna',  'Nocturna (1.5x -- diario/6 x 1.5, Art. 136 CT)'),
         ('holiday',   'Dia Feriado'),
     ], string='Tipo', default='simple', required=True, tracking=True)
 
@@ -155,36 +155,43 @@ class Overtime(models.Model):
             date_str = str(rec.date) if rec.date else ''
             rec.name = f'HE - {emp} - {date_str}'
 
-    @api.depends('employee_id', 'date', 'employee_id.base_salary')
+    @api.depends('employee_id', 'employee_id.hourly_rate', 'overtime_type')
     def _compute_hourly_rate(self):
         """
         BUG #6 FIX v50: Usa el salario historico vigente en la fecha de las HE.
         FIX M-04 v51: Usa hours_per_day del schedule_type del empleado en vez
         de 8 horas fijo. Para empleados con jornada de 6h, 10h o 12h la tarifa
         horaria era incorrecta. Fallback a 8h si no hay schedule_type configurado.
+
+        UNICA fuente de verdad para la tarifa horaria REAL: employee_id.hourly_rate
+        (se reutiliza para el caso normal). Dos excepciones que SI se calculan
+        aparte, porque son especificas de como se paga la hora extra, no de
+        cual es el salario por hora real del empleado:
+          - 'nocturna': jornada de 6h (Art. 136 CT) en vez de la jornada normal.
+          - Toggle "formula fija 8h" activo: la empresa eligio explicitamente
+            simplificar el calculo de HE a salario/30/8h, sin importar la
+            jornada real -- una decision de COMO PAGAR horas extra, no una
+            afirmacion sobre el salario por hora real del empleado (que
+            employee_id.hourly_rate sigue calculando correctamente aparte).
         """
         for rec in self:
             if not rec.employee_id:
                 rec.hourly_rate = 0.0
                 continue
-            # Salario mensual del empleado directamente -- sin historial
             base_salary = rec.employee_id.base_salary or 0.0
-            # Verificar si la empresa tiene configurado formula fija 8h
+            if not base_salary:
+                rec.hourly_rate = 0.0
+                continue
+            if rec.overtime_type == 'nocturna':
+                # Jornada nocturna (Art. 136 CT): 6 horas
+                rec.hourly_rate = round(base_salary / 30 / 6.0, 2)
+                continue
             _cfg = rec.env['planilla.accounting.config'].search(
                 [('company_id', '=', rec.employee_id.company_id.id)], limit=1)
-            _fixed_8h = _cfg.overtime_fixed_8h if _cfg else False
-            # Horas por dia: fijo 8h si esta activado, o segun jornada del empleado
-            if _fixed_8h:
-                hours_per_day = 8.0
+            if _cfg and _cfg.overtime_fixed_8h:
+                rec.hourly_rate = round(base_salary / 30 / 8.0, 2)
             else:
-                hours_per_day = 8.0
-                if rec.employee_id.schedule_type_id and rec.employee_id.schedule_type_id.hours_per_day:
-                    hours_per_day = rec.employee_id.schedule_type_id.hours_per_day
-            # Jornada nocturna (Art. 136 CT): 6 horas
-            if rec.overtime_type == 'nocturna':
-                hours_per_day = 6.0
-            # Tarifa por hora = Salario mensual / 30 dias / horas_jornada
-            rec.hourly_rate = round(base_salary / 30 / hours_per_day, 2) if base_salary else 0.0
+                rec.hourly_rate = rec.employee_id.hourly_rate
 
     @api.depends('hours', 'hourly_rate', 'overtime_type')
     def _compute_amount(self):
@@ -298,20 +305,8 @@ class Overtime(models.Model):
 
     @staticmethod
     def _next_code(env, prefix):
-        env.cr.execute(
-            'SELECT code FROM planilla_overtime '
-            'WHERE code LIKE %s ORDER BY code DESC LIMIT 1',
-            (prefix + '-%',)
-        )
-        row = env.cr.fetchone()
-        if row and row[0]:
-            try:
-                num = int(row[0].split('-')[-1]) + 1
-            except (ValueError, IndexError):
-                num = 1
-        else:
-            num = 1
-        return f'{prefix}-{num:04d}'
+        return env['planilla.rate.helper'].next_sequential_code(
+            'planilla_overtime', prefix)
 
     @api.model_create_multi
     def create(self, vals_list):

@@ -34,7 +34,10 @@ class SalaryIncreaseWizard(models.TransientModel):
     branch_id = fields.Many2one('planilla.branch', string='Sucursal')
     employee_ids = fields.Many2many(
         'hr.employee', string='Empleados',
-        domain=[('active', '=', True)]
+        # BUG-C9 fix: el dominio del widget ya no permite seleccionar
+        # empleados de otra compañía. Es un fallback de UI --la validación
+        # real ocurre en _get_employees(), abajo.
+        domain="[('active', '=', True), ('company_id', '=', company_id)]"
     )
 
     effective_date = fields.Date(
@@ -72,7 +75,13 @@ class SalaryIncreaseWizard(models.TransientModel):
         elif self.filter_type == 'branch' and self.branch_id:
             domain.append(('branch_id', '=', self.branch_id.id))
         elif self.filter_type == 'employee' and self.employee_ids:
-            return self.employee_ids
+            # BUG-C9 fix: filtrar explicitamente por company_id incluso aqui.
+            # El dominio del widget ya restringe la seleccion en el form,
+            # pero un write/RPC directo al m2m podia colar ids de otra
+            # compañia -- este filtro es la barrera real (server-side).
+            return self.employee_ids.filtered(
+                lambda e: e.company_id.id == self.company_id.id
+            )
         return self.env['hr.employee'].search(domain)
 
     def _calc_new_salary(self, current):

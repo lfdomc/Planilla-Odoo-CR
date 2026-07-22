@@ -1,5 +1,6 @@
 from odoo import models, api
 import logging
+import calendar
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
@@ -203,9 +204,8 @@ class PlanillaScheduledActions(models.AbstractModel):
                     'afecto_ccss':   True,   # Antiguedad es salarial (Art. 162 CT)
                     'afecto_renta':  True,
                     'date_start':    today,
-                    'date_end':      today.replace(day=28) if today.month == 2 else
-                                     today.replace(day=30) if today.month in (4,6,9,11) else
-                                     today.replace(day=31),
+                    'date_end':      today.replace(
+                                         day=calendar.monthrange(today.year, today.month)[1]),
                     'state':         'active',
                     'note':          f'Creado automaticamente por el sistema al cumplir {years} ano(s) de servicio.',
                 })
@@ -244,15 +244,27 @@ class PlanillaScheduledActions(models.AbstractModel):
     @api.model
     def cron_extra_vacation_days_new_year(self):
         """
-        Acredita dias adicionales de vacaciones en el aniversario laboral
-        de cada empleado (fecha de ingreso), no el 1 de enero.
+        Notifica el aniversario laboral de cada empleado (fecha de ingreso,
+        no el 1 de enero) para que quede registro en el chatter.
+
+        IMPORTANTE (fix doble conteo): este cron YA NO escribe
+        vacation_initial_balance ni vacation_initial_balance_date.
+        _compute_vacation_balance() ya aplica el bono de aniversario EN VIVO
+        cada vez que se recalcula el saldo (su "Fase 3"), usando entry_date
+        y esta misma configuracion -- no necesita que este cron le escriba
+        nada. Antes este cron SI escribia el bono directo al saldo base, lo
+        cual creaba una segunda fuente de verdad: en el primer aniversario
+        de cada empleado coincidia por casualidad con el calculo en vivo
+        (porque tambien fijaba la fecha de corte esa primera vez), pero del
+        SEGUNDO aniversario en adelante (la fecha de corte ya no se volvia
+        a mover) el calculo en vivo volvia a sumar el mismo bono que este
+        cron ya habia escrito -- duplicando el saldo cada aniversario
+        posterior al primero.
 
         Logica (Art. 153 CT):
         - Si hoy es el mismo mes y dia que la fecha de ingreso del empleado,
-          y el empleado lleva al menos 1 ano completo, se le acreditan
-          los dias segun la configuracion (fijo o por ano laborado).
-        - Se usa extra_vacation_anniversary_year_{emp.id} en el chatter
-          para evitar doble aplicacion en el mismo aniversario.
+          y el empleado lleva al menos 1 ano completo, se notifica el
+          aniversario y los dias que corresponden segun la configuracion.
 
         Modalidades:
         - 'fixed': todos reciben la misma cantidad de dias configurada.
@@ -269,7 +281,6 @@ class PlanillaScheduledActions(models.AbstractModel):
 
         for config in configs:
             base_days = config.extra_vacation_days_amount
-            mode = config.extra_vacation_days_mode or 'fixed'
             if base_days <= 0:
                 continue
 
@@ -296,55 +307,212 @@ class PlanillaScheduledActions(models.AbstractModel):
                     # Menos de 1 ano: no aplica aun
                     continue
 
-                # Evitar doble aplicacion en el mismo aniversario
+                # Evitar notificar dos veces el mismo aniversario si el cron
+                # corre mas de una vez el mismo dia (no controla el saldo,
+                # solo evita spam de notificaciones)
                 last_applied = emp.vacation_last_anniversary_year or 0
                 if last_applied >= today.year:
-                    _logger.info(
-                        'Planilla CR: aniversario vacaciones ya aplicado para %s en %s',
-                        emp.name, today.year
-                    )
                     continue
 
-                if mode == 'per_year':
-                    days_to_add = round(base_days * years_served, 2)
-                else:
-                    days_to_add = base_days
+                days_to_add = base_days
 
-                current = emp.vacation_initial_balance or 0.0
-                # Actualizar saldo y marcar aniversario aplicado
-                write_vals = {
-                    'vacation_initial_balance': round(current + days_to_add, 2),
-                }
-                # Si no tenia fecha de corte, establecerla a hoy
-                if not emp.vacation_initial_balance_date:
-                    write_vals['vacation_initial_balance_date'] = today
-                emp.write(write_vals)
-
-                # Actualizar el contador de aniversario
+                # Marcar el ano notificado (unico proposito: evitar spam de
+                # notificaciones repetidas -- NO controla el saldo)
                 emp.write({'vacation_last_anniversary_year': today.year})
 
-                # Registrar en chatter para trazabilidad
+                # Registrar en chatter para trazabilidad. El saldo real ya
+                # incluye este bono automaticamente via _compute_vacation_balance,
+                # que completa hasta days_to_add (1 dia normal del ciclo +
+                # el resto vía el bono de aniversario, no se suman encima).
                 emp.message_post(
                     body=(
                         f'<b>Aniversario laboral {today.strftime("%d/%m/%Y")}:</b> '
                         f'{years_served} ano(s) de servicio. '
-                        f'Se acreditaron <b>{days_to_add} dias</b> de vacaciones adicionales. '
-                        f'Saldo anterior: {current:.2f}d | Nuevo saldo: {current+days_to_add:.2f}d'
+                        f'Total de <b>{days_to_add} dias</b> de vacaciones este mes '
+                        f'(1 dia del ciclo normal + {max(days_to_add - 1, 0)} del bono '
+                        f'de aniversario) -- ya reflejado automaticamente en el saldo.'
                     ),
                     message_type='notification',
                 )
 
-                # Guardar el ano en que se aplico (campo simple en empleado)
-                # Usamos el chatter como registro -- el control es via message
                 applied += 1
                 details.append(f'{emp.name}: +{days_to_add}d ({years_served} anos)')
 
             if applied:
                 _logger.info(
-                    'Planilla CR: cron_aniversario_vacaciones -- %s: %d empleados. %s',
+                    'Planilla CR: cron_aniversario_vacaciones -- %s: %d empleados notificados. %s',
                     config.company_id.name, applied,
                     ' | '.join(details[:10]) + ('...' if len(details) > 10 else '')
                 )
+
+    def cron_alert_document_expiry(self):
+        """
+        Alerta cuando un documento personal de un empleado (cedula, licencia
+        de conducir, carne de manipulacion de alimentos, permiso de trabajo,
+        etc.) esta por vencer o ya vencio.
+
+        Dos canales de aviso, independientes:
+          1. Chatter del documento -- una sola vez por vencimiento (via el
+             campo alert_sent, se reinicia solo si se corrige la fecha de
+             vencimiento, ej. al renovar el documento).
+          2. Correo con Excel adjunto a planilla.accounting.config.
+             document_alert_emails -- se reenvia CADA DIA mientras sigan
+             existiendo documentos por vencer/vencidos para esa empresa
+             (mismo patron que cron_alert_embargo_expiry: es un recordatorio
+             recurrente, no una notificacion de una sola vez, para que no se
+             pierda de vista mientras el documento siga sin renovarse).
+
+        Corre: diariamente.
+        """
+        from markupsafe import escape as _esc
+
+        # -- Canal 1: chatter, solo documentos nuevos (alert_sent=False) ----
+        docs_nuevos = self.env['planilla.employee.document'].search([
+            ('state', 'in', ('por_vencer', 'vencido')),
+            ('alert_sent', '=', False),
+        ])
+        for doc in docs_nuevos:
+            _emp_name = _esc(doc.employee_id.name or '')
+            _doc_name = _esc(doc.document_type_id.name or '')
+            if doc.state == 'vencido':
+                msg = (
+                    f'<b>Documento vencido:</b> {_doc_name} '
+                    f'de {_emp_name} vencio el '
+                    f'{doc.expiry_date.strftime("%d/%m/%Y")} '
+                    f'({abs(doc.days_to_expiry)} dias atras). Renovar cuanto antes.'
+                )
+            else:
+                msg = (
+                    f'<b>Documento por vencer:</b> {_doc_name} '
+                    f'de {_emp_name} vence el '
+                    f'{doc.expiry_date.strftime("%d/%m/%Y")} '
+                    f'({doc.days_to_expiry} dias restantes).'
+                )
+            doc.message_post(body=msg, message_type='notification')
+            doc.alert_sent = True
+
+        if docs_nuevos:
+            _logger.info(
+                'Planilla CR: cron_alert_document_expiry -- %d documento(s) nuevos notificados en chatter.',
+                len(docs_nuevos)
+            )
+
+        # -- Canal 2: correo con Excel, TODOS los que sigan pendientes ------
+        todos_pendientes = self.env['planilla.employee.document'].search([
+            ('state', 'in', ('por_vencer', 'vencido')),
+        ])
+        if not todos_pendientes:
+            return
+
+        by_company = {}
+        for doc in todos_pendientes:
+            comp = doc.company_id or self.env.company
+            by_company.setdefault(comp, []).append(doc)
+
+        for company, docs in by_company.items():
+            cfg = self.env['planilla.accounting.config'].search(
+                [('company_id', '=', company.id)], limit=1)
+            emails_raw = cfg.document_alert_emails if cfg else False
+            if not emails_raw:
+                continue
+            emails = [e.strip() for e in emails_raw.split(',') if e.strip()]
+            if not emails:
+                continue
+
+            # Respetar la frecuencia configurada (diaria/semanal/mensual) --
+            # el cron corre todos los dias, pero el correo consolidado solo
+            # se manda cuando ya paso el intervalo configurado desde el
+            # ultimo envio. El aviso en el chatter de cada documento (Canal 1,
+            # arriba) sigue siendo inmediato sin importar esto.
+            freq = cfg.document_alert_frequency or 'weekly'
+            last_sent = cfg.document_alert_last_sent
+            hoy = date.today()
+            if last_sent:
+                dias_desde_ultimo = (hoy - last_sent).days
+                intervalo_minimo = {'daily': 1, 'weekly': 7, 'monthly': 30}.get(freq, 7)
+                if dias_desde_ultimo < intervalo_minimo:
+                    continue  # todavia no toca enviar para esta empresa
+
+            xlsx_data = self._build_document_alert_excel(docs)
+            n_vencidos = sum(1 for d in docs if d.state == 'vencido')
+            n_por_vencer = len(docs) - n_vencidos
+            freq_label = {'daily': 'diariamente', 'weekly': 'semanalmente',
+                          'monthly': 'mensualmente'}.get(freq, 'periodicamente')
+
+            mail_values = {
+                'subject': f'[{company.name}] Documentos de empleado por vencer/vencidos '
+                           f'({n_vencidos} vencidos, {n_por_vencer} por vencer)',
+                'body_html': (
+                    f'<p>Adjunto el detalle de documentos de empleado que estan '
+                    f'<b>vencidos ({n_vencidos})</b> o <b>por vencer ({n_por_vencer})</b> '
+                    f'en {_esc(company.name)}.</p>'
+                    f'<p>Este correo se repite {freq_label} mientras sigan pendientes '
+                    f'de renovar (frecuencia configurable en Configuracion Contable).</p>'
+                ),
+                'email_to': ','.join(emails),
+                'email_from': company.email or self.env.user.email or '',
+                'auto_delete': False,
+                'attachment_ids': [(0, 0, {
+                    'name': f'Documentos_por_vencer_{date.today()}.xlsx',
+                    'datas': xlsx_data,
+                    'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                })],
+            }
+            # Encolar sin enviar sincrono -- lo procesa el cron de correo de Odoo
+            self.env['mail.mail'].create(mail_values)
+            if cfg:
+                cfg.document_alert_last_sent = hoy
+            _logger.info(
+                'Planilla CR: cron_alert_document_expiry -- correo con Excel enviado '
+                'a %s para %s (%d vencidos, %d por vencer, frecuencia=%s).',
+                emails, company.name, n_vencidos, n_por_vencer, freq
+            )
+
+    def _build_document_alert_excel(self, docs):
+        """Genera el Excel de documentos por vencer/vencidos en memoria,
+        retorna el contenido en base64 listo para adjuntar a un mail.mail."""
+        import io
+        import base64
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Documentos por Vencer'
+
+        headers = ['Empleado', 'Tipo de Documento', 'Numero', 'Fecha de Vencimiento',
+                   'Dias Restantes', 'Estado']
+        ws.append(headers)
+        header_fill = PatternFill(start_color='1F4E79', end_color='1F4E79', fill_type='solid')
+        for col_idx, _h in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.font = Font(bold=True, color='FFFFFF')
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal='center')
+
+        vencido_fill = PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
+        por_vencer_fill = PatternFill(start_color='FFEB9C', end_color='FFEB9C', fill_type='solid')
+
+        docs_sorted = docs.sorted(key=lambda d: d.expiry_date or date.max)
+        for row_idx, doc in enumerate(docs_sorted, start=2):
+            ws.append([
+                doc.employee_id.name or '',
+                doc.document_type_id.name or '',
+                doc.document_number or '',
+                doc.expiry_date.strftime('%d/%m/%Y') if doc.expiry_date else '',
+                doc.days_to_expiry,
+                'Vencido' if doc.state == 'vencido' else 'Por Vencer',
+            ])
+            fill = vencido_fill if doc.state == 'vencido' else por_vencer_fill
+            for col_idx in range(1, len(headers) + 1):
+                ws.cell(row=row_idx, column=col_idx).fill = fill
+
+        for col_idx, width in enumerate([28, 30, 16, 20, 14, 14], start=1):
+            ws.column_dimensions[chr(64 + col_idx)].width = width
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        return base64.b64encode(buf.getvalue())
 
     @api.model
     def cron_alert_negative_vacations(self):

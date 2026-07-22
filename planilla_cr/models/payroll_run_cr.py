@@ -193,7 +193,7 @@ class PayrollRunCR(models.Model):
     )
     missing_schedule_names = fields.Char(
         string='Empleados sin horario (nombres)',
-        compute='_compute_totals', store=False,
+        compute='_compute_totals', store=True,
     )
     # -- Totales desglosados para vista de lista -------------------------------
     total_salario_cotizable = fields.Monetary(

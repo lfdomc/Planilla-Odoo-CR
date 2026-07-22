@@ -1,4 +1,5 @@
 import logging
+from dateutil.relativedelta import relativedelta
 from odoo import models, fields, api
 from odoo.models import Constraint
 from odoo.exceptions import ValidationError
@@ -412,6 +413,38 @@ class PayslipCR(models.Model):
         help='Base real final: salario cotizable menos licencias sin goce y ausencias.\n'
              'Base legal: Arts. 31 y 79 CT / Circular CCSS DSA-1183.'
     )
+    ccss_base_used = fields.Monetary(
+        string='Base CCSS Usada', currency_field='currency_id',
+        compute='_compute_deductions', store=True,
+        help='Base efectivamente usada para calcular CCSS obrero y patronal. '
+             'Puede ser mayor a la Base Cotizable Final si se aplico el piso '
+             'de Base Minima Contributiva (BMC) de la CCSS -- ver '
+             'Configuracion Contable > Aplicar Base Minima Contributiva.'
+    )
+    ccss_bmc_reducida_applied = fields.Boolean(
+        string='BMC Reducida Aplicada', compute='_compute_deductions', store=True,
+        help='True si el empleado califico para el programa de BMC Reducida '
+             '(tiempo parcial + menor de 35 anos) y por eso cotizo sobre su '
+             'salario real en vez del piso BMC estandar.'
+    )
+    is_last_payslip_of_month = fields.Boolean(
+        string='Última Boleta del Mes', compute='_compute_is_last_payslip_of_month',
+        store=True,
+        help='True si esta es la ultima boleta del mes calendario para este '
+             'empleado (por fecha, no por secuencia). Determinada por: el '
+             'siguiente periodo de la calendarizacion empieza en otro mes, O '
+             'el empleado tiene fecha de salida dentro de este mismo mes. '
+             'Cuando el metodo de renta es "Mensual Consolidado", esta boleta '
+             'es la que reconcilia el impuesto del mes completo.'
+    )
+    renta_reconciliation_stale = fields.Boolean(
+        string='Reconciliación de Renta Desactualizada', default=False,
+        help='Se marca automaticamente si se modifica una boleta hermana de '
+             'este mismo mes DESPUES de que esta boleta (la ultima del mes) ya '
+             'fue confirmada. Indica que el monto de renta reconciliado ya no '
+             'refleja el ingreso real del mes -- reabra y recalcule esta boleta '
+             'manualmente si corresponde.'
+    )
     overtime_ids   = fields.One2many('planilla.overtime', 'payslip_id', string='Horas Extras')
     pending_overtime_from_attendance = fields.Boolean(
         string='HE Pendientes de Asistencias',
@@ -526,6 +559,34 @@ class PayslipCR(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
+        # -- Alerta de reconciliacion desactualizada (renta mensual consolidada) --
+        # Si se reabre a borrador una boleta que NO es la ultima del mes,
+        # y la boleta que SI es la ultima del mes ya esta confirmada/pagada,
+        # esa reconciliacion ya no refleja el ingreso real del mes -- se
+        # marca para que el usuario decida manualmente si recalcula.
+        # No se recalcula solo: el usuario reabre y recalcula a mano.
+        if vals.get('state') == 'draft':
+            _siblings_reopening = self.filtered(
+                lambda r: r.state in ('confirmed', 'done', 'paid')
+                and not r.is_last_payslip_of_month
+                and r.date_to
+            )
+            for rec in _siblings_reopening:
+                _month_start = rec.date_to.replace(day=1)
+                _month_end = rec.date_to + relativedelta(months=1, day=1) - relativedelta(days=1)
+                last_of_month = self.env['planilla.payslip.cr'].search([
+                    ('id', '!=', rec.id),
+                    ('employee_id', '=', rec.employee_id.id),
+                    ('company_id', '=', rec.company_id.id),
+                    ('payroll_calendar_id', '=', rec.payroll_calendar_id.id),
+                    ('date_to', '>=', _month_start),
+                    ('date_to', '<=', _month_end),
+                    ('is_last_payslip_of_month', '=', True),
+                    ('state', 'in', ('confirmed', 'done', 'paid')),
+                ], limit=1)
+                if last_of_month:
+                    last_of_month.renta_reconciliation_stale = True
+
         """Proteger boletas pagadas contra escritura accidental en campos criticos."""
         campos_criticos = {
             'base_salary', 'gross_salary', 'net_salary', 'salary_payable',
@@ -534,7 +595,7 @@ class PayslipCR(models.Model):
             'overtime_amount', 'ccss_subsidy_total',
         }
         if any(f in vals for f in campos_criticos):
-            paid_recs = self.filtered(lambda r: r.state == 'paid')
+            paid_recs = self.filtered(lambda r: r.state == 'done')
             if paid_recs:
                 # Silenciosamente ignorar escrituras de campos criticos en pagadas
                 # (los computes intentan escribir pero no deben alterar el valor)

@@ -164,20 +164,8 @@ class Embargo(models.Model):
 
     @staticmethod
     def _next_code(env, prefix):
-        env.cr.execute(
-            'SELECT code FROM planilla_embargo '
-            'WHERE code LIKE %s ORDER BY code DESC LIMIT 1',
-            (prefix + '-%',)
-        )
-        row = env.cr.fetchone()
-        if row and row[0]:
-            try:
-                num = int(row[0].split('-')[-1]) + 1
-            except (ValueError, IndexError):
-                num = 1
-        else:
-            num = 1
-        return f'{prefix}-{num:04d}'
+        return env['planilla.rate.helper'].next_sequential_code(
+            'planilla_embargo', prefix)
 
     @api.model_create_multi
     def create(self, vals_list):

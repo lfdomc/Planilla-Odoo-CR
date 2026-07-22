@@ -317,9 +317,19 @@ class PayslipAccountingMixin(models.AbstractModel):
                  credit=ins_pat,
                  name=f'INS por Pagar -- {emp}')
 
-        add_line(config.account_income_tax_payable,
-                 credit=renta,
-                 name=f'Retencion Renta -- {emp}')
+        # Retencion Renta: puede ser negativa si el metodo de renta es
+        # "Mensual Consolidado" y esta boleta reconcilia una devolucion
+        # (se retuvo de mas en boletas anteriores del mismo mes). Un monto
+        # negativo aqui es la contrapartida correcta: DEBITO a la cuenta de
+        # retencion de renta (se reduce el pasivo) en vez de credito.
+        if renta >= 0:
+            add_line(config.account_income_tax_payable,
+                     credit=renta,
+                     name=f'Retencion Renta -- {emp}')
+        else:
+            add_line(config.account_income_tax_payable,
+                     debit=abs(renta),
+                     name=f'Retencion Renta (devolucion, reconciliacion mensual) -- {emp}')
 
         add_line(config.account_aguinaldo_provision,
                  credit=agui_prov,

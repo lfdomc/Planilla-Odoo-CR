@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ==================================================================
+         Catalogo de Tipos de Documento — Configuracion
+         ================================================================== -->
+    <record id="view_employee_document_type_list" model="ir.ui.view">
+        <field name="name">planilla.employee.document.type.list</field>
+        <field name="model">planilla.employee.document.type</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="requires_number"/>
+                <field name="requires_expiry"/>
+                <field name="alert_days_before"/>
+                <field name="company_id" optional="show"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_employee_document_type" model="ir.actions.act_window">
+        <field name="name">Tipos de Documento de Empleado</field>
+        <field name="res_model">planilla.employee.document.type</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'default_active': True}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Define aqui los tipos de documento que quieres controlar por
+                empleado: cedula, licencia de conducir, carne de manipulacion
+                de alimentos, permiso de trabajo, certificado medico, etc.
+            </p>
+            <p>Agregar un tipo nuevo no requiere ningun cambio de codigo -- solo una fila aqui.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_employee_document_type"
+              name="Tipos de Documento (Empleado)"
+              parent="menu_planilla_cr_config"
+              action="action_employee_document_type"
+              sequence="95"/>
+
+    <!-- ==================================================================
+         Documentos por Vencer — vista cruzada de todos los empleados
+         ================================================================== -->
+    <record id="view_employee_document_list_all" model="ir.ui.view">
+        <field name="name">planilla.employee.document.list.all</field>
+        <field name="model">planilla.employee.document</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="state=='vencido'"
+                  decoration-warning="state=='por_vencer'"
+                  decoration-muted="state in ('vigente', 'permanente')"
+                  default_order="expiry_date asc">
+                <field name="employee_id"/>
+                <field name="document_type_id"/>
+                <field name="document_number"/>
+                <field name="expiry_date"/>
+                <field name="days_to_expiry" string="Dias restantes"/>
+                <field name="state" widget="badge"
+                       decoration-success="state=='vigente'"
+                       decoration-warning="state=='por_vencer'"
+                       decoration-danger="state=='vencido'"/>
+                <field name="company_id" optional="show" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_employee_document_search_all" model="ir.ui.view">
+        <field name="name">planilla.employee.document.search.all</field>
+        <field name="model">planilla.employee.document</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="employee_id"/>
+                <field name="document_type_id"/>
+                <field name="document_number"/>
+                <filter name="filter_por_vencer" string="Por Vencer"
+                        domain="[('state','=','por_vencer')]"/>
+                <filter name="filter_vencido" string="Vencidos"
+                        domain="[('state','=','vencido')]"/>
+                <filter name="filter_vigente" string="Vigentes"
+                        domain="[('state','=','vigente')]"/>
+                <separator/>
+                <filter name="group_by_type" string="▾ Por Tipo de Documento"
+                        context="{'group_by': 'document_type_id'}"/>
+                <filter name="group_by_state" string="▾ Por Estado"
+                        context="{'group_by': 'state'}"/>
+                <filter name="group_by_employee" string="▾ Por Empleado"
+                        context="{'group_by': 'employee_id'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_employee_document_all" model="ir.actions.act_window">
+        <field name="name">Documentos por Vencer</field>
+        <field name="res_model">planilla.employee.document</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_employee_document_search_all"/>
+        <field name="context">{'search_default_filter_por_vencer': 1, 'search_default_filter_vencido': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Sin documentos por vencer registrados.
+            </p>
+            <p>Aqui se ven TODOS los documentos personales de TODOS los
+               empleados de tu compañia -- cedulas, licencias, carnes, etc.
+               -- para revisar de un vistazo cuales necesitan renovarse pronto.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_employee_document_all"
+              name="Documentos por Vencer"
+              parent="menu_planilla_cr_reports"
+              action="action_employee_document_all"
+              sequence="70"/>
+
+    <!-- ==================================================================
+         Activos Asignados — vista cruzada de todos los empleados
+         ================================================================== -->
+    <record id="view_employee_asset_list_all" model="ir.ui.view">
+        <field name="name">planilla.employee.asset.list.all</field>
+        <field name="model">planilla.employee.asset</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state=='devuelto'"
+                  decoration-danger="state in ('perdido','danado')"
+                  default_order="date_assigned desc">
+                <field name="employee_id"/>
+                <field name="name"/>
+                <field name="category"/>
+                <field name="serial_number" optional="show"/>
+                <field name="date_assigned"/>
+                <field name="date_returned"/>
+                <field name="state" widget="badge"
+                       decoration-success="state=='asignado'"
+                       decoration-muted="state=='devuelto'"
+                       decoration-danger="state in ('perdido','danado')"/>
+                <field name="company_id" optional="show" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_employee_asset_search_all" model="ir.ui.view">
+        <field name="name">planilla.employee.asset.search.all</field>
+        <field name="model">planilla.employee.asset</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="employee_id"/>
+                <field name="name"/>
+                <field name="serial_number"/>
+                <filter name="filter_asignado" string="Asignados (sin devolver)"
+                        domain="[('state','=','asignado')]"/>
+                <filter name="filter_perdido_danado" string="Perdidos / Dañados"
+                        domain="[('state','in',('perdido','danado'))]"/>
+                <separator/>
+                <filter name="group_by_category" string="▾ Por Categoría"
+                        context="{'group_by': 'category'}"/>
+                <filter name="group_by_state" string="▾ Por Estado"
+                        context="{'group_by': 'state'}"/>
+                <filter name="group_by_employee" string="▾ Por Empleado"
+                        context="{'group_by': 'employee_id'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_employee_asset_all" model="ir.actions.act_window">
+        <field name="name">Activos Asignados</field>
+        <field name="res_model">planilla.employee.asset</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_employee_asset_search_all"/>
+        <field name="context">{'search_default_filter_asignado': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Sin activos asignados registrados.
+            </p>
+            <p>Herramientas, uniformes, tecnología, llaves y demás activos de
+               la empresa que están actualmente en poder de algún empleado —
+               útil para revisar antes de procesar una liquidación.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_employee_asset_all"
+              name="Activos Asignados"
+              parent="menu_planilla_cr_reports"
+              action="action_employee_asset_all"
+              sequence="71"/>
+
+</odoo>

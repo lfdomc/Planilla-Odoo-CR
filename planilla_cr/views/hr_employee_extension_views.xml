@@ -92,6 +92,7 @@
                                widget="boolean_toggle"
                                help="DESACTIVADO por defecto. Activar solo si el contador confirma que el ROP se procesara desde este módulo. Por defecto los contadores lo manejan con su propio proceso."/>
                             <field name="base_salary"/>
+                            <field name="hourly_rate" readonly="1"/>
                             <field name="salary_effective_date"/>
                             <field name="has_variable_income"
                                    widget="boolean_toggle"
@@ -293,6 +294,97 @@
                                    decoration-success="state=='paid'"
                                    decoration-warning="state in ('approved','active')"
                                    decoration-danger="state=='cancelled'"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Pestana documentos personales (NO es dato de planilla) -->
+                <page name="documents" string="Documentos">
+                    <div class="alert alert-info" role="alert"
+                         invisible="document_alert_count == 0">
+                        <i class="fa fa-exclamation-triangle" title="Aviso"/>
+                        Este empleado tiene <field name="document_alert_count" nolabel="1"/>
+                        documento(s) por vencer o vencido(s) -- revise abajo.
+                    </div>
+                    <field name="document_ids">
+                        <list editable="bottom"
+                              decoration-danger="state=='vencido'"
+                              decoration-warning="state=='por_vencer'"
+                              decoration-muted="state in ('vigente', 'permanente')">
+                            <field name="document_type_id"/>
+                            <field name="document_number"/>
+                            <field name="issue_date"/>
+                            <field name="expiry_date"/>
+                            <field name="days_to_expiry" string="Dias restantes" readonly="1"
+                                   invisible="state == 'permanente'"/>
+                            <field name="state" widget="badge"
+                                   decoration-info="state=='permanente'"
+                                   decoration-success="state=='vigente'"
+                                   decoration-warning="state=='por_vencer'"
+                                   decoration-danger="state=='vencido'"/>
+                            <field name="file_data" widget="binary" filename="file_name" string="Archivo"/>
+                            <field name="file_name" invisible="1"/>
+                            <field name="notes" optional="hide"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Pestana historial de amonestaciones -->
+                <page name="amonestaciones" string="Amonestaciones">
+                    <div class="alert alert-warning" role="alert"
+                         invisible="amonestacion_count_12m &lt; 2">
+                        <i class="fa fa-exclamation-triangle" title="Aviso"/>
+                        Este empleado tiene <field name="amonestacion_count_12m" nolabel="1"/>
+                        amonestacion(es) en los últimos 12 meses -- relevante para
+                        Art. 81 inciso d) CT (reincidencia despues de amonestacion
+                        escrita como causal de despido sin responsabilidad patronal).
+                    </div>
+                    <group>
+                        <field name="amonestacion_count_total" readonly="1"/>
+                        <field name="amonestacion_count_12m" readonly="1"/>
+                    </group>
+                    <field name="amonestacion_ids" readonly="1">
+                        <list decoration-muted="state=='cancelled'"
+                              decoration-bf="state=='issued'"
+                              default_order="date desc">
+                            <field name="date"/>
+                            <field name="amonestacion_type"/>
+                            <field name="subject"/>
+                            <field name="legal_basis"/>
+                            <field name="state" widget="badge"
+                                   decoration-warning="state=='issued'"
+                                   decoration-success="state=='acknowledged'"
+                                   decoration-muted="state in ('draft','cancelled')"/>
+                        </list>
+                    </field>
+                </page>
+
+                <!-- Pestana activos asignados (control patrimonial) -->
+                <page name="assets" string="Activos Asignados">
+                    <div class="alert alert-info" role="alert"
+                         invisible="asset_pending_count == 0">
+                        <i class="fa fa-info-circle" title="Información"/>
+                        Este empleado tiene <field name="asset_pending_count" nolabel="1"/>
+                        activo(s) sin devolver -- revisar antes de procesar una liquidación.
+                    </div>
+                    <field name="asset_ids">
+                        <list editable="bottom"
+                              decoration-muted="state=='devuelto'"
+                              decoration-danger="state in ('perdido','danado')">
+                            <field name="name"/>
+                            <field name="category"/>
+                            <field name="serial_number" optional="hide"/>
+                            <field name="estimated_value" optional="hide"/>
+                            <field name="date_assigned"/>
+                            <field name="date_returned"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state=='asignado'"
+                                   decoration-muted="state=='devuelto'"
+                                   decoration-danger="state in ('perdido','danado')"/>
+                            <button name="action_mark_returned" type="object"
+                                    string="Marcar Devuelto" icon="fa-check"
+                                    invisible="state != 'asignado'"/>
+                            <field name="notes" optional="hide"/>
                         </list>
                     </field>
                 </page>

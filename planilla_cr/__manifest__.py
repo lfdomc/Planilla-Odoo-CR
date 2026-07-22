@@ -1,6 +1,6 @@
 {
     'name': 'Sistema Planilla v5.28.51-PROD',
-    'version': '19.0.5.28.453',
+    'version': '19.0.53255',
     
     'category': 'Human Resources/Payroll',
     'summary': 'Sistema de Planilla Costa Rica v5.14 - Legislacion CR 2026',
@@ -38,6 +38,7 @@
         'data/deduction_code_data.xml',
         'data/leave_cr_data.xml',
         'data/default_data.xml',
+        'data/employee_document_type_data.xml',
         'data/charge_type_data.xml',
         'views/menu_containers.xml',
         'views/income_tax_bracket_views.xml',
@@ -53,6 +54,7 @@
         'views/accounting_config_views.xml',
         'views/closed_period_views.xml',
         'views/hr_employee_extension_views.xml',
+        'views/employee_document_views.xml',
         'views/overtime_views.xml',
         'views/disability_views.xml',
         'views/vacation_payment_views.xml',

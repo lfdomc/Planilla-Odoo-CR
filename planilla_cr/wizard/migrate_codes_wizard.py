@@ -1,5 +1,20 @@
 from odoo import models, fields, api
 from odoo.exceptions import UserError
+from psycopg2 import sql as _sql
+
+# Whitelist explicita de tablas permitidas para esta migracion.
+# Los nombres de tabla no se pueden parametrizar con %s en psycopg2,
+# asi que se valida contra este set + se usa sql.Identifier para
+# construir la query de forma segura (defensa en profundidad, aunque
+# la lista de arriba ya es fija y no viene de input de usuario).
+_ALLOWED_MIGRATION_TABLES = frozenset({
+    'planilla_embargo',
+    'planilla_bono',
+    'planilla_leave_cr',
+    'planilla_overtime',
+    'planilla_employee_charge',
+    'planilla_disability',
+})
 
 
 class MigrateCodesWizard(models.TransientModel):
@@ -20,16 +35,27 @@ class MigrateCodesWizard(models.TransientModel):
         total = 0
         detalles = []
         for table, prefix in migrations:
+            if table not in _ALLOWED_MIGRATION_TABLES:
+                raise UserError(
+                    f'Tabla no permitida en la migracion: {table}. '
+                    f'Agreguela a _ALLOWED_MIGRATION_TABLES si es correcta.'
+                )
+
             self._cr.execute(
-                f'SELECT id FROM {table} WHERE code IS NULL OR code = %s ORDER BY id ASC',
+                _sql.SQL(
+                    'SELECT id FROM {} WHERE code IS NULL OR code = %s ORDER BY id ASC'
+                ).format(_sql.Identifier(table)),
                 ('',)
             )
             ids_sin_codigo = [row[0] for row in self._cr.fetchall()]
             if not ids_sin_codigo:
                 detalles.append(f'{prefix}: sin registros pendientes')
                 continue
+
             self._cr.execute(
-                f'SELECT code FROM {table} WHERE code LIKE %s ORDER BY code DESC LIMIT 1',
+                _sql.SQL(
+                    'SELECT code FROM {} WHERE code LIKE %s ORDER BY code DESC LIMIT 1'
+                ).format(_sql.Identifier(table)),
                 (prefix + '-%',)
             )
             row = self._cr.fetchone()
@@ -39,15 +65,20 @@ class MigrateCodesWizard(models.TransientModel):
                     start = int(row[0].split('-')[-1]) + 1
                 except (ValueError, IndexError):
                     start = 1
+
             for i, rec_id in enumerate(ids_sin_codigo):
                 code = f'{prefix}-{(start + i):04d}'
                 self._cr.execute(
-                    f'UPDATE {table} SET code = %s WHERE id = %s',
+                    _sql.SQL('UPDATE {} SET code = %s WHERE id = %s').format(
+                        _sql.Identifier(table)
+                    ),
                     (code, rec_id)
                 )
+
             n = len(ids_sin_codigo)
             total += n
             detalles.append(f'{prefix}: {n} registros actualizados')
+
         msg = f'Completado: {total} registros actualizados.\n' + '\n'.join(detalles)
         self.result_message = msg
         return {

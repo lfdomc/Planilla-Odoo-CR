@@ -611,12 +611,20 @@ class ImportTemplateWizard(models.TransientModel):
                 ws.column_dimensions[col_letter].width = 28
             next_col += 1  # siempre avanzar
 
-        # Usamos sudo() para bypassear las reglas multi-empresa del ORM.
-        # Sin sudo(), el ORM filtra automaticamente por las empresas del usuario
-        # y puede excluir registros creados en otra sesion o empresa.
-        # Filtramos explicitamente por empresa o sin empresa (registros globales).
+        # Usamos sudo() para bypassear las reglas multi-empresa del ORM
+        # (el usuario que arma el import puede no tener acceso directo a
+        # planilla.branch, planilla.calendar, etc. de su propia compañía).
+        # BUG FIX: el filtro de compañía se aplica AQUI DENTRO, dentro del
+        # helper -- antes se dejaba como responsabilidad de cada llamada,
+        # pero ninguna de las 9 llamadas lo pasaba, asi que la plantilla
+        # traia sucursales/departamentos/puestos/calendarios de TODAS
+        # las compañías de la base de datos.
         def _search(model, domain=None, order='name'):
-            dom = domain or []
+            dom = list(domain or [])
+            if 'company_id' in self.env[model]._fields:
+                dom += ['|',
+                    ('company_id', '=', self.company_id.id),
+                    ('company_id', '=', False)]
             return self.env[model].sudo().with_context(active_test=False).search(
                 dom, order=order)
 

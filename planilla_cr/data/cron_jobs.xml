@@ -62,6 +62,17 @@
         <field name="priority">25</field>
     </record>
 
+    <record id="cron_alert_document_expiry" model="ir.cron">
+        <field name="name">Planilla CR — Alerta Documentos de Empleado por Vencer</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_alert_document_expiry()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="priority">25</field>
+    </record>
+
 
     <!-- Cron 6: Bono de Antigüedad Automático — diario -->
     <record id="cron_bono_antiguedad" model="ir.cron">

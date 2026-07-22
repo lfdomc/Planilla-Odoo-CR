@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from markupsafe import escape as _html_escape
 
 
 class SendPayslipWizard(models.TransientModel):
@@ -106,9 +107,12 @@ class SendPayslipWizard(models.TransientModel):
 
             mail_values = {
                 'subject': subject,
+                # SEC-A7 fix: escapar company_name -- viene de res.company.name
+                # (editable en Ajustes por un admin), y se inyectaba tal cual
+                # en el HTML del correo enviado a todos los empleados.
                 'body_html': (str(self.email_body or ''))
-                    .replace('{period}', period)
-                    .replace('{company}', company_name),
+                    .replace('{period}', _html_escape(period))
+                    .replace('{company}', str(_html_escape(company_name))),
                 'email_to': email,
                 'email_from': self.email_from or self.env.user.email or self.env.company.email or '',
                 # auto_delete=False: mantener registro del correo enviado
@@ -123,8 +127,10 @@ class SendPayslipWizard(models.TransientModel):
                 mail_values['mail_server_id'] = self.mail_server_id.id
 
             # Encolar sin enviar inmediatamente -- Odoo lo procesa en background
-            mail = self.env['mail.mail'].create(mail_values)
-            mail.send()
+            # via el cron ir_cron_mail_scheduler. NO llamar mail.send() aqui:
+            # eso fuerza el envio sincrono dentro del loop y puede causar
+            # timeout del worker con boletas masivas (BUG-A4).
+            self.env['mail.mail'].create(mail_values)
             queued_count += 1
 
             payslip.message_post(

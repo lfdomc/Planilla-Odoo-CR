@@ -1,3 +1,4 @@
+from . import import_parse_utils
 from . import send_payslip_wizard
 
 from . import salary_increase_wizard
@@ -8,8 +9,14 @@ from . import vacation_balance_wizard
 from . import termination_simulator
 from . import audit_zip_wizard
 from . import import_template_wizard
-from . import import_data_wizard
+# ORDEN CRITICO: processors debe cargar ANTES que import_data_wizard.
+# ImportDataWizard usa _inherit para heredar de los 4 modelos definidos en
+# processors/ (planilla.import.processor.*) -- Odoo exige que esos modelos
+# ya esten registrados antes de procesar la clase que hereda de ellos, o
+# falla con: "Model 'planilla.import.data.wizard' inherits from
+# non-existing model 'planilla.import.processor.employees'."
 from . import processors
+from . import import_data_wizard
 from . import sync_hr_wizard
 
 from . import test_email_wizard

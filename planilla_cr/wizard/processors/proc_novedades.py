@@ -9,6 +9,7 @@ from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K
+from ..import_parse_utils import _map, _parse_bool, _parse_date, _parse_float
 
 _logger = logging.getLogger(__name__)
 
@@ -40,24 +41,38 @@ class ImportProcessorNovedades(models.AbstractModel):
                 })
                 continue
 
+            vals = {}  # BUG FIX: inicializar antes del try (el except usa vals.items())
             try:
                 with self.env.cr.savepoint():
                     branch = self._find_m2o('planilla.branch', v('Sucursal'),
                                 extra_domain=[('company_id', '=', self.company_id.id)])
 
+                    dtype = _map(DISABILITY_TYPE, v('Tipo de Incapacidad', 'Tipo')) or 'ccss'
                     vals = {
                         'employee_id':          emp.id,
-                        'disability_type':      _map(DISABILITY_TYPE, v('Tipo de Incapacidad', 'Tipo')) or 'ccss',
+                        'disability_type':      dtype,
                         'date_start':           _parse_date(v('Fecha Inicio')) or date.today(),
                         'date_end':             _parse_date(v('Fecha Fin')) or date.today(),
                         'subsidy_percentage':   _parse_float(v('% Subsidiado', 'Subsidiado CCSS')),
                         'employer_percentage':  _parse_float(v('% Patrono', 'Cargo Patrono')) or 0.0,
-                        # FIX-B3b: sync con fix A2 -- default 0.0 (no 40.0). Art. 79 Regl. CCSS.
                         'certificate_number':   str(v('Numero Certificado', 'Certificado') or '').strip() or False,
                         'diagnosis':            str(v('Diagnostico', 'Diagnostico') or '').strip() or False,
                         'note':                 str(v('Observaciones') or '').strip() or False,
                         'state':                'confirmed',
                     }
+                    # Campos especiales maternidad
+                    if dtype == 'maternity':
+                        fecha_parto = _parse_date(v('Fecha de Parto', 'Parto', 'Fecha Parto'))
+                        if fecha_parto:
+                            vals['fecha_parto'] = fecha_parto
+                        # Check 1: CCSS 50% + Patrono 50%
+                        split_raw = v('Maternidad 50/50', 'Maternidad 50', 'Split 50')
+                        if split_raw is not None:
+                            vals['maternity_split_50'] = _parse_bool(split_raw)
+                        # Check 2: Cobrar CCSS sobre parte patronal
+                        ccss_raw = v('Cobrar CCSS', 'CCSS s/patronal', 'CCSS obrera')
+                        if ccss_raw is not None:
+                            vals['maternity_ccss_on_employer'] = _parse_bool(ccss_raw)
                     daily = _parse_float(v('Salario Diario', 'Daily Salary'))
                     if daily:
                         vals['daily_salary'] = daily
@@ -81,8 +96,16 @@ class ImportProcessorNovedades(models.AbstractModel):
 
     def _process_vacations(self, wb, errors):
         """
-        Registra los dias tomados como registros de vacation.payment tipo 'disfrutadas'.
-        Los dias acumulados son computados automaticamente por entry_date.
+        Carga el saldo inicial de vacaciones directamente en los campos
+        vacation_initial_balance y vacation_initial_balance_date del empleado.
+
+        Estrategia:
+          - Lee 'Saldo Inicial (dias)' y 'Fecha de Corte del Saldo' del Excel.
+          - Actualiza el empleado con esos valores.
+          - El calculo automatico (_compute_vacation_balance) usara estos campos
+            como punto de partida y acumulara dias solo a partir de esa fecha.
+          - Si el empleado ya tiene saldo inicial configurado, lo SOBREESCRIBE
+            (idempotente: se puede reimportar sin duplicar datos).
         """
         created = err_count = 0
         hdrs, rows = self._sheet_rows(wb, ['VACACION', 'VACATION'])
@@ -106,39 +129,58 @@ class ImportProcessorNovedades(models.AbstractModel):
                 })
                 continue
 
+            vals = {}  # BUG FIX: inicializar antes del try (el except usa vals.items())
             try:
                 with self.env.cr.savepoint():
-                    days_taken = _parse_float(v('Dias Tomados', 'Dias Tomados'))
-                    cutoff     = _parse_date(v('Ultima Fecha', 'Fecha de Corte')) or date.today()
-                    obs        = str(v('Observaciones', 'Periodo') or '').strip()
+                    # Columnas principales (obligatorias para saldo inicial)
+                    saldo_raw = v('Saldo Inicial', 'Saldo Inicial (dias)', 'Dias Disponibles', 'Dias Disponibles')
+                    # Distinguir celda vacia (None/'') de cero real
+                    saldo_vacio = (saldo_raw is None or str(saldo_raw).strip() == '')
+                    saldo_inicial = _parse_float(saldo_raw)  # 0.0 si vacio
+                    fecha_corte = _parse_date(
+                        v('Fecha de Corte del Saldo', 'Fecha de Corte', 'Ultima Fecha de Corte', 'Ultima Fecha')
+                    )
+                    obs = str(v('Observaciones', 'Periodo', 'Periodo') or '').strip()
 
-                    branch = self._find_m2o('planilla.branch', v('Sucursal'),
-                                extra_domain=[('company_id', '=', self.company_id.id)])
+                    vals_emp = {}
 
-                    # Solo crear registro si hay dias tomados que registrar
-                    if days_taken > 0:
-                        days_int = int(days_taken)
-                        vals = {
-                            'employee_id':    emp.id,
-                            'vacation_type':  'disfrutadas',
-                            'date_start':     emp.entry_date or cutoff,
-                            'date_end':       cutoff,
-                            'state':          'paid',
-                            'note':           obs or f'Saldo inicial importacion -- {days_int} dias tomados',
-                        }
-                        if branch:
-                            vals['branch_id'] = branch.id
+                    # Solo actualizar si la celda tiene un valor (incluso 0 explicito es valido)
+                    if not saldo_vacio:
+                        vals_emp['vacation_initial_balance'] = round(saldo_inicial, 2)
 
-                        self.env['planilla.vacation.payment'].create(vals)
+                    if fecha_corte:
+                        vals_emp['vacation_initial_balance_date'] = fecha_corte
+                    elif not saldo_vacio and saldo_inicial > 0 and not fecha_corte:
+                        # Hay saldo pero no fecha -> advertir y usar hoy
+                        vals_emp['vacation_initial_balance_date'] = date.today()
+                        errors.append({
+                            'hoja': 'VACACIONES', 'fila': row_num, 'cedula': cedula,
+                            'nombre': emp.name,
+                            'error': 'Advertencia: no se encontro Fecha de Corte del Saldo. '
+                                     'Se uso la fecha de hoy como corte. '
+                                     'Corrija manualmente en el perfil del empleado.',
+                        })
+
+                    if vals_emp:
+                        emp.write(vals_emp)
+                        # Forzar recalculo del saldo
+                        emp._compute_vacation_balance()
                         created += 1
+
+                        if obs:
+                            emp.message_post(
+                                body=f'<b>Saldo inicial de vacaciones importado:</b> '
+                                     f'{saldo_inicial} dias al {fecha_corte}. '
+                                     f'Obs: {obs}',
+                                message_type='notification',
+                            )
 
             except Exception as e:
                 err_count += 1
                 errors.append({
                     'hoja': 'VACACIONES', 'fila': row_num, 'cedula': cedula,
-                    'nombre': emp.name, 'error': str(e),
+                    'nombre': emp.name if emp else '', 'error': str(e),
                     'traceback': traceback.format_exc(),
-                    'vals': {k: str(val)[:120] for k, val in vals.items()},
                 })
                 _logger.warning('ImportDataWizard VACACIONES fila %s: %s', row_num, e)
 
@@ -167,6 +209,7 @@ class ImportProcessorNovedades(models.AbstractModel):
                 })
                 continue
 
+            vals = {}  # BUG FIX: inicializar antes del try (el except usa vals.items())
             try:
                 with self.env.cr.savepoint():
                     ot_date  = _parse_date(v('Fecha'))

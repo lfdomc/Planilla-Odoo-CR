@@ -9,6 +9,7 @@ from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K
+from ..import_parse_utils import _normalize, _parse_bool, _parse_date, _parse_float
 
 _logger = logging.getLogger(__name__)
 
@@ -196,7 +197,7 @@ class ImportProcessorBonosEmbargos(models.AbstractModel):
                         'amount_type':  calc_type,
                         'amount':       monto if calc_type == 'fixed' else 0.0,
                         'percentage':   pct   if calc_type == 'percentage' else 0.0,
-                        'is_recurring': recurrente if v('Es Recurrente', 'Recurrente') else True,
+                        'is_recurring': recurrente,
                         'afecto_ccss':  afecto_ccss,
                         'afecto_renta': afecto_renta,
                         'tope_exento':  tope,

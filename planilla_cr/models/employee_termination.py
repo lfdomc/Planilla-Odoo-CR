@@ -310,7 +310,13 @@ class EmployeeTermination(models.Model):
                 #   6 meses a < 1 año → 14 días total
                 # 1 año cumplido en adelante: tabla K.CESANTIA_TABLA acumulativa
                 m = rec.months_service
-                if m < 6:
+                if m < 3:
+                    # BUG FIX: faltaba este caso -- antes caia directo al
+                    # "if m < 6" y le pagaba cesantia (bracket 3-6 meses) a
+                    # alguien con menos de 3 meses de servicio, que no le
+                    # corresponde nada segun el Art. 29 CT.
+                    cesantia_days = 0.0
+                elif m < 6:
                     cesantia_days = K.CESANTIA_SUB_ANIO['tres_seis']
                 elif m < 12:
                     cesantia_days = K.CESANTIA_SUB_ANIO['seis_doce']
@@ -356,40 +362,13 @@ class EmployeeTermination(models.Model):
                 # Salida hoy: leer directamente vacation_days_available de la ficha
                 vacation_days_net = max(emp.vacation_days_available or 0.0, 0.0)
             else:
-                # Salida en fecha diferente: recalcular con método mensual
-                # para respetar la fecha de salida exacta
-                from dateutil.relativedelta import relativedelta as _rd
-                import calendar as _cal
-                vac_init   = emp.vacation_initial_balance or 0.0
-                vac_cutoff = emp.vacation_initial_balance_date
-                entry_day  = emp.entry_date.day if emp.entry_date else 1
-                extra_days = 2  # días planos por aniversario
-
-                def _meses(desde, hasta):
-                    count = 0
-                    try: cand = _dt.date(desde.year, desde.month, entry_day)
-                    except: cand = _dt.date(desde.year, desde.month, _cal.monthrange(desde.year, desde.month)[1])
-                    if cand <= desde:
-                        m = cand + _rd(months=1)
-                        try: cand = _dt.date(m.year, m.month, entry_day)
-                        except: cand = _dt.date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
-                    while cand <= hasta:
-                        count += 1
-                        m = cand + _rd(months=1)
-                        try: cand = _dt.date(m.year, m.month, entry_day)
-                        except: cand = _dt.date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
-                    return count
-
-                start = vac_cutoff if vac_cutoff else emp.entry_date
-                accrued = vac_init + _meses(start, exit_d)
-
-                # Bonus aniversarios post-corte
-                _aniv = (emp.entry_date + _rd(years=1)) if emp.entry_date else None
-                while _aniv and _aniv <= exit_d:
-                    if _aniv > (vac_cutoff or emp.entry_date):
-                        accrued += extra_days
-                    _aniv += _rd(years=1)
-
+                # Salida en fecha diferente: UNICA fuente de verdad,
+                # rate_helper.calc_vacation_accrual() -- misma funcion que
+                # usa el saldo en vivo del empleado y el simulador de
+                # liquidacion, solo cambia la fecha de referencia. Elimina
+                # la logica duplicada que existia aqui antes.
+                rh_vac = self.env['planilla.rate.helper']
+                accrued, _nb, _ba = rh_vac.calc_vacation_accrual(emp, exit_d)
                 vacation_days_net = max(accrued - vacation_days_taken, 0.0)
 
             rec.vacation_days_accrued = round(vacation_days_net, 2)

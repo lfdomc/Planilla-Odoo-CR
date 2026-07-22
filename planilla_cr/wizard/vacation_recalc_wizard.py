@@ -11,7 +11,7 @@ class VacationRecalcWizard(models.TransientModel):
     cutoff_date = fields.Date(
         string='Fecha de Corte Global',
         required=True,
-        default=_date(2026, 3, 31),
+        default=lambda self: _date.today(),
         help='Fecha de corte usada para calcular los saldos iniciales. '
              'Para empleados nuevos (ingresaron despues de esta fecha) se omiten.'
     )

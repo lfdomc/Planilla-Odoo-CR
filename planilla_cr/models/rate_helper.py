@@ -128,6 +128,168 @@ class RateHelper(models.AbstractModel):
             return dc.employer_percentage / 100
         return K.PROV_VACACIONES  # 0.041667 exacto
 
+    def calc_vacation_accrual(self, employee, as_of_date, disability_days_excluded=0, _cfg=None):
+        """
+        UNICA fuente de verdad para el calculo de dias de vacaciones
+        acumulados (bruto, ANTES de restar los dias ya tomados).
+
+        Usado por:
+          - hr.employee._compute_vacation_balance() -- saldo en vivo (as_of_date=hoy)
+          - termination_simulator.py -- simulacion de liquidacion (as_of_date=fecha simulada)
+          - employee_termination.py -- liquidacion real (as_of_date=fecha de salida)
+
+        Antes cada uno de estos 3 lugares tenia su PROPIA copia de esta
+        logica, reescrita independientemente -- lo cual permitio que el
+        bug de "extra_vacation_days_enabled sin filtrar" (aplicaba el bono
+        de aniversario aunque el toggle estuviera apagado, porque el monto
+        por defecto es 2.0) sobreviviera en 4 lugares distintos a la vez,
+        cada uno con pequenas variaciones. Centralizar aqui significa que
+        una correccion futura se aplica automaticamente en los 3 lugares.
+
+        Formula (Art. 153 CT):
+          BASE  : 1 dia por cada 29 dias calendario trabajados (o 1 dia por
+                  mes calendario, segun accrual_method configurado).
+          BONUS : bono de aniversario configurable (Config Contable),
+                  completando hasta el monto configurado -- el mes del
+                  aniversario ya recibe 1 dia por el ciclo normal, asi que
+                  el bono aporta solo la diferencia (top-up), no se suma
+                  encima. Ej: config=2 -> 1 normal + 1 bono = 2 total ese
+                  mes, no 3. Requiere extra_vacation_days_enabled=True en
+                  la empresa; si no esta activado, el bono es 0 (no aplica
+                  el default de 2.0 del campo).
+
+        Con fecha de corte (vacation_initial_balance_date, migracion desde
+        Excel anterior): parte de vacation_initial_balance en esa fecha.
+        Sin fecha de corte: calcula todo desde entry_date.
+
+        :param employee: registro hr.employee (uno solo)
+        :param as_of_date: fecha de referencia ("hoy" para el calculo)
+        :param disability_days_excluded: dias de incapacidad >90 dias a
+               excluir del metodo 'days29' (Art. 153 CT par. 2)
+        :param _cfg: PERF -- registro de planilla.accounting.config ya
+               cargado por el llamador (evita buscarlo de nuevo). Si se
+               llama para muchos empleados de la misma empresa (ej. al
+               recalcular la lista completa), el llamador deberia cachear
+               este registro UNA vez por empresa y pasarlo aqui, en vez de
+               dejar que cada empleado dispare su propia busqueda. Si no
+               se provee, se busca aqui como antes (sigue funcionando para
+               llamadas puntuales de un solo empleado).
+        :return: tuple (accrued_total, nuevos_base, bonus_aniversarios)
+        """
+        import calendar as _cal
+        from datetime import date as _date
+        from dateutil.relativedelta import relativedelta as _rdelta
+
+        if not employee.entry_date:
+            return 0.0, 0, 0
+
+        hoy = as_of_date
+        entry_date = employee.entry_date
+
+        # PERF: una sola busqueda de config sirve para accrual_method Y para
+        # el toggle/monto del bono de aniversario -- antes eran 2 busquedas
+        # separadas (una de ellas con un filtro de dominio distinto). El
+        # toggle se revisa en Python en vez de en el dominio SQL.
+        _config = _cfg if _cfg is not None else self.env['planilla.accounting.config'].search(
+            [('company_id', '=', employee.company_id.id)], limit=1)
+        accrual_method = _config.vacation_accrual_method if _config else 'monthly'
+
+        def _meses_desde(desde, hasta):
+            entry_day = entry_date.day
+            count = 0
+            try:    cand = _date(desde.year, desde.month, entry_day)
+            except ValueError: cand = _date(desde.year, desde.month, _cal.monthrange(desde.year, desde.month)[1])
+            if cand <= desde:
+                m = cand + _rdelta(months=1)
+                try:    cand = _date(m.year, m.month, entry_day)
+                except ValueError: cand = _date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
+            while cand <= hasta:
+                count += 1
+                m = cand + _rdelta(months=1)
+                try:    cand = _date(m.year, m.month, entry_day)
+                except ValueError: cand = _date(m.year, m.month, _cal.monthrange(m.year, m.month)[1])
+            return count
+
+        # Mismo _config de arriba -- ya no se busca de nuevo. El toggle se
+        # revisa en Python (antes era un segundo dominio de busqueda SQL).
+        av_base = (_config.extra_vacation_days_amount
+                   if _config and _config.extra_vacation_days_enabled else 0)
+
+        has_cutoff = bool(employee.vacation_initial_balance_date)
+
+        if has_cutoff:
+            corte    = employee.vacation_initial_balance_date
+            init_bal = employee.vacation_initial_balance or 0.0
+            if corte >= hoy:
+                return int(init_bal), 0, 0
+            if accrual_method == 'monthly':
+                nuevos_base = _meses_desde(corte, hoy)
+            else:
+                dias_ingreso_corte = max((corte - entry_date).days, 0)
+                parcial_inicial    = dias_ingreso_corte % 29
+                dias_corte_hoy = max((hoy - corte).days - disability_days_excluded, 0)
+                total_ciclo = dias_corte_hoy + parcial_inicial
+                nuevos_base = total_ciclo // 29
+            base_ref = corte
+        else:
+            if accrual_method == 'monthly':
+                nuevos_base = _meses_desde(entry_date, hoy)
+            else:
+                dias_totales = max((hoy - entry_date).days - disability_days_excluded, 0)
+                nuevos_base  = dias_totales // 29
+            init_bal = 0.0
+            base_ref = entry_date
+
+        bonus_aniversarios = 0
+        aniv = entry_date + _rdelta(years=1)
+        while aniv <= hoy:
+            if aniv > base_ref:
+                # Top-up: el ciclo normal ya aporta 1 dia el mes del
+                # aniversario, el bono completa el resto.
+                bonus_aniversarios += max(av_base - 1, 0)
+            aniv += _rdelta(years=1)
+
+        accrued = int(init_bal) + nuevos_base + bonus_aniversarios
+        return accrued, nuevos_base, bonus_aniversarios
+
+    def next_sequential_code(self, table, prefix):
+        """
+        UNICA fuente de verdad para generar codigos secuenciales tipo
+        'PREFIJO-0001'. Antes esta logica (identica salvo el nombre de
+        tabla) estaba copiada en 5 modelos distintos: employee_charge,
+        leave_cr, embargo, bono, overtime.
+
+        Busca el ultimo codigo con ese prefijo en la tabla dada y devuelve
+        el siguiente numero, formateado a 4 digitos.
+
+        :param table: nombre de tabla SQL (whitelist fija, no viene de
+               input de usuario -- se valida para uso seguro de SQL
+               dinamico, mismo patron que migrate_codes_wizard.py)
+        :param prefix: prefijo del codigo (ej: 'BON', 'EMB', 'HE')
+        """
+        from psycopg2 import sql as _sql
+        _ALLOWED_TABLES = frozenset({
+            'planilla_employee_charge', 'planilla_leave_cr', 'planilla_embargo',
+            'planilla_bono', 'planilla_overtime',
+        })
+        if table not in _ALLOWED_TABLES:
+            raise ValueError(f'Tabla no permitida para codigo secuencial: {table}')
+
+        self.env.cr.execute(
+            _sql.SQL('SELECT code FROM {} WHERE code LIKE %s ORDER BY code DESC LIMIT 1')
+                .format(_sql.Identifier(table)),
+            (prefix + '-%',)
+        )
+        row = self.env.cr.fetchone()
+        if row and row[0]:
+            try:
+                num = int(row[0].split('-')[-1]) + 1
+            except (ValueError, IndexError):
+                num = 1
+        else:
+            num = 1
+        return f'{prefix}-{num:04d}'
+
     def get_all_ins_rates(self):
         """Dict con todas las tasas INS por clase {clase: decimal}."""
         dc = self._get_deduction_code('INS_PAT')

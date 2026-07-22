@@ -33,6 +33,9 @@ from . import bono_antiguedad_config
 from . import recurring_benefit
 from . import employee_loan
 from . import employee_charge
+from . import employee_document_type
+from . import employee_document
+from . import employee_asset
 from . import employee_termination
 from . import leave_cr
 

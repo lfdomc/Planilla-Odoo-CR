@@ -117,9 +117,21 @@
                 <span style="font-size:11px;color:#6c757d;">Vac. por prescribir</span>
                 <span style="background:#E67E22;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;"><field name="urgent_expiring_vacations" readonly="1" nolabel="1"/></span>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
                 <span style="font-size:11px;color:#6c757d;">Incapacidades activas</span>
                 <span style="background:#3498DB;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;"><field name="urgent_active_disabilities" readonly="1" nolabel="1"/></span>
+              </div>
+              <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:11px;color:#6c757d;">Documentos por vencer</span>
+                <span style="background:#9B59B6;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;"><field name="urgent_documents_expiring" readonly="1" nolabel="1"/></span>
+              </div>
+              <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:11px;color:#6c757d;">Activos sin devolver</span>
+                <span style="background:#16A085;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;"><field name="urgent_assets_pending" readonly="1" nolabel="1"/></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:11px;color:#6c757d;">Amonestaciones (periodo)</span>
+                <span style="background:#E74C3C;color:#fff;border-radius:12px;padding:2px 8px;font-size:12px;font-weight:700;"><field name="amonestaciones_period" readonly="1" nolabel="1"/></span>
               </div>
             </div>
             <div style="background:#EBF5FB;border:1px solid #AED6F1;border-radius:10px;padding:16px;">

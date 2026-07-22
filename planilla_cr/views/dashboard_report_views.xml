@@ -333,6 +333,59 @@
                         </div>
                     </div>
 
+                    <!-- Segunda fila de alertas -->
+                    <div class="row" style="margin-top:12px;">
+                        <div class="col-4">
+                            <div style="background:#F4ECF7;border:1px solid #9B59B6;border-radius:6px;padding:12px;">
+                                <div style="font-size:11px;text-transform:uppercase;color:#888;font-weight:bold;">
+                                    Documentos por Vencer / Vencidos
+                                </div>
+                                <div style="font-size:28px;font-weight:bold;color:#8E44AD;">
+                                    <field name="urgent_documents_expiring" readonly="1" nolabel="1"/>
+                                </div>
+                                <button name="action_open_documents_expiring" type="object"
+                                        string="ver documentos" class="btn-link p-0"
+                                        style="font-size:11px;color:#8E44AD;"/>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="background:#E8F8F5;border:1px solid #16A085;border-radius:6px;padding:12px;">
+                                <div style="font-size:11px;text-transform:uppercase;color:#888;font-weight:bold;">
+                                    Activos sin Devolver
+                                </div>
+                                <div style="font-size:28px;font-weight:bold;color:#138D75;">
+                                    <field name="urgent_assets_pending" readonly="1" nolabel="1"/>
+                                </div>
+                                <button name="action_open_assets_pending" type="object"
+                                        string="ver activos" class="btn-link p-0"
+                                        style="font-size:11px;color:#138D75;"/>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div style="background:#FDE8E8;border:1px solid #E74C3C;border-radius:6px;padding:12px;">
+                                <div style="font-size:11px;text-transform:uppercase;color:#888;font-weight:bold;">
+                                    Amonestaciones (Periodo Seleccionado)
+                                </div>
+                                <div style="font-size:28px;font-weight:bold;color:#C0392B;">
+                                    <field name="amonestaciones_period" readonly="1" nolabel="1"/>
+                                </div>
+                                <button name="action_open_amonestaciones_period" type="object"
+                                        string="ver amonestaciones" class="btn-link p-0"
+                                        style="font-size:11px;color:#C0392B;"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Desglose de costo por sucursal -->
+                    <div class="row" style="margin-top:12px;">
+                        <div class="col-12">
+                            <h4 style="border-bottom:2px solid #1F4E79; padding-bottom:5px;">
+                                Costo por Sucursal
+                            </h4>
+                            <field name="branch_cost_summary" readonly="1" nolabel="1"/>
+                        </div>
+                    </div>
+
                     <!-- Accesos rápidos -->
                     <div class="row">
                         <div class="col-12">

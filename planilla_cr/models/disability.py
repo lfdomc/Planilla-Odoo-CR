@@ -289,10 +289,16 @@ class Disability(models.Model):
                     # Modalidad 50/50: patrono paga 50%, CCSS paga 50%
                     mitad = round(total * 0.50, 2)
                     if rec.maternity_ccss_on_employer:
-                        # Al 50% del patrono se le aplica CCSS obrera (10.83%%)
+                        # Al 50% del patrono se le aplica CCSS obrera
                         # igual que cualquier pago de salario ordinario.
-                        # El empleado recibe: 50%% patronal - 10.83%% CCSS
-                        ccss_sobre_patrono = round(mitad * 0.1083, 2)
+                        # FIX: usar la tasa configurable (rate_helper) en vez
+                        # de 0.1083 hardcoded -- mismo patron que FIX D-04 v53
+                        # aplicado en el resto del modulo (payslip_compute_mixin,
+                        # payslip_validation_mixin). Sin esto, una empresa que
+                        # personaliza su tasa CCSS_OBR no la veía reflejada aquí.
+                        rh = rec.env['planilla.rate.helper'].with_company(rec.company_id)
+                        ccss_rate = rh.get_ccss_employee_rate()
+                        ccss_sobre_patrono = round(mitad * ccss_rate, 2)
                         rec.maternity_ccss_deduction = ccss_sobre_patrono
                         rec.employer_cost = mitad          # patrono paga el 50%%
                         rec.ccss_subsidy  = round(total * 0.50, 2)  # CCSS paga su 50%%

@@ -49,7 +49,7 @@ class PayslipValidationMixin(models.AbstractModel):
         una en "Bonos Salariales (afecto CCSS)" y otra en "Ingresos Adicionales".
         """
         for rec in self:
-            if rec.state == 'paid':
+            if rec.state == 'done':
                 continue  # Boleta pagada: valores congelados
             lines = rec.deduction_line_ids
             rec.amount_pension_alimentaria = round(sum(
@@ -125,7 +125,7 @@ class PayslipValidationMixin(models.AbstractModel):
     )
     def _compute_totals(self) -> None:
         for rec in self:
-            if rec.state == 'paid':
+            if rec.state == 'done':
                 continue  # Boleta pagada: valores congelados
             # FIX v54b N+1: cargamos el set de nombres salariales UNA vez para el loop.
             nombres_salariales = rec._get_bono_salarial_names()
@@ -484,6 +484,31 @@ class PayslipValidationMixin(models.AbstractModel):
 
             if not rec.payroll_calendar_id:
                 errors.append(f'{prefix} No tiene calendarizacion de planilla asignada.')
+
+            # -- Orden secuencial de confirmacion dentro del mes ------
+            # Requerido para que la reconciliacion de "Mensual Consolidado"
+            # sea confiable: si se confirma la ultima boleta del mes antes
+            # que una hermana anterior, la reconciliacion no encontraria esa
+            # hermana (sigue en draft) y calcularia como si el mes completo
+            # fuera solo esta boleta.
+            if rec.date_to and rec.payroll_calendar_id:
+                _month_start = rec.date_to.replace(day=1)
+                hermana_pendiente = rec.env['planilla.payslip.cr'].search([
+                    ('id', '!=', rec.id),
+                    ('employee_id', '=', emp.id),
+                    ('company_id', '=', rec.company_id.id),
+                    ('payroll_calendar_id', '=', rec.payroll_calendar_id.id),
+                    ('date_to', '>=', _month_start),
+                    ('date_to', '<', rec.date_to),
+                    ('state', '=', 'draft'),
+                ], limit=1)
+                if hermana_pendiente:
+                    errors.append(
+                        f'{prefix} Hay una boleta anterior de este mismo mes '
+                        f'({hermana_pendiente.date_from} a {hermana_pendiente.date_to}) '
+                        f'que todavia esta en borrador. Confirme las boletas del mes '
+                        f'en orden -- primero la anterior, luego esta.'
+                    )
 
             # -- Determinar si tiene incapacidad/maternidad activa en el periodo --
             _active_dis = rec.disability_ids.filtered(

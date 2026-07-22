@@ -9,6 +9,7 @@ from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K
+from ..import_parse_utils import _map, _normalize, _parse_bool, _parse_date, _parse_float
 
 _logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class ImportProcessorEmployees(models.AbstractModel):
                 skipped += 1
                 continue
 
+            vals = {}  # BUG FIX: inicializar antes del try (el except usa vals.items())
             try:
                 with self.env.cr.savepoint():
                     # Many2one lookups
@@ -45,26 +47,38 @@ class ImportProcessorEmployees(models.AbstractModel):
                     branch_name  = v('Sucursal')
                     job_name     = v('Puesto', 'Cargo')
                     sched_name   = v('Tipo de Horario', 'Horario')
-                    cal_name     = v('Frecuencia', 'Calendario')
+                    cal_name     = v('Calendarizacion de Planilla', 'Frecuencia', 'Calendario', 'Frecuencia de Pago')
                     etype_name   = v('Tipo de Empleado')
                     estatus_name = v('Estado del Empleado', 'Estado')
 
                     dept    = self._find_m2o('hr.department', dept_name,
-                                extra_domain=[('company_id', '=', company.id)])
+                                extra_domain=['|', ('company_id', '=', company.id),
+                                                   ('company_id', '=', False)])
                     branch  = self._find_m2o('planilla.branch', branch_name,
-                                extra_domain=[('company_id', '=', company.id)])
+                                extra_domain=['|', ('company_id', '=', company.id),
+                                                   ('company_id', '=', False)])
                     job     = self._find_m2o('hr.job', job_name,
-                                extra_domain=[('company_id', '=', company.id)])
+                                extra_domain=['|', ('company_id', '=', company.id),
+                                                   ('company_id', '=', False)])
                     sched   = self._find_m2o('planilla.schedule.type', sched_name)
+                    # Si no encontro por nombre completo, intentar con las
+                    # primeras palabras (ej: "Jornada Completa" de
+                    # "Jornada Completa (8 horas - Lun a Vie)")
+                    if not sched and sched_name:
+                        short_name = sched_name.split('(')[0].strip()
+                        if short_name != sched_name:
+                            sched = self._find_m2o('planilla.schedule.type', short_name)
                     cal     = self._find_m2o('planilla.calendar', cal_name,
-                                extra_domain=[('company_id', '=', company.id)])
+                                extra_domain=['|', ('company_id', '=', company.id),
+                                                   ('company_id', '=', False)])
                     etype   = self._find_m2o('planilla.employee.type', etype_name)
                     estatus = self._find_m2o('planilla.employee.status', estatus_name)
 
                     # Sub departamento -- buscar dentro del dpto padre si se encontro
                     subdept = None
                     if subdept_name:
-                        subdept_domain = [('company_id', '=', company.id)]
+                        subdept_domain = ['|', ('company_id', '=', company.id),
+                                               ('company_id', '=', False)]
                         if dept:
                             subdept_domain.append(('parent_id', '=', dept.id))
                         subdept = self._find_m2o('hr.department', subdept_name,
@@ -72,17 +86,20 @@ class ImportProcessorEmployees(models.AbstractModel):
 
                     # Si no se encontro calendario por nombre, buscar por frecuencia
                     if not cal:
-                        freq_raw = _normalize(v('Frecuencia', 'Calendario', 'Frecuencia de Pago') or '')
+                        freq_raw = _normalize(v('Calendarizacion de Planilla', 'Frecuencia', 'Calendario', 'Frecuencia de Pago') or '')
                         freq_val = FREQUENCY.get(freq_raw)
                         if freq_val:
-                            cal = self.env['planilla.calendar'].search([
-                                ('frequency', '=', freq_val),
+                            cal = self.env['planilla.calendar'].sudo().search([
+                                '|',
                                 ('company_id', '=', company.id),
+                                ('company_id', '=', False),
+                                ('frequency', '=', freq_val),
                             ], limit=1) or None
 
                     # Identificacion type
                     id_type_raw  = _normalize(v('Tipo de Identificacion', 'Tipo Identificacion') or '')
-                    id_type_code = INS_ID_TYPE.get(id_type_raw, '01')
+                    id_type_code = INS_ID_TYPE.get(id_type_raw, 'CI')      # code en planilla.identification.type
+                    ins_id_code  = INS_ID_TYPE_CODE.get(id_type_raw, '01') # codigo numerico para INS
                     id_type_rec  = self.env['planilla.identification.type'].search(
                         [('code', '=', id_type_code)], limit=1)
 
@@ -101,7 +118,7 @@ class ImportProcessorEmployees(models.AbstractModel):
                         'has_variable_income':        _parse_bool(v('Salario Variable', 'Comisiones', 'Ingreso Variable')),
                         'bank_account_number':        str(v('Cuenta Bancaria', 'Cuenta') or '').strip() or False,
                         'bank_iban':                  str(v('IBAN') or '').strip() or False,
-                        'sinpe_phone':                str(v('SINPE', 'Sinpe Movil', 'Sinpe Movil') or '').strip() or False,
+                        'sinpe_phone': re.sub(r'\D', '', str(v('SINPE', 'Sinpe Movil', 'Sinpe Movil') or ''))[:8] or False,
                         'bank_name':                  _map(BANK, v('Banco')) or False,
                         'bank_account_type':          _map(ACCOUNT_TYPE, v('Tipo de Cuenta Banco', 'Tipo de Cuenta')) or False,
                         # INS
@@ -113,7 +130,7 @@ class ImportProcessorEmployees(models.AbstractModel):
                         'ins_risk_class':            _map(INS_RISK, v('Clase de Riesgo', 'Riesgo INS')) or False,
                         'ins_workday_type':          _map(INS_WORKDAY, v('Jornada INS', 'Tipo de Jornada INS', 'Tipo de Jornada')) or '01',
                         'ins_civil_status':          _map(INS_CIVIL, v('Estado Civil INS', 'Estado Civil')) or '01',
-                        'ins_id_type':               id_type_code,
+                        'ins_id_type':               ins_id_code,
                         'ins_nationality':           _map(INS_NATIONALITY, v('Nacionalidad INS', 'Nacionalidad')) or 'CR',
                     }
 
@@ -128,21 +145,44 @@ class ImportProcessorEmployees(models.AbstractModel):
                     if estatus: vals['employee_status_id']  = estatus.id
                     if id_type_rec: vals['identification_type_id'] = id_type_rec.id
 
-                    # INS occupation (codigo numerico de 4 digitos)
+                    # INS occupation -- acepta codigo numerico (4 digitos) o
+                    # texto completo del dropdown "[1120] Directores y gerentes generales"
                     ins_occ_raw = str(v('Ocupacion INS', 'Ocupacion INS') or '').strip()
                     if ins_occ_raw:
-                        vals['ins_occupation'] = ins_occ_raw
+                        # Extraer solo el codigo si viene como "[1120] Descripcion..."
+                        import re as _re
+                        _occ_match = _re.match(r'\[(\d{4})\]', ins_occ_raw)
+                        vals['ins_occupation'] = _occ_match.group(1) if _occ_match else ins_occ_raw
+
+                    # Tipo de sangre y notas medicas
+                    blood_raw = str(v('Tipo de Sangre', 'Sangre') or '').strip().upper()
+                    if blood_raw in ('A+','A-','B+','B-','AB+','AB-','O+','O-'):
+                        vals['blood_type'] = blood_raw
+                    medical = str(v('Diagnostico', 'Diagnostico', 'Notas Medicas', 'Notas Medicas') or '').strip()
+                    if medical:
+                        vals['medical_notes'] = medical
 
                     # Campos personales estandar de hr.employee -- pueden no existir
                     # segun la version de Odoo o si estan en hr.employee.private.
                     # Los agregamos solo si el campo existe en el modelo.
                     emp_fields = self.env['hr.employee']._fields
+
+                    # Pais: buscar por nombre en res.country
+                    country_raw = str(v('Pais', 'Pais') or '').strip()
+                    country_id  = False
+                    if country_raw:
+                        country = self.env['res.country'].search(
+                            [('name', 'ilike', country_raw)], limit=1)
+                        country_id = country.id if country else False
+
                     _personal = {
-                        'gender':        _map(GENDER, v('Genero', 'Genero')) or False,
-                        'children':      _parse_int(v('Numero de Dependientes', 'Dependientes')) or 0,
-                        'private_street': str(v('Direccion', 'Direccion') or '').strip() or False,
-                        'private_phone': str(v('Telefono Personal', 'Telefono Personal') or '').strip() or False,
-                        'notes':         str(v('Observaciones') or '').strip() or False,
+                        'gender':            _map(GENDER, v('Genero', 'Genero')) or False,
+                        'children':          _parse_int(v('Numero de Dependientes', 'Dependientes')) or 0,
+                        'private_street':    str(v('Direccion', 'Direccion') or '').strip() or False,
+                        'private_phone':     str(v('Telefono Personal', 'Telefono Personal') or '').strip() or False,
+                        'private_email':     str(v('Correo Personal', 'Email Personal') or '').strip() or False,
+                        'private_country_id': country_id or False,
+                        'notes':             str(v('Observaciones') or '').strip() or False,
                     }
                     for fname, fval in _personal.items():
                         if fname in emp_fields and fval:
@@ -156,7 +196,35 @@ class ImportProcessorEmployees(models.AbstractModel):
                     })
                     vals['work_contact_id'] = contact.id
 
-                    self.env['hr.employee'].create(vals)
+                    # Crear empleado. Si el IBAN falla la validacion del
+                    # digito verificador, reintentar sin el IBAN para no
+                    # bloquear toda la importacion -- el IBAN se puede
+                    # corregir manualmente despues.
+                    try:
+                        new_emp = self.env['hr.employee'].create(vals)
+                        # Crear contrato nativo de HR para sincronizar con pestaa Nmina
+                        try:
+                            new_emp._get_or_create_contract()
+                        except Exception:
+                            pass  # No bloquear importacion si el contrato falla
+                    except Exception as e_create:
+                        if 'iban' in str(e_create).lower() or 'digito verificador' in str(e_create).lower():
+                            iban_original = vals.pop('bank_iban', None)
+                            vals.pop('bank_account_number', None)
+                            self.env['hr.employee'].create(vals)
+                            created += 1
+                            errors.append({
+                                'hoja': 'EMPLEADOS', 'fila': row_num,
+                                'cedula': cedula, 'nombre': nombre,
+                                'error': f'ADVERTENCIA: Empleado creado SIN IBAN -- digito verificador invalido: {iban_original}. Corrija el IBAN manualmente en el empleado.',
+                                'traceback': '',
+                                'vals': {},
+                            })
+                            _logger.warning('ImportDataWizard EMPLEADOS fila %s cedula %s: IBAN invalido %s -- empleado creado sin IBAN',
+                                            row_num, cedula, iban_original)
+                            continue
+                        else:
+                            raise
                     created += 1
 
             except Exception as e:

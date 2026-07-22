@@ -74,6 +74,15 @@ class Amonestacion(models.Model):
         tracking=True
     )
 
+    # -- Testigos --------------------------------------------------------
+    # Opcionales -- si se dejan vacios, la carta igual imprime el espacio
+    # en blanco para que firmen a mano. Si se llenan, el nombre aparece
+    # impreso arriba de la linea de firma.
+    witness1_name = fields.Char(string='Testigo 1 - Nombre')
+    witness1_id = fields.Char(string='Testigo 1 - Cedula')
+    witness2_name = fields.Char(string='Testigo 2 - Nombre')
+    witness2_id = fields.Char(string='Testigo 2 - Cedula')
+
     # -- Lugar ---------------------------------------------------------------
     location = fields.Char(
         string='Lugar de emision',

@@ -25,19 +25,19 @@ class Reporte208Wizard(models.TransientModel):
 
     def _build_data(self):
         df, dt = self._get_range()
-        # Incluir todos los estados (draft, confirmed, done) excepto cancelados
-        slips = self.env['planilla.payslip.cr'].sudo().search([
-            ('state','!=','cancelled'),
-            ('date_from','<=',dt),
-            ('date_to','>=',df),
+        # SEC-2 fix: sin sudo() -- el ir.rule de aislamiento por compañía
+        # (security/record_rules.xml) ya filtra correctamente. Antes esto
+        # traia boletas de TODAS las compañías a memoria y filtraba despues
+        # en Python -- ademas de ser un leak de datos fiscales, cargaba
+        # registros de compañías ajenas innecesariamente.
+        slips = self.env['planilla.payslip.cr'].search([
+            ('state', '!=', 'cancelled'),
+            ('date_from', '<=', dt),
+            ('date_to', '>=', df),
+            '|',
+            ('company_id', '=', self.company_id.id),
+            ('employee_id.company_id', '=', self.company_id.id),
         ])
-        # Filtrar por empresa manualmente (más confiable que el domain SQL)
-        slips = slips.filtered(
-            lambda s: (
-                s.company_id.id == self.company_id.id or
-                s.employee_id.company_id.id == self.company_id.id
-            )
-        )
         by_emp = {}
         for s in slips:
             eid = s.employee_id.id

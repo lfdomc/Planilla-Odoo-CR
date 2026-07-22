@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from . import planilla_const as K
 
 
 class PayrollAccountingConfig(models.Model):
@@ -28,6 +29,50 @@ class PayrollAccountingConfig(models.Model):
         default='per_run', required=True,
         help='Define si se genera un asiento contable por cada boleta de pago '
              'o un unico asiento consolidado por planilla.'
+    )
+
+    # -- Base Minima Contributiva CCSS (piso de cotizacion) ---------
+    apply_ccss_bmc = fields.Boolean(
+        string='Aplicar Base Minima Contributiva CCSS',
+        default=True,
+        help='Si el salario cotizable de un periodo es menor al monto de abajo, '
+             'CCSS obrero y patronal se calculan sobre ese piso en vez del '
+             'salario real. Aplica principalmente a empleados de tiempo '
+             'parcial. Requerido por la CCSS -- desactivelo solo si su '
+             'contador confirma que ningun empleado esta por debajo del piso, '
+             'o si prefiere manejar la BMC manualmente fuera del sistema.\\n\\n'
+             'NO se aplica durante incapacidades activas (tienen su propia '
+             'base legal, Art. 79/94 CT) ni cuando hay licencias sin goce/'
+             'ausencias en el periodo -- esos casos ya tienen su propio '
+             'tratamiento legal y no deben forzarse al piso de BMC.'
+    )
+    ccss_bmc_amount = fields.Monetary(
+        string='Monto BMC Mensual (CRC)',
+        currency_field='currency_id',
+        default=lambda self: K.CCSS_BMC_MENSUAL,
+        help='Piso mensual de cotizacion CCSS vigente. La CCSS lo actualiza '
+             'periodicamente -- verifique https://www.ccss.sa.cr/patronos al '
+             'inicio de cada ano fiscal y actualice este monto si cambio.\\n\\n'
+             'NOTA: este es un piso combinado (usa el mayor entre SEM e IVM) '
+             'ya que el sistema no separa esos dos componentes de la tasa '
+             'CCSS. Es ligeramente conservador en el componente IVM.'
+    )
+    currency_id = fields.Many2one(
+        'res.currency', related='company_id.currency_id', string='Moneda'
+    )
+
+    income_tax_method = fields.Selection([
+        ('period', 'Cálculo por período (actual)'),
+        ('monthly_consolidated', 'Cálculo mensual consolidado'),
+    ], string='Método de Cálculo de Renta', default='period', required=True,
+        help='PERÍODO (actual): cada boleta calcula su renta de forma independiente, '
+             'sin relación con las demás boletas del mes. Exacto solo cuando el ingreso '
+             'es constante entre períodos.\n\n'
+             'MENSUAL CONSOLIDADO: las boletas iniciales del mes proyectan igual que hoy. '
+             'La última boleta del mes reconcilia contra el ingreso real acumulado del '
+             'mes completo y ajusta la diferencia (puede resultar en renta negativa = '
+             'devolución al empleado). Recomendado si hay bonos, horas extra variables '
+             'o comisiones que no se repiten igual cada quincena/semana.'
     )
 
     # -- Base de calculo del Impuesto de Renta ----------------------
@@ -88,6 +133,33 @@ class PayrollAccountingConfig(models.Model):
         default=0,
         help='Anio en que se aplico por ultima vez el beneficio. '
              'Evita aplicarlo dos veces en el mismo anio.'
+    )
+
+    # -- Alertas de documentos de empleado por vencer -----------------
+    document_alert_emails = fields.Char(
+        string='Correos para Alertas de Documentos',
+        help='Correos que reciben el aviso de documentos de empleado '
+             '(cedula, licencia, carne, etc.) por vencer o vencidos, con un '
+             'Excel adjunto del detalle. Separar varios correos con coma. '
+             'Dejar vacio para no enviar ningun correo (las alertas seguiran '
+             'quedando registradas en el historial de cada documento de '
+             'todos modos).'
+    )
+    document_alert_frequency = fields.Selection([
+        ('daily',   'Diaria'),
+        ('weekly',  'Semanal'),
+        ('monthly', 'Mensual'),
+    ], string='Frecuencia de Envio', default='weekly',
+        help='Cada cuanto se envia el correo con el Excel de documentos '
+             'por vencer/vencidos. El aviso en el historial de cada '
+             'documento sigue siendo inmediato (una vez por documento) sin '
+             'importar esta frecuencia -- esto solo controla el correo '
+             'consolidado.'
+    )
+    document_alert_last_sent = fields.Date(
+        string='Ultimo Envio de Alerta de Documentos', readonly=True,
+        help='Se actualiza automaticamente cada vez que se envia el correo. '
+             'No editar manualmente.'
     )
 
 

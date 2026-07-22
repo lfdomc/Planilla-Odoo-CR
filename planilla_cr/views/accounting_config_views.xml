@@ -89,6 +89,17 @@
                             <div class="text-muted" colspan="2" invisible="income_tax_base == 'gross'">
                                 <i class="fa fa-exclamation-triangle text-warning"/> La base <b>Bruto menos CCSS</b> no está reconocida expresamente por la DGT. El patrono asume la responsabilidad fiscal de su aplicación.
                             </div>
+                            <field name="income_tax_method" widget="radio"/>
+                            <div class="text-muted" colspan="2" invisible="income_tax_method != 'monthly_consolidated'">
+                                <i class="fa fa-info-circle"/> La última boleta de cada mes reconcilia contra el ingreso real acumulado del mes y ajusta la diferencia (puede resultar en renta negativa = devolución al empleado en esa boleta). Requiere que el empleado no cambie de calendarización a mitad de mes.
+                            </div>
+                        </group>
+                        <group string="Base Mínima Contributiva CCSS">
+                            <field name="apply_ccss_bmc"/>
+                            <field name="ccss_bmc_amount" invisible="not apply_ccss_bmc"/>
+                            <div class="text-muted" colspan="2" invisible="not apply_ccss_bmc">
+                                <i class="fa fa-info-circle"/> Si el salario cotizable de un período es menor a este monto mensual (prorrateado según frecuencia de pago), CCSS obrero y patronal se calculan sobre este piso. Aplica principalmente a empleados de tiempo parcial. No se aplica durante incapacidades activas ni licencias sin goce. Verifique el monto vigente en ccss.sa.cr/patronos al inicio de cada año.
+                            </div>
                         </group>
                     </group>
 
@@ -143,45 +154,59 @@
 
                     <!-- Beneficios Especiales de la Empresa -->
                     <group string="Beneficios Especiales">
-                        <group string="Vacaciones Adicionales por Año (1 de enero)">
+                        <group string="Vacaciones Adicionales por Aniversario Laboral">
                             <field name="extra_vacation_days_enabled" widget="boolean_toggle"/>
-                            <field name="extra_vacation_days_mode"
-                                   invisible="not extra_vacation_days_enabled"
-                                   widget="radio" string="Modalidad"/>
                             <field name="extra_vacation_days_amount"
                                    invisible="not extra_vacation_days_enabled"
-                                   string="Días base"/>
+                                   string="Días totales en el mes del aniversario"/>
                             <field name="extra_vacation_last_applied_year"
                                    readonly="1"
                                    invisible="not extra_vacation_days_enabled"
                                    string="Último año aplicado"/>
 
-                            <!-- Ayuda modalidad fija -->
                             <div class="alert alert-info" role="alert" colspan="2"
-                                 invisible="not extra_vacation_days_enabled or extra_vacation_days_mode != 'fixed'">
+                                 invisible="not extra_vacation_days_enabled">
                                 <i class="fa fa-info-circle" title="Información"/>
-                                <strong>Modalidad fija:</strong>
-                                El 1 de enero de cada año se acreditan
-                                <strong><field name="extra_vacation_days_amount" nolabel="1" readonly="1"/> días</strong>
-                                a <strong>todos</strong> los empleados activos por igual,
-                                sin importar su antiguedad.
-                                Art. 58 CT: beneficio superior al mínimo legal.
-                            </div>
-
-                            <!-- Ayuda modalidad por año laborado -->
-                            <div class="alert alert-success" role="alert" colspan="2"
-                                 invisible="not extra_vacation_days_enabled or extra_vacation_days_mode != 'per_year'">
-                                <i class="fa fa-info-circle" title="Información"/>
-                                <strong>Modalidad por año laborado:</strong>
-                                El 1 de enero cada empleado recibe
-                                <strong><field name="extra_vacation_days_amount" nolabel="1" readonly="1"/> días</strong>
-                                por cada <strong>año completo</strong> de servicio.
-                                Ejemplo: empleado con 3 anos de antiguedad recibe
-                                3 x días base = total de días acreditados.
-                                Empleados con menos de 1 año completo no reciben días.
+                                <strong>Cómo funciona:</strong>
+                                En el mes del aniversario de ingreso de cada empleado
+                                (no el 1 de enero -- cada quien en su propia fecha),
+                                el total acreditado ese mes será
+                                <strong><field name="extra_vacation_days_amount" nolabel="1" readonly="1"/> días</strong>.
+                                El ciclo normal de acumulación ya aporta 1 día ese mes;
+                                el beneficio solo completa la diferencia para llegar
+                                al total configurado (no se suma encima).
+                                Empleados con menos de 1 año completo no reciben el beneficio.
                                 Art. 58 CT: beneficio superior al mínimo legal.
                             </div>
                         </group>
+                    </group>
+
+                    <group string="Alertas de Documentos de Empleado">
+                        <field name="document_alert_emails"
+                               placeholder="rrhh@empresa.com, gerencia@empresa.com"/>
+                        <field name="document_alert_frequency"
+                               invisible="not document_alert_emails"/>
+                        <field name="document_alert_last_sent" readonly="1"
+                               invisible="not document_alert_emails or not document_alert_last_sent"/>
+                        <div class="alert alert-info" role="alert" colspan="2">
+                            <i class="fa fa-info-circle" title="Información"/>
+                            Estos correos reciben, con la frecuencia elegida arriba,
+                            un aviso con un Excel adjunto de los documentos de
+                            empleado (cédula, licencia, carné, etc.) que están por
+                            vencer o ya vencieron. Separe varios correos con coma.
+                            Si lo deja vacío, las alertas igual quedan registradas
+                            en el historial de cada documento, solo que sin
+                            enviarse por correo.
+                            <br/><br/>
+                            <b>¿Cuántos días antes de vencer se considera
+                            "por vencer"?</b> Eso se configura por tipo de
+                            documento en
+                            <i>Planilla CR → Configuración → Tipos de Documento
+                            (Empleado)</i> — cada tipo (cédula, licencia, carné,
+                            etc.) puede tener su propio umbral, y también se
+                            puede ajustar individualmente por documento si un
+                            caso puntual lo necesita.
+                        </div>
                     </group>
 
                     <notebook>

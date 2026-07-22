@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from . import planilla_const as K
 
 
 class RebajoRenta(models.Model):
@@ -14,7 +15,7 @@ class RebajoRenta(models.Model):
     amount      = fields.Monetary(string='Monto por Período', currency_field='currency_id', required=True)
     frequency   = fields.Selection([
         ('biweekly', 'Por Quincena'),
-        ('monthly',  'Mensual (÷2 en nómina quincenal)'),
+        ('monthly',  'Mensual (se prorratea según frecuencia de pago: quincenal ÷2, semanal ÷4)'),
     ], string='Frecuencia', default='biweekly', required=True)
     date_from   = fields.Date(string='Vigente Desde', required=True, default=fields.Date.today)
     date_to     = fields.Date(string='Vigente Hasta', help='Vacío = sin vencimiento')
@@ -37,9 +38,19 @@ class RebajoRenta(models.Model):
 
     def get_amount_for_period(self, payslip_frequency):
         self.ensure_one()
-        if self.frequency == 'monthly' and payslip_frequency == 'biweekly':
-            return round(self.amount / 2, 2)
-        return self.amount
+        if self.frequency == 'biweekly':
+            # Configurado como "por quincena": se aplica tal cual en cada
+            # quincena. Si la boleta es de otra frecuencia (semanal, mensual)
+            # esto es una discrepancia de configuracion -- se aplica el monto
+            # completo por falta de una base mas clara para prorratear "por
+            # quincena" a otras frecuencias.
+            return self.amount
+        # Configurado como "Mensual": prorratear segun cuantos periodos de
+        # boleta hay en un mes -- generaliza el caso que antes solo cubria
+        # quincenal (/2). Sin esto, un empleado pagado semanal con un rebajo
+        # mensual se llevaba el monto COMPLETO cada semana (4x de mas).
+        periods = K.PERIODOS_POR_MES.get(payslip_frequency, 1)
+        return round(self.amount / periods, 2) if periods else self.amount
 
     @api.model_create_multi
     def create(self, vals_list):

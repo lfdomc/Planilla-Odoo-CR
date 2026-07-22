@@ -75,10 +75,14 @@ class PayslipSyncMixin(models.AbstractModel):
             installment = loan.get_pending_installment(self.date_from, self.date_to)
             if not installment:
                 continue
-            # Verificar si ya esta en las lineas
-            existing = self.deduction_line_ids.filtered(
-                lambda l: l.loan_installment_id == installment
-            )
+            # BUG FIX: verificar GLOBALMENTE (no solo en self.deduction_line_ids)
+            # si esta cuota ya fue aplicada en cualquier boleta no cancelada --
+            # evita que Q1 y Q2 del mismo mes, ambas en borrador antes de
+            # confirmar cualquiera, dupliquen la misma cuota mensual.
+            existing = self.env['planilla.payslip.deduction.line'].search([
+                ('loan_installment_id', '=', installment.id),
+                ('payslip_id.state', '!=', 'cancelled'),
+            ], limit=1)
             if not existing:
                 self.env['planilla.payslip.deduction.line'].create({
                     'payslip_id':          self.id,
@@ -1565,6 +1569,19 @@ class PayslipSyncMixin(models.AbstractModel):
         for inst in all_installments:
             inst_by_loan.setdefault(inst.loan_id.id, []).append(inst)
 
+        # BUG FIX: precargar en UNA query las cuotas ya reclamadas por
+        # cualquier boleta no cancelada -- evita duplicar la cuota mensual
+        # cuando Q1 y Q2 del mismo mes se crean ambas en borrador antes de
+        # confirmar cualquiera (mismo bug que en _sync_loan_deductions).
+        _all_pending_ids = [i.id for lst in inst_by_loan.values() for i in lst]
+        _already_claimed_ids = set()
+        if _all_pending_ids:
+            claimed_lines = self.env['planilla.payslip.deduction.line'].search([
+                ('loan_installment_id', 'in', _all_pending_ids),
+                ('payslip_id.state', '!=', 'cancelled'),
+            ])
+            _already_claimed_ids = set(claimed_lines.mapped('loan_installment_id.id'))
+
         lines_to_create = []
         for loan in loans:
             slip = slip_by_emp.get(loan.employee_id.id)
@@ -1586,19 +1603,17 @@ class PayslipSyncMixin(models.AbstractModel):
             if not matching:
                 continue
             installment = matching[0]
-            existing = slip.deduction_line_ids.filtered(
-                lambda l: l.loan_installment_id == installment
-            )
-            if not existing:
-                lines_to_create.append({
-                    'payslip_id':          slip.id,
-                    'deduction_code_id':   loan_code.id,
-                    'description':         loan.name,
-                    'line_type':           'deduction',       # FIX-E9: faltaba
-                    'deduction_category':  'loan',            # FIX-E9: faltaba -> salary_payable correcto
-                    'amount':              installment.amount,
-                    'loan_installment_id': installment.id,
-                })
+            if installment.id in _already_claimed_ids:
+                continue
+            lines_to_create.append({
+                'payslip_id':          slip.id,
+                'deduction_code_id':   loan_code.id,
+                'description':         loan.name,
+                'line_type':           'deduction',       # FIX-E9: faltaba
+                'deduction_category':  'loan',            # FIX-E9: faltaba -> salary_payable correcto
+                'amount':              installment.amount,
+                'loan_installment_id': installment.id,
+            })
         if lines_to_create:
             self.env['planilla.payslip.deduction.line'].create(lines_to_create)
 
@@ -1772,6 +1787,23 @@ class PayslipSyncMixin(models.AbstractModel):
         unique_to_apply   = []        # (charge_id, slip_id) unicos
         recurring_to_mark = []        # (charge, date_from, slip_id) recurrentes
 
+        # PERF FIX: precargar en UNA query los cobros unicos que ya fueron
+        # aplicados en otra boleta confirmada/pagada -- antes esto era una
+        # query .search() POR CADA cobro dentro del loop de abajo, anulando
+        # el proposito del metodo (que segun su propio docstring existe para
+        # pasar de 200 queries a 1).
+        _unique_charge_ids = [
+            c.id for charges in charges_by_emp.values() for c in charges
+            if not c.is_recurring
+        ]
+        _already_applied_ids = set()
+        if _unique_charge_ids:
+            applied_lines = self.env['planilla.payslip.deduction.line'].search([
+                ('employee_charge_id', 'in', _unique_charge_ids),
+                ('payslip_id.state', '!=', 'cancelled'),
+            ])
+            _already_applied_ids = set(applied_lines.mapped('employee_charge_id.id'))
+
         for slip in self:
             if slip.state != 'draft':
                 continue
@@ -1783,11 +1815,7 @@ class PayslipSyncMixin(models.AbstractModel):
                         continue
                 # cobros unicos: verificar que no hayan sido aplicados en otra boleta confirmada
                 if not charge.is_recurring:
-                    already_applied = self.env['planilla.payslip.deduction.line'].search([
-                        ('employee_charge_id', '=', charge.id),
-                        ('payslip_id.state', 'in', ('confirmed', 'done')),
-                    ], limit=1)
-                    if already_applied:
+                    if charge.id in _already_applied_ids:
                         continue
 
                 ded_code = charge.charge_type_id.deduction_code_id or default_code
@@ -1811,13 +1839,11 @@ class PayslipSyncMixin(models.AbstractModel):
                 if charge.notes:
                     desc = f'{desc}: {charge.notes}'
 
-                # Leer código del cobro directo de BD (sin caché ORM)
-                self.env.cr.execute(
-                    "SELECT code FROM planilla_employee_charge WHERE id = %s",
-                    (charge.id,)
-                )
-                _row = self.env.cr.fetchone()
-                _charge_code = (_row[0] if _row else None) or charge.code
+                # PERF FIX: eliminada la query SQL cruda por linea -- charge.code
+                # ya viene fresco del all_charges.search() de mas arriba en este
+                # mismo metodo; nada escribio sobre 'code' entre medio, asi que
+                # el cache del ORM ya es correcto.
+                _charge_code = charge.code
 
                 lines_to_create.append({
                     'payslip_id':          slip.id,

@@ -35,6 +35,33 @@ CCSS_EMP_PENSIONADO_ESTADO: float = 0.065
 CCSS_PAT: float = 0.2683
 
 # -----------------------------------------------------------------------------
+# BASE MINIMA CONTRIBUTIVA (BMC) -- CCSS, vigente 2026
+# -----------------------------------------------------------------------------
+# Si el salario de un trabajador (comunmente tiempo parcial) es MENOR a estos
+# montos mensuales, la CCSS exige cotizar sobre el piso, no sobre el salario
+# real. Fuente: CCSS Circular / Reglamentos SEM e IVM, vigente enero 2026.
+#   SEM (Salud):            CRC 333,328 /mes
+#   IVM (Pensiones):        CRC 311,990 /mes
+#
+# SIMPLIFICACION DE DISENO: el modulo trata CCSS como UNA tasa combinada
+# (10.83%% obrero / 26.83%% patronal), no separa el componente SEM del IVM.
+# Por eso se usa un solo piso practico = el MAYOR de los dos (SEM), para
+# nunca subcotizar. Esto es ligeramente conservador en el componente IVM
+# (que legalmente tiene un piso mas bajo) -- si se requiere precision exacta
+# por componente, habria que desglosar la tasa CCSS en SEM/IVM por separado.
+#
+# EXCEPCIONES LEGALES a la BMC (no cubiertas por este piso simple, requieren
+# revision caso por caso con el contador):
+#   - Trabajadores de tiempo parcial menores de 35 anos: BMC reducida especial.
+#   - Ingreso reciente al empleo (primer mes).
+#   - Incapacidades activas (ya tienen su propia base legal, Art. 79/94 CT).
+#   - Permisos sin goce de salario mayores a 15 dias.
+#
+# Actualizar este valor cada vez que la CCSS publique un nuevo decreto (revisar
+# https://www.ccss.sa.cr/patronos al inicio de cada ano fiscal).
+CCSS_BMC_MENSUAL: int = 333_328
+
+# -----------------------------------------------------------------------------
 # INS -- Instituto Nacional de Seguros (Riesgos del Trabajo)
 # Tasas por clase de riesgo segun actividad economica
 # -----------------------------------------------------------------------------

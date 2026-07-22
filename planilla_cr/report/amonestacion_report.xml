@@ -85,7 +85,35 @@
                 </p>
 
                 <p style="border-top: 1px solid #000; width: 260px; padding-top: 4px;">&#160;</p>
-                <p>Firma del trabajador</p>
+                <p style="margin-bottom: 40px;">Firma del trabajador</p>
+
+                <!-- Firmas de testigos -->
+                <p style="margin-bottom: 20px;"><strong>Testigos</strong></p>
+
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 48%; vertical-align: top; padding-right: 4%;">
+                            <p style="border-top: 1px solid #000; padding-top: 4px; margin-bottom: 2px;">&#160;</p>
+                            <t t-if="doc.witness1_name">
+                                <p style="margin-bottom: 2px;"><t t-out="doc.witness1_name"/></p>
+                            </t>
+                            <t t-if="doc.witness1_id">
+                                <p style="margin-bottom: 2px;">Cedula: <t t-out="doc.witness1_id"/></p>
+                            </t>
+                            <p>Firma testigo 1</p>
+                        </td>
+                        <td style="width: 48%; vertical-align: top;">
+                            <p style="border-top: 1px solid #000; padding-top: 4px; margin-bottom: 2px;">&#160;</p>
+                            <t t-if="doc.witness2_name">
+                                <p style="margin-bottom: 2px;"><t t-out="doc.witness2_name"/></p>
+                            </t>
+                            <t t-if="doc.witness2_id">
+                                <p style="margin-bottom: 2px;">Cedula: <t t-out="doc.witness2_id"/></p>
+                            </t>
+                            <p>Firma testigo 2</p>
+                        </td>
+                    </tr>
+                </table>
 
             </div>
             </main>

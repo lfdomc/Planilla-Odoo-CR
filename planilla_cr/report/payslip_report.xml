@@ -282,9 +282,13 @@
 
                         <!-- Imp. Renta -->
                         <tr>
-                            <td style="padding:2px 8px 2px 20px;">Imp. Renta:</td>
+                            <td style="padding:2px 8px 2px 20px;">
+                                <t t-if="doc.income_tax &lt; 0">Imp. Renta (devolución):</t>
+                                <t t-else="">Imp. Renta:</t>
+                            </td>
                             <td style="padding:2px 8px; text-align:right;">
                                 <t t-if="doc.income_tax &gt; 0">&#8353; <t t-out="'{:,.0f}'.format(doc.income_tax)"/></t>
+                                <t t-elif="doc.income_tax &lt; 0" style="color:#C00000;">+ &#8353; <t t-out="'{:,.0f}'.format(abs(doc.income_tax))"/></t>
                                 <t t-else="">-</t>
                             </td>
                             <td/>
