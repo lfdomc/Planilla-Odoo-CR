@@ -1,4 +1,4 @@
-# -*- coding: ascii -*-
+# -*- coding: utf-8 -*-
 {
     'name': 'Reconocimiento Facial - Asistencias',
     'version': '19.0.1.1.0',
