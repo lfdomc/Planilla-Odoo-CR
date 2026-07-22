@@ -93,7 +93,7 @@ class HrEmployee(models.Model):
             'face_registration_date': False,
         })
         # Invalidar cache de encodings para que el quiosco no use datos obsoletos
-        self.env["hr.employee"].clear_caches()
+        self.env.registry.clear_cache()
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -170,7 +170,7 @@ class HrEmployee(models.Model):
                 'face_registration_date': fields.Datetime.now(),
             })
             # Invalidar cache para que el quiosco detecte el nuevo rostro
-            self.env["hr.employee"].clear_caches()
+            self.env.registry.clear_cache()
             _logger.info(
                 'Rostro registrado exitosamente para el empleado: %s (ID: %s)',
                 self.name, self.id,
