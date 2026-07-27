@@ -429,6 +429,15 @@ class ImportDataWizard(models.TransientModel):
             # FIX-O4: faltaban embargos y bonos -- el resumen subestimaba errores
             counters.get('emb_errors', 0), counters.get('bon_errors', 0),
         ] if e)
+        # FIX ALERTA-01: las advertencias (campos que no se pudieron vincular,
+        # IBAN invalido, etc.) se guardan en la misma lista `errors` con el
+        # prefijo 'ADVERTENCIA:' pero NO incrementan err_count -- el registro
+        # SI se creo correctamente, solo con datos incompletos. Antes esto
+        # significaba que el usuario nunca se enteraba: el resumen decia
+        # "SIN ERRORES" aunque hubiera advertencias reales en el detalle.
+        total_warnings = sum(
+            1 for e in errors if str(e.get('error', '')).startswith('ADVERTENCIA')
+        )
         total_ok = sum(e for e in [
             counters['emp_created'], counters['loan_created'], counters['pen_created'],
             counters['ben_created'], counters['dis_created'], counters['vac_created'],
@@ -457,7 +466,8 @@ class ImportDataWizard(models.TransientModel):
         c = ws1['A2']
         c.value = (f'Archivo: {self.excel_filename or "--"}   |   '
                    f'Procesado: {datetime.now().strftime("%d/%m/%Y %H:%M")}   |   '
-                   f'Total creados: {total_ok}   |   Total errores: {total_errors}')
+                   f'Total creados: {total_ok}   |   Total errores: {total_errors}'
+                   f'{f"   |   Advertencias: {total_warnings}" if total_warnings else ""}')
         c.font = font(italic=True, color=WHITE, size=9)
         c.fill = fill(BLUE)
         c.alignment = center()
@@ -466,11 +476,25 @@ class ImportDataWizard(models.TransientModel):
         # Resultado global
         ws1.row_dimensions[3].height = 8
         ws1.merge_cells('A4:G4')
-        estado_txt = 'OK IMPORTACION COMPLETADA SIN ERRORES' if not total_errors else f'WARN  IMPORTACION CON {total_errors} ERROR(ES) -- Ver hoja "Detalle Errores"'
+        if total_errors:
+            estado_txt = f'WARN  IMPORTACION CON {total_errors} ERROR(ES) -- Ver hoja "Detalle Errores"'
+        elif total_warnings:
+            estado_txt = (
+                f'AVISO IMPORTACION COMPLETADA CON {total_warnings} ADVERTENCIA(S) '
+                f'-- Algunos registros se crearon con campos incompletos. '
+                f'Ver hoja "Detalle Errores"'
+            )
+        else:
+            estado_txt = 'OK IMPORTACION COMPLETADA SIN ERRORES'
         c = ws1['A4']
         c.value = estado_txt
         c.font = font(bold=True, color=WHITE, size=11)
-        c.fill = fill('375623' if not total_errors else RED)
+        if total_errors:
+            c.fill = fill(RED)
+        elif total_warnings:
+            c.fill = fill(AMBER)
+        else:
+            c.fill = fill('375623')
         c.alignment = center()
         ws1.row_dimensions[4].height = 26
 
@@ -574,6 +598,12 @@ class ImportDataWizard(models.TransientModel):
             def _classify_error(err_msg):
                 """Clasifica el error y sugiere accion correctiva."""
                 msg = str(err_msg).lower()
+                if str(err_msg).startswith('ADVERTENCIA'):
+                    return 'Advertencia (no bloqueante)', (
+                        'El registro SI se creo. Revise y complete el/los '
+                        'campo(s) mencionados manualmente en Odoo si son '
+                        'necesarios.'
+                    )
                 if 'not found' in msg or 'no encontrado' in msg:
                     return 'Empleado no existe', 'Importe primero la hoja EMPLEADOS antes de importar otras hojas'
                 if 'wrong value' in msg or 'invalid value' in msg:
@@ -618,13 +648,18 @@ class ImportDataWizard(models.TransientModel):
                 ]
                 is_odd = num % 2 == 0
                 row_bg = 'FFF9F9' if is_odd else WHITE
+                is_warning = str(err_msg).startswith('ADVERTENCIA')
                 for ci, val in enumerate(row_data, 1):
                     c = ws2.cell(r, ci, value=val)
                     c.border = bdr()
                     c.alignment = left() if ci >= 6 else center()
                     if ci == 7:  # mensaje error
-                        c.font = font(size=9, color=RED, bold=True)
-                        c.fill = fill('FCE4D6')
+                        if is_warning:
+                            c.font = font(size=9, color=AMBER, bold=True)
+                            c.fill = fill('FFF3D6')
+                        else:
+                            c.font = font(size=9, color=RED, bold=True)
+                            c.fill = fill('FCE4D6')
                     elif ci == 8:  # accion
                         c.font = font(size=9, color='7B3F00', italic=True)
                         c.fill = fill('FFF2CC')
@@ -709,7 +744,7 @@ class ImportDataWizard(models.TransientModel):
 
                 # Traceback
                 tb = err.get('traceback', '')
-                if tb and tb.strip() and 'NoneType' not in tb:
+                if tb and tb.strip():
                     ws3.cell(log_row, 1, value='TRACEBACK:').font = font(bold=True, size=9, color=DARK)
                     ws3.cell(log_row, 1).fill = fill('EBF3FB')
                     ws3.cell(log_row, 1).alignment = center()

@@ -181,6 +181,7 @@ def post_init_hook(env):
     _create_email_templates(env)
     _setup_all_companies_config(env)
     _ensure_schedule_types(env)
+    _ensure_payroll_calendars(env)
     try:
         from .models.migrate_codes import migrate_codes
         migrate_codes(env)
@@ -228,6 +229,7 @@ def post_migrate_hook(env):
     _populate_schedule_defaults(env)
     _ensure_deduction_codes(env)
     _ensure_schedule_types(env)
+    _ensure_payroll_calendars(env)
     _fix_hour_license_date_end(env)
     _migrate_disability_payslip_m2m(env)
     _migrate_leave_cr_payslip_m2m(env)
@@ -485,6 +487,48 @@ def _ensure_schedule_types(env):
                 if 'company_id' in ScheduleType._fields:
                     create_vals['company_id'] = company.id
                 ScheduleType.create(create_vals)
+
+
+def _ensure_payroll_calendars(env):
+    """
+    Garantiza que las 3 calendarizaciones estandar (Mensual, Quincenal,
+    Semanal) existan para CADA compania. Se ejecuta en instalacion y en
+    cada migracion (-u planilla_cr).
+
+    FIX BUG: data/default_data.xml crea estos 3 registros con noupdate="1"
+    y sin especificar company_id -- quedan atados a la compania que
+    estuviera activa (self.env.company) durante la instalacion inicial
+    del modulo, normalmente la primera/demo. Como noupdate="1" impide que
+    se vuelvan a ejecutar en actualizaciones, cualquier compania creada
+    DESPUES de la instalacion (ej. un cliente nuevo) nunca recibe sus
+    propias calendarizaciones -- el generador de machote de importacion
+    las busca filtrando por company_id de esa compania y encuentra 0,
+    aunque el usuario vea registros de OTRA compania en la lista si tiene
+    varias companias activas en su sesion (confusion visual real que
+    llevo a este bug a pasar desapercibido).
+    """
+    companies = env['res.company'].search([])
+    Calendar = env['planilla.calendar']
+
+    STANDARD_CALENDARS = [
+        {'name': 'Mensual',   'frequency': 'monthly',  'payment_day': 30},
+        {'name': 'Quincenal', 'frequency': 'biweekly', 'payment_day': 15,
+         'second_payment_day': 30},
+        {'name': 'Semanal',   'frequency': 'weekly',   'payment_day': 5},
+    ]
+
+    for company in companies:
+        for cal_vals in STANDARD_CALENDARS:
+            existing = Calendar.search([
+                ('name', '=', cal_vals['name']),
+                ('company_id', '=', company.id),
+            ], limit=1)
+            if existing:
+                continue
+            create_vals = dict(cal_vals)
+            create_vals['company_id'] = company.id
+            create_vals['active'] = True
+            Calendar.create(create_vals)
 
 
 def _ensure_deduction_codes(env):
