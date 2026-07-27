@@ -698,7 +698,7 @@ class TestConstantesLegalesCR(TestCoverageBase):
             msg='Tasa maxima renta 2026 = 25% (DGT-R-016-2026)')
 
 
-class TestCalc01Cesantia(common.TransactionCase):
+class TestCalc01Cesantia(TransactionCase):
     """Tests para CALC-01: tabla de cesantia Art. 29 CT."""
 
     def test_cesantia_tabla_valores_oficiales(self):
@@ -715,7 +715,7 @@ class TestCalc01Cesantia(common.TransactionCase):
         self.assertEqual(tabla[8], 22.0,  'Ano 8: 22.0 dias maximo (Art. 29 CT) - no 23.0')
 
 
-class TestCalc02BonoExento(common.TransactionCase):
+class TestCalc02BonoExento(TransactionCase):
     """Tests para CALC-02: bonos exentos de CCSS retornan gravable=0."""
 
     def setUp(self):

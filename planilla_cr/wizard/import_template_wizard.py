@@ -1,5 +1,6 @@
 from odoo import models, fields, api
 import base64, io
+import logging
 
 # -- openpyxl -----------------------------------------------------------------
 from openpyxl import Workbook
@@ -7,6 +8,8 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.comments import Comment
 from openpyxl.worksheet.datavalidation import DataValidation
+
+_logger = logging.getLogger(__name__)
 
 
 class ImportTemplateWizard(models.TransientModel):
@@ -588,6 +591,22 @@ class ImportTemplateWizard(models.TransientModel):
             """Escribe la lista en la columna actual.
             SIEMPRE incrementa next_col aunque values este vacio,
             para que las columnas siguientes no se desplacen.
+
+            FIX BUG DROPDOWN: ademas de escribir los datos, registra un
+            Rango con Nombre (Defined Name) para esta lista. Las
+            validaciones dinamicas (_dv_dynamic) usan ese nombre en vez
+            de una referencia directa tipo ' LISTAS'!$AA$3:$AA$5.
+            Causa raiz del bug original: con muchas validaciones de tipo
+            lista en la misma hoja apuntando a rangos de una hoja cuyo
+            nombre tiene un espacio al inicio, algunas (no todas, de
+            forma inconsistente) terminaban en el bloque extendido
+            x14:dataValidation, un formato que Excel a veces deja de
+            renderizar correctamente para validaciones especificas
+            dentro de la misma hoja sin un patron previsible -- bug
+            conocido y documentado del formato OOXML, no un problema de
+            los datos ni de como el usuario abre el archivo. Los rangos
+            con nombre son la tecnica estandar para evitar esto por
+            completo.
             """
             nonlocal next_col
             col_letter = get_column_letter(next_col)
@@ -605,6 +624,23 @@ class ImportTemplateWizard(models.TransientModel):
                 last_r = first_r + len(values) - 1
                 ws.column_dimensions[col_letter].width = width
                 dyn[key] = (col_letter, first_r, last_r)
+                # Registrar Rango con Nombre para esta lista dinamica.
+                # Nombre valido de Excel: solo letras, numeros, guion bajo,
+                # no puede empezar con numero ni contener espacios.
+                defined_name_key = f'DL_{key}'
+                ref = f"' LISTAS'!${col_letter}${first_r}:${col_letter}${last_r}"
+                try:
+                    from openpyxl.workbook.defined_name import DefinedName
+                    wb.defined_names[defined_name_key] = DefinedName(
+                        defined_name_key, attr_text=ref)
+                except Exception:
+                    # Si por alguna razon la API de rangos con nombre no
+                    # esta disponible en esta version de openpyxl,
+                    # _dv_dynamic detecta que dyn_names no tiene esta
+                    # clave y cae de vuelta a la referencia directa
+                    # (comportamiento anterior) -- nunca deja de generar
+                    # el machote por esto.
+                    pass
             else:
                 ws.cell(3, next_col, value='(sin registros -- creelos en Odoo primero)')
                 ws.cell(3, next_col).font = GREY_FONT
@@ -636,6 +672,11 @@ class ImportTemplateWizard(models.TransientModel):
         # Sin filtro de empresa: sudo() ya bypasea ir.rules. En un sistema
         # de una sola empresa todos los registros son del cliente.
         cals = _search('planilla.calendar')
+        _logger.info(
+            'planilla_cr machote: _search planilla.calendar -> %d registros '
+            '(company_id wizard=%s, nombres=%s)',
+            len(cals), self.company_id.id, cals.mapped('name'),
+        )
         _write_list('calendar', [c.name for c in cals], width=28)
 
         # -- Tipos de empleado ---------------------------------------------
@@ -678,12 +719,29 @@ class ImportTemplateWizard(models.TransientModel):
                     dyn_lists, last_data_row=500, title='Opciones'):
         """Aplica dropdown usando una lista dinamica (de BD) en  LISTAS.
         dyn_lists: dict retornado por _build_dynamic_lists().
+
+        FIX BUG DROPDOWN: la formula usa el Rango con Nombre 'DL_<key>'
+        (registrado en _write_list) en vez de la referencia directa
+        ' LISTAS'!$AA$3:$AA$5. Con referencias directas a una hoja cuyo
+        nombre empieza con espacio, algunas validaciones de tipo lista
+        terminaban silenciosamente en el bloque extendido
+        x14:dataValidation sin mostrar el desplegable en Excel, de forma
+        inconsistente entre columnas de la misma hoja -- comportamiento
+        erratico conocido del formato OOXML. Los rangos con nombre
+        evitan esto.
         """
         dyn = dyn_lists or {}
         if dyn_key not in dyn:
             return  # catalogo vacio en BD -- no agrega dropdown
         col_letter_src, first_r, last_r = dyn[dyn_key]
-        formula    = f"' LISTAS'!${col_letter_src}${first_r}:${col_letter_src}${last_r}"
+        defined_name_key = f'DL_{dyn_key}'
+        wb = ws.parent
+        if defined_name_key in getattr(wb, 'defined_names', {}):
+            formula = defined_name_key
+        else:
+            # Fallback: referencia directa (comportamiento anterior),
+            # solo si por algun motivo el rango con nombre no se registro.
+            formula = f"' LISTAS'!${col_letter_src}${first_r}:${col_letter_src}${last_r}"
         col_letter = get_column_letter(col_idx)
         sqref      = f'{col_letter}{first_data_row}:{col_letter}{last_data_row}'
         dv = DataValidation(

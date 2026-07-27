@@ -47,7 +47,7 @@ class ImportProcessorNovedades(models.AbstractModel):
                     branch = self._find_m2o('planilla.branch', v('Sucursal'),
                                 extra_domain=[('company_id', '=', self.company_id.id)])
 
-                    dtype = _map(DISABILITY_TYPE, v('Tipo de Incapacidad', 'Tipo')) or 'ccss'
+                    dtype = _map(K.DISABILITY_TYPE, v('Tipo de Incapacidad', 'Tipo')) or 'ccss'
                     vals = {
                         'employee_id':          emp.id,
                         'disability_type':      dtype,
@@ -214,7 +214,7 @@ class ImportProcessorNovedades(models.AbstractModel):
                 with self.env.cr.savepoint():
                     ot_date  = _parse_date(v('Fecha'))
                     hours    = _parse_float(v('Horas', 'Horas Extras'))
-                    ot_type  = _map(OVERTIME_TYPE, v('Tipo', 'Tipo de HE')) or 'simple'
+                    ot_type  = _map(K.OVERTIME_TYPE, v('Tipo', 'Tipo de HE')) or 'simple'
                     branch   = self._find_m2o('planilla.branch', v('Sucursal'),
                                   extra_domain=[('company_id', '=', self.company_id.id)])
 

@@ -4,12 +4,13 @@ Cada procesador es un metodo del wizard ImportDataWizard.
 Se importan desde import_data_wizard.py via herencia multiple.
 """
 import logging
+import re
 import traceback  # FIX-L3: faltaba -- usado en bloques except
 from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K
-from ..import_parse_utils import _map, _normalize, _parse_bool, _parse_date, _parse_float
+from ..import_parse_utils import _map, _normalize, _parse_bool, _parse_date, _parse_float, _parse_int
 
 _logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ class ImportProcessorEmployees(models.AbstractModel):
                     # Si no se encontro calendario por nombre, buscar por frecuencia
                     if not cal:
                         freq_raw = _normalize(v('Calendarizacion de Planilla', 'Frecuencia', 'Calendario', 'Frecuencia de Pago') or '')
-                        freq_val = FREQUENCY.get(freq_raw)
+                        freq_val = K.FREQUENCY.get(freq_raw)
                         if freq_val:
                             cal = self.env['planilla.calendar'].sudo().search([
                                 '|',
@@ -98,8 +99,8 @@ class ImportProcessorEmployees(models.AbstractModel):
 
                     # Identificacion type
                     id_type_raw  = _normalize(v('Tipo de Identificacion', 'Tipo Identificacion') or '')
-                    id_type_code = INS_ID_TYPE.get(id_type_raw, 'CI')      # code en planilla.identification.type
-                    ins_id_code  = INS_ID_TYPE_CODE.get(id_type_raw, '01') # codigo numerico para INS
+                    id_type_code = K.INS_ID_TYPE.get(id_type_raw, 'CI')      # code en planilla.identification.type
+                    ins_id_code  = K.INS_ID_TYPE_CODE.get(id_type_raw, '01') # codigo numerico para INS
                     id_type_rec  = self.env['planilla.identification.type'].search(
                         [('code', '=', id_type_code)], limit=1)
 
@@ -112,26 +113,26 @@ class ImportProcessorEmployees(models.AbstractModel):
                         'work_email':                 v('Correo', 'Email') or False,
                         'base_salary':                _parse_float(v('Salario Base', 'Salario')),
                         'salary_effective_date':      _parse_date(v('Fecha Vigencia', 'Vigencia Salarial')),
-                        'payroll_calculation_method': _map(CALC_METHOD, v('Metodo', 'Metodo', 'Metodo de Calculo')) or 'fixed',
+                        'payroll_calculation_method': _map(K.CALC_METHOD, v('Metodo', 'Metodo', 'Metodo de Calculo')) or 'fixed',
                         'ccss_number':                str(v('CCSS', 'Numero CCSS', 'Numero CCSS') or '').strip() or False,
                         'ccss_insured':               _parse_bool(v('Asegurado CCSS', 'CCSS Asegurado')),
                         'has_variable_income':        _parse_bool(v('Salario Variable', 'Comisiones', 'Ingreso Variable')),
                         'bank_account_number':        str(v('Cuenta Bancaria', 'Cuenta') or '').strip() or False,
                         'bank_iban':                  str(v('IBAN') or '').strip() or False,
                         'sinpe_phone': re.sub(r'\D', '', str(v('SINPE', 'Sinpe Movil', 'Sinpe Movil') or ''))[:8] or False,
-                        'bank_name':                  _map(BANK, v('Banco')) or False,
-                        'bank_account_type':          _map(ACCOUNT_TYPE, v('Tipo de Cuenta Banco', 'Tipo de Cuenta')) or False,
+                        'bank_name':                  _map(K.BANK, v('Banco')) or False,
+                        'bank_account_type':          _map(K.ACCOUNT_TYPE, v('Tipo de Cuenta Banco', 'Tipo de Cuenta')) or False,
                         # INS
                         'ins_include':               _parse_bool(v('Incluir INS', 'Incluir en INS')),
                         'ins_policy_number':         str(v('Poliza INS', 'Poliza INS', 'Numero de Poliza') or '').strip() or False,
                         'ins_first_name':            str(v('Nombre INS') or '').strip() or False,
                         'ins_first_lastname':        str(v('Primer Apellido INS') or '').strip() or False,
                         'ins_second_lastname':       str(v('Segundo Apellido INS') or '').strip() or False,
-                        'ins_risk_class':            _map(INS_RISK, v('Clase de Riesgo', 'Riesgo INS')) or False,
-                        'ins_workday_type':          _map(INS_WORKDAY, v('Jornada INS', 'Tipo de Jornada INS', 'Tipo de Jornada')) or '01',
-                        'ins_civil_status':          _map(INS_CIVIL, v('Estado Civil INS', 'Estado Civil')) or '01',
+                        'ins_risk_class':            _map(K.INS_RISK, v('Clase de Riesgo', 'Riesgo INS')) or False,
+                        'ins_workday_type':          _map(K.INS_WORKDAY, v('Jornada INS', 'Tipo de Jornada INS', 'Tipo de Jornada')) or '01',
+                        'ins_civil_status':          _map(K.INS_CIVIL, v('Estado Civil INS', 'Estado Civil')) or '01',
                         'ins_id_type':               ins_id_code,
-                        'ins_nationality':           _map(INS_NATIONALITY, v('Nacionalidad INS', 'Nacionalidad')) or 'CR',
+                        'ins_nationality':           _map(K.INS_NATIONALITY, v('Nacionalidad INS', 'Nacionalidad')) or 'CR',
                     }
 
                     # Relacionales opcionales
@@ -176,7 +177,7 @@ class ImportProcessorEmployees(models.AbstractModel):
                         country_id = country.id if country else False
 
                     _personal = {
-                        'gender':            _map(GENDER, v('Genero', 'Genero')) or False,
+                        'gender':            _map(K.GENDER, v('Genero', 'Genero')) or False,
                         'children':          _parse_int(v('Numero de Dependientes', 'Dependientes')) or 0,
                         'private_street':    str(v('Direccion', 'Direccion') or '').strip() or False,
                         'private_phone':     str(v('Telefono Personal', 'Telefono Personal') or '').strip() or False,

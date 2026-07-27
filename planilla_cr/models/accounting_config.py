@@ -1,5 +1,6 @@
 from odoo import models, fields, api
 from . import planilla_const as K
+from ..hooks import post_init_hook
 
 
 class PayrollAccountingConfig(models.Model):

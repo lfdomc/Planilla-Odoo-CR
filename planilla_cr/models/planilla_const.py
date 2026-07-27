@@ -229,6 +229,22 @@ MAX_PCT_EMBARGO: float = 25.0
 # FRECUENCIAS DE PAGO -- Factores de conversion
 # -----------------------------------------------------------------------------
 
+#: Mapeo de texto (espanol/ingles, como viene del Excel de importacion o de
+#: formularios) al codigo interno de frecuencia usado en todo el modulo.
+#: FIX BUG: antes vivia solo en wizard/import_data_wizard.py como constante
+#: de modulo, sin importarse en wizard/processors/proc_employees.py -- eso
+#: causaba NameError: name 'FREQUENCY' is not defined en TODA importacion
+#: masiva de empleados por Excel, sin excepcion (nunca se llegaba a crear
+#: ni un solo empleado). Centralizada aqui junto a sus constantes hermanas
+#: (FREQ_FACTORS, PERIODOS_POR_MES) para que cualquier archivo que la
+#: necesite la importe desde la misma fuente unica.
+FREQUENCY: dict = {
+    'mensual': 'monthly', 'monthly': 'monthly',
+    'quincenal': 'biweekly', 'biweekly': 'biweekly',
+    'semanal': 'weekly', 'weekly': 'weekly',
+    'bimensual': 'bimonthly', 'bimonthly': 'bimonthly',
+}
+
 #: Factor de conversion salario mensual -> salario del periodo
 FREQ_FACTORS: dict = {
     'monthly':   1.0,    # mensual
@@ -289,3 +305,195 @@ CREDITO_FISCAL_CONYUGE: int = 2_590
 
 #: Cedula alternativa para tests unitarios
 TEST_CEDULA: str = '1-0000-0001'
+
+# -----------------------------------------------------------------------------
+# MAPEOS DE IMPORTACION EXCEL (texto amigable -> valor tecnico del modelo)
+# -----------------------------------------------------------------------------
+# FIX BUG: estas 18 constantes vivian como variables de modulo sueltas en
+# wizard/import_data_wizard.py, sin importarse en los archivos que
+# realmente las usan (wizard/processors/proc_employees.py,
+# proc_loans.py, proc_novedades.py). Causaba NameError: name '...' is not
+# defined en CADA importacion masiva de empleados/prestamos/pensiones/
+# incapacidades/horas-extra por Excel -- sin excepcion, nunca se llegaba
+# a crear ni un solo registro en esas hojas. Centralizadas aqui junto al
+# resto de constantes del modulo para que cualquier archivo que las
+# necesite las importe desde la misma fuente unica (K.NOMBRE_CONSTANTE).
+
+INS_RISK = {
+    # Valor corto (solo el numero romano)
+    'i': 'I', 'ii': 'II', 'iii': 'III', 'iv': 'IV', 'v': 'V',
+    'I': 'I', 'II': 'II', 'III': 'III', 'IV': 'IV', 'V': 'V',
+    '1': 'I', '2': 'II', '3': 'III', '4': 'IV', '5': 'V',
+    # Valor largo con descripcion (formato del machote: "I - Oficinas")
+    'i - oficinas': 'I', 'i - riesgo minimo': 'I', 'i - minimo': 'I',
+    'ii - comercio': 'II', 'ii - riesgo bajo': 'II', 'ii - bajo': 'II',
+    'ii - comercio general': 'II', 'ii - servicios': 'II',
+    'iii - manufactura': 'III', 'iii - riesgo medio': 'III', 'iii - medio': 'III',
+    'iii - manufactura ligera': 'III', 'iii - transporte': 'III',
+    'iv - construccion': 'IV', 'iv - construccion': 'IV',
+    'iv - riesgo alto': 'IV', 'iv - alto': 'IV', 'iv - industria': 'IV',
+    'v - mineria': 'V', 'v - mineria': 'V',
+    'v - riesgo maximo': 'V', 'v - riesgo maximo': 'V', 'v - maximo': 'V',
+    'v - explosivos': 'V', 'v - pesca': 'V',
+}
+
+INS_WORKDAY = {
+    # Valores del dropdown (espanol legible)
+    'ordinaria': '01', 'diurna': '01', '01': '01',
+    'extraordinaria': '02', '02': '02',
+    'mixta': '03', '03': '03',
+    'tiempo parcial': '04', 'medio tiempo': '04', '04': '04',
+    'por horas': '05', '05': '05',
+    'ocasional': '06', '06': '06',
+}
+
+INS_NATIONALITY = {
+    'cr': 'CR', 'costarricense': 'CR', 'costa rica': 'CR',
+    'ni': 'NI', 'nicaraguense': 'NI',
+    'co': 'CO', 'colombiano': 'CO', 'colombiana': 'CO', 'colombiano/a': 'CO',
+    'us': 'US', 'estadounidense': 'US', 'americano': 'US',
+    'hn': 'HN', 'hondureno': 'HN', 'hondureno/a': 'HN',
+    'sv': 'SV', 'salvadoreno': 'SV', 'salvadoreno/a': 'SV',
+    'gt': 'GT', 'guatemalteco': 'GT', 'guatemalteca': 'GT', 'guatemalteco/a': 'GT',
+    'pa': 'PA', 'panameno': 'PA', 'panameno/a': 'PA',
+    'mx': 'MX', 'mexicano': 'MX', 'mexicana': 'MX', 'mexicano/a': 'MX',
+    've': 'VE', 'venezolano': 'VE', 'venezolana': 'VE', 'venezolano/a': 'VE',
+    'pe': 'PE', 'peruano': 'PE', 'peruana': 'PE', 'peruano/a': 'PE',
+    'ec': 'EC', 'ecuatoriano': 'EC', 'ecuatoriana': 'EC', 'ecuatoriano/a': 'EC',
+    'ot': 'OT', 'otro': 'OT', 'otra': 'OT', 'other': 'OT',
+}
+
+ACCOUNT_TYPE = {
+    'cuenta corriente': 'corriente', 'corriente': 'corriente', 'iban': 'corriente',
+    'cuenta de ahorros': 'ahorros', 'ahorros': 'ahorros',
+    'sinpe movil': 'sinpe', 'sinpe': 'sinpe',
+}
+
+GENDER = {
+    'masculino': 'male', 'hombre': 'male', 'male': 'male', 'm': 'male',
+    'femenino': 'female', 'mujer': 'female', 'female': 'female', 'f': 'female',
+    'otro': 'other', 'other': 'other',
+}
+
+INS_CIVIL = {
+    'soltero/a': '01', 'soltero': '01', 'soltera': '01', '01': '01',
+    'casado/a': '02', 'casado': '02', 'casada': '02', '02': '02',
+    'divorciado/a': '03', 'divorciado': '03', 'divorciada': '03', '03': '03',
+    'viudo/a': '04', 'viudo': '04', 'viuda': '04', '04': '04',
+    'union libre': '05', '05': '05',
+    'separado/a': '06', 'separado': '06', 'separada': '06', '06': '06',
+}
+
+INS_ID_TYPE = {
+    # Mapeo texto del Excel -> code de planilla.identification.type en BD
+    # Codigos segun data inicial: CI, DIMEX, PAS, CJ, NITE
+    'cedula nacional': 'CI',
+    'cedula de identidad': 'CI',
+    'cedula': 'CI', '01': 'CI', 'ci': 'CI',
+    'residencia / dimex': 'DIMEX', 'residencia': 'DIMEX',
+    'dimex': 'DIMEX', '02': 'DIMEX',
+    'permiso de trabajo': 'NITE', 'permiso': 'NITE',
+    'nite': 'NITE', '03': 'NITE',
+    'pasaporte': 'PAS', 'pas': 'PAS', '04': 'PAS',
+    'cedula juridica': 'CJ',
+    'juridica': 'CJ', 'cj': 'CJ',
+    'indocumentado': 'NITE', '05': 'NITE',
+}
+
+# Mapeo separado texto -> codigo INS (campo ins_id_type, numerico 2 digitos)
+INS_ID_TYPE_CODE = {
+    'cedula nacional': '01',
+    'cedula de identidad': '01',
+    'cedula': '01', '01': '01', 'ci': '01',
+    'residencia / dimex': '02', 'residencia': '02', 'dimex': '02', '02': '02',
+    'permiso de trabajo': '03', 'permiso': '03', 'nite': '03', '03': '03',
+    'pasaporte': '04', 'pas': '04', '04': '04',
+    'indocumentado': '05', '05': '05',
+    'cedula juridica': '06', 'cj': '06',
+}
+
+DISABILITY_TYPE = {
+    'enfermedad comun (ccss)': 'ccss',
+    'enfermedad': 'ccss', 'ccss': 'ccss',
+    'accidente de trabajo (ccss)': 'ccss_accident',
+    'accidente trabajo': 'ccss_accident', 'accidente_trabajo': 'ccss_accident',
+    'riesgo laboral (ins)': 'ins', 'ins': 'ins', 'riesgo laboral': 'ins',
+    'maternidad / paternidad': 'maternity',
+    'maternidad': 'maternity', 'paternidad': 'maternity',
+    'otro': 'other', 'otra': 'other', 'other': 'other',
+}
+
+BENEFIT_TYPE = {
+    'beneficio / ingreso': 'income', 'beneficio': 'income', 'ingreso': 'income',
+    'income': 'income', 'plus': 'income',
+    'deduccion / descuento': 'deduction',
+    'deduccion': 'deduction',
+    'descuento': 'deduction', 'deduction': 'deduction', 'embargo': 'deduction',
+}
+
+AMOUNT_TYPE = {
+    'monto fijo': 'fixed', 'fijo': 'fixed', 'fixed': 'fixed',
+    'porcentaje': 'percentage', 'percentage': 'percentage', '%': 'percentage',
+}
+
+PENSION_CALC = {
+    'porcentaje del salario': 'percentage', 'porcentaje': 'percentage',
+    'percentage': 'percentage', '%': 'percentage',
+    'monto fijo': 'fixed', 'monto_fijo': 'fixed', 'fixed': 'fixed', 'fijo': 'fixed',
+}
+
+OVERTIME_TYPE = {
+    'simple (1.5x)': 'simple', 'simple': 'simple', '1.5x': 'simple', 'ordinaria': 'simple',
+    'doble (2.0x)': 'double', 'doble': 'double', '2x': 'double', 'double': 'double',
+    'dia feriado': 'holiday', 'feriado': 'holiday',
+    'holiday': 'holiday',
+}
+
+BANK = {
+    'bncr': 'BNCR', 'banco nacional': 'BNCR', 'nacional': 'BNCR',
+    'bcr': 'BCR', 'banco de costa rica': 'BCR',
+    'bp': 'BP', 'bpop': 'BP', 'banco popular': 'BP', 'popular': 'BP',
+    'bac': 'BAC', 'bac san jose': 'BAC',
+    'bct': 'BCT', 'banco bct': 'BCT',
+    'cathay': 'CATHAY',
+    'cmb': 'CMB',
+    'davivienda': 'DAVIVIENDA',
+    'general': 'GENERAL', 'banco general': 'GENERAL',
+    'improsa': 'IMPROSA',
+    'lafise': 'LAFISE', 'lafise banistmo': 'LAFISE',
+    'promerica': 'PROMERICA', 'banco promerica': 'PROMERICA',
+    'prival': 'PRIVAL',
+    'scotiabank': 'SCOTIA', 'scotia': 'SCOTIA',
+    'coocique': 'COOCIQUE',
+    'coopenae': 'COOPENAE',
+    'mucap': 'MUTUAL_ALJ', 'mutual alajuela': 'MUTUAL_ALJ',
+    'otro': 'OTRO', 'other': 'OTRO',
+}
+
+CALC_METHOD = {
+    'salario fijo': 'fixed', 'fijo': 'fixed', 'fixed': 'fixed',
+    'por horas trabajadas': 'attendance', 'asistencia': 'attendance',
+    'attendance': 'attendance', 'horas': 'attendance',
+}
+
+LOAN_TYPE = {
+    'prestamo de empresa': 'loan',
+    'loan': 'loan', 'prestamo': 'loan',
+    'adelanto de salario': 'advance', 'advance': 'advance', 'adelanto': 'advance',
+}
+
+LOAN_STATE = {
+    'aprobado': 'approved', 'approved': 'approved',
+    'en curso': 'active', 'active': 'active', 'activo': 'active',
+    'borrador': 'draft', 'draft': 'draft',
+    'pagado': 'paid', 'paid': 'paid', 'cancelado': 'paid',
+    'anulado': 'cancelled', 'cancelled': 'cancelled',
+}
+
+PENSION_RELATION = {
+    'hijo/a': 'hijo', 'hijo': 'hijo', 'hija': 'hijo',
+    'conyuge': 'conyuge', 'companero': 'conyuge',
+    'companera': 'conyuge', 'conviviente': 'conyuge',
+    'padre': 'padre', 'madre': 'madre',
+    'otro': 'otro', 'otra': 'otro',
+}

@@ -9,7 +9,7 @@ from datetime import date
 from odoo import models, api
 from odoo.exceptions import UserError
 from ...models import planilla_const as K
-from ..import_parse_utils import _map, _parse_date, _parse_float
+from ..import_parse_utils import _map, _parse_date, _parse_float, _parse_int
 
 _logger = logging.getLogger(__name__)
 
@@ -48,8 +48,8 @@ class ImportProcessorLoans(models.AbstractModel):
                     installments = _parse_int(v('Numero de Cuotas', 'Cuotas', 'Installments'))
                     date_granted = _parse_date(v('Fecha de Otorgamiento', 'Fecha Otorgamiento'))
                     date_first   = _parse_date(v('Fecha Primera Deduccion', 'Primera Deduccion'))
-                    state_raw    = _map(LOAN_STATE, v('Estado')) or 'approved'
-                    loan_type    = _map(LOAN_TYPE, v('Tipo de Prestamo', 'Tipo')) or 'loan'
+                    state_raw    = _map(K.LOAN_STATE, v('Estado')) or 'approved'
+                    loan_type    = _map(K.LOAN_TYPE, v('Tipo de Prestamo', 'Tipo')) or 'loan'
                     amount_paid  = _parse_float(v('Monto ya Pagado', 'Monto Pagado'))
 
                     if amount_total <= 0 or installments <= 0:
@@ -131,7 +131,7 @@ class ImportProcessorLoans(models.AbstractModel):
             vals = {}  # BUG FIX: inicializar antes del try (el except usa vals.items())
             try:
                 with self.env.cr.savepoint():
-                    calc_type = _map(PENSION_CALC, v('Tipo de Calculo', 'Tipo Calculo')) or 'fixed'
+                    calc_type = _map(K.PENSION_CALC, v('Tipo de Calculo', 'Tipo Calculo')) or 'fixed'
                     pct_raw   = _parse_float(v('Porcentaje'))
                     monto_raw = _parse_float(v('Monto Fijo', 'Monto'))
 
@@ -144,7 +144,7 @@ class ImportProcessorLoans(models.AbstractModel):
                         'juzgado':              str(v('Juzgado') or '').strip() or False,
                         'fecha_resolucion':     _parse_date(v('Fecha de Resolucion', 'Fecha Resolucion')),
                         'beneficiario_nombre':  str(v('Beneficiario', 'Nombre Beneficiario') or '').strip() or False,
-                        'beneficiario_relacion': _map(PENSION_RELATION, v('Relacion', 'Relacion')) or 'hijo',
+                        'beneficiario_relacion': _map(K.PENSION_RELATION, v('Relacion', 'Relacion')) or 'hijo',
                         'beneficiario_cuenta':  str(v('Cuenta Beneficiario') or '').strip() or False,
                         'calculation_type':     calc_type,
                         'percentage':           pct_raw if calc_type == 'percentage' else 0.0,
@@ -198,8 +198,8 @@ class ImportProcessorLoans(models.AbstractModel):
             vals = {}  # BUG FIX: inicializar antes del try (el except usa vals.items())
             try:
                 with self.env.cr.savepoint():
-                    benefit_type = _map(BENEFIT_TYPE, v('Tipo')) or 'deduction'
-                    amount_type  = _map(AMOUNT_TYPE, v('Tipo de Monto', 'Tipo Monto')) or 'fixed'
+                    benefit_type = _map(K.BENEFIT_TYPE, v('Tipo')) or 'deduction'
+                    amount_type  = _map(K.AMOUNT_TYPE, v('Tipo de Monto', 'Tipo Monto')) or 'fixed'
                     amount       = _parse_float(v('Monto'))
                     pct          = _parse_float(v('Porcentaje'))
                     concepto     = str(v('Concepto') or '').strip()
