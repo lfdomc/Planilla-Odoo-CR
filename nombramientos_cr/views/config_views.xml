@@ -81,6 +81,15 @@
           <group string="Modo de Pago y Frecuencia">
             <group>
               <field name="payment_mode" widget="radio"/>
+              <div class="text-muted" style="margin-bottom: 10px;">
+                Este selector es informativo. El modo de pago real de cada
+                empleado se toma de su campo "Metodo de Calculo de Planilla"
+                en su ficha de Empleado (pestaña Planilla): "Por Horas
+                Trabajadas" paga estrictamente las horas marcadas en el
+                turno; "Salario Fijo" paga el salario normal del empleado
+                y solo el exceso sobre el turno planeado se paga como hora
+                extra. Configure el modo por empleado ahi, no aqui.
+              </div>
               <field name="payment_frequency"/>
               <field name="payroll_calendar_id"/>
               <field name="company_id" groups="base.group_multi_company"/>

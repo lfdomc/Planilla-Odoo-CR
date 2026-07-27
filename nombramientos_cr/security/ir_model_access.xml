@@ -62,4 +62,13 @@
         <field name="perm_create" eval="True"/>
         <field name="perm_unlink" eval="True"/>
     </record>
+
+    <record id="access_calendario_wizard" model="ir.model.access">
+        <field name="name">calendario.wizard.all</field>
+        <field name="model_id" search="[('model','=','nombramientos.calendario.wizard')]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
 </odoo>

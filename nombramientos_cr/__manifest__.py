@@ -20,6 +20,8 @@
     },
     'data': [
         'security/groups.xml',
+        'security/ir_model_access.xml',
+        'security/record_rules.xml',
         'data/sequences.xml',
         'data/shift_templates_data.xml',
         # Views primero (sin referencias a actions wizard)
