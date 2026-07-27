@@ -57,6 +57,21 @@
                                    help="ON = no descuenta CCSS en liquidaciones. OFF = descuenta CCSS normalmente."/>
                         </group>
                     </group>
+                    <group string="Integración con Nombramientos (opcional)">
+                        <group>
+                            <field name="use_nombramientos_schedule"
+                                   widget="boolean_toggle"
+                                   string="Usar turno de Nombramientos como horario esperado"
+                                   help="Solo tiene efecto si el módulo Nombramientos está instalado. ON = usa el turno del día (sede, hora entrada/salida) para calcular tardías y horas extra. Si el empleado no tiene turno ese día, se usa el horario general como respaldo."/>
+                            <field name="tardiness_tolerance_minutes"
+                                   string="Tolerancia de tardía (minutos)"
+                                   help="Minutos de gracia después de la hora de entrada esperada antes de marcar tardía. Solo informativo, no afecta el pago."/>
+                            <field name="unassigned_attendance_as_overtime"
+                                   widget="boolean_toggle"
+                                   string="Asistencia sin nombramiento = HE pendiente de aprobación"
+                                   help="Solo tiene efecto si el módulo Nombramientos está instalado. ON = si el empleado marca asistencia sin tener turno asignado ese día, se registra como hora extra en borrador, pendiente de aprobación del supervisor."/>
+                        </group>
+                    </group>
                     <group string="Planilla — Configuración General">
                         <group string="Nuevas Planillas">
                             <field name="default_payroll_calendar_id"

@@ -4,12 +4,14 @@
         <field name="name">planilla.branch.list</field>
         <field name="model">planilla.branch</field>
         <field name="arch" type="xml">
-            <list string="Sucursales">
+            <list string="Sucursales" decoration-info="is_temporary == True">
                 <field name="code"/>
                 <field name="name"/>
                 <field name="phone"/>
                 <field name="email"/>
                 <field name="employee_count"/>
+                <field name="is_temporary" string="Temporal" widget="boolean_toggle"/>
+                <field name="project_end_date" string="Cierre Estimado" optional="show"/>
                 <field name="active"/>
             </list>
         </field>
@@ -23,6 +25,10 @@
                 <header>
                     <button name="action_view_employees" type="object"
                             string="Ver Empleados" class="btn-secondary"/>
+                    <button name="action_archive_temporary" type="object"
+                            string="Cerrar Sucursal Temporal" class="btn-danger"
+                            invisible="not is_temporary or not active"
+                            confirm="¿Cerrar esta sucursal temporal? Se archivará (no se elimina el historial de nombramientos/boletas que la referencian). Podrá reactivarla desde Archivados si es necesario."/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -31,6 +37,8 @@
                             <field name="employee_count" widget="statinfo" string="Empleados"/>
                         </button>
                     </div>
+                    <widget name="web_ribbon" title="Temporal" bg_color="bg-info"
+                            invisible="not is_temporary"/>
                     <group>
                         <group>
                             <field name="code"/>
@@ -43,9 +51,59 @@
                             <field name="address"/>
                         </group>
                     </group>
+                    <group string="Sucursal Temporal (obras / proyectos)">
+                        <group>
+                            <field name="is_temporary" widget="boolean_toggle"/>
+                            <field name="project_end_date"
+                                   invisible="not is_temporary"/>
+                        </group>
+                        <group>
+                            <div class="text-muted" invisible="not is_temporary">
+                                Las sucursales temporales se pueden cerrar
+                                (archivar) desde el botón "Cerrar Sucursal
+                                Temporal" en el encabezado cuando el
+                                proyecto termine. El historial de
+                                nombramientos y boletas asociado se
+                                conserva.
+                            </div>
+                        </group>
+                    </group>
+                    <group string="Coordenadas GPS (validación de asistencia)">
+                        <group>
+                            <field name="latitude"/>
+                            <field name="longitude"/>
+                        </group>
+                        <group>
+                            <div class="text-muted">
+                                Si el módulo de Reconocimiento Facial tiene
+                                un kiosco con GPS complementario activado
+                                vinculado a esta sucursal, estas
+                                coordenadas se usan para validar que las
+                                marcaciones ocurran dentro del radio
+                                permitido.
+                            </div>
+                        </group>
+                    </group>
                 </sheet>
                 <chatter/>
             </form>
+        </field>
+    </record>
+
+    <record id="view_branch_search" model="ir.ui.view">
+        <field name="name">planilla.branch.search</field>
+        <field name="model">planilla.branch</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <filter string="Temporales" name="temporary"
+                        domain="[('is_temporary','=',True)]"/>
+                <filter string="Permanentes" name="permanent"
+                        domain="[('is_temporary','=',False)]"/>
+                <filter string="Archivadas" name="inactive"
+                        domain="[('active','=',False)]"/>
+            </search>
         </field>
     </record>
 

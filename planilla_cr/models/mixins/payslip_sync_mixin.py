@@ -220,8 +220,27 @@ class PayslipSyncMixin(models.AbstractModel):
         ])
         vacations.write({'payslip_id': self.id})
 
-        # -- HE automaticas desde asistencias (solo metodo 'attendance') ------
-        self._sync_overtime_from_attendance()
+        # -- HE automaticas desde asistencias -------------------------------
+        # NOTA (auditoria): la llamada a _sync_overtime_from_attendance()
+        # que vivia aqui fue removida. Ese metodo duplicaba la deteccion
+        # que ya hace planilla.payslip.auto.overtime.mixin._auto_detect_overtime(),
+        # que corre ANTES en el mismo flujo de creacion de boleta
+        # (ver payslip_action_mixin.create()). Ambos analizaban la misma
+        # ventana de hr.attendance de forma independiente, lo que producia:
+        #   - HE duplicada (pago doble) cuando ambos clasificaban el
+        #     excedente con overtime_type distinto para el mismo dia.
+        #   - Error de integridad (UNIQUE employee_id+date+overtime_type)
+        #     cuando ambos coincidian en el tipo, abortando la creacion
+        #     de la boleta completa.
+        #   - El mecanismo viejo ademas ignoraba el toggle
+        #     enable_auto_overtime de Configuracion Contable, generando
+        #     HE automatica incluso con esa opcion desactivada -- lo cual
+        #     contradice el comportamiento documentado ("OFF = HE siempre
+        #     manuales").
+        # El metodo _sync_overtime_from_attendance() se conserva en este
+        # archivo (mas abajo) por compatibilidad con codigo o tests que
+        # lo invoquen directamente, pero ya no se llama desde el flujo
+        # normal de sincronizacion.
 
         # -- Pensiones Alimentarias -----------------------------------------
         self._sync_pension_alimentaria()

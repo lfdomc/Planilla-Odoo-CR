@@ -41,7 +41,7 @@ class AguinaldoWizard(models.TransientModel):
         'res.currency', default=lambda self: self.env.ref('base.CRC')
     )
     provision_acumulada = fields.Monetary(
-        string='Provisión Acum. (dic→hoy)', currency_field='currency_id',
+        string='Provisión Acum. (dic->hoy)', currency_field='currency_id',
     )
     initial_amount = fields.Monetary(
         string='Acumulado Inicial', currency_field='currency_id',
@@ -164,6 +164,26 @@ class AguinaldoWizard(models.TransientModel):
                     'aguinaldo_initial_date': emp.aguinaldo_initial_date,
                 }
 
+        # FIX N+1: precargar TODAS las boletas candidatas de provision de
+        # TODOS los empleados en una sola query (rango amplio: desde
+        # diciembre del ano anterior hasta hoy), en vez de un search()
+        # por empleado dentro del loop de abajo. El filtro exacto por
+        # prov_start (que varia por empleado segun su
+        # aguinaldo_initial_date individual) se aplica en memoria,
+        # preservando exactamente la misma logica por registro.
+        _today_batch = date.today()
+        _dic_start_batch = date(_today_batch.year - 1, 12, 1)
+        _all_prov_slips = self.env['planilla.payslip.cr'].search([
+            ('employee_id', 'in', list(employee_data.keys())),
+            ('state', 'in', ('done', 'confirmed')),
+            ('date_from', '>=', _dic_start_batch),
+            ('date_to', '<=', _today_batch),
+            ('company_id', '=', self.company_id.id),
+        ])
+        _prov_slips_by_emp = {}
+        for s in _all_prov_slips:
+            _prov_slips_by_emp.setdefault(s.employee_id.id, []).append(s)
+
         # Calcular aguinaldo por empleado (result_ids ya se limpio al inicio del metodo)
         lines = []
         for eid, data in employee_data.items():
@@ -192,9 +212,9 @@ class AguinaldoWizard(models.TransientModel):
                 if aguinaldo_year_start <= initial_date <= aguinaldo_year_end:
                     aguinaldo = round(aguinaldo + initial, 2)
 
-            # Acumulado provisión: SOLO boletas DESPUÉS del acumulado inicial
+            # Acumulado provision: SOLO boletas DESPUES del acumulado inicial
             # para evitar doble conteo.
-            # Ejemplo: acumulado_inicial cubre dic-mar → provision busca desde abr.
+            # Ejemplo: acumulado_inicial cubre dic-mar -> provision busca desde abr.
             today = date.today()
             dic_start = date(today.year - 1, 12, 1)
             emp_obj = self.env['hr.employee'].browse(eid)
@@ -210,15 +230,12 @@ class AguinaldoWizard(models.TransientModel):
                 import datetime as _dt
                 prov_start = emp_obj.aguinaldo_initial_date + _dt.timedelta(days=1)
 
-            prov_slips = self.env['planilla.payslip.cr'].search([
-                ('employee_id', '=', eid),
-                ('state', 'in', ('done', 'confirmed')),
-                ('date_from', '>=', prov_start),
-                ('date_to', '<=', today),
-                ('company_id', '=', self.company_id.id),
-            ])
+            prov_slips_candidatas = _prov_slips_by_emp.get(eid, [])
+            prov_slips_filtered = [
+                s for s in prov_slips_candidatas if s.date_from >= prov_start
+            ]
             provision_sum = round(
-                sum(s.aguinaldo_provision for s in prov_slips), 2)
+                sum(s.aguinaldo_provision for s in prov_slips_filtered), 2)
 
             lines.append({
                 'wizard_id':           self.id,
@@ -287,7 +304,7 @@ class AguinaldoWizard(models.TransientModel):
         headers = [
             'Empleado', 'Sucursal', 'Boletas', 'Meses',
             'Total Salarios Ordinarios', 'Aguinaldo Jun-Nov',
-            'Acum. Inicial (Pre-sistema)', 'Provisionado dic→hoy', 'Total Acumulado',
+            'Acum. Inicial (Pre-sistema)', 'Provisionado dic->hoy', 'Total Acumulado',
         ]
         for col, h in enumerate(headers):
             ws.write(0, col, h, bold)
@@ -349,7 +366,7 @@ class AguinaldoLine(models.TransientModel):
         'res.currency', default=lambda self: self.env.ref('base.CRC')
     )
     provision_acumulada = fields.Monetary(
-        string='Provisión Acum. (dic→hoy)', currency_field='currency_id',
+        string='Provisión Acum. (dic->hoy)', currency_field='currency_id',
     )
     initial_amount = fields.Monetary(
         string='Acumulado Inicial', currency_field='currency_id',

@@ -70,18 +70,41 @@ class PayslipComputeMixin(models.AbstractModel):
         Terminacion: prevalece sobre la regla de calendario -- un empleado que
         sale a mitad de mes no va a tener una boleta despues que reconcilie.
         """
+        # FIX N+1: precargar todas las terminaciones relevantes del
+        # recordset en UNA sola query (en vez de un search() por boleta).
+        # Se usa el rango completo min/max de date_to del lote y se
+        # filtra por empleado en memoria -- seguro porque el filtro es
+        # solo un pre-recorte de candidatos, la logica de mes exacto por
+        # registro se mantiene igual mas abajo.
+        recs_con_fecha = self.filtered(lambda r: r.date_to and r.employee_id)
+        terminations_by_emp = {}
+        if recs_con_fecha:
+            min_date = min(r.date_to.replace(day=1) for r in recs_con_fecha)
+            max_date = max(
+                r.date_to + relativedelta(months=1, day=1) for r in recs_con_fecha
+            )
+            emp_ids = recs_con_fecha.mapped('employee_id').ids
+            all_terms = self.env['planilla.termination'].search([
+                ('employee_id', 'in', emp_ids),
+                ('termination_date', '>=', min_date),
+                ('termination_date', '<', max_date),
+                ('state', '!=', 'cancelled'),
+            ])
+            for t in all_terms:
+                terminations_by_emp.setdefault(t.employee_id.id, []).append(t)
+
         for rec in self:
             if not rec.date_to or not rec.employee_id:
                 rec.is_last_payslip_of_month = True
                 continue
 
-            termination = self.env['planilla.termination'].search([
-                ('employee_id', '=', rec.employee_id.id),
-                ('termination_date', '>=', rec.date_to.replace(day=1)),
-                ('termination_date', '<', rec.date_to + relativedelta(months=1, day=1)),
-                ('state', '!=', 'cancelled'),
-            ], limit=1)
-            if termination:
+            month_start = rec.date_to.replace(day=1)
+            month_end = rec.date_to + relativedelta(months=1, day=1)
+            has_termination = any(
+                month_start <= t.termination_date < month_end
+                for t in terminations_by_emp.get(rec.employee_id.id, [])
+            )
+            if has_termination:
                 rec.is_last_payslip_of_month = True
                 continue
 
@@ -209,6 +232,34 @@ class PayslipComputeMixin(models.AbstractModel):
                  'proportional_factor',
                  'employee_id.payroll_calculation_method')
     def _compute_attendance_hours(self):
+        # FIX N+1: precargar hr.attendance para TODO el recordset en una
+        # sola query batch (rango min/max de fechas), en vez de un
+        # search() por boleta. El filtro por empleado y por el rango
+        # exacto de cada boleta se aplica en memoria al procesar cada
+        # registro -- el resultado por boleta es identico al de antes.
+        recs_attendance = self.filtered(
+            lambda r: r.employee_id and r.date_from and r.date_to
+                      and r.employee_id.payroll_calculation_method == 'attendance'
+        )
+        att_by_emp = {}
+        if recs_attendance:
+            min_dt = min(
+                fields.Datetime.to_datetime(r.date_from) for r in recs_attendance
+            )
+            max_dt = max(
+                fields.Datetime.to_datetime(r.date_to) + datetime.timedelta(
+                    days=1, hours=K.CR_UTC_OFFSET_HOURS
+                ) for r in recs_attendance
+            )
+            emp_ids = recs_attendance.mapped('employee_id').ids
+            all_att = self.env['hr.attendance'].search([
+                ('employee_id', 'in', emp_ids),
+                ('check_in',    '>=', min_dt),
+                ('check_in',    '<',  max_dt),
+            ])
+            for att in all_att:
+                att_by_emp.setdefault(att.employee_id.id, []).append(att)
+
         for rec in self:
             if (not rec.employee_id or not rec.date_from or not rec.date_to
                     or rec.employee_id.payroll_calculation_method != 'attendance'):
@@ -220,10 +271,9 @@ class PayslipComputeMixin(models.AbstractModel):
             dt_to   = fields.Datetime.to_datetime(rec.date_to) + datetime.timedelta(
                 days=1, hours=K.CR_UTC_OFFSET_HOURS  # FIX B-11 v58: usar constante
             )
-            attendances = self.env['hr.attendance'].search([
-                ('employee_id', '=', rec.employee_id.id),
-                ('check_in',    '>=', dt_from),
-                ('check_in',    '<',  dt_to),
+            candidatos = att_by_emp.get(rec.employee_id.id, [])
+            attendances = self.env['hr.attendance'].browse([
+                a.id for a in candidatos if dt_from <= a.check_in < dt_to
             ])
             open_att = attendances.filtered(lambda a: not a.check_out)
             if open_att:

@@ -471,6 +471,50 @@ class PayslipValidationMixin(models.AbstractModel):
         # -- suficiente para detectar salarios claramente bajo el minimo legal.
         min_salary_global = self.env['planilla.minimum.salary'].get_current_minimum()
 
+        # FIX N+1: precargar en batch, antes del loop, las boletas
+        # hermanas en borrador y las incapacidades del periodo de TODOS
+        # los registros del recordset -- antes cada boleta disparaba sus
+        # propios 2 search() (limit=1 cada uno) dentro del loop, lo que en
+        # una planilla grupal de 30+ empleados son 60+ queries evitables.
+        emp_ids_batch = self.mapped('employee_id').ids
+        _hermanas_draft_by_key = {}
+        recs_con_calendario = self.filtered(lambda r: r.date_to and r.payroll_calendar_id)
+        if recs_con_calendario:
+            _min_month_start = min(
+                r.date_to.replace(day=1) for r in recs_con_calendario)
+            # NOTA: NO se excluye self.ids de la busqueda. Si el usuario
+            # selecciona varias boletas del mismo mes/empleado y las
+            # confirma juntas en un solo click, cada una debe poder
+            # detectar a las demas del MISMO lote como "hermana pendiente"
+            # si estan fuera de orden -- exactamente igual que el
+            # comportamiento original (que comparaba contra CUALQUIER
+            # boleta en draft, id != rec.id, sin importar si pertenecia
+            # a este mismo batch o no). La exclusion del propio registro
+            # se aplica mas abajo, por registro, en memoria.
+            all_hermanas_draft = self.env['planilla.payslip.cr'].search([
+                ('employee_id', 'in', emp_ids_batch),
+                ('date_to', '>=', _min_month_start),
+                ('state', '=', 'draft'),
+            ])
+            for h in all_hermanas_draft:
+                key = (h.employee_id.id, h.company_id.id, h.payroll_calendar_id.id)
+                _hermanas_draft_by_key.setdefault(key, []).append(h)
+
+        _disabilities_by_emp = {}
+        recs_con_fechas = self.filtered(
+            lambda r: r.date_from and r.date_to and r.employee_id)
+        if recs_con_fechas:
+            _min_date_from = min(r.date_from for r in recs_con_fechas)
+            _max_date_to = max(r.date_to for r in recs_con_fechas)
+            all_disabilities = self.env['planilla.disability'].search([
+                ('employee_id', 'in', emp_ids_batch),
+                ('state', 'in', ('confirmed', 'paid')),
+                ('date_start', '<=', _max_date_to),
+                ('date_end', '>=', _min_date_from),
+            ])
+            for d in all_disabilities:
+                _disabilities_by_emp.setdefault(d.employee_id.id, []).append(d)
+
         for rec in self:
             emp = rec.employee_id
             prefix = f'[{emp.name}]'
@@ -493,15 +537,12 @@ class PayslipValidationMixin(models.AbstractModel):
             # fuera solo esta boleta.
             if rec.date_to and rec.payroll_calendar_id:
                 _month_start = rec.date_to.replace(day=1)
-                hermana_pendiente = rec.env['planilla.payslip.cr'].search([
-                    ('id', '!=', rec.id),
-                    ('employee_id', '=', emp.id),
-                    ('company_id', '=', rec.company_id.id),
-                    ('payroll_calendar_id', '=', rec.payroll_calendar_id.id),
-                    ('date_to', '>=', _month_start),
-                    ('date_to', '<', rec.date_to),
-                    ('state', '=', 'draft'),
-                ], limit=1)
+                _key = (emp.id, rec.company_id.id, rec.payroll_calendar_id.id)
+                hermana_pendiente = None
+                for h in _hermanas_draft_by_key.get(_key, []):
+                    if h.id != rec.id and _month_start <= h.date_to < rec.date_to:
+                        hermana_pendiente = h
+                        break
                 if hermana_pendiente:
                     errors.append(
                         f'{prefix} Hay una boleta anterior de este mismo mes '
@@ -522,12 +563,11 @@ class PayslipValidationMixin(models.AbstractModel):
             # buscar directamente en BD por rango de fechas para no bloquear
             # erroneamente la confirmacion de boletas con maternidad/incapacidad.
             if not has_disability and rec.date_from and rec.date_to and rec.employee_id:
-                fallback_dis = rec.env['planilla.disability'].search([
-                    ('employee_id', '=', rec.employee_id.id),
-                    ('state', 'in', ('confirmed', 'paid')),
-                    ('date_start', '<=', rec.date_to),
-                    ('date_end',   '>=', rec.date_from),
-                ], limit=1)
+                fallback_dis = None
+                for d in _disabilities_by_emp.get(rec.employee_id.id, []):
+                    if d.date_start <= rec.date_to and d.date_end >= rec.date_from:
+                        fallback_dis = d
+                        break
                 if fallback_dis:
                     has_disability = True
                     if fallback_dis.disability_type == 'maternity':

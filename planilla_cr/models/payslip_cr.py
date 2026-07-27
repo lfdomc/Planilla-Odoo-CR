@@ -641,7 +641,7 @@ class PayslipCR(models.Model):
                 rec.pending_overtime_count = 0
                 continue
             pending = rec.overtime_ids.filtered(
-                lambda o: o.state == 'draft' and o.source == 'attendance'
+                lambda o: o.state == 'draft' and o.source in ('attendance', 'auto')
             )
             rec.pending_overtime_count = len(pending)
             rec.pending_overtime_from_attendance = bool(pending)

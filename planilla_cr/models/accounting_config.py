@@ -306,14 +306,103 @@ class PayrollAccountingConfig(models.Model):
     )
 
     enable_auto_overtime = fields.Boolean(
-        string='Detectar HE automáticamente desde asistencias',
+        string='Detectar HE automaticamente desde asistencias',
         default=False,
-        help='Solo aplica a empleados con método Por Horas Trabajadas. '
-             'Al sincronizar boletas, el sistema analiza las asistencias del período, '
-             'detecta horas extra por día (vs. jornada del horario), '
+        help='Solo aplica a empleados con metodo Por Horas Trabajadas. '
+             'Al sincronizar boletas, el sistema analiza las asistencias del periodo, '
+             'detecta horas extra por dia (vs. jornada del horario), '
              'cruza contra feriados nacionales y crea HE en estado Borrador '
              'para que el supervisor las revise y apruebe antes del pago. '
              'OFF = HE siempre manuales (comportamiento actual).'
+    )
+
+    # -- Integracion opcional con el modulo nombramientos_cr ----------------
+    # Estos campos solo tienen efecto si nombramientos_cr esta instalado.
+    # Si no lo esta, el sistema ignora esta seccion y usa unicamente
+    # planilla.schedule.type (comportamiento actual), sin fallar.
+    use_nombramientos_schedule = fields.Boolean(
+        string='Usar turno de Nombramientos como horario esperado del dia',
+        default=True,
+        help='Solo tiene efecto si el modulo Nombramientos (nombramientos_cr) '
+             'esta instalado. ON = para cada dia, si el empleado tiene un '
+             'nombramiento/turno confirmado en Nombramientos, ese turno '
+             '(hora entrada/salida, sede) se usa como jornada esperada para '
+             'calcular tardias y horas extra -- en vez del horario general '
+             '(Tipo de Horario) del empleado. Si el empleado no tiene '
+             'nombramiento ese dia, siempre se usa el horario general como '
+             'respaldo. OFF = ignora Nombramientos y usa siempre el horario '
+             'general, igual que si el modulo no estuviera instalado.'
+    )
+    tardiness_tolerance_minutes = fields.Integer(
+        string='Tolerancia de tardia (minutos)',
+        default=15,
+        help='Minutos de gracia despues de la hora de entrada esperada antes '
+             'de marcar una asistencia como tardia. Ejemplo: turno a las '
+             '8:00am con tolerancia de 15 min -- se marca tardia solo si '
+             'el ingreso real es 8:16am o despues. Este calculo es '
+             'unicamente informativo/de control; no descuenta salario ni '
+             'crea deducciones automaticas.'
+    )
+    unassigned_attendance_as_overtime = fields.Boolean(
+        string='Registrar asistencia sin nombramiento como HE pendiente',
+        default=True,
+        help='Solo tiene efecto si el modulo Nombramientos esta instalado. '
+             'ON = si un empleado marca entrada/salida en el reloj (facial '
+             'u otro metodo) un dia en el que NO tiene ningun nombramiento '
+             '/turno asignado, esas horas se registran igualmente como '
+             'horas extra en estado Borrador, con nota indicando que no '
+             'tiene nombramiento y requieren aprobacion explicita del '
+             'supervisor antes de pasar a la planilla. OFF = esas '
+             'asistencias sin nombramiento se ignoran (no generan HE).'
+    )
+
+    # -- Control de almuerzo para deteccion de HE por asistencia ------------
+    # NOTA: nombramientos.config ya tiene su propio apply_lunch_break /
+    # lunch_break_minutes, que descuenta el almuerzo del turno PLANEADO
+    # (nombramientos.turno.hours). Estos campos aqui son el equivalente
+    # para el HORARIO GENERAL (planilla.schedule.type), que no tiene
+    # concepto de almuerzo propio, y para el caso limite de empleados sin
+    # ningun horario configurado.
+    general_schedule_lunch_minutes = fields.Integer(
+        string='Almuerzo del horario general (minutos)',
+        default=60,
+        help='Minutos de almuerzo a descontar de las horas brutas marcadas '
+             'en el reloj cuando el empleado se rige por el Tipo de Horario '
+             'general (sin nombramiento ese dia), y solo marco 2 veces '
+             '(entrada y salida, sin marcar la salida/regreso de almuerzo). '
+             'Se asume que el empleado almorzo el tiempo completo aqui '
+             'configurado. Art. 136 CT: minimo 30 minutos.'
+    )
+    apply_general_schedule_lunch = fields.Boolean(
+        string='Descontar almuerzo del horario general',
+        default=True,
+        help='ON = al calcular HE contra el horario general, se descuentan '
+             'los minutos de almuerzo configurados arriba cuando el '
+             'empleado marco solo 2 veces (entrada/salida). OFF = no se '
+             'descuenta nada del horario general (jornada = hora salida '
+             'menos hora entrada, sin ajuste).'
+    )
+    lunch_return_tolerance_minutes = fields.Integer(
+        string='Tolerancia regreso de almuerzo (minutos)',
+        default=10,
+        help='Cuando el empleado marca 4 veces en el dia (sale y regresa '
+             'de almorzar), se mide el tiempo real entre esa salida y ese '
+             'regreso. Si excede el almuerzo configurado (del turno de '
+             'Nombramientos o del horario general) mas esta tolerancia, '
+             'se registra como tardia de regreso de almuerzo (informativo, '
+             'no descuenta salario automaticamente).'
+    )
+    default_workday_hours_no_schedule = fields.Float(
+        string='Jornada por defecto sin horario ni nombramiento (horas)',
+        default=8.0,
+        help='Solo aplica cuando un empleado marca asistencia en el reloj '
+             'un dia en el que NO tiene nombramiento asignado Y tampoco '
+             'tiene Tipo de Horario configurado. En ese caso no hay forma '
+             'de saber su jornada esperada, asi que TODAS las horas '
+             'marcadas se registran como HE en Borrador, pendientes de '
+             'aprobacion del supervisor (igual que asistencia sin '
+             'nombramiento). Este valor es solo referencial en la nota '
+             'del registro, no afecta el calculo.'
     )
 
     enable_overtime_exemption = fields.Boolean(

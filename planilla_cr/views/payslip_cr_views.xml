@@ -913,7 +913,7 @@
                                 registro(s) detectados automáticamente desde asistencias. Revise, ajuste y apruebe antes de confirmar la boleta.
                             </div>
                             <field name="overtime_ids">
-                                <list decoration-warning="state == 'draft' and source == 'attendance'"
+                                <list decoration-warning="state == 'draft' and source in ('attendance', 'auto')"
                                       decoration-success="state == 'approved'"
                                       decoration-muted="state == 'paid'">
                                     <field name="date"/>

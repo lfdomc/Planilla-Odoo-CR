@@ -67,14 +67,42 @@ class ImportOvertimeWizard(models.TransientModel):
         threshold   = self.hours_per_day
         min_hours   = self.min_extra_minutes / 60.0
 
+        # Obtener feriados del periodo UNA sola vez (antes eran identicos
+        # en cada iteracion del loop de empleados de mas abajo).
+        holidays = self.env['planilla.public.holiday'].get_holidays_in_range(
+            self.date_from, self.date_to, self.company_id.id
+        )
+
+        # Traer TODAS las asistencias del periodo para todos los empleados
+        # en una sola query, en vez de una query por empleado.
+        emp_ids = employees.ids
+        dt_from = fields.Datetime.from_string(f'{self.date_from} 00:00:00')
+        dt_to   = fields.Datetime.from_string(f'{self.date_to} 23:59:59')
+        all_attendances = self.env['hr.attendance'].search([
+            ('employee_id', 'in', emp_ids),
+            ('check_in',  '>=', dt_from),
+            ('check_out', '<=', dt_to),
+        ]) if emp_ids else self.env['hr.attendance']
+
+        # Agrupar asistencias por empleado en memoria
+        att_by_emp = {}
+        for att in all_attendances:
+            att_by_emp.setdefault(att.employee_id.id, []).append(att)
+
+        # Precargar en una sola query todos los pares empleado+fecha que
+        # ya tienen HE registrada en el periodo, para no hacer un
+        # search() por cada linea candidata dentro del loop de abajo.
+        existing_ot = self.env['planilla.overtime'].search([
+            ('employee_id', 'in', emp_ids),
+            ('date', '>=', self.date_from),
+            ('date', '<=', self.date_to),
+            ('state', 'not in', ('cancelled',)),
+        ]) if emp_ids else self.env['planilla.overtime']
+        existing_set = {(o.employee_id.id, o.date) for o in existing_ot}
+
         lines = []
         for emp in employees:
-            # Obtener asistencias del periodo
-            attendances = self.env['hr.attendance'].search([
-                ('employee_id', '=', emp.id),
-                ('check_in',  '>=', fields.Datetime.from_string(f'{self.date_from} 00:00:00')),
-                ('check_out', '<=', fields.Datetime.from_string(f'{self.date_to} 23:59:59')),
-            ])
+            attendances = att_by_emp.get(emp.id)
             if not attendances:
                 continue
 
@@ -87,16 +115,10 @@ class ImportOvertimeWizard(models.TransientModel):
                     worked = (att.check_out - att.check_in).total_seconds() / 3600.0
                     by_day[day] += worked
 
-            # Obtener feriados del periodo una sola vez
-            holidays = self.env['planilla.public.holiday'].get_holidays_in_range(
-                self.date_from, self.date_to, self.company_id.id
-            )
-
             for day, worked in by_day.items():
                 extra = worked - threshold
                 if extra >= min_hours:
                     # Auto-detectar si es feriado o domingo
-                    import datetime as dt
                     auto_type = self.overtime_type
                     if day in holidays or day.weekday() == 6:  # 6 = domingo
                         auto_type = 'holiday'
@@ -109,7 +131,7 @@ class ImportOvertimeWizard(models.TransientModel):
                         'hours_worked': round(worked, 2),
                         'hours_extra': round(extra, 2),
                         'overtime_type': auto_type,
-                        'already_imported': self._already_has_overtime(emp.id, day),
+                        'already_imported': (emp.id, day) in existing_set,
                     })
 
         if not lines:
