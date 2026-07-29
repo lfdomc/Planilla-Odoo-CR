@@ -82,6 +82,29 @@
                         </group>
                     </group>
 
+                    <!-- BAC Formato 6 (.PRN) -->
+                    <group string="Configuración BAC - Macro Pago Planilla Formato 6"
+                           invisible="bank_format != 'bac_prn'">
+                        <group>
+                            <field name="bac_prn_concept"
+                                   placeholder="Deja vacio para usar el concepto por defecto de Contabilidad de Planilla"/>
+                        </group>
+                        <group>
+                            <div class="alert alert-info" role="alert">
+                                <strong>Archivo .PRN de ancho fijo</strong> compatible con el
+                                servicio "Macro Pago Planilla Formato 6" del portal de BAC
+                                Credomatic. El Plan y el número de Envío se toman de la
+                                configuración de Contabilidad de Planilla (Planilla &gt;
+                                Configuración &gt; Contabilidad) y el Envío se incrementa
+                                automáticamente cada vez que se genera un archivo.
+                                <br/><br/>
+                                La <strong>Referencia</strong> del archivo es la
+                                <strong>cédula/identificación</strong> del empleado
+                                (campo Identificación en su ficha).
+                            </div>
+                        </group>
+                    </group>
+
                 </sheet>
                 <footer>
                     <button name="action_export" type="object"

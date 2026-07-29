@@ -21,6 +21,7 @@ class BankPaymentWizard(models.TransientModel):
         ('sinpe_movil', 'SINPE Movil -- Todos los bancos (CSV)'),
         ('bac_csv',   'BAC Credomatic (CSV)'),
         ('bac_excel', 'BAC Credomatic (Excel)'),
+        ('bac_prn',   'BAC Credomatic - Macro Pago Planilla Formato 6 (.PRN)'),
     ], string='Formato Bancario', required=True, default='bcr_dav')
 
     # Campos SINPE Movil
@@ -66,6 +67,14 @@ class BankPaymentWizard(models.TransientModel):
     bcr_concept = fields.Char(
         string='Concepto de Pago BCR',
         help='Concepto que aparece en el estado de cuenta (max 45 caracteres)'
+    )
+
+    # Campo BAC Formato 6 (.PRN)
+    bac_prn_concept = fields.Char(
+        string='Concepto de Pago (BAC Formato 6)',
+        help='Concepto que aparece en el archivo BAC Formato 6 (max 30 '
+             'caracteres). Si se deja vacio, se usa el concepto por '
+             'defecto configurado en Contabilidad de Planilla.'
     )
 
     def _get_payslips(self):
@@ -555,6 +564,165 @@ class BankPaymentWizard(models.TransientModel):
             'target': 'self',
         }
 
+    # -------------------------------------------------------------
+    #  BAC  CREDOMATIC  --  MACRO PAGO PLANILLA FORMATO 6  (.PRN)
+    # -------------------------------------------------------------
+    def action_export_bac_prn(self):
+        """Genera el archivo de ancho fijo .PRN para el servicio 'Macro
+        Pago Planilla Formato 6' de BAC Credomatic, replicando exactamente
+        el algoritmo de la macro oficial de Excel (BAC_SJ_Macro_Pago_
+        Planilla_Formato_6). Layout validado byte por byte contra archivos
+        PRN reales generados por esa macro:
+
+        Linea B (encabezado, una sola vez):
+          Tipo(1) Plan(4) Envio(5,00000) vacio(20) cero_fijo(5,00000)
+          Anio(4) Mes(2) Dia(2) MontoTotal_centavos(13) TotalLineas(5)
+
+        Linea T (una por empleado, monto > 0):
+          Tipo(1) Plan(4) Envio(5) Referencia/cedula(20) Consecutivo(5)
+          Anio(4) Mes(2) Dia(2) Monto_centavos(13) vacio(5)
+          Concepto(30) vacio(1) Nombre(sin padding final)
+
+        Nombre del archivo: INP<PLAN><envio_4digitos> <envio>.PRN
+        (igual a la convencion de la macro: Ini + planNumber + " " + dispatchNumber)
+
+        FIX vs. la macro original: la Referencia (cedula) se escribe
+        siempre como texto plano. La macro de Excel guarda esa columna
+        con formato numerico, lo que hace que cedulas largas se
+        exporten en notacion cientifica (ej. "1.55828E+11" en vez de
+        "155827603528") -- el banco rechaza o mal-interpreta esas
+        lineas. Aqui nunca se formatea la cedula como numero.
+        """
+        self.ensure_one()
+        from odoo.exceptions import UserError as _UE
+
+        config = self.env['planilla.accounting.config'].sudo().get_config(self.company_id.id)
+        if not config or not config.bac_prn_plan:
+            raise _UE(
+                'Configure el "Plan BAC (Formato 6)" en Contabilidad de '
+                'Planilla antes de generar este archivo (Planilla > '
+                'Configuracion > Contabilidad).'
+            )
+        plan = (config.bac_prn_plan or '').strip().upper()
+        if not plan:
+            raise _UE('El Plan BAC configurado esta vacio.')
+
+        envio = config.bac_prn_next_dispatch or 1
+        concepto = (self.bac_prn_concept or config.bac_prn_concept or 'Pago de Planilla').strip()[:30]
+
+        payslips = self._get_payslips()
+        if not payslips:
+            raise _UE('No hay boletas aprobadas en el periodo seleccionado.')
+
+        # Fecha del archivo: se usa la fecha de hoy, igual que la macro
+        # (Format(Date, "dd")/"mm"/"yyyy") cuando no se especifica otra.
+        hoy = fields.Date.context_today(self)
+        dia, mes, anio = hoy.day, hoy.month, hoy.year
+
+        def _fixed(value, width, align='left', pad=' '):
+            s = str(value)[:width]
+            return s.ljust(width, pad) if align == 'left' else s.rjust(width, pad)
+
+        lines = []
+        errors = []
+        consecutivo = 0
+        monto_total_centavos = 0
+
+        for payslip in payslips.sorted(key=lambda s: s.employee_id.name):
+            emp = payslip.employee_id
+            net = round(
+                payslip.deposito_patrono if payslip.deposito_patrono is not None
+                else payslip.salary_payable, 2
+            )
+            if net <= 0:
+                continue  # igual que la macro: solo montos > 0
+
+            cedula = (emp.identification_id or '').strip().replace('-', '').replace(' ', '')
+            if not cedula:
+                errors.append(f'{emp.name}: sin cedula/identificacion registrada -- omitido')
+                continue
+            if len(cedula) > 20:
+                errors.append(f'{emp.name}: cedula de mas de 20 caracteres -- omitido')
+                continue
+
+            consecutivo += 1
+            monto_centavos = int(round(net * 100))
+            monto_total_centavos += monto_centavos
+
+            nombre = (emp.name or '').strip()[:30]
+
+            line = (
+                'T'
+                + _fixed(plan, 4)
+                + _fixed(envio, 5, 'right', '0')
+                + _fixed(cedula, 20)
+                + _fixed(consecutivo, 5, 'right', '0')
+                + _fixed(anio, 4, 'right', '0')
+                + _fixed(mes, 2, 'right', '0')
+                + _fixed(dia, 2, 'right', '0')
+                + _fixed(monto_centavos, 13, 'right', '0')
+                + _fixed('', 5)
+                + _fixed(concepto, 30)
+                + _fixed('', 1)
+                + nombre  # sin padding final, igual que el archivo real
+            )
+            lines.append(line)
+
+        if consecutivo == 0:
+            detalle = ('\n' + '\n'.join(errors)) if errors else ''
+            raise _UE(
+                'No hay empleados con monto mayor a 0 para incluir en el '
+                'archivo BAC.' + detalle
+            )
+
+        header = (
+            'B'
+            + _fixed(plan, 4)
+            + _fixed(envio, 5, 'right', '0')
+            + _fixed('', 20)
+            + _fixed(0, 5, 'right', '0')
+            + _fixed(anio, 4, 'right', '0')
+            + _fixed(mes, 2, 'right', '0')
+            + _fixed(dia, 2, 'right', '0')
+            + _fixed(monto_total_centavos, 13, 'right', '0')
+            + _fixed(consecutivo, 5, 'right', '0')
+        )
+
+        # CRLF, igual que el archivo original (Windows / xlTextPrinter)
+        content = '\r\n'.join([header] + lines) + '\r\n'
+
+        # Nombre de archivo: INP + plan(4) + " " + envio -- igual a la
+        # convencion de la macro (Ini + planNumber + " " + dispatchNumber).
+        # La macro varia el prefijo segun la longitud del plan
+        # (INP000x/INP00xx/INP0xxx/INPxxxx para 1/2/3/4 caracteres) para
+        # que "INP + plan" siempre sea de 7 caracteres -- se replica igual.
+        prefijos = {1: 'INP000', 2: 'INP00', 3: 'INP0', 4: 'INP'}
+        prefijo = prefijos.get(len(plan), 'INP')
+        filename = f'{prefijo}{plan} {envio}.PRN'
+
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': __import__('base64').b64encode(content.encode('latin-1', errors='replace')),
+            'mimetype': 'text/plain',
+        })
+
+        # Incrementar el consecutivo de envio para la proxima vez,
+        # igual que la macro (B9 = B9 + 1 en saveXLS()).
+        config.sudo().write({'bac_prn_next_dispatch': envio + 1})
+
+        if errors:
+            self.message_post(body=(
+                'Archivo BAC Formato 6 generado con advertencias:<br/>'
+                + '<br/>'.join(errors)
+            )) if hasattr(self, 'message_post') else None
+
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
     def action_export(self):
         self.ensure_one()
         if self.bank_format == 'bcr_dav':
@@ -567,4 +735,6 @@ class BankPaymentWizard(models.TransientModel):
             return self.action_export_bac_csv()
         elif self.bank_format == 'bac_excel':
             return self.action_export_bac_excel()
+        elif self.bank_format == 'bac_prn':
+            return self.action_export_bac_prn()
         raise UserError('Formato no implementado.')

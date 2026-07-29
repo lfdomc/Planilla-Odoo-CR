@@ -57,6 +57,21 @@
                                    help="ON = no descuenta CCSS en liquidaciones. OFF = descuenta CCSS normalmente."/>
                         </group>
                     </group>
+                    <group string="Pago Bancario BAC — Macro Pago Planilla Formato 6">
+                        <group>
+                            <field name="bac_prn_plan" placeholder="Ej: DQX6"/>
+                            <field name="bac_prn_next_dispatch"/>
+                        </group>
+                        <group>
+                            <field name="bac_prn_concept" placeholder="Ej: Pago de Planilla"/>
+                            <div class="text-muted" colspan="2">
+                                El Plan lo asigna BAC para el servicio de Pago de Planilla
+                                Formato 6. El número de Envío se incrementa automáticamente
+                                cada vez que se genera un archivo desde
+                                Planilla &gt; Exportar para Banco.
+                            </div>
+                        </group>
+                    </group>
                     <group string="Integración con Nombramientos (opcional)">
                         <group>
                             <field name="use_nombramientos_schedule"

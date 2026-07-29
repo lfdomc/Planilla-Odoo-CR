@@ -425,6 +425,37 @@ class PayrollAccountingConfig(models.Model):
              ' acuerdo especial o politica interna al respecto.'
     )
 
+    # -- BAC Credomatic: Macro Pago Planilla Formato 6 (archivo .PRN) -----
+    # Replica el archivo de ancho fijo que genera la macro oficial de BAC
+    # (BAC_SJ_Macro_Pago_Planilla_Formato_6). El Plan y el numero de Envio
+    # se recuerdan por compania y el Envio se incrementa automaticamente
+    # cada vez que se genera un archivo, igual que hace la macro con la
+    # celda B9 (Cells(8,2)=B9=B9+1 en el VBA original).
+    bac_prn_plan = fields.Char(
+        string='Plan BAC (Formato 6)',
+        size=4,
+        help='Codigo de 4 caracteres que BAC asigna a la empresa para el '
+             'servicio de Pago de Planilla Formato 6 (ej: DQX6, E7Q7). '
+             'Se convierte automaticamente a mayusculas al generar el '
+             'archivo, igual que hace la macro oficial.'
+    )
+    bac_prn_next_dispatch = fields.Integer(
+        string='Proximo Numero de Envio BAC',
+        default=1,
+        help='Consecutivo de envio para el archivo BAC Formato 6. Se '
+             'incrementa automaticamente en 1 cada vez que se genera un '
+             'archivo PRN exitosamente -- igual que el comportamiento de '
+             'la macro de Excel oficial. Puede ajustarse manualmente si '
+             'es necesario resincronizar con el portal de BAC.'
+    )
+    bac_prn_concept = fields.Char(
+        string='Concepto por Defecto (BAC Formato 6)',
+        default='Pago de Planilla',
+        help='Concepto que aparece en el archivo BAC Formato 6 (columna K, '
+             'maximo 30 caracteres). Se puede sobrescribir al generar cada '
+             'archivo desde el asistente de exportacion.'
+    )
+
     account_ccss_payable = fields.Many2one(
         'account.account', string='CCSS por Pagar (Obrera + Patronal)',
         help='CREDITO -- CCSS Obrera (10.83%) + Patronal (26.83%).\nEj: 230300 CCSS por Pagar'
