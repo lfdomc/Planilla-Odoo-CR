@@ -610,24 +610,54 @@ class PayslipCR(models.Model):
         dentro del loop, pero PostgreSQL ya las habia borrado en cascada antes
         de que el ORM Python pudiera leerlas.
 
-        SOLUCION: llamar action_cancel() ANTES de super().unlink().
-        action_cancel() ya maneja correctamente las 6 entidades vinculadas:
+        SOLUCION: llamar _revert_linked_states() ANTES de super().unlink().
+        Revierte correctamente las 6 entidades vinculadas:
           - planilla.employee.charge  (applied_periods + state)
           - planilla.loan.installment (deducted -> pending)
           - planilla.overtime         (paid -> approved)
           - planilla.vacation.payment (paid -> approved)
           - planilla.leave.cr         (paid -> approved)
           - planilla.disability.cr    (paid -> confirmed)
+        y cancela el asiento contable si esta posteado.
 
-        Al llamar action_cancel() primero, las lineas todavia existen en BD
-        y el cleanup puede leerlas y restaurar los estados correctamente.
+        Al revertir primero, las lineas todavia existen en BD y el
+        cleanup puede leerlas y restaurar los estados correctamente.
         Luego super().unlink() borra la boleta y PostgreSQL hace el cascade.
+
+        FIX BUG-UNLINK-03/04: eliminar una boleta PAGADA (state='done')
+        ahora revierte AUTOMATICAMENTE todo lo vinculado (prestamos,
+        horas extra, vacaciones, incapacidades, licencias, cobros, y
+        cancela el asiento contable) en vez de bloquear el borrado
+        pidiendo que el usuario reactive la boleta manualmente primero.
+
+        Version anterior (BUG-UNLINK-03) bloqueaba el borrado de boletas
+        'done' con un UserError -- mas segura en el sentido de "no perder
+        datos sin avisar", pero mas propensa a que el usuario elimine la
+        boleta de todas formas por otra via (ej. seleccion multiple desde
+        la vista de lista) sin que ese bloqueo aplique de forma
+        consistente, dejando cuotas de prestamo y demas conceptos
+        vinculados HUERFANOS -- marcados como ya pagados/descontados sin
+        ninguna boleta real que los respalde. La reversion automatica
+        elimina ese riesgo por completo: sin importar como se dispare el
+        borrado, _revert_linked_states() siempre corre primero.
         """
-        # Cancelar solo las boletas que no estan ya canceladas
-        # (las canceladas ya tuvieron su cleanup en action_cancel anterior)
-        to_cancel = self.filtered(lambda r: r.state != 'cancelled')
-        if to_cancel:
-            to_cancel.action_cancel()
+        # Revertir TODO lo vinculado antes de borrar, sin importar el
+        # estado de la boleta (incluye 'done' -- boletas pagadas).
+        # Las boletas ya 'cancelled' no necesitan reversion (ya se hizo
+        # su cleanup cuando se cancelaron).
+        to_revert = self.filtered(lambda r: r.state != 'cancelled')
+        if to_revert:
+            _paid_being_deleted = to_revert.filtered(lambda r: r.state == 'done')
+            if _paid_being_deleted:
+                _logger.warning(
+                    'planilla_cr: eliminando %d boleta(s) YA PAGADA(S) -- '
+                    'se revierten automaticamente prestamos, horas extra, '
+                    'vacaciones, incapacidades, licencias y cobros '
+                    'vinculados. Boletas: %s (usuario: %s)',
+                    len(_paid_being_deleted), _paid_being_deleted.mapped('name'),
+                    self.env.user.name,
+                )
+            to_revert._revert_linked_states()
 
         return super().unlink()
 

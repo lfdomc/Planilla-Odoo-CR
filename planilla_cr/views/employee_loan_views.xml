@@ -82,16 +82,20 @@
                     <!-- Tabla de cuotas -->
                     <notebook>
                         <page string="Cuotas" name="installments_tab">
-                            <field name="installment_ids" readonly="1">
+                            <field name="installment_ids">
                                 <list>
-                                    <field name="sequence" string="N°"/>
-                                    <field name="due_date" string="Fecha Descuento"/>
-                                    <field name="amount" string="Monto (₡)"/>
-                                    <field name="state" widget="badge"
+                                    <field name="sequence" string="N°" readonly="1"/>
+                                    <field name="due_date" string="Fecha Descuento" readonly="1"/>
+                                    <field name="amount" string="Monto (₡)" readonly="1"/>
+                                    <field name="state" widget="badge" readonly="1"
                                            decoration-success="state=='deducted'"
                                            decoration-warning="state=='pending'"
                                            decoration-muted="state=='cancelled'"/>
-                                    <field name="payslip_id" string="Boleta"/>
+                                    <field name="payslip_id" string="Boleta" readonly="1"/>
+                                    <button name="get_formview_action" type="object"
+                                            string="Abrir" icon="fa-external-link"
+                                            invisible="state != 'deducted' or payslip_id"
+                                            title="Cuota huerfana -- abrir para corregir"/>
                                 </list>
                             </field>
                         </page>
@@ -140,6 +144,43 @@
                 <filter name="current_company" string="Empresa Actual"
                         domain="[('company_id', '=', allowed_company_ids[0])]"/>
             </search>
+        </field>
+    </record>
+
+    <record id="view_loan_installment_form" model="ir.ui.view">
+        <field name="name">planilla.loan.installment.form</field>
+        <field name="model">planilla.loan.installment</field>
+        <field name="arch" type="xml">
+            <form string="Cuota de Prestamo">
+                <header>
+                    <button name="action_fix_orphan_state" type="object"
+                            string="Corregir Estado (Cuota Huerfana)"
+                            class="btn-warning"
+                            invisible="state != 'deducted' or payslip_id"
+                            confirm="Esta cuota esta marcada 'Descontada' pero no tiene ninguna boleta real vinculada -- probablemente la boleta que la genero se elimino directamente sin revertirla primero a Borrador. ¿Devolverla a 'Pendiente' para que pueda cobrarse en la proxima boleta correspondiente?"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="state != 'deducted' or payslip_id">
+                        <strong>Cuota huerfana detectada:</strong> esta cuota esta
+                        marcada como "Descontada" pero no tiene ninguna boleta
+                        vinculada. Use el boton "Corregir Estado" arriba para
+                        devolverla a "Pendiente".
+                    </div>
+                    <group>
+                        <group>
+                            <field name="loan_id" readonly="1"/>
+                            <field name="sequence" readonly="1"/>
+                            <field name="due_date" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="amount" readonly="1"/>
+                            <field name="payslip_id" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
         </field>
     </record>
 

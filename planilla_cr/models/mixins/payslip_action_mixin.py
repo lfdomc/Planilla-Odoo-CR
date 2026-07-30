@@ -279,13 +279,21 @@ class PayslipActionMixin(models.AbstractModel):
                     except Exception:
                         pass
 
-    def action_cancel(self) -> None:
+    def _revert_linked_states(self) -> None:
+        """
+        Revierte al estado previo todas las entidades vinculadas a esta
+        boleta (prestamos, horas extra, vacaciones, incapacidades,
+        licencias, cobros al empleado) y cancela el asiento contable si
+        esta posteado. Es la logica compartida entre action_cancel()
+        (boton visible al usuario, que SI bloquea boletas 'done' pidiendo
+        reactivar primero) y unlink() (que la usa para revertir
+        automaticamente sin importar el estado, ver mas abajo).
+
+        No cambia rec.state -- quien llama este metodo decide que hacer
+        despues (action_cancel() lo pone en 'cancelled', unlink() sigue
+        directo al borrado).
+        """
         for rec in self:
-            if rec.state == 'done':
-                raise UserError(
-                    'No se puede cancelar una boleta ya pagada. '
-                    'Revierta el asiento contable primero.'
-                )
             if rec.move_id and rec.move_id.state == 'posted':
                 rec.move_id.button_cancel()
             for line in rec.deduction_line_ids.filtered(lambda l: l.loan_installment_id):
@@ -316,8 +324,8 @@ class PayslipActionMixin(models.AbstractModel):
             # Restaurar cobros al empleado al estado aprobado para que puedan
             # sincronizarse a una nueva boleta si se regenera la planilla.
             # FIX: restaurar cobros en DOS fuentes:
-            # 1. Líneas de deducción existentes (flujo normal)
-            # 2. Búsqueda directa por payslip_id (cuando las líneas fueron borradas manualmente)
+            # 1. Lineas de deduccion existentes (flujo normal)
+            # 2. Busqueda directa por payslip_id (cuando las lineas fueron borradas manualmente)
             charge_ids_from_lines = set(
                 l.employee_charge_id for l in rec.deduction_line_ids
                 if l.employee_charge_id
@@ -331,7 +339,7 @@ class PayslipActionMixin(models.AbstractModel):
             if all_ids:
                 all_charges = self.env['planilla.employee.charge'].browse(
                     list(all_ids)).exists()
-                # Únicos (applied) -> volver a approved
+                # Unicos (applied) -> volver a approved
                 unique_charges = all_charges.filtered(
                     lambda c: not c.is_recurring and c.state == 'applied'
                 )
@@ -343,7 +351,16 @@ class PayslipActionMixin(models.AbstractModel):
                     charge._remove_period_applied(rec.date_from)
                     if not charge.applied_periods:
                         charge.payslip_id = False
-            rec.state = 'cancelled'
+
+    def action_cancel(self) -> None:
+        for rec in self:
+            if rec.state == 'done':
+                raise UserError(
+                    'No se puede cancelar una boleta ya pagada. '
+                    'Revierta el asiento contable primero.'
+                )
+        self._revert_linked_states()
+        self.write({'state': 'cancelled'})
 
     def action_reset_to_draft(self) -> None:
         for rec in self:

@@ -563,3 +563,51 @@ class LoanInstallment(models.Model):
     payslip_id = fields.Many2one(
         'planilla.payslip.cr', string='Boleta', readonly=True
     )
+
+    def action_fix_orphan_state(self):
+        """
+        Revierte manualmente a 'Pendiente' una cuota que quedo huerfana:
+        marcada 'Descontada' pero SIN una boleta real que la respalde
+        (payslip_id vacio, o apuntando a una boleta que ya no existe).
+
+        Caso de uso: correccion RETROACTIVA de cuotas que quedaron en
+        este estado por eliminar directamente una boleta pagada, antes
+        del fix en payslip_cr.py::unlink() que ahora revierte
+        automaticamente prestamos, horas extra, vacaciones,
+        incapacidades, licencias y cobros al eliminar CUALQUIER boleta,
+        sin importar su estado (incluidas las pagadas). Con ese fix ya
+        aplicado, este escenario no deberia volver a ocurrir hacia
+        adelante -- este boton queda disponible como herramienta de
+        correccion manual y red de seguridad general.
+
+        Por seguridad, NUNCA revierte una cuota que este correctamente
+        vinculada a una boleta real y existente -- para esos casos se
+        debe usar el flujo normal (Reactivar la boleta a Borrador).
+        """
+        for rec in self:
+            if rec.state != 'deducted':
+                raise UserError(
+                    f'La cuota #{rec.sequence} no esta en estado '
+                    f'"Descontada" -- no hay nada que corregir.'
+                )
+            if rec.payslip_id and rec.payslip_id.exists():
+                raise UserError(
+                    f'La cuota #{rec.sequence} esta vinculada a una '
+                    f'boleta real y existente ({rec.payslip_id.name}). '
+                    f'Para revertirla, reactive esa boleta a Borrador '
+                    f'en vez de usar esta correccion manual.'
+                )
+            rec.write({'state': 'pending', 'payslip_id': False})
+            if rec.loan_id.state == 'paid':
+                rec.loan_id.write({'state': 'active'})
+            rec.message_post(
+                body=(
+                    'Cuota corregida manualmente: estaba marcada '
+                    '"Descontada" sin ninguna boleta real que la '
+                    'respalde (la boleta original fue eliminada '
+                    'directamente sin revertirla primero). Se devolvio '
+                    'a "Pendiente" para que pueda cobrarse en la '
+                    'proxima boleta correspondiente.'
+                ),
+                message_type='notification',
+            )
