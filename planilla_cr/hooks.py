@@ -280,19 +280,19 @@ def _fix_holiday_company_scope(env):
     """
     Holiday = env['planilla.public.holiday']
     NOMBRES_CATALOGO_ESTANDAR = [
-        'A\u00f1o Nuevo', 'Ano Nuevo',
-        'Jueves Santo', 'Viernes Santo',
-        'Batalla de Rivas (Juan Santamar\u00eda)', 'Batalla de Rivas (Juan Santamaria)',
-        'D\u00eda del Trabajador', 'Dia del Trabajador',
-        'Anexi\u00f3n del Partido de Nicoya', 'Anexion del Partido de Nicoya',
-        'Virgen de los \u00c1ngeles', 'Virgen de los Angeles',
-        'Madre y D\u00eda de la Anexi\u00f3n de Guanacaste',
-        'Madre y Dia de la Anexion de Guanacaste',
-        'Independencia', 'D\u00eda de la Independencia', 'Dia de la Independencia',
-        'D\u00eda de la Cultura', 'Dia de la Cultura',
-        'D\u00eda de las Culturas', 'Dia de las Culturas',
-        'Abolici\u00f3n del Ej\u00e9rcito', 'Abolicion del Ejercito',
+        'Abolici\u00f3n del Ej\u00e9rcito',
+        'Anexi\u00f3n del Partido de Nicoya',
+        'A\u00f1o Nuevo',
+        'Batalla de Rivas (Juan Santamar\u00eda)',
+        'D\u00eda de la Cultura',
+        'D\u00eda del Trabajador',
+        'Independencia de Centroam\u00e9rica',
+        'Jueves Santo',
+        'Madre y D\u00eda del Soldado (no laborable)',
         'Navidad',
+        'Viernes Santo',
+        'Virgen de los \u00c1ngeles',
+        'Virgen de los \u00c1ngeles (Inmaculada Concepci\u00f3n)',
     ]
     huerfanos = Holiday.sudo().search([
         ('type', '=', 'national'),
@@ -746,69 +746,51 @@ def _ensure_default_branch(env):
 
 def _ensure_deduction_codes(env):
     """
-    Garantiza que los codigos de deduccion estandar existan, como
-    codigos GLOBALES (sin compania asignada), disponibles para todas las
-    empresas por igual. Se ejecuta en cada migracion para agregar nuevos
-    codigos sin perder los existentes.
+    Libera el company_id de los codigos de deduccion ESTANDAR del
+    sistema (definidos en data/deduction_code_data.xml,
+    data/leave_cr_data.xml y data/charge_type_data.xml -- 20 codigos en
+    total) para que queden GLOBALES (sin compania asignada), disponibles
+    para todas las empresas por igual. Se ejecuta en cada migracion.
 
-    FIX BUG: antes se creaban con DeductionCode.create(vals) sin
-    especificar company_id -- el campo tiene
-    default=lambda self: self.env.company, asi que cada codigo quedaba
-    atado por accidente a la UNICA compania activa durante la primera
-    migracion que corrio esto, a pesar de que el propio texto de ayuda
-    del campo dice explicitamente "Deje vacio para que aplique a todas
-    las empresas (codigo global)". Companias creadas despues de esa
-    primera migracion nunca veian estos codigos disponibles. Mismo
-    patron de bug que los feriados nacionales (ver
-    _fix_holiday_company_scope) y que las calendarizaciones de planilla
-    (ver _ensure_payroll_calendars) -- aqui la correccion es la misma
-    que en feriados: mantener el registro global (company_id=False) en
-    vez de duplicarlo por compania, porque son los mismos codigos para
-    todas las empresas del cliente.
+    FIX BUG: estos 20 registros se crean sin company_id explicito -- el
+    campo tiene default=lambda self: self.env.company, asi que cada
+    codigo quedaba atado por accidente a la UNICA compania activa
+    durante la primera migracion que corrio esto, a pesar de que el
+    propio texto de ayuda del campo dice explicitamente "Deje vacio
+    para que aplique a todas las empresas (codigo global)". Companias
+    creadas despues de esa primera migracion nunca veian estos codigos
+    disponibles.
+
+    CORRECCION SOBRE UNA VERSION ANTERIOR DE ESTE FIX: la primera
+    version de esta funcion usaba una lista de 10 codigos inventados
+    (CCSS, RENTA, PENSION, PRESTAMO, EMBARGO, SINDICAL, COOP, AUSENCIA,
+    SEGURO, AHORRO) que NO coinciden con los codigos reales del
+    catalogo del sistema -- habria creado codigos duplicados/basura sin
+    relacion con los que el resto del modulo realmente usa. Ademas
+    liberaba de forma generica CUALQUIER codigo con company_id
+    asignado, lo que habria expuesto codigos personalizados creados por
+    un cliente para su propia empresa a las demas companias. Esta
+    version usa la lista exacta de los 20 codigos reales del catalogo
+    estandar y NUNCA toca un codigo cuyo 'code' no este en esa lista --
+    los codigos personalizados de clientes quedan intactos, con su
+    company_id como lo configuraron.
     """
-    standard_codes = [
-        {'code': 'CCSS',     'name': 'CCSS Obrero',                   'deduction_type': 'employee'},
-        {'code': 'RENTA',    'name': 'Impuesto sobre la Renta',        'deduction_type': 'employee'},
-        {'code': 'PENSION',  'name': 'Pension Alimentaria',            'deduction_type': 'employee'},
-        {'code': 'PRESTAMO', 'name': 'Cuota de Prestamo',              'deduction_type': 'employee'},
-        {'code': 'EMBARGO',  'name': 'Embargo Judicial',               'deduction_type': 'employee'},
-        {'code': 'SINDICAL', 'name': 'Cuota Sindical',                 'deduction_type': 'employee'},
-        {'code': 'COOP',     'name': 'Cuota Cooperativa',              'deduction_type': 'employee'},
-        {'code': 'AUSENCIA', 'name': 'Ausencia Sin Goce de Sueldo',    'deduction_type': 'employee'},
-        {'code': 'SEGURO',   'name': 'Poliza / Seguro Voluntario',     'deduction_type': 'employee'},
-        {'code': 'AHORRO',   'name': 'Ahorro Voluntario',              'deduction_type': 'employee'},
+    CODIGOS_ESTANDAR_SISTEMA = [
+        # data/deduction_code_data.xml
+        'CCSS_OBR', 'CCSS_OBR_PENSIONADO', 'CCSS_PAT', 'INS_PAT', 'RENTA',
+        'AGUINALDO', 'CESANTIA', 'VACACIONES', 'PRESTAMO', 'VAC-PAG',
+        'PAT-LIC', 'SIND', 'COOP', 'EMB', 'PENS-ALI', 'ROP', 'BONO',
+        # data/leave_cr_data.xml
+        'LIC-GOCE', 'LIC-SGOCE',
+        # data/charge_type_data.xml
+        'COBRO_EMP',
     ]
     DeductionCode = env['planilla.deduction.code']
-    for vals in standard_codes:
-        existing = DeductionCode.search([('code', '=', vals['code'])], limit=1)
-        if not existing:
-            create_vals = dict(vals)
-            create_vals['company_id'] = False  # global explicito, no depender del default
-            DeductionCode.create(create_vals)
-        elif existing.company_id:
-            # Ya existe pero quedo atado a una compania por el bug
-            # anterior -- liberarlo para que vuelva a ser global, salvo
-            # que ya exista otro codigo global con el mismo code (poco
-            # probable dado el unique constraint esperado, pero se
-            # verifica por seguridad antes de escribir).
-            ya_global = DeductionCode.search([
-                ('code', '=', vals['code']),
-                ('company_id', '=', False),
-                ('id', '!=', existing.id),
-            ], limit=1)
-            if not ya_global:
-                existing.write({'company_id': False})
-
-    # -- Liberar TODOS los codigos huerfanos, no solo los 10 de arriba --
-    # data/deduction_code_data.xml tiene 17 codigos, data/leave_cr_data.xml
-    # agrega 2 mas, y data/charge_type_data.xml agrega 1 mas
-    # (COBRO_EMP) -- 20 en total repartidos en 3 archivos distintos. La
-    # lista fija de arriba solo cubria 10. Este paso generico corrige
-    # CUALQUIER planilla.deduction.code que haya quedado atado a una
-    # compania por el mismo bug, sin depender de mantener una lista
-    # actualizada cada vez que se agregue un codigo nuevo en cualquier
-    # archivo de datos del modulo.
-    for code_rec in DeductionCode.search([('company_id', '!=', False)]):
+    huerfanos = DeductionCode.sudo().search([
+        ('company_id', '!=', False),
+        ('code', 'in', CODIGOS_ESTANDAR_SISTEMA),
+    ])
+    for code_rec in huerfanos:
         ya_global = DeductionCode.search([
             ('code', '=', code_rec.code),
             ('company_id', '=', False),
@@ -817,14 +799,22 @@ def _ensure_deduction_codes(env):
         if not ya_global:
             code_rec.write({'company_id': False})
 
-    # -- Mismo tratamiento generico para Tipos de Cobro al Empleado --
-    # (data/charge_type_data.xml, 8 registros, mismo bug de company_id).
-    # planilla.charge.type es un modelo propio de este modulo (definido
-    # en models/employee_charge.py) -- siempre disponible aqui, sin
-    # necesitar el patron defensivo env.get() usado para modelos de
-    # OTROS modulos opcionales como nombramientos_cr.
+    # -- Mismo tratamiento para Tipos de Cobro al Empleado --
+    # (data/charge_type_data.xml define 8 registros de
+    # planilla.charge.type ademas del codigo de deduccion COBRO_EMP de
+    # arriba). Se filtra por el codigo real de cada uno del catalogo,
+    # no de forma generica, por la misma razon: no tocar tipos de cobro
+    # personalizados de un cliente.
+    CODIGOS_CHARGE_TYPE_ESTANDAR = [
+        'ALMUERZO_FIJO', 'ALMUERZO_DIAS', 'ALMUERZO_SUBS', 'PRODUCTOS',
+        'UNIFORME', 'PARQUEO', 'SEGURO_COLECT', 'OTRO_COBRO',
+    ]
     ChargeType = env['planilla.charge.type']
-    for charge_rec in ChargeType.search([('company_id', '!=', False)]):
+    huerfanos_charge = ChargeType.sudo().search([
+        ('company_id', '!=', False),
+        ('code', 'in', CODIGOS_CHARGE_TYPE_ESTANDAR),
+    ])
+    for charge_rec in huerfanos_charge:
         ya_global = ChargeType.search([
             ('code', '=', charge_rec.code),
             ('company_id', '=', False),
@@ -836,13 +826,34 @@ def _ensure_deduction_codes(env):
 
 def _fix_employee_document_type_company_scope(env):
     """
-    Mismo patron de bug que _ensure_deduction_codes, aplicado a
-    planilla.employee.document.type (ver data/employee_document_type_data.xml):
-    los 9 tipos de documento estandar se crean sin company_id explicito
-    y quedan atados a una sola compania por el default del campo.
+    Libera el company_id de los tipos de documento ESTANDAR del sistema
+    (data/employee_document_type_data.xml, 9 registros) para que queden
+    globales -- mismo patron de bug que _ensure_deduction_codes.
+
+    CORRECCION SOBRE UNA VERSION ANTERIOR DE ESTE FIX: la primera
+    version liberaba de forma generica CUALQUIER tipo de documento con
+    company_id asignado, lo que habria expuesto tipos de documento
+    personalizados de un cliente (ej. "Permiso de Manejo de Maquinaria
+    Pesada" creado solo para su empresa) a las demas companias. Esta
+    version filtra por los 9 nombres exactos del catalogo estandar y
+    nunca toca un tipo de documento que no este en esa lista.
     """
+    NOMBRES_ESTANDAR = [
+        'Cedula de Identidad / Residencia',
+        'Licencia de Conducir',
+        'Carne de Manipulacion de Alimentos',
+        'Permiso de Trabajo / Cedula de Residencia (extranjeros)',
+        'Certificado Medico Ocupacional',
+        'Contrato Laboral',
+        'Copia de Cedula',
+        'Curriculum Vitae',
+        'Carta de Recomendacion',
+    ]
     DocType = env['planilla.employee.document.type']
-    huerfanos = DocType.sudo().search([('company_id', '!=', False)])
+    huerfanos = DocType.sudo().search([
+        ('company_id', '!=', False),
+        ('name', 'in', NOMBRES_ESTANDAR),
+    ])
     for d in huerfanos:
         ya_global = DocType.search([
             ('name', '=', d.name),
