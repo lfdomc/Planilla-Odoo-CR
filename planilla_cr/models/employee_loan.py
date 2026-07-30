@@ -1,5 +1,6 @@
 import logging
 import math
+import calendar
 from odoo import models, fields, api
 from odoo.models import Constraint
 from odoo.exceptions import ValidationError, UserError
@@ -104,6 +105,13 @@ class EmployeeLoan(models.Model):
         string='Saldo Pendiente (CRC)', currency_field='currency_id',
         compute='_compute_amounts', store=True
     )
+    has_pending_installments = fields.Boolean(
+        string='Tiene Cuotas Pendientes', compute='_compute_amounts', store=True,
+        help='True si el prestamo tiene al menos una cuota en estado '
+             'Pendiente. Se usa para mostrar el boton "Regenerar Cuotas '
+             'Pendientes" solo cuando hace falta (saldo pendiente pero '
+             'ninguna cuota programada para cobrarlo).'
+    )
     move_id = fields.Many2one(
         'account.move', string='Asiento de Otorgamiento',
         readonly=True, copy=False,
@@ -136,6 +144,9 @@ class EmployeeLoan(models.Model):
             )
             rec.amount_paid    = round(paid, 2)
             rec.amount_pending = round(rec.amount_total - paid, 2)
+            rec.has_pending_installments = bool(
+                rec.installment_ids.filtered(lambda i: i.state == 'pending')
+            )
 
     @api.constrains('amount_total', 'installments')
     def _check_amounts(self):
@@ -358,6 +369,47 @@ class EmployeeLoan(models.Model):
                 'amount':     amount,
             })
 
+    def _generate_biweekly_installments_for_remaining(self, remaining_amount, old_installment_amount, next_sequence):
+        """
+        Genera N cuotas quincenales para cubrir remaining_amount, cada
+        una del monto old_installment_amount (la ultima se ajusta para
+        cubrir el residuo exacto). La primera cae en la PROXIMA quincena
+        real de pago (dia 15 o dia 30) que sea igual o posterior a hoy.
+
+        Logica compartida entre action_convert_to_biweekly() (prestamo
+        mensual con cuotas pendientes que se reemplazan) y
+        action_regenerate_pending_installments() (prestamo sin ninguna
+        cuota pendiente, ej. porque se borraron por error).
+        """
+        self.ensure_one()
+        n_new = max(1, math.ceil(remaining_amount / old_installment_amount))
+
+        today = fields.Date.context_today(self)
+        _ultimo_dia_mes = calendar.monthrange(today.year, today.month)[1]
+        # Segundo dia de pago quincenal = 30 (el estandar del sistema,
+        # ver hooks.py::_ensure_payroll_calendars), ajustado con min()
+        # para meses cortos como febrero (28/29 dias).
+        _segundo_dia_pago = min(30, _ultimo_dia_mes)
+        if today.day <= 15:
+            start_date = today.replace(day=15)
+        else:
+            start_date = today.replace(day=_segundo_dia_pago)
+
+        for i in range(n_new):
+            due_date = start_date + relativedelta(days=15 * i)
+            if i == n_new - 1:
+                already = round(old_installment_amount * (n_new - 1), 2)
+                amount = round(remaining_amount - already, 2)
+            else:
+                amount = old_installment_amount
+            self.env['planilla.loan.installment'].create({
+                'loan_id':    self.id,
+                'sequence':   next_sequence + i,
+                'due_date':   due_date,
+                'amount':     amount,
+            })
+        return n_new, start_date
+
     def action_convert_to_biweekly(self):
         """
         Cambia un prestamo YA aprobado/activo de cobro mensual a
@@ -381,10 +433,8 @@ class EmployeeLoan(models.Model):
              cuotas del mismo monto que tenia la cuota original, para
              no sorprender al empleado con un monto de cuota distinto
              al que ya conocia.
-          3. La primera cuota nueva se programa a partir de la fecha de
-             HOY (o la fecha de la cuota pendiente mas antigua que se
-             esta reemplazando, la que sea posterior), asegurando que
-             no se genere una cuota con fecha ya pasada.
+          3. La primera cuota nueva se programa a partir de la PROXIMA
+             quincena real de pago (dia 15 o 30) desde hoy.
         """
         self.ensure_one()
         if self.state not in ('approved', 'active'):
@@ -402,8 +452,11 @@ class EmployeeLoan(models.Model):
         )
         if not pending_installments:
             raise UserError(
-                'No hay cuotas pendientes que convertir -- el prestamo '
-                'ya esta completamente cobrado.'
+                'No hay cuotas pendientes que convertir. Si el prestamo '
+                'ya esta completamente cobrado, no hay nada que hacer. '
+                'Si el saldo pendiente es mayor a 0 pero no hay cuotas '
+                'programadas (ej. se borraron por error), use el boton '
+                '"Regenerar Cuotas Pendientes" en su lugar.'
             )
 
         # Monto de la cuota original (mismo monto por cuota que ya
@@ -418,35 +471,10 @@ class EmployeeLoan(models.Model):
                 'del prestamo.'
             )
 
-        # Cuantas cuotas quincenales del monto original se necesitan
-        # para cubrir el saldo pendiente (redondeado hacia arriba --
-        # la ultima cuota se ajusta para cubrir el residuo exacto,
-        # igual que en _generate_installments).
-        n_new = max(1, math.ceil(remaining_amount / old_installment_amount))
-
-        # Primera fecha disponible: hoy, o la fecha de la cuota pendiente
-        # mas antigua si esa es posterior a hoy (evita reprogramar una
-        # cuota futura hacia una fecha mas temprana de la planeada).
-        today = fields.Date.context_today(self)
-        earliest_pending_date = min(pending_installments.mapped('due_date') or [today])
-        start_date = max(today, earliest_pending_date)
-
         next_sequence = max(self.installment_ids.mapped('sequence') or [0]) - len(pending_installments) + 1
         pending_installments.unlink()
-
-        for i in range(n_new):
-            due_date = start_date + relativedelta(days=15 * i)
-            if i == n_new - 1:
-                already = round(old_installment_amount * (n_new - 1), 2)
-                amount = round(remaining_amount - already, 2)
-            else:
-                amount = old_installment_amount
-            self.env['planilla.loan.installment'].create({
-                'loan_id':    self.id,
-                'sequence':   next_sequence + i,
-                'due_date':   due_date,
-                'amount':     amount,
-            })
+        n_new, start_date = self._generate_biweekly_installments_for_remaining(
+            remaining_amount, old_installment_amount, next_sequence)
 
         # Actualizar el numero total de cuotas y la frecuencia para que
         # installments/installment_frequency reflejen la realidad actual
@@ -463,6 +491,82 @@ class EmployeeLoan(models.Model):
                 f'cambios. Saldo pendiente (CRC{remaining_amount:,.2f}) '
                 f'repartido en {n_new} cuota(s) quincenal(es) nueva(s), '
                 f'a partir del {start_date}.'
+            ),
+            message_type='notification',
+        )
+
+    def action_regenerate_pending_installments(self):
+        """
+        Reconstruye las cuotas pendientes de un prestamo que tiene SALDO
+        PENDIENTE (amount_pending > 0) pero NINGUNA cuota programada
+        para cobrarlo -- tipicamente porque las cuotas 'Pendiente' se
+        borraron manualmente con el boton de basura de la lista, sin
+        saber que no existia ninguna forma de regenerarlas despues
+        (_generate_installments() solo corre al aprobar un prestamo en
+        Borrador, nunca sobre uno ya En curso).
+
+        Reparte el saldo pendiente en cuotas del mismo tamano y
+        frecuencia (mensual o quincenal, segun installment_frequency)
+        que ya tenia el prestamo, empezando desde la proxima fecha de
+        pago disponible. Las cuotas 'Descontada' existentes NUNCA se
+        tocan -- se preserva el historial completo de lo ya cobrado.
+        """
+        self.ensure_one()
+        if self.state not in ('approved', 'active'):
+            raise UserError(
+                'Solo se puede regenerar cuotas de un prestamo Aprobado '
+                'o En curso.'
+            )
+        if self.installment_ids.filtered(lambda i: i.state == 'pending'):
+            raise UserError(
+                'Este prestamo ya tiene cuotas Pendientes programadas -- '
+                'no hay nada que regenerar. Si quiere cambiar su '
+                'frecuencia, use "Convertir a Cobro Quincenal" en su '
+                'lugar.'
+            )
+        remaining_amount = round(self.amount_pending, 2)
+        if remaining_amount <= 0:
+            raise UserError(
+                'Este prestamo no tiene saldo pendiente -- no hay nada '
+                'que regenerar.'
+            )
+        old_installment_amount = self.installment_amount or 0.0
+        if old_installment_amount <= 0:
+            raise UserError(
+                'No se pudo determinar el monto por cuota para '
+                'regenerar. Revise el monto total y numero de cuotas '
+                'del prestamo.'
+            )
+
+        next_sequence = max(self.installment_ids.mapped('sequence') or [0]) + 1
+
+        if self.installment_frequency == 'biweekly':
+            n_new, start_date = self._generate_biweekly_installments_for_remaining(
+                remaining_amount, old_installment_amount, next_sequence)
+        else:
+            n_new = max(1, math.ceil(remaining_amount / old_installment_amount))
+            start_date = fields.Date.context_today(self)
+            for i in range(n_new):
+                due_date = start_date + relativedelta(months=i)
+                if i == n_new - 1:
+                    already = round(old_installment_amount * (n_new - 1), 2)
+                    amount = round(remaining_amount - already, 2)
+                else:
+                    amount = old_installment_amount
+                self.env['planilla.loan.installment'].create({
+                    'loan_id':    self.id,
+                    'sequence':   next_sequence + i,
+                    'due_date':   due_date,
+                    'amount':     amount,
+                })
+
+        self.write({'installments': len(self.installment_ids)})
+        self.message_post(
+            body=(
+                f'Cuotas pendientes regeneradas: saldo de '
+                f'CRC{remaining_amount:,.2f} repartido en {n_new} '
+                f'cuota(s) nueva(s), a partir del {start_date}. Las '
+                f'cuotas ya cobradas no se modificaron.'
             ),
             message_type='notification',
         )
@@ -563,6 +667,44 @@ class LoanInstallment(models.Model):
     payslip_id = fields.Many2one(
         'planilla.payslip.cr', string='Boleta', readonly=True
     )
+
+    def unlink(self):
+        """
+        FIX BUG: antes no habia ninguna proteccion -- el boton de basura
+        de la lista borraba la cuota directamente, sin ningun aviso.
+        Sintoma real reportado: el usuario borro cuotas 'Pendiente' de 3
+        prestamos pensando que podia "regenerarlas" despues, pero no
+        existe ningun boton que reconstruya cuotas individuales de un
+        prestamo YA EN CURSO (_generate_installments() solo se llama al
+        aprobar un prestamo en Borrador) -- las cuotas se perdieron por
+        completo, dejando esos prestamos con saldo pendiente pero sin
+        ninguna cuota programada para cobrarlo.
+
+        Ahora:
+          - Cuotas 'Descontada' NUNCA se pueden borrar manualmente --
+            borrar una rompe el saldo pagado/pendiente del prestamo y
+            el historial real de lo que ya se le descargo al empleado.
+            Para corregir una cuota Descontada incorrecta, use
+            action_fix_orphan_state() (si quedo huerfana) o reactive la
+            boleta que la genero a Borrador (si la boleta sigue
+            existiendo).
+          - Cuotas 'Pendiente' SI se pueden borrar, pero con una
+            advertencia clara en el propio mensaje de confirmacion de
+            que no se regeneraran automaticamente -- si el usuario
+            necesita ajustar el monto o la fecha, debe editarlas en vez
+            de borrarlas.
+        """
+        deducted = self.filtered(lambda i: i.state == 'deducted')
+        if deducted:
+            raise UserError(
+                f'No se puede eliminar {"la cuota" if len(deducted)==1 else f"las {len(deducted)} cuotas"} '
+                f'"Descontada" -- esto rompe el saldo pagado/pendiente del '
+                f'prestamo y el historial real de lo que ya se le '
+                f'descargo al empleado. Si la cuota quedo huerfana (sin '
+                f'boleta real que la respalde), use el boton "Corregir '
+                f'Estado" en su formulario en vez de eliminarla.'
+            )
+        return super().unlink()
 
     def action_fix_orphan_state(self):
         """

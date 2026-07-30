@@ -40,6 +40,10 @@
                             string="Convertir a Cobro Quincenal" class="btn-secondary"
                             invisible="state not in ('approved','active') or installment_frequency == 'biweekly'"
                             confirm="Las cuotas ya cobradas se conservan sin cambios. El saldo pendiente se repartira en cuotas quincenales del mismo monto que la cuota actual, a partir de hoy (o la fecha de la proxima cuota pendiente, la que sea posterior). ¿Continuar?"/>
+                    <button name="action_regenerate_pending_installments" type="object"
+                            string="Regenerar Cuotas Pendientes" class="btn-warning"
+                            invisible="state not in ('approved','active') or has_pending_installments or amount_pending &lt;= 0"
+                            confirm="Este prestamo tiene saldo pendiente pero ninguna cuota programada para cobrarlo (probablemente se borraron por error). El saldo se repartira en cuotas nuevas del mismo monto y frecuencia que ya tenia el prestamo, a partir de la proxima fecha de pago disponible. Las cuotas ya cobradas no se modifican. ¿Continuar?"/>
                     <button name="action_cancel" type="object" string="Anular"
                             class="btn-danger" invisible="state not in ('draft','approved')"/>
                     <field name="state" widget="statusbar"
@@ -85,7 +89,8 @@
                             <field name="installment_ids">
                                 <list>
                                     <field name="sequence" string="N°" readonly="1"/>
-                                    <field name="due_date" string="Fecha Descuento" readonly="1"/>
+                                    <field name="due_date" string="Fecha Descuento"
+                                           readonly="state != 'pending'"/>
                                     <field name="amount" string="Monto (₡)" readonly="1"/>
                                     <field name="state" widget="badge" readonly="1"
                                            decoration-success="state=='deducted'"
@@ -172,7 +177,7 @@
                         <group>
                             <field name="loan_id" readonly="1"/>
                             <field name="sequence" readonly="1"/>
-                            <field name="due_date" readonly="1"/>
+                            <field name="due_date" readonly="state != 'pending'"/>
                         </group>
                         <group>
                             <field name="amount" readonly="1"/>
