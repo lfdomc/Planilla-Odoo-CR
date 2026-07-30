@@ -184,7 +184,8 @@ class PayslipComputeMixin(models.AbstractModel):
                  'is_proportional', 'proportional_factor', 'payroll_calendar_id',
                  'days_in_period',
                  'employee_id.schedule_type_id',
-                 'employee_id.base_salary')
+                 'employee_id.base_salary',
+                 'employee_id.hourly_rate')
     def _compute_base_salary(self):
         for rec in self:
             if rec.state == 'done':
@@ -197,14 +198,20 @@ class PayslipComputeMixin(models.AbstractModel):
                 if not rec.date_from or not rec.date_to or not emp.base_salary:
                     rec.base_salary = 0.0
                     continue
-                hours_per_day     = emp.schedule_type_id.hours_per_day if emp.schedule_type_id else K.HORAS_JORNADA_DEFAULT
-                period_days       = max(rec.days_in_period or 30, 1)
-                freq              = rec._get_effective_freq()
-                # FIX B-04 v58: usar K.PERIODOS_POR_MES -- bimonthly ahora es 0.5 (corregido)
-                periods_per_month = K.PERIODOS_POR_MES.get(freq, 1)
-                monthly_hours     = hours_per_day * period_days * periods_per_month
-                hourly_rate       = emp.base_salary / monthly_hours if monthly_hours else 0.0
-                rec.base_salary   = round(hourly_rate * (rec.attendance_hours or 0.0), 2)
+                # FIX BUG: usar emp.hourly_rate (la UNICA fuente de verdad
+                # para la tarifa horaria real del empleado, segun su propia
+                # documentacion en hr_employee_extension.py), en vez de
+                # recalcular una tarifa propia con una formula distinta
+                # (base_salary / (hours_per_day * period_days *
+                # periods_per_month)) que daba un resultado diferente al
+                # que el usuario ve en la ficha del empleado. La formula
+                # anterior dividia entre los dias reales del periodo
+                # (ej. 16 dias x 2 quincenas = 32 "dias-mes" equivalentes),
+                # mientras que hourly_rate siempre divide entre 30 dias
+                # fijos -- para periodos que no son multiplos exactos de 30
+                # dias/mes, esto producia una tarifa por hora mas baja de
+                # lo esperado y pagos incorrectos a empleados por horas.
+                rec.base_salary = round((emp.hourly_rate or 0.0) * (rec.attendance_hours or 0.0), 2)
             else:
                 # Usar salario vigente en la fecha de inicio de la boleta
                 # Si hay historial autorizado, se usa ese; si no, el salario actual
