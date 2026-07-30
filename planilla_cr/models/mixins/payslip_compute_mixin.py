@@ -879,11 +879,25 @@ class PayslipComputeMixin(models.AbstractModel):
                 _cfg_by_company[_cid2] = rec.env['planilla.accounting.config'].search(
                     [('company_id', '=', _cid2)], limit=1)
             _tax_cfg = _cfg_by_company[_cid2]
-            tax_neto, creditos = rec._calc_income_tax(
-                g, rec.ccss_employee, one_time_bonus, _cfg=_tax_cfg)
+            # SP: sin renta -- mismo criterio que CCSS obrero/patronal e INS
+            # (is_sp se auto-activa para empleados con exento_deducciones,
+            # ver payslip_cr.py::create()). Antes de este fix, el CCSS ya
+            # quedaba en 0 para estos empleados pero la renta se seguia
+            # calculando y descontando -- contradecia el propio nombre y
+            # ayuda del campo "Exento de CCSS y Renta".
+            if getattr(rec, 'is_sp', False):
+                tax_neto, creditos = 0.0, 0.0
+            else:
+                tax_neto, creditos = rec._calc_income_tax(
+                    g, rec.ccss_employee, one_time_bonus, _cfg=_tax_cfg)
             # Metodo Mensual Consolidado: si esta es la ultima boleta del mes,
             # reconciliar contra el ingreso real acumulado del mes completo.
-            if (_tax_cfg and _tax_cfg.income_tax_method == 'monthly_consolidated'
+            # Se excluye explicitamente a empleados con is_sp (exentos de
+            # renta) -- sin este chequeo, la reconciliacion podria volver a
+            # calcular y cobrar renta a un empleado exento en la ultima
+            # boleta del mes, revirtiendo el fix de arriba.
+            if (not getattr(rec, 'is_sp', False)
+                    and _tax_cfg and _tax_cfg.income_tax_method == 'monthly_consolidated'
                     and rec.is_last_payslip_of_month):
                 tax_neto, creditos = rec._reconcile_monthly_income_tax(g, creditos, _cfg=_tax_cfg)
             rec.income_tax        = round(tax_neto, 2)
