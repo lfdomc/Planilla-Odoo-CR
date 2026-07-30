@@ -182,6 +182,8 @@ def post_init_hook(env):
     _setup_all_companies_config(env)
     _ensure_schedule_types(env)
     _ensure_payroll_calendars(env)
+    _fix_income_tax_bracket_company_scope(env)
+    _fix_minimum_salary_company_scope(env)
     try:
         from .models.migrate_codes import migrate_codes
         migrate_codes(env)
@@ -230,10 +232,88 @@ def post_migrate_hook(env):
     _ensure_deduction_codes(env)
     _ensure_schedule_types(env)
     _ensure_payroll_calendars(env)
+    _fix_income_tax_bracket_company_scope(env)
+    _fix_minimum_salary_company_scope(env)
+    _ensure_default_branch(env)
+    _fix_holiday_company_scope(env)
+    _fix_employee_document_type_company_scope(env)
     _fix_hour_license_date_end(env)
     _migrate_disability_payslip_m2m(env)
     _migrate_leave_cr_payslip_m2m(env)
     _remove_legacy_menu_items(env)
+
+
+def _fix_holiday_company_scope(env):
+    """
+    FIX BUG: los 13 feriados nacionales estandar de Costa Rica
+    (data/public_holidays_cr.xml) se crean con noupdate="1" y SIN
+    especificar company_id. Como el campo tiene
+    default=lambda self: self.env.company, cada uno queda atado a la
+    UNICA compania que estuviera activa durante la instalacion inicial
+    del modulo (normalmente la primera/demo) -- exactamente el mismo
+    patron de bug que las calendarizaciones (ver
+    _ensure_payroll_calendars).
+
+    Sintoma real reportado: un usuario en la compania "Condominio
+    Horizontal Residencial..." intenta registrar una hora extra tipo
+    "Dia Feriado" para el 25 de julio (Anexion del Partido de Nicoya).
+    El sistema rechaza la fecha diciendo que no esta registrada como
+    feriado obligatorio -- aunque la lista de Feriados Nacionales SI
+    muestra el 25 de julio marcado como obligatorio. La causa: ese
+    registro de feriado pertenece a OTRA compania (la que estaba activa
+    al instalar el modulo), y is_paid_holiday() filtra por
+    company_id = compania_actual OR company_id = False (global) -- como
+    el feriado no es global ni de "Condominio...", nunca coincide,
+    aunque el usuario lo vea en pantalla porque tiene acceso
+    multi-compania.
+
+    A diferencia de las calendarizaciones (que si tiene sentido
+    duplicar por compania, cada una con su propio dia de pago), los
+    feriados nacionales son los MISMOS para todas las companias de
+    Costa Rica -- la correccion correcta es liberar el company_id (que
+    quede vacio/global) en vez de duplicar 13 registros por cada
+    compania del cliente. Solo se tocan los feriados con type=national
+    creados por el catalogo estandar (identificados por su nombre
+    conocido) -- nunca se toca un feriado personalizado (type=custom)
+    que un cliente haya creado a proposito para una compania
+    especifica.
+    """
+    Holiday = env['planilla.public.holiday']
+    NOMBRES_CATALOGO_ESTANDAR = [
+        'A\u00f1o Nuevo', 'Ano Nuevo',
+        'Jueves Santo', 'Viernes Santo',
+        'Batalla de Rivas (Juan Santamar\u00eda)', 'Batalla de Rivas (Juan Santamaria)',
+        'D\u00eda del Trabajador', 'Dia del Trabajador',
+        'Anexi\u00f3n del Partido de Nicoya', 'Anexion del Partido de Nicoya',
+        'Virgen de los \u00c1ngeles', 'Virgen de los Angeles',
+        'Madre y D\u00eda de la Anexi\u00f3n de Guanacaste',
+        'Madre y Dia de la Anexion de Guanacaste',
+        'Independencia', 'D\u00eda de la Independencia', 'Dia de la Independencia',
+        'D\u00eda de la Cultura', 'Dia de la Cultura',
+        'D\u00eda de las Culturas', 'Dia de las Culturas',
+        'Abolici\u00f3n del Ej\u00e9rcito', 'Abolicion del Ejercito',
+        'Navidad',
+    ]
+    huerfanos = Holiday.sudo().search([
+        ('type', '=', 'national'),
+        ('company_id', '!=', False),
+        ('name', 'in', NOMBRES_CATALOGO_ESTANDAR),
+    ])
+    if not huerfanos:
+        return
+    # Antes de liberar cada uno, verificar que no exista ya un duplicado
+    # global (company_id=False) para esa misma fecha -- si ya existe,
+    # simplemente se elimina el atado a una sola compania sin crear
+    # conflicto; si no existe, se libera el registro actual.
+    for h in huerfanos:
+        ya_global = Holiday.sudo().search([
+            ('date', '=', h.date),
+            ('company_id', '=', False),
+            ('id', '!=', h.id),
+        ], limit=1)
+        if ya_global:
+            continue  # ya hay una version global de ese feriado, no duplicar
+        h.write({'company_id': False})
 
 
 def _fix_hour_license_date_end(env):
@@ -531,10 +611,160 @@ def _ensure_payroll_calendars(env):
             Calendar.create(create_vals)
 
 
+def _fix_income_tax_bracket_company_scope(env):
+    """
+    Libera el company_id de los tramos de impuesto sobre la renta
+    (Resolucion DGT-R-016-2026) para que apliquen a TODAS las
+    companias por igual -- son un decreto nacional, identico para
+    cualquier empresa de Costa Rica.
+
+    FIX BUG (version anterior de este mismo hook): data/income_tax_data.xml
+    crea los 10 tramos (5 de 2025 desactivados + 5 de 2026 activos) con
+    IDs XML fijos y SIN especificar company_id. Como el campo tiene
+    default=lambda self: self.env.company, los tramos quedaron atados a
+    la UNICA compania activa durante la primera instalacion del modulo.
+
+    CORRECCION DE ENFOQUE: una version anterior de este hook intentaba
+    solucionar esto DUPLICANDO la tabla completa por compania -- un
+    error de diseno, porque los tramos de renta no varian entre
+    empresas costarricenses. La correccion correcta es la misma que
+    para feriados/deducciones: liberar el registro (company_id=False)
+    para que sea global. El propio codigo de calculo ya esperaba esto:
+    payslip_compute_mixin.py y employee_termination.py buscan tramos con
+    ('company_id', '=', company_actual) OR ('company_id', '=', False),
+    y payslip_compute_mixin.py incluso tiene un fallback explicito
+    comentado como "Cubre el caso donde los tramos fueron cargados con
+    una company_id distinta" -- confirmando que la intencion de diseno
+    original siempre fue que estos tramos fueran globales.
+
+    Si una compania anterior a este fix ya tiene su PROPIA copia
+    duplicada de los tramos 2026 (creada por la version anterior de
+    este hook), esos duplicados se dejan intactos -- no se eliminan
+    datos, solo se libera el/los tramo(s) originales que seguian
+    atados a una sola empresa.
+    """
+    Bracket = env['planilla.income.tax.bracket']
+    NOMBRES_TRAMOS_2026 = [
+        'Exento 2026 -- hasta CRC918,000',
+        '10% sobre el exceso de CRC918,000 hasta CRC1,347,000',
+        '15% sobre el exceso de CRC1,347,000 hasta CRC2,364,000',
+        '20% sobre el exceso de CRC2,364,000 hasta CRC4,727,000',
+        '25% sobre el exceso de CRC4,727,000',
+        # Nombres originales del XML (con simbolo de colones, por si el
+        # registro nunca paso por la version anterior de este hook)
+        'Exento 2026 \u2014 hasta \u20a1918,000',
+        '10% sobre el exceso de \u20a1918,000 hasta \u20a11,347,000',
+        '15% sobre el exceso de \u20a11,347,000 hasta \u20a12,364,000',
+        '20% sobre el exceso de \u20a12,364,000 hasta \u20a14,727,000',
+        '25% sobre el exceso de \u20a14,727,000',
+    ]
+    huerfanos = Bracket.sudo().search([
+        ('company_id', '!=', False),
+        ('year', '=', 2026),
+        ('name', 'in', NOMBRES_TRAMOS_2026),
+    ])
+    for b in huerfanos:
+        ya_global = Bracket.search([
+            ('sequence', '=', b.sequence),
+            ('year', '=', 2026),
+            ('company_id', '=', False),
+            ('id', '!=', b.id),
+        ], limit=1)
+        if ya_global:
+            continue  # ya hay una version global de este tramo, no duplicar
+        b.write({'company_id': False})
+
+
+def _fix_minimum_salary_company_scope(env):
+    """
+    Libera el company_id de los salarios minimos MTSS (Decreto vigente
+    enero 2026) para que apliquen a TODAS las companias por igual --
+    son un decreto nacional del Ministerio de Trabajo, identico para
+    cualquier empresa de Costa Rica.
+
+    CORRECCION DE ENFOQUE (mismo caso que tramos de renta, ver
+    _fix_income_tax_bracket_company_scope): una version anterior de
+    este hook duplicaba las 5 categorias por compania -- error de
+    diseno, porque los salarios minimos MTSS no varian entre empresas.
+    get_current_minimum() (ver models/minimum_salary.py) ya filtra con
+    ('company_id', '=', compania_actual) OR ('company_id', '=', False),
+    exactamente el mismo patron que el resto de catalogos globales del
+    modulo (feriados, codigos de deduccion, tramos de renta).
+
+    Si alguna compania ya tiene su propia copia duplicada (creada por
+    la version anterior de este hook), esos duplicados se dejan
+    intactos -- solo se libera el/los registro(s) que seguian atados
+    a una sola empresa.
+    """
+    MinSalary = env['planilla.minimum.salary']
+    CATEGORIAS_2026 = [
+        'Trabajador no calificado generico',
+        'Trabajador semicalificado',
+        'Trabajador calificado',
+        'Tecnico de nivel medio',
+        'Universitario con titulo',
+    ]
+    huerfanos = MinSalary.sudo().search([
+        ('company_id', '!=', False),
+        ('category', 'in', CATEGORIAS_2026),
+        ('valid_from', '=', '2026-01-01'),
+    ])
+    for m in huerfanos:
+        ya_global = MinSalary.search([
+            ('category', '=', m.category),
+            ('valid_from', '=', m.valid_from),
+            ('company_id', '=', False),
+            ('id', '!=', m.id),
+        ], limit=1)
+        if ya_global:
+            continue  # ya hay una version global de esta categoria, no duplicar
+        m.write({'company_id': False})
+
+
+def _ensure_default_branch(env):
+    """
+    Garantiza que cada compania tenga al menos una sucursal (la
+    sucursal "Principal" de data/default_data.xml, que se creo sin
+    company_id explicito y quedo atada a una sola compania por el mismo
+    patron de bug que las calendarizaciones). De menor severidad que
+    los tramos de renta o salarios minimos (no rompe ningun calculo
+    legal, solo deja el campo Sucursal vacio en companias nuevas), pero
+    se corrige por consistencia.
+    """
+    companies = env['res.company'].search([])
+    Branch = env['planilla.branch']
+    for company in companies:
+        if Branch.search_count([('company_id', '=', company.id)]):
+            continue
+        Branch.create({
+            'code': 'PRINCIPAL',
+            'name': 'Principal',
+            'company_id': company.id,
+            'active': True,
+        })
+
+
 def _ensure_deduction_codes(env):
     """
-    Garantiza que los codigos de deduccion estandar existan.
-    Se ejecuta en cada migracion para agregar nuevos codigos sin perder los existentes.
+    Garantiza que los codigos de deduccion estandar existan, como
+    codigos GLOBALES (sin compania asignada), disponibles para todas las
+    empresas por igual. Se ejecuta en cada migracion para agregar nuevos
+    codigos sin perder los existentes.
+
+    FIX BUG: antes se creaban con DeductionCode.create(vals) sin
+    especificar company_id -- el campo tiene
+    default=lambda self: self.env.company, asi que cada codigo quedaba
+    atado por accidente a la UNICA compania activa durante la primera
+    migracion que corrio esto, a pesar de que el propio texto de ayuda
+    del campo dice explicitamente "Deje vacio para que aplique a todas
+    las empresas (codigo global)". Companias creadas despues de esa
+    primera migracion nunca veian estos codigos disponibles. Mismo
+    patron de bug que los feriados nacionales (ver
+    _fix_holiday_company_scope) y que las calendarizaciones de planilla
+    (ver _ensure_payroll_calendars) -- aqui la correccion es la misma
+    que en feriados: mantener el registro global (company_id=False) en
+    vez de duplicarlo por compania, porque son los mismos codigos para
+    todas las empresas del cliente.
     """
     standard_codes = [
         {'code': 'CCSS',     'name': 'CCSS Obrero',                   'deduction_type': 'employee'},
@@ -550,12 +780,77 @@ def _ensure_deduction_codes(env):
     ]
     DeductionCode = env['planilla.deduction.code']
     for vals in standard_codes:
-        if not DeductionCode.search([('code', '=', vals['code'])], limit=1):
-            DeductionCode.create(vals)
+        existing = DeductionCode.search([('code', '=', vals['code'])], limit=1)
+        if not existing:
+            create_vals = dict(vals)
+            create_vals['company_id'] = False  # global explicito, no depender del default
+            DeductionCode.create(create_vals)
+        elif existing.company_id:
+            # Ya existe pero quedo atado a una compania por el bug
+            # anterior -- liberarlo para que vuelva a ser global, salvo
+            # que ya exista otro codigo global con el mismo code (poco
+            # probable dado el unique constraint esperado, pero se
+            # verifica por seguridad antes de escribir).
+            ya_global = DeductionCode.search([
+                ('code', '=', vals['code']),
+                ('company_id', '=', False),
+                ('id', '!=', existing.id),
+            ], limit=1)
+            if not ya_global:
+                existing.write({'company_id': False})
+
+    # -- Liberar TODOS los codigos huerfanos, no solo los 10 de arriba --
+    # data/deduction_code_data.xml tiene 17 codigos, data/leave_cr_data.xml
+    # agrega 2 mas, y data/charge_type_data.xml agrega 1 mas
+    # (COBRO_EMP) -- 20 en total repartidos en 3 archivos distintos. La
+    # lista fija de arriba solo cubria 10. Este paso generico corrige
+    # CUALQUIER planilla.deduction.code que haya quedado atado a una
+    # compania por el mismo bug, sin depender de mantener una lista
+    # actualizada cada vez que se agregue un codigo nuevo en cualquier
+    # archivo de datos del modulo.
+    for code_rec in DeductionCode.search([('company_id', '!=', False)]):
+        ya_global = DeductionCode.search([
+            ('code', '=', code_rec.code),
+            ('company_id', '=', False),
+            ('id', '!=', code_rec.id),
+        ], limit=1)
+        if not ya_global:
+            code_rec.write({'company_id': False})
+
+    # -- Mismo tratamiento generico para Tipos de Cobro al Empleado --
+    # (data/charge_type_data.xml, 8 registros, mismo bug de company_id).
+    # planilla.charge.type es un modelo propio de este modulo (definido
+    # en models/employee_charge.py) -- siempre disponible aqui, sin
+    # necesitar el patron defensivo env.get() usado para modelos de
+    # OTROS modulos opcionales como nombramientos_cr.
+    ChargeType = env['planilla.charge.type']
+    for charge_rec in ChargeType.search([('company_id', '!=', False)]):
+        ya_global = ChargeType.search([
+            ('code', '=', charge_rec.code),
+            ('company_id', '=', False),
+            ('id', '!=', charge_rec.id),
+        ], limit=1)
+        if not ya_global:
+            charge_rec.write({'company_id': False})
 
 
-    _create_email_templates(env)
-    _setup_accounting_config(env)
+def _fix_employee_document_type_company_scope(env):
+    """
+    Mismo patron de bug que _ensure_deduction_codes, aplicado a
+    planilla.employee.document.type (ver data/employee_document_type_data.xml):
+    los 9 tipos de documento estandar se crean sin company_id explicito
+    y quedan atados a una sola compania por el default del campo.
+    """
+    DocType = env['planilla.employee.document.type']
+    huerfanos = DocType.sudo().search([('company_id', '!=', False)])
+    for d in huerfanos:
+        ya_global = DocType.search([
+            ('name', '=', d.name),
+            ('company_id', '=', False),
+            ('id', '!=', d.id),
+        ], limit=1)
+        if not ya_global:
+            d.write({'company_id': False})
 
 
 def _setup_accounting_config(env):

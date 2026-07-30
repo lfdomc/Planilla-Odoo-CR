@@ -589,6 +589,12 @@ class PayrollRunCR(models.Model):
         if self.state != 'draft':
             raise UserError('Solo se pueden generar boletas en planillas en borrador.')
 
+        # -- Trazabilidad de exclusiones -------------------------------------
+        # Registro de motivo por empleado excluido, para el resumen final.
+        # Se llena a medida que cada filtro descarta empleados -- ninguna
+        # exclusion queda sin explicacion. Formato: {employee: 'motivo'}
+        exclusion_reasons = {}
+
         domain = [
             ('active', '=', True),
             ('company_id', '=', self.company_id.id),  # FIX-C1: seguridad multi-empresa
@@ -600,41 +606,70 @@ class PayrollRunCR(models.Model):
         if self.payroll_calendar_id:
             domain.append(('payroll_calendar_id', '=', self.payroll_calendar_id.id))
 
-        # Buscar empleados activos del período
+        # Buscar empleados activos del periodo
         employees = self.env['hr.employee'].search(domain)
 
-        # Incluir también empleados inactivos (archivados) cuya fecha de salida
-        # esté dentro del período — tienen derecho a pago proporcional
+        # Universo total de la compania (sin filtro de sucursal/depto/calendario)
+        # para poder explicar si el problema es "0 empleados coinciden con los
+        # filtros de esta planilla" vs. "hay empleados pero se excluyeron por
+        # otra razon" -- son diagnosticos muy distintos para RRHH.
+        total_company_employees = self.env['hr.employee'].search_count([
+            ('active', '=', True),
+            ('company_id', '=', self.company_id.id),
+        ])
+
+        # Incluir tambien empleados inactivos (archivados) cuya fecha de salida
+        # este dentro del periodo -- tienen derecho a pago proporcional
         inactive_domain = domain + [
             ('active', '=', False),
         ]
         inactive_emp = self.env['hr.employee'].with_context(
             active_test=False
         ).search(inactive_domain)
-        # Solo incluir los que salieron durante este período o después
+        # Solo incluir los que salieron durante este periodo o despues
         inactive_in_period = inactive_emp.filtered(
             lambda e: (
                 getattr(e, 'exit_date', None) and
                 self.date_start <= e.exit_date <= self.date_end
             )
         )
+        for e in (inactive_emp - inactive_in_period):
+            exclusion_reasons[e] = (
+                f'Archivado/inactivo con fecha de salida fuera del periodo '
+                f'({self.date_start} -- {self.date_end})'
+            )
         employees = employees | inactive_in_period
 
         # Excluir empleados cuya fecha de ingreso sea posterior al fin del periodo
+        antes_ingreso = employees.filtered(
+            lambda e: e.entry_date and e.entry_date > self.date_end
+        )
+        for e in antes_ingreso:
+            exclusion_reasons[e] = (
+                f'Fecha de ingreso ({e.entry_date}) es posterior al fin '
+                f'del periodo ({self.date_end})'
+            )
         employees = employees.filtered(
             lambda e: not e.entry_date or e.entry_date <= self.date_end
         )
 
         # Excluir empleados cuya fecha de salida sea anterior al inicio del periodo
-        # Usar exit_date (campo del módulo) como referencia principal
+        # Usar exit_date (campo del modulo) como referencia principal
         def _salida_valida(e):
             exit_d = getattr(e, 'exit_date', None)
             dep_d  = getattr(e, 'departure_date', None)
             fecha  = exit_d or dep_d
             if not fecha:
-                return True  # sin fecha de salida → incluir
-            return fecha >= self.date_start  # salió en este período o después
+                return True  # sin fecha de salida -> incluir
+            return fecha >= self.date_start  # salio en este periodo o despues
 
+        salida_invalida = employees.filtered(lambda e: not _salida_valida(e))
+        for e in salida_invalida:
+            fecha = getattr(e, 'exit_date', None) or getattr(e, 'departure_date', None)
+            exclusion_reasons[e] = (
+                f'Fecha de salida ({fecha}) es anterior al inicio '
+                f'del periodo ({self.date_start})'
+            )
         employees = employees.filtered(_salida_valida)
 
         # Advertir sobre empleados sin employee_status_id
@@ -645,19 +680,33 @@ class PayrollRunCR(models.Model):
         def _incluir_en_planilla(e):
             """Incluir si:
             1. Tiene estado activo en planilla (is_active_payroll=True), O
-            2. Es renunciante/despedido pero su exit_date está en este período
-               (le corresponde pago proporcional por los días trabajados antes de salir)
+            2. Es renunciante/despedido pero su exit_date esta en este periodo
+               (le corresponde pago proporcional por los dias trabajados antes de salir)
             """
             status_ok = e.employee_status_id and e.employee_status_id.is_active_payroll
             if status_ok:
                 return True
-            # Renunciante/Despedido con salida en este período → incluir para pago proporcional
+            # Renunciante/Despedido con salida en este periodo -> incluir para pago proporcional
             exit_d = getattr(e, 'exit_date', None) or getattr(e, 'departure_date', None)
             if exit_d and self.date_start <= exit_d <= self.date_end:
                 return True
             return False
 
         employees_active = employees.filtered(_incluir_en_planilla)
+        excluidos_por_estado = employees - employees_active
+        for e in excluidos_por_estado:
+            if e in without_status:
+                exclusion_reasons[e] = (
+                    'Sin "Estado de Empleado" configurado (Planilla > '
+                    'Empleados > Estado de Empleado)'
+                )
+            else:
+                estado = e.employee_status_id.name if e.employee_status_id else 'Sin estado'
+                exclusion_reasons[e] = (
+                    f'Estado de Empleado "{estado}" no esta marcado como '
+                    f'activo en planilla, y no tiene fecha de salida dentro '
+                    f'del periodo'
+                )
         if without_status:
             names = ', '.join(without_status.mapped('name'))
             self.message_post(
@@ -671,11 +720,16 @@ class PayrollRunCR(models.Model):
             )
 
         # Filtrar por tipo de planilla
+        antes_de_tipo = employees_active
         if self.payroll_type == 'sp':
             # Planilla SP: empleados sin CCSS que NO son exentos en planilla normal
             employees_active = employees_active.filtered(
                 lambda e: not getattr(e, 'ccss_insured', True)
                           and not getattr(e, 'exento_deducciones', False)
+            )
+            motivo_tipo = (
+                'Esta asegurado en CCSS o marcado como exento -- no aplica '
+                'para Planilla SP (solo empleados sin CCSS y no exentos)'
             )
         else:
             # Planilla Normal: empleados con CCSS + empleados exentos (sin CCSS pero en planilla normal)
@@ -683,6 +737,12 @@ class PayrollRunCR(models.Model):
                 lambda e: getattr(e, 'ccss_insured', True)
                           or getattr(e, 'exento_deducciones', False)
             )
+            motivo_tipo = (
+                'No esta asegurado en CCSS ni marcado como exento -- '
+                'corresponde a Planilla SP, no a Planilla Normal'
+            )
+        for e in (antes_de_tipo - employees_active):
+            exclusion_reasons[e] = motivo_tipo
 
         # -- Verificacion cruzada: detectar empleados ya en otra planilla solapada --
         # Esto previene el error de constraint ANTES de intentar crear las boletas,
@@ -782,10 +842,10 @@ class PayrollRunCR(models.Model):
             self.name, created_count, skipped_count, BATCH_SIZE
         )
 
-        # FIX GEN-01: Sincronizar novedades automáticamente después de generar.
-        # Sin esto el usuario debía hacer "Generar" + "Sincronizar Novedades" en dos
+        # FIX GEN-01: Sincronizar novedades automaticamente despues de generar.
+        # Sin esto el usuario debia hacer "Generar" + "Sincronizar Novedades" en dos
         # pasos separados, y si olvidaba el sync los valores quedaban incompletos
-        # (sin overtime, incapacidades, préstamos, bonos, etc.).
+        # (sin overtime, incapacidades, prestamos, bonos, etc.).
         # Ahora "Generar Planilla" produce boletas completas en un solo paso.
         if created_count > 0:
             new_slips = self.payslip_ids.filtered(lambda p: p.state == 'draft')
@@ -796,12 +856,141 @@ class PayrollRunCR(models.Model):
                     len(new_slips)
                 )
 
+        # -- Resumen final: opcional via toggle, pero NUNCA silencio total --
+        # Antes: si employees_active quedaba vacio (por cualquiera de los
+        # filtros de arriba), el metodo devolvia silenciosamente una lista
+        # vacia sin ninguna explicacion -- el usuario veia "0 boletas" sin
+        # saber si fue un error, un filtro mal puesto, o datos faltantes.
+        #
+        # El resumen DETALLADO (notificacion + chatter con el desglose por
+        # empleado y motivo) es opcional, controlado por el toggle
+        # "Mostrar resumen al generar planilla" en Contabilidad de
+        # Planilla -- apagado por defecto, para no cambiar el
+        # comportamiento habitual de quienes ya estan acostumbrados al
+        # flujo silencioso.
+        #
+        # Sin embargo, el caso de "0 boletas generadas" SIEMPRE se avisa,
+        # incluso con el toggle apagado -- aunque sea con un mensaje
+        # minimo sin el detalle completo. El toggle controla el nivel de
+        # detalle del aviso, nunca si se avisa o no cuando algo salio mal.
+        config = self.env['planilla.accounting.config'].sudo().get_config(self.company_id.id)
+        show_summary = bool(config and config.show_generation_summary)
+
+        total_candidatos = len(employees_list)
+        total_excluidos  = len(exclusion_reasons)
+
+        if show_summary:
+            resumen_partes = [
+                f'<b>Resumen de generacion de planilla -- {self.name}</b><br/>',
+                f'Periodo: {self.date_start} -- {self.date_end}<br/>',
+                f'Empleados activos en la compania: {total_company_employees}<br/>',
+                f'OK Boletas creadas: <b>{created_count}</b><br/>',
+            ]
+            if skipped_count:
+                resumen_partes.append(
+                    f'SKIP Ya tenian boleta en esta planilla (omitidos): <b>{skipped_count}</b><br/>'
+                )
+            if total_excluidos:
+                # Agrupar por motivo para no repetir el mismo texto por cada empleado
+                por_motivo = {}
+                for emp, motivo in exclusion_reasons.items():
+                    por_motivo.setdefault(motivo, []).append(emp.name)
+                resumen_partes.append(
+                    f'WARN Empleados excluidos: <b>{total_excluidos}</b><br/>'
+                )
+                for motivo, nombres in por_motivo.items():
+                    nombres_txt = ', '.join(sorted(nombres))
+                    resumen_partes.append(f'&nbsp;&nbsp;-- {motivo}:<br/>&nbsp;&nbsp;&nbsp;&nbsp;{nombres_txt}<br/>')
+
+            self.message_post(body=''.join(resumen_partes), message_type='notification')
+
+        if created_count == 0:
+            # Nada se genero -- avisar SIEMPRE, con o sin el toggle activo.
+            # Con el toggle apagado, el mensaje es breve (sin el desglose
+            # por empleado, que ya quedo en el chatter solo si show_summary
+            # esta activo); con el toggle encendido, se agrega la
+            # sugerencia de revisar el historial para el detalle completo.
+            if total_company_employees == 0:
+                motivo_principal = (
+                    'No hay ningun empleado activo registrado en esta '
+                    'compania. Verifique Empleados en el modulo de RRHH.'
+                )
+            elif total_candidatos == 0 and total_excluidos == 0:
+                motivo_principal = (
+                    'Ningun empleado de la compania coincide con los '
+                    'filtros de esta planilla (Sucursal / Departamento / '
+                    'Calendarizacion). Revise esos filtros en la ficha de '
+                    'la planilla, o revise que los empleados tengan esos '
+                    'campos configurados correctamente en su ficha.'
+                )
+            elif skipped_count > 0 and total_candidatos == skipped_count:
+                motivo_principal = (
+                    'Todos los empleados candidatos ya tienen boleta en '
+                    'esta planilla -- no habia nada nuevo que generar.'
+                )
+            elif show_summary:
+                motivo_principal = (
+                    'Todos los empleados candidatos fueron excluidos. Vea '
+                    'el detalle completo en el historial de esta planilla '
+                    '(chatter, abajo en esta misma pantalla).'
+                )
+            else:
+                motivo_principal = (
+                    f'Todos los empleados candidatos ({total_candidatos}) '
+                    f'fueron excluidos. Active "Mostrar resumen al generar '
+                    f'planilla" en Contabilidad de Planilla para ver el '
+                    f'detalle de cada exclusion.'
+                )
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': 'No se genero ninguna boleta',
+                    'message': motivo_principal,
+                    'type': 'warning',
+                    'sticky': True,
+                    'next': {
+                        'type': 'ir.actions.act_window',
+                        'name': 'Boletas Generadas',
+                        'res_model': 'planilla.payslip.cr',
+                        'view_mode': 'list,form',
+                        'domain': [('payroll_run_id', '=', self.id)],
+                    },
+                },
+            }
+
+        if not show_summary:
+            # Comportamiento original silencioso: solo abrir la lista de
+            # boletas generadas, sin notificacion emergente.
+            return {
+                'type': 'ir.actions.act_window',
+                'name': 'Boletas Generadas',
+                'res_model': 'planilla.payslip.cr',
+                'view_mode': 'list,form',
+                'domain': [('payroll_run_id', '=', self.id)],
+            }
+
         return {
-            'type': 'ir.actions.act_window',
-            'name': 'Boletas Generadas',
-            'res_model': 'planilla.payslip.cr',
-            'view_mode': 'list,form',
-            'domain': [('payroll_run_id', '=', self.id)],
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': f'{created_count} boleta(s) generada(s)',
+                'message': (
+                    f'{total_excluidos} empleado(s) excluido(s) -- vea el '
+                    f'detalle en el historial de esta planilla.'
+                    if total_excluidos else
+                    'Todos los empleados candidatos fueron incluidos.'
+                ),
+                'type': 'success',
+                'sticky': False,
+                'next': {
+                    'type': 'ir.actions.act_window',
+                    'name': 'Boletas Generadas',
+                    'res_model': 'planilla.payslip.cr',
+                    'view_mode': 'list,form',
+                    'domain': [('payroll_run_id', '=', self.id)],
+                },
+            },
         }
 
     move_id = fields.Many2one('account.move', string='Asiento Contable Planilla')

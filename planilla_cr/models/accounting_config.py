@@ -425,6 +425,18 @@ class PayrollAccountingConfig(models.Model):
              ' acuerdo especial o politica interna al respecto.'
     )
 
+    show_generation_summary = fields.Boolean(
+        string='Mostrar resumen al generar planilla',
+        default=False,
+        help='ON = al presionar "Generar Planilla" se registra en el '
+             'historial de la planilla un resumen completo (boletas '
+             'creadas, empleados excluidos y por que) y ademas se '
+             'muestra una notificacion en pantalla con el resultado. '
+             'OFF (por defecto) = no se genera ningun resumen adicional '
+             '-- comportamiento silencioso, igual que antes de esta '
+             'funcionalidad.'
+    )
+
     # -- BAC Credomatic: Macro Pago Planilla Formato 6 (archivo .PRN) -----
     # Replica el archivo de ancho fijo que genera la macro oficial de BAC
     # (BAC_SJ_Macro_Pago_Planilla_Formato_6). El Plan y el numero de Envio

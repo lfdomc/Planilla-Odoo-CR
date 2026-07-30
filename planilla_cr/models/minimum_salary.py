@@ -37,15 +37,27 @@ class MinimumSalary(models.Model):
                 raise ValidationError('El salario minimo debe ser mayor a cero.')
 
     @api.model
-    def get_current_minimum(self, category=None):
+    def get_current_minimum(self, category=None, company_id=None):
         """
-        Retorna el salario minimo mas reciente vigente.
+        Retorna el salario minimo mas reciente vigente para la compania
+        indicada (o global si el registro no tiene compania asignada).
         Si se pasa category, filtra por esa categoria.
         No usa cache -- los salarios minimos son datos contables criticos
         que deben consultarse directamente a la BD en cada operacion.
+
+        FIX BUG: antes no filtraba por compania en absoluto -- en un
+        entorno con varias companias, podia devolver el registro de
+        OTRA compania distinta a la que esta validando la boleta (el
+        primero que search() encontrara segun el orden por defecto,
+        sin ninguna relacion con la compania real del empleado). Ahora
+        se filtra igual que el resto de modelos hibridos del modulo:
+        registros de la compania solicitada, o registros globales
+        (company_id vacio) como respaldo.
         """
         domain = [('active', '=', True)]
         if category:
             domain.append(('category', 'ilike', category))
+        cid = company_id or self.env.company.id
+        domain += ['|', ('company_id', '=', cid), ('company_id', '=', False)]
         rec = self.search(domain, order='valid_from desc', limit=1)
         return rec.amount if rec else 0.0

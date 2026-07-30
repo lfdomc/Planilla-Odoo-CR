@@ -55,6 +55,10 @@
                                    widget="boolean_toggle"
                                    string="Liquidaciones: no descontar CCSS obrero"
                                    help="ON = no descuenta CCSS en liquidaciones. OFF = descuenta CCSS normalmente."/>
+                        <field name="show_generation_summary"
+                                   widget="boolean_toggle"
+                                   string="Mostrar resumen al generar planilla"
+                                   help="ON = al generar planilla se muestra un resumen con boletas creadas y empleados excluidos (y por qué). OFF = comportamiento silencioso (por defecto)."/>
                         </group>
                     </group>
                     <group string="Pago Bancario BAC — Macro Pago Planilla Formato 6">
