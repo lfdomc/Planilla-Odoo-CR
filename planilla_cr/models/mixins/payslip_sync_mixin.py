@@ -988,7 +988,7 @@ class PayslipSyncMixin(models.AbstractModel):
         # Todos los recordsets en self comparten el mismo date_from/date_to (planilla grupal)
         date_from = self[0].date_from
         date_to   = self[0].date_to
-        emp_ids   = self.mapped('employee_id.id')
+        emp_ids   = self.mapped('employee_id').ids
         # Indice: employee_id -> boleta
         slip_by_emp = {s.employee_id.id: s for s in self}
 
@@ -1195,7 +1195,7 @@ class PayslipSyncMixin(models.AbstractModel):
             return
 
         date_from, date_to = next(iter(dates))
-        emp_ids = self.mapped('employee_id.id')
+        emp_ids = self.mapped('employee_id').ids
         slip_by_emp = {s.employee_id.id: s for s in self}
         company_id = self[0].company_id.id  # FIX-AUD-10: filtro empresa batch
 
@@ -1324,7 +1324,7 @@ class PayslipSyncMixin(models.AbstractModel):
         if not self:
             return
         date_from = self[0].date_from
-        emp_ids = self.mapped('employee_id.id')
+        emp_ids = self.mapped('employee_id').ids
         slip_by_emp = {s.employee_id.id: s for s in self}
 
         benefits = self.env['planilla.recurring.benefit'].search([
@@ -1347,7 +1347,7 @@ class PayslipSyncMixin(models.AbstractModel):
             existing_ben_ids = set(
                 slip.deduction_line_ids.filtered(
                     lambda l: l.recurring_benefit_id
-                ).mapped('recurring_benefit_id.id')
+                ).mapped('recurring_benefit_id').ids
             )
             for ben in bens:
                 if ben.id in existing_ben_ids:
@@ -1414,7 +1414,7 @@ class PayslipSyncMixin(models.AbstractModel):
             return
         date_from = self[0].date_from
         date_to   = self[0].date_to
-        emp_ids   = self.mapped('employee_id.id')
+        emp_ids   = self.mapped('employee_id').ids
         slip_by_emp = {s.employee_id.id: s for s in self}
 
         bono_code = self.env['planilla.deduction.code'].search([('code', '=', 'BONO')], limit=1)
@@ -1450,7 +1450,7 @@ class PayslipSyncMixin(models.AbstractModel):
             existing_bono_ids = set(
                 slip.deduction_line_ids.filtered(
                     lambda l: l.line_type == 'income' and l.deduction_category == 'bonus' and l.bono_id
-                ).mapped('bono_id.id')
+                ).mapped('bono_id').ids
             )
             for bono in bono_list:
                 desc = f'[{bono.code}] {bono.name}' if bono.code else f'Bono: {bono.name}'
@@ -1490,7 +1490,7 @@ class PayslipSyncMixin(models.AbstractModel):
             return
         date_from = self[0].date_from
         date_to   = self[0].date_to
-        emp_ids   = self.mapped('employee_id.id')
+        emp_ids   = self.mapped('employee_id').ids
         slip_by_emp = {s.employee_id.id: s for s in self}
 
         embargo_code = self.env['planilla.deduction.code'].search([('code', '=', 'EMB')], limit=1)
@@ -1567,7 +1567,7 @@ class PayslipSyncMixin(models.AbstractModel):
             return
         date_from = self[0].date_from
         date_to   = self[0].date_to
-        emp_ids   = self.mapped('employee_id.id')
+        emp_ids   = self.mapped('employee_id').ids
         slip_by_emp = {s.employee_id.id: s for s in self}
 
         loan_code = self.env['planilla.deduction.code'].search([('code', '=', 'PRESTAMO')], limit=1)
@@ -1599,7 +1599,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 ('loan_installment_id', 'in', _all_pending_ids),
                 ('payslip_id.state', '!=', 'cancelled'),
             ])
-            _already_claimed_ids = set(claimed_lines.mapped('loan_installment_id.id'))
+            _already_claimed_ids = set(claimed_lines.mapped('loan_installment_id').ids)
 
         lines_to_create = []
         for loan in loans:
@@ -1775,7 +1775,7 @@ class PayslipSyncMixin(models.AbstractModel):
 
         date_from = self[0].date_from
         date_to   = self[0].date_to
-        emp_ids   = self.mapped('employee_id.id')
+        emp_ids   = self.mapped('employee_id').ids
         slip_by_emp = {s.employee_id.id: s for s in self}
 
         # Cargar todos los cobros aprobados en una sola query
@@ -1821,7 +1821,7 @@ class PayslipSyncMixin(models.AbstractModel):
                 ('employee_charge_id', 'in', _unique_charge_ids),
                 ('payslip_id.state', '!=', 'cancelled'),
             ])
-            _already_applied_ids = set(applied_lines.mapped('employee_charge_id.id'))
+            _already_applied_ids = set(applied_lines.mapped('employee_charge_id').ids)
 
         for slip in self:
             if slip.state != 'draft':

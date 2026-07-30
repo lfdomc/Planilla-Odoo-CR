@@ -146,7 +146,7 @@ class PayrollDashboard(models.TransientModel):
             net   = sum(slips.mapped('net_salary'))
             cost  = sum(slips.mapped('total_employer_cost'))
             ccss  = sum(slips.mapped('ccss_employee')) + sum(slips.mapped('ccss_employer'))
-            emp_ids = set(slips.mapped('employee_id.id'))
+            emp_ids = set(slips.mapped('employee_id').ids)
             n = len(emp_ids) or 1
 
             rec.cost_per_employee = round(cost / n, 2)
@@ -177,7 +177,7 @@ class PayrollDashboard(models.TransientModel):
                 ('company_id','=',co),('state','=','done'),
                 ('date_from','>=',prev_start),('date_to','<=',prev_end),
             ])
-            prev_emp_ids = set(prev_slips.mapped('employee_id.id'))
+            prev_emp_ids = set(prev_slips.mapped('employee_id').ids)
             rec.headcount_current    = active_now
             rec.headcount_prev_month = len(prev_emp_ids)
             rec.turnover_entries     = len(emp_ids - prev_emp_ids)
@@ -235,7 +235,7 @@ class PayrollDashboard(models.TransientModel):
                     'gross': sum(ps.mapped('gross_salary')),
                     'net':   sum(ps.mapped('net_salary')),
                     'cost':  sum(ps.mapped('total_employer_cost')),
-                    'emps':  set(ps.mapped('employee_id.id')),
+                    'emps':  set(ps.mapped('employee_id').ids),
                 }
 
             curr = get_period_data(rec.date_from, rec.date_to)

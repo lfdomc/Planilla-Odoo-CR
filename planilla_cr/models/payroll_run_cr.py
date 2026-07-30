@@ -795,7 +795,7 @@ class PayrollRunCR(models.Model):
         emp_ids_con_boleta = set(
             self.env['planilla.payslip.cr'].search([
                 ('payroll_run_id', '=', self.id),
-            ]).mapped('employee_id.id')
+            ]).mapped('employee_id').ids
         )
 
         for i in range(0, len(employees_list), BATCH_SIZE):
@@ -949,13 +949,7 @@ class PayrollRunCR(models.Model):
                     'message': motivo_principal,
                     'type': 'warning',
                     'sticky': True,
-                    'next': {
-                        'type': 'ir.actions.act_window',
-                        'name': 'Boletas Generadas',
-                        'res_model': 'planilla.payslip.cr',
-                        'view_mode': 'list,form',
-                        'domain': [('payroll_run_id', '=', self.id)],
-                    },
+                    'next': {'type': 'ir.actions.act_window_close'},
                 },
             }
 
@@ -970,27 +964,28 @@ class PayrollRunCR(models.Model):
                 'domain': [('payroll_run_id', '=', self.id)],
             }
 
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': f'{created_count} boleta(s) generada(s)',
-                'message': (
+        if show_summary and total_excluidos:
+            # Con el toggle activo y hubo exclusiones, se informa con un
+            # mensaje breve en el chatter (ya se poste arriba el resumen
+            # completo) y se navega directo a las boletas generadas --
+            # se evita anidar una accion act_window dentro de 'next' de
+            # display_notification (patron que causaba el error de JS
+            # "Cannot read properties of undefined (reading map)").
+            self.message_post(
+                body=(
+                    f'{created_count} boleta(s) generada(s) exitosamente. '
                     f'{total_excluidos} empleado(s) excluido(s) -- vea el '
-                    f'detalle en el historial de esta planilla.'
-                    if total_excluidos else
-                    'Todos los empleados candidatos fueron incluidos.'
+                    f'detalle arriba en este mismo historial.'
                 ),
-                'type': 'success',
-                'sticky': False,
-                'next': {
-                    'type': 'ir.actions.act_window',
-                    'name': 'Boletas Generadas',
-                    'res_model': 'planilla.payslip.cr',
-                    'view_mode': 'list,form',
-                    'domain': [('payroll_run_id', '=', self.id)],
-                },
-            },
+                message_type='notification',
+            )
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Boletas Generadas',
+            'res_model': 'planilla.payslip.cr',
+            'view_mode': 'list,form',
+            'domain': [('payroll_run_id', '=', self.id)],
         }
 
     move_id = fields.Many2one('account.move', string='Asiento Contable Planilla')
@@ -1381,7 +1376,7 @@ class PayrollRunCR(models.Model):
         Previene doble pago accidental al recrear una planilla.
         """
         self.ensure_one()
-        employee_ids = self.payslip_ids.mapped('employee_id.id')
+        employee_ids = self.payslip_ids.mapped('employee_id').ids
         if not employee_ids:
             return
 

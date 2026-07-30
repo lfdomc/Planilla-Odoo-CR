@@ -243,6 +243,70 @@ def post_migrate_hook(env):
     _remove_legacy_menu_items(env)
 
 
+def _release_orphan_records_to_global(env, model_name, filter_domain, key_fields):
+    """
+    Funcion auxiliar compartida por las 6 funciones _fix_*_company_scope
+    de este archivo (feriados, tramos de renta, salario minimo, codigos
+    de deduccion, tipos de cobro, tipos de documento). Libera registros
+    "huerfanos" (con company_id asignado por error) para que vuelvan a
+    ser globales (company_id=False), sin duplicar ni crear conflictos
+    con un global que ya exista para la misma clave.
+
+    Antes cada una de las 6 funciones repetia el mismo patron con un
+    search() DENTRO del loop de huerfanos, para verificar si ya existia
+    una version global antes de liberar cada registro -- un N+1 real
+    (una query por cada huerfano). Aqui se hace en dos consultas totales
+    sin importar cuantos huerfanos haya: una para traer TODOS los
+    huerfanos que coinciden con filter_domain, y otra para traer TODOS
+    los registros ya globales, comparando las claves en memoria con un
+    set (busqueda O(1) por registro) en vez de consultar la base de
+    datos una vez por cada huerfano.
+
+    Args:
+        env: entorno de Odoo.
+        model_name: nombre tecnico del modelo (ej. 'planilla.public.holiday').
+        filter_domain: domain adicional para identificar los huerfanos
+            candidatos (ej. filtrar por nombres del catalogo estandar,
+            para nunca tocar datos personalizados de un cliente). Se le
+            agrega automaticamente ('company_id', '!=', False).
+        key_fields: lista de nombres de campo que juntos identifican de
+            forma unica un registro "logicamente igual" para efectos de
+            evitar duplicados (ej. ['date'] para feriados, ['code'] para
+            codigos de deduccion, ['sequence', 'year'] para tramos de
+            renta). Dos registros con los mismos valores en estos campos
+            se consideran "el mismo dato".
+
+    Returns: cantidad de registros liberados.
+    """
+    Model = env[model_name]
+    huerfanos = Model.sudo().search(
+        [('company_id', '!=', False)] + list(filter_domain)
+    )
+    if not huerfanos:
+        return 0
+
+    # Una sola query: todos los registros YA globales de este modelo,
+    # para construir el set de claves que no se deben duplicar.
+    ya_globales = Model.sudo().search([('company_id', '=', False)])
+    claves_globales_existentes = {
+        tuple(rec[f] for f in key_fields) for rec in ya_globales
+    }
+
+    liberados = 0
+    for h in huerfanos:
+        clave = tuple(h[f] for f in key_fields)
+        if clave in claves_globales_existentes:
+            continue  # ya hay una version global con esta misma clave
+        h.write({'company_id': False})
+        # Registrar la clave recien liberada para que, si dos huerfanos
+        # comparten la misma clave (mismo dato duplicado en 2
+        # companias), el segundo no vuelva a liberar (evitando 2
+        # registros globales con la misma clave).
+        claves_globales_existentes.add(clave)
+        liberados += 1
+    return liberados
+
+
 def _fix_holiday_company_scope(env):
     """
     FIX BUG: los 13 feriados nacionales estandar de Costa Rica
@@ -278,7 +342,6 @@ def _fix_holiday_company_scope(env):
     que un cliente haya creado a proposito para una compania
     especifica.
     """
-    Holiday = env['planilla.public.holiday']
     NOMBRES_CATALOGO_ESTANDAR = [
         'Abolici\u00f3n del Ej\u00e9rcito',
         'Anexi\u00f3n del Partido de Nicoya',
@@ -294,26 +357,14 @@ def _fix_holiday_company_scope(env):
         'Virgen de los \u00c1ngeles',
         'Virgen de los \u00c1ngeles (Inmaculada Concepci\u00f3n)',
     ]
-    huerfanos = Holiday.sudo().search([
-        ('type', '=', 'national'),
-        ('company_id', '!=', False),
-        ('name', 'in', NOMBRES_CATALOGO_ESTANDAR),
-    ])
-    if not huerfanos:
-        return
-    # Antes de liberar cada uno, verificar que no exista ya un duplicado
-    # global (company_id=False) para esa misma fecha -- si ya existe,
-    # simplemente se elimina el atado a una sola compania sin crear
-    # conflicto; si no existe, se libera el registro actual.
-    for h in huerfanos:
-        ya_global = Holiday.sudo().search([
-            ('date', '=', h.date),
-            ('company_id', '=', False),
-            ('id', '!=', h.id),
-        ], limit=1)
-        if ya_global:
-            continue  # ya hay una version global de ese feriado, no duplicar
-        h.write({'company_id': False})
+    _release_orphan_records_to_global(
+        env, 'planilla.public.holiday',
+        filter_domain=[
+            ('type', '=', 'national'),
+            ('name', 'in', NOMBRES_CATALOGO_ESTANDAR),
+        ],
+        key_fields=['date'],
+    )
 
 
 def _fix_hour_license_date_end(env):
@@ -643,36 +694,21 @@ def _fix_income_tax_bracket_company_scope(env):
     datos, solo se libera el/los tramo(s) originales que seguian
     atados a una sola empresa.
     """
-    Bracket = env['planilla.income.tax.bracket']
     NOMBRES_TRAMOS_2026 = [
-        'Exento 2026 -- hasta CRC918,000',
-        '10% sobre el exceso de CRC918,000 hasta CRC1,347,000',
-        '15% sobre el exceso de CRC1,347,000 hasta CRC2,364,000',
-        '20% sobre el exceso de CRC2,364,000 hasta CRC4,727,000',
-        '25% sobre el exceso de CRC4,727,000',
-        # Nombres originales del XML (con simbolo de colones, por si el
-        # registro nunca paso por la version anterior de este hook)
         'Exento 2026 \u2014 hasta \u20a1918,000',
         '10% sobre el exceso de \u20a1918,000 hasta \u20a11,347,000',
         '15% sobre el exceso de \u20a11,347,000 hasta \u20a12,364,000',
         '20% sobre el exceso de \u20a12,364,000 hasta \u20a14,727,000',
         '25% sobre el exceso de \u20a14,727,000',
     ]
-    huerfanos = Bracket.sudo().search([
-        ('company_id', '!=', False),
-        ('year', '=', 2026),
-        ('name', 'in', NOMBRES_TRAMOS_2026),
-    ])
-    for b in huerfanos:
-        ya_global = Bracket.search([
-            ('sequence', '=', b.sequence),
+    _release_orphan_records_to_global(
+        env, 'planilla.income.tax.bracket',
+        filter_domain=[
             ('year', '=', 2026),
-            ('company_id', '=', False),
-            ('id', '!=', b.id),
-        ], limit=1)
-        if ya_global:
-            continue  # ya hay una version global de este tramo, no duplicar
-        b.write({'company_id': False})
+            ('name', 'in', NOMBRES_TRAMOS_2026),
+        ],
+        key_fields=['sequence', 'year'],
+    )
 
 
 def _fix_minimum_salary_company_scope(env):
@@ -696,7 +732,6 @@ def _fix_minimum_salary_company_scope(env):
     intactos -- solo se libera el/los registro(s) que seguian atados
     a una sola empresa.
     """
-    MinSalary = env['planilla.minimum.salary']
     CATEGORIAS_2026 = [
         'Trabajador no calificado generico',
         'Trabajador semicalificado',
@@ -704,21 +739,14 @@ def _fix_minimum_salary_company_scope(env):
         'Tecnico de nivel medio',
         'Universitario con titulo',
     ]
-    huerfanos = MinSalary.sudo().search([
-        ('company_id', '!=', False),
-        ('category', 'in', CATEGORIAS_2026),
-        ('valid_from', '=', '2026-01-01'),
-    ])
-    for m in huerfanos:
-        ya_global = MinSalary.search([
-            ('category', '=', m.category),
-            ('valid_from', '=', m.valid_from),
-            ('company_id', '=', False),
-            ('id', '!=', m.id),
-        ], limit=1)
-        if ya_global:
-            continue  # ya hay una version global de esta categoria, no duplicar
-        m.write({'company_id': False})
+    _release_orphan_records_to_global(
+        env, 'planilla.minimum.salary',
+        filter_domain=[
+            ('category', 'in', CATEGORIAS_2026),
+            ('valid_from', '=', '2026-01-01'),
+        ],
+        key_fields=['category', 'valid_from'],
+    )
 
 
 def _ensure_default_branch(env):
@@ -785,19 +813,11 @@ def _ensure_deduction_codes(env):
         # data/charge_type_data.xml
         'COBRO_EMP',
     ]
-    DeductionCode = env['planilla.deduction.code']
-    huerfanos = DeductionCode.sudo().search([
-        ('company_id', '!=', False),
-        ('code', 'in', CODIGOS_ESTANDAR_SISTEMA),
-    ])
-    for code_rec in huerfanos:
-        ya_global = DeductionCode.search([
-            ('code', '=', code_rec.code),
-            ('company_id', '=', False),
-            ('id', '!=', code_rec.id),
-        ], limit=1)
-        if not ya_global:
-            code_rec.write({'company_id': False})
+    _release_orphan_records_to_global(
+        env, 'planilla.deduction.code',
+        filter_domain=[('code', 'in', CODIGOS_ESTANDAR_SISTEMA)],
+        key_fields=['code'],
+    )
 
     # -- Mismo tratamiento para Tipos de Cobro al Empleado --
     # (data/charge_type_data.xml define 8 registros de
@@ -809,19 +829,11 @@ def _ensure_deduction_codes(env):
         'ALMUERZO_FIJO', 'ALMUERZO_DIAS', 'ALMUERZO_SUBS', 'PRODUCTOS',
         'UNIFORME', 'PARQUEO', 'SEGURO_COLECT', 'OTRO_COBRO',
     ]
-    ChargeType = env['planilla.charge.type']
-    huerfanos_charge = ChargeType.sudo().search([
-        ('company_id', '!=', False),
-        ('code', 'in', CODIGOS_CHARGE_TYPE_ESTANDAR),
-    ])
-    for charge_rec in huerfanos_charge:
-        ya_global = ChargeType.search([
-            ('code', '=', charge_rec.code),
-            ('company_id', '=', False),
-            ('id', '!=', charge_rec.id),
-        ], limit=1)
-        if not ya_global:
-            charge_rec.write({'company_id': False})
+    _release_orphan_records_to_global(
+        env, 'planilla.charge.type',
+        filter_domain=[('code', 'in', CODIGOS_CHARGE_TYPE_ESTANDAR)],
+        key_fields=['code'],
+    )
 
 
 def _fix_employee_document_type_company_scope(env):
@@ -849,19 +861,11 @@ def _fix_employee_document_type_company_scope(env):
         'Curriculum Vitae',
         'Carta de Recomendacion',
     ]
-    DocType = env['planilla.employee.document.type']
-    huerfanos = DocType.sudo().search([
-        ('company_id', '!=', False),
-        ('name', 'in', NOMBRES_ESTANDAR),
-    ])
-    for d in huerfanos:
-        ya_global = DocType.search([
-            ('name', '=', d.name),
-            ('company_id', '=', False),
-            ('id', '!=', d.id),
-        ], limit=1)
-        if not ya_global:
-            d.write({'company_id': False})
+    _release_orphan_records_to_global(
+        env, 'planilla.employee.document.type',
+        filter_domain=[('name', 'in', NOMBRES_ESTANDAR)],
+        key_fields=['name'],
+    )
 
 
 def _setup_accounting_config(env):

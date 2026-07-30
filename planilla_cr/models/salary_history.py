@@ -53,7 +53,7 @@ class SalaryHistory(models.Model):
         # query y resolver en Python, en lugar de 1 search() por registro.
         if not self:
             return
-        emp_ids = self.mapped('employee_id.id')
+        emp_ids = self.mapped('employee_id').ids
         all_hist = self.search([
             ('employee_id', 'in', emp_ids),
             ('state', '=', 'authorized'),
