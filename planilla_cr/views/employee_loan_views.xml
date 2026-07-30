@@ -36,6 +36,10 @@
                         invisible="state not in ('approved','active','paid')"/>
                 <button name="action_approve" type="object" string="Aprobar"
                             class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_convert_to_biweekly" type="object"
+                            string="Convertir a Cobro Quincenal" class="btn-secondary"
+                            invisible="state not in ('approved','active') or installment_frequency == 'biweekly'"
+                            confirm="Las cuotas ya cobradas se conservan sin cambios. El saldo pendiente se repartira en cuotas quincenales del mismo monto que la cuota actual, a partir de hoy (o la fecha de la proxima cuota pendiente, la que sea posterior). ¿Continuar?"/>
                     <button name="action_cancel" type="object" string="Anular"
                             class="btn-danger" invisible="state not in ('draft','approved')"/>
                     <field name="state" widget="statusbar"
@@ -55,6 +59,7 @@
                         <group string="Montos">
                             <field name="amount_total" readonly="state != 'draft'"/>
                             <field name="installments" readonly="state != 'draft'"/>
+                            <field name="installment_frequency" readonly="state != 'draft'"/>
                             <field name="installment_amount"/>
                             <field name="amount_paid"/>
                             <field name="amount_pending"/>

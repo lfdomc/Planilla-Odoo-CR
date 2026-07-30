@@ -1,4 +1,5 @@
 import logging
+import math
 from odoo import models, fields, api
 from odoo.models import Constraint
 from odoo.exceptions import ValidationError, UserError
@@ -46,7 +47,24 @@ class EmployeeLoan(models.Model):
     )
     installments = fields.Integer(
         string='Numero de Cuotas', required=True, default=1,
-        help='Numero de cuotas mensuales para descontar en boleta'
+        help='Numero de cuotas para descontar en boleta, segun la '
+             'Frecuencia de Cuota configurada abajo.'
+    )
+    installment_frequency = fields.Selection([
+        ('monthly',   'Mensual (1 cuota por mes)'),
+        ('biweekly',  'Quincenal (1 cuota por quincena)'),
+    ], string='Frecuencia de Cuota', required=True, default='monthly',
+        help='MENSUAL (por defecto): se descuenta 1 cuota al mes, en la '
+             'primera boleta de ese mes que se procese -- sin importar si '
+             'el empleado tiene calendarizacion mensual, quincenal o '
+             'semanal. Comportamiento original del sistema.\\n\\n'
+             'QUINCENAL: se descuenta 1 cuota en cada quincena '
+             '(aproximadamente cada 15 dias desde la primera deduccion), '
+             'para prestamos que el empleado prefiere pagar mas rapido '
+             'repartiendo el monto entre ambas quincenas del mes. Solo '
+             'tiene sentido si el empleado tiene calendarizacion '
+             'quincenal o semanal -- con calendarizacion mensual el '
+             'resultado es el mismo que Mensual.'
     )
     installment_amount = fields.Monetary(
         string='Monto por Cuota (CRC)', currency_field='currency_id',
@@ -157,26 +175,37 @@ class EmployeeLoan(models.Model):
 
     # _check_duplicate_active eliminado — ahora es alerta informativa, no bloqueo
 
-    @api.depends('employee_id', 'employee_id.base_salary')
+    @api.depends('employee_id', 'employee_id.base_salary', 'installment_frequency')
     def _compute_max_installment(self):
         rh = self.env['planilla.rate.helper']
         ccss_rate = rh.get_ccss_employee_rate()
         for rec in self:
             base = rec.employee_id.base_salary or 0.0
-            estimated_net = base * (1 - ccss_rate)
-            rec.max_installment_allowed = round(estimated_net * 0.50, 2)
+            estimated_net_monthly = base * (1 - ccss_rate)
+            # FIX: el limite del 50% (Art. 172 CT) debe calcularse sobre el
+            # salario neto del MISMO periodo que la cuota, no siempre sobre
+            # el mensual completo. Si la cuota es quincenal, comparar
+            # contra el neto mensual completo permitiria cuotas quincenales
+            # hasta el doble de lo que la ley realmente autoriza por pago.
+            if rec.installment_frequency == 'biweekly':
+                rec.max_installment_allowed = round(estimated_net_monthly / 2 * 0.50, 2)
+            else:
+                rec.max_installment_allowed = round(estimated_net_monthly * 0.50, 2)
 
     def action_print_amortization(self):
         return self.env.ref('planilla_cr.action_report_loan_amortization').report_action(self)
 
 
     def _check_installment_salary_limit(self):
-        """Verifica que la cuota no supere el 50% del salario neto (Art. 172 CT)."""
+        """Verifica que la cuota no supere el 50% del salario neto del
+        periodo correspondiente (Art. 172 CT) -- mensual o quincenal
+        segun installment_frequency."""
         self.ensure_one()
         if self.max_installment_allowed and self.installment_amount > self.max_installment_allowed:
+            periodo_txt = 'quincenal' if self.installment_frequency == 'biweekly' else 'mensual'
             raise UserError(
-                f'La cuota mensual (CRC{self.installment_amount:,.2f}) supera el 50% '
-                f'del salario neto estimado (CRC{self.max_installment_allowed:,.2f}). '
+                f'La cuota {periodo_txt} (CRC{self.installment_amount:,.2f}) supera el 50% '
+                f'del salario neto {periodo_txt} estimado (CRC{self.max_installment_allowed:,.2f}). '
                 f'Ajuste el monto o el numero de cuotas (Art. 172 Codigo de Trabajo).'
             )
 
@@ -299,6 +328,12 @@ class EmployeeLoan(models.Model):
         Ej: CRC100,000 en 3 cuotas -> CRC33,333.33 * 3 = CRC99,999.99 (falta CRC0.01).
         Sin el ajuste, action_check_paid nunca marcaria el prestamo como pagado
         porque la suma de cuotas no iguala exactamente amount_total.
+
+        La separacion entre cuotas depende de installment_frequency:
+          - 'monthly' (default): cada cuota un mes calendario despues de la
+            anterior (comportamiento original, sin cambios).
+          - 'biweekly': cada cuota 15 dias despues de la anterior, para
+            cobrar en cada quincena en vez de una vez al mes.
         """
         self.ensure_one()
         self.installment_ids.unlink()
@@ -306,7 +341,10 @@ class EmployeeLoan(models.Model):
         base_amount = self.installment_amount
         n = self.installments
         for i in range(n):
-            due_date = base_date + relativedelta(months=i)
+            if self.installment_frequency == 'biweekly':
+                due_date = base_date + relativedelta(days=15 * i)
+            else:
+                due_date = base_date + relativedelta(months=i)
             # Ultima cuota: ajustar para cubrir exactamente el monto total
             if i == n - 1:
                 already = round(base_amount * (n - 1), 2)
@@ -319,6 +357,115 @@ class EmployeeLoan(models.Model):
                 'due_date':   due_date,
                 'amount':     amount,
             })
+
+    def action_convert_to_biweekly(self):
+        """
+        Cambia un prestamo YA aprobado/activo de cobro mensual a
+        quincenal, sin perder el historial de cuotas ya descontadas.
+
+        Caso de uso: el prestamo se creo con frecuencia mensual y ya
+        tiene una o mas cuotas cobradas, pero ahora se quiere que las
+        cuotas RESTANTES se cobren quincenalmente en vez de mensualmente
+        (ej. el empleado pidio pagar mas rapido, o se cambio su
+        calendarizacion a quincenal). A diferencia de crear el prestamo
+        directamente en 'biweekly' (que solo aplica ANTES de aprobar,
+        mientras installment_frequency sigue siendo editable), este
+        boton opera sobre un prestamo en curso:
+
+          1. Las cuotas ya marcadas 'deducted' (ya cobradas en boletas
+             pasadas) NUNCA se tocan -- se preserva el historial exacto
+             de lo que ya se le desconto al empleado.
+          2. Las cuotas 'pending' que aun no se han cobrado se eliminan
+             y se regeneran quincenalmente, repartiendo el SALDO REAL
+             pendiente (amount_pending, que ya excluye lo cobrado) en
+             cuotas del mismo monto que tenia la cuota original, para
+             no sorprender al empleado con un monto de cuota distinto
+             al que ya conocia.
+          3. La primera cuota nueva se programa a partir de la fecha de
+             HOY (o la fecha de la cuota pendiente mas antigua que se
+             esta reemplazando, la que sea posterior), asegurando que
+             no se genere una cuota con fecha ya pasada.
+        """
+        self.ensure_one()
+        if self.state not in ('approved', 'active'):
+            raise UserError(
+                'Solo se puede convertir a cobro quincenal un prestamo '
+                'Aprobado o En curso. Si el prestamo esta en Borrador, '
+                'simplemente cambie la Frecuencia de Cuota antes de '
+                'aprobarlo.'
+            )
+        if self.installment_frequency == 'biweekly':
+            raise UserError('Este prestamo ya esta configurado como quincenal.')
+
+        pending_installments = self.installment_ids.filtered(
+            lambda i: i.state == 'pending'
+        )
+        if not pending_installments:
+            raise UserError(
+                'No hay cuotas pendientes que convertir -- el prestamo '
+                'ya esta completamente cobrado.'
+            )
+
+        # Monto de la cuota original (mismo monto por cuota que ya
+        # conocia el empleado) -- se usa como base para repartir el
+        # saldo pendiente en cuotas quincenales del mismo tamano.
+        old_installment_amount = self.installment_amount or 0.0
+        remaining_amount = round(self.amount_pending, 2)
+        if old_installment_amount <= 0 or remaining_amount <= 0:
+            raise UserError(
+                'No se pudo determinar el monto a repartir en las '
+                'nuevas cuotas quincenales. Revise el saldo pendiente '
+                'del prestamo.'
+            )
+
+        # Cuantas cuotas quincenales del monto original se necesitan
+        # para cubrir el saldo pendiente (redondeado hacia arriba --
+        # la ultima cuota se ajusta para cubrir el residuo exacto,
+        # igual que en _generate_installments).
+        n_new = max(1, math.ceil(remaining_amount / old_installment_amount))
+
+        # Primera fecha disponible: hoy, o la fecha de la cuota pendiente
+        # mas antigua si esa es posterior a hoy (evita reprogramar una
+        # cuota futura hacia una fecha mas temprana de la planeada).
+        today = fields.Date.context_today(self)
+        earliest_pending_date = min(pending_installments.mapped('due_date') or [today])
+        start_date = max(today, earliest_pending_date)
+
+        next_sequence = max(self.installment_ids.mapped('sequence') or [0]) - len(pending_installments) + 1
+        pending_installments.unlink()
+
+        for i in range(n_new):
+            due_date = start_date + relativedelta(days=15 * i)
+            if i == n_new - 1:
+                already = round(old_installment_amount * (n_new - 1), 2)
+                amount = round(remaining_amount - already, 2)
+            else:
+                amount = old_installment_amount
+            self.env['planilla.loan.installment'].create({
+                'loan_id':    self.id,
+                'sequence':   next_sequence + i,
+                'due_date':   due_date,
+                'amount':     amount,
+            })
+
+        # Actualizar el numero total de cuotas y la frecuencia para que
+        # installments/installment_frequency reflejen la realidad actual
+        # del prestamo (cuotas ya cobradas + las nuevas quincenales).
+        deducted_count = len(self.installment_ids) - n_new
+        self.write({
+            'installments': deducted_count + n_new,
+            'installment_frequency': 'biweekly',
+        })
+        self.message_post(
+            body=(
+                f'Prestamo convertido a cobro quincenal. '
+                f'{deducted_count} cuota(s) ya cobrada(s) se conservan sin '
+                f'cambios. Saldo pendiente (CRC{remaining_amount:,.2f}) '
+                f'repartido en {n_new} cuota(s) quincenal(es) nueva(s), '
+                f'a partir del {start_date}.'
+            ),
+            message_type='notification',
+        )
 
     def action_activate(self):
         self.write({'state': 'active'})
@@ -346,14 +493,34 @@ class EmployeeLoan(models.Model):
     def get_pending_installment(self, date_from, date_to):
         """
         Retorna la cuota pendiente a descontar en el periodo dado.
-        Busca por MES/ANO para ser compatible con nominas quincenales,
-        semanales o de cualquier frecuencia -- la cuota se descuenta en
-        la primera boleta que caiga dentro del mismo mes que su due_date.
-        FIX D-02 v53: Calcular el set de meses cubiertos sin iterar dia a dia.
+
+        Comportamiento depende de installment_frequency:
+
+        'monthly' (default, sin cambios respecto al diseno original):
+          Busca por MES/ANO para ser compatible con nominas quincenales,
+          semanales o de cualquier frecuencia -- la cuota se descuenta en
+          la primera boleta que caiga dentro del mismo mes que su
+          due_date. FIX D-02 v53: calcula el set de meses cubiertos sin
+          iterar dia a dia.
+
+        'biweekly':
+          Busca por RANGO EXACTO de fechas (due_date dentro de
+          [date_from, date_to] de la boleta), no por mes/ano. Necesario
+          porque un prestamo quincenal puede tener 2 cuotas dentro del
+          mismo mes (una por quincena) -- la logica de mes/ano no puede
+          distinguir cual de las 2 corresponde a esta boleta especifica,
+          y terminaria repitiendo o saltando cuotas.
         """
         self.ensure_one()
         if not date_from or not date_to:
             return self.env['planilla.loan.installment']
+
+        if self.installment_frequency == 'biweekly':
+            installment = self.installment_ids.filtered(
+                lambda i: i.state == 'pending' and
+                i.due_date and date_from <= i.due_date <= date_to
+            )
+            return installment[:1]  # solo una cuota por periodo
 
         # FIX D-02 v53: Calcular directamente los meses en el rango sin iterar dia a dia.
         # Para periodos de hasta 24 meses esto es O(1) en lugar de O(dias).
