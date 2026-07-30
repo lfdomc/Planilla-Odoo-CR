@@ -1821,7 +1821,12 @@ class PayslipSyncMixin(models.AbstractModel):
                 ('employee_charge_id', 'in', _unique_charge_ids),
                 ('payslip_id.state', '!=', 'cancelled'),
             ])
-            _already_applied_ids = set(applied_lines.mapped('employee_charge_id').ids)
+            # NOTA: employee_charge_id es Integer (no Many2one como el resto
+            # de campos similares en este archivo) -- guarda solo el ID
+            # numerico del cobro que origino la linea, sin relacion real de
+            # Odoo. mapped() sobre un campo Integer devuelve directamente la
+            # lista de valores, sin necesitar (ni poder usar) .ids despues.
+            _already_applied_ids = set(applied_lines.mapped('employee_charge_id'))
 
         for slip in self:
             if slip.state != 'draft':
