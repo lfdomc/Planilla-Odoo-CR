@@ -333,6 +333,11 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
               name="Resumen Ejecutivo"
               parent="menu_planilla_cr_reports"
               action="planilla_cr.action_resumen_ejecutivo_wizard"
+              sequence="3"/>
+    <menuitem id="menu_resumen_ejecutivo_reducido"
+              name="Resumen Ejecutivo Reducido"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_resumen_ejecutivo_reducido_wizard"
               sequence="4"/>
 
     <menuitem id="menu_rebajo_renta"

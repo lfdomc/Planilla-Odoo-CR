@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_resumen_ejecutivo_reducido_wizard" model="ir.ui.view">
+    <field name="name">planilla.resumen.ejecutivo.reducido.wizard.form</field>
+    <field name="model">planilla.resumen.ejecutivo.reducido.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Resumen Ejecutivo Reducido de Planilla">
+        <sheet>
+          <div class="alert alert-info" role="alert">
+            Genera un resumen ejecutivo reducido en Excel: menos columnas
+            que el Resumen Ejecutivo completo, en el mismo formato que el
+            reporte oficial de Mundopet -- separa Incapacidad C.C.S.S. de
+            Incapacidad I.N.S., y Otros Rebajos de Embargos Judiciales.
+          </div>
+          <group>
+            <group>
+              <field name="company_id"/>
+              <field name="period_mode" widget="radio" options="{'horizontal': True}"/>
+              <field name="payroll_run_id" string="Planilla (quincena)"
+                     options="{'no_create': True}"
+                     invisible="period_mode != 'quincena'"
+                     required="period_mode == 'quincena'"/>
+              <field name="payroll_run_id_1" string="Primera Quincena"
+                     options="{'no_create': True}"
+                     invisible="period_mode != 'mes'"
+                     required="period_mode == 'mes'"/>
+              <field name="payroll_run_id_2" string="Segunda Quincena"
+                     options="{'no_create': True}"
+                     invisible="period_mode != 'mes'"/>
+            </group>
+            <group>
+              <field name="elaborado_por" string="Elaborado por"/>
+              <field name="include_draft" string="Incluir boletas en borrador"/>
+            </group>
+          </group>
+          <div invisible="not include_draft"
+               style="background:#FFF3CD; padding:8px 12px; border-radius:4px;
+                      border-left:4px solid #FFC107; margin:4px 0;">
+            <i class="fa fa-exclamation-triangle"/> Incluye boletas en borrador.
+            Use solo para revisión interna antes de confirmar la planilla.
+          </div>
+        </sheet>
+        <footer>
+          <button name="action_generate" type="object"
+                  string="Generar Excel" class="btn-primary"/>
+          <button special="cancel" string="Cancelar" class="btn-secondary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_resumen_ejecutivo_reducido_wizard" model="ir.actions.act_window">
+    <field name="name">Resumen Ejecutivo Reducido</field>
+    <field name="res_model">planilla.resumen.ejecutivo.reducido.wizard</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+  </record>
+</odoo>
