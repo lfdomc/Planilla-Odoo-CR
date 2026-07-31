@@ -65,6 +65,34 @@ class FacialAttendanceLog(models.Model):
     ], string='Estado', default='success', required=True)
     error_message = fields.Char(string='Mensaje de Error')
 
+    # -- Kiosco y GPS complementario ----------------------------------------
+    kiosk_id = fields.Many2one(
+        'facial.attendance.kiosk', string='Kiosco', ondelete='set null',
+        index=True,
+        help='Dispositivo desde el cual se realizo esta marcacion.',
+    )
+    gps_latitude = fields.Float(
+        string='Latitud GPS', digits=(10, 7),
+        help='Ubicacion reportada por el navegador al momento de marcar, '
+             'solo si el kiosco tiene GPS complementario activado y el '
+             'usuario otorgo el permiso de ubicacion.',
+    )
+    gps_longitude = fields.Float(
+        string='Longitud GPS', digits=(10, 7),
+    )
+    gps_distance_meters = fields.Float(
+        string='Distancia a la Sede (m)',
+        help='Distancia calculada entre la ubicacion GPS reportada y las '
+             'coordenadas de referencia de la sede/kiosco.',
+    )
+    out_of_range = fields.Boolean(
+        string='Fuera de Area', default=False, index=True,
+        help='La marcacion se acepto igual (nunca se bloquea al '
+             'empleado por esto), pero la ubicacion GPS reportada estaba '
+             'fuera del radio permitido configurado en el kiosco. '
+             'Requiere revision del supervisor.',
+    )
+
     department_id = fields.Many2one(
         related='employee_id.department_id',
         string='Departamento',
@@ -103,7 +131,10 @@ class FacialAttendanceLog(models.Model):
 
     @api.model
     def create_from_recognition(self, employee_id, action_type, confidence,
-                                 captured_image_b64=None, device_ip=None):
+                                 captured_image_b64=None, device_ip=None,
+                                 kiosk_id=None, gps_latitude=None,
+                                 gps_longitude=None, gps_distance_meters=None,
+                                 out_of_range=False):
         """
         Crea un log de reconocimiento exitoso y actualiza hr.attendance.
         """
@@ -122,22 +153,36 @@ class FacialAttendanceLog(models.Model):
             'device_ip': device_ip,
             'state': 'success',
             'attendance_id': attendance.id if attendance else False,
+            'kiosk_id': kiosk_id or False,
+            'out_of_range': bool(out_of_range),
         }
+        if gps_latitude is not None:
+            log_vals['gps_latitude'] = gps_latitude
+        if gps_longitude is not None:
+            log_vals['gps_longitude'] = gps_longitude
+        if gps_distance_meters is not None:
+            log_vals['gps_distance_meters'] = gps_distance_meters
         if captured_image_b64:
             if ',' in captured_image_b64:
                 captured_image_b64 = captured_image_b64.split(',')[1]
             log_vals['captured_image'] = captured_image_b64
 
         log = self.create(log_vals)
-        _logger.info(
-            'Reconocimiento facial: %s - %s (Confianza: %.1f%%)',
-            employee.name, action_type, confidence,
-        )
+        if out_of_range:
+            _logger.warning(
+                'Reconocimiento facial FUERA DE AREA: %s - %s (distancia %.1fm)',
+                employee.name, action_type, gps_distance_meters or 0.0,
+            )
+        else:
+            _logger.info(
+                'Reconocimiento facial: %s - %s (Confianza: %.1f%%)',
+                employee.name, action_type, confidence,
+            )
         return log
 
     @api.model
     def create_failed_log(self, error_code, error_detail, employee_id=False,
-                           confidence=0.0, device_ip=None):
+                           confidence=0.0, device_ip=None, kiosk_id=None):
         """
         Registra un intento de reconocimiento fallido para dejar rastro
         auditable: rostro no detectado, sin coincidencia, error interno, etc.
@@ -149,6 +194,7 @@ class FacialAttendanceLog(models.Model):
             'device_ip': device_ip,
             'state': 'failed',
             'error_message': error_detail,
+            'kiosk_id': kiosk_id or False,
         })
         _logger.info(
             'Intento de reconocimiento fallido (%s): %s',

@@ -5,15 +5,16 @@
     <menuitem id="menu_facial_attendance_root"
               name="Reconocimiento Facial"
               parent="hr_attendance.menu_hr_attendance_root"
-              sequence="50"
+              sequence="1"
               groups="hr.group_hr_user"/>
 
-    <!-- Quiosco -->
+    <!-- Quiosco: sequence=1 lo ubica como primera opcion visible dentro
+         del menu de Asistencias, junto al Modo Quiosco nativo. -->
     <menuitem id="menu_facial_attendance_kiosk"
-              name="Abrir Quiosco"
+              name="Abrir Quiosco (Reconocimiento Facial)"
               parent="menu_facial_attendance_root"
               action="action_facial_kiosk_view"
-              sequence="10"
+              sequence="1"
               groups="hr.group_hr_user"/>
 
     <!-- Registros -->
@@ -23,6 +24,14 @@
               action="facial_attendance_log_action"
               sequence="20"
               groups="hr.group_hr_user"/>
+
+    <!-- Kioscos -->
+    <menuitem id="menu_facial_attendance_kiosks"
+              name="Kioscos"
+              parent="menu_facial_attendance_root"
+              action="action_facial_attendance_kiosk"
+              sequence="25"
+              groups="hr.group_hr_manager"/>
 
     <!-- Empleados con rostro registrado -->
     <menuitem id="menu_facial_attendance_employees"

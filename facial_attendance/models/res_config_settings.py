@@ -47,3 +47,14 @@ class ResConfigSettings(models.TransientModel):
              'Activelo solo si el dispositivo esta en una red controlada, '
              'ya que expone el reconocimiento facial sin autenticacion.',
     )
+    facial_replace_native_kiosk = fields.Boolean(
+        string='Usar reconocimiento facial como quiosco principal',
+        default=False,
+        config_parameter='facial_attendance.replace_native_kiosk',
+        help='(Reservado para uso futuro, sin efecto activo actualmente.) '
+             'La forma recomendada de usar el reconocimiento facial como '
+             'quiosco principal es crear un kiosco propio en '
+             'Reconocimiento Facial > Kioscos y usar su enlace directo '
+             'en el dispositivo, en vez de compartir el enlace del Modo '
+             'Quiosco nativo de Asistencias.',
+    )

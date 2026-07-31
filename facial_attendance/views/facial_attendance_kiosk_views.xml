@@ -46,6 +46,26 @@
         </t>
     </template>
 
+    <!-- Template mostrado cuando el enlace con token no corresponde a
+         ningun kiosco (nunca existio, o se regenero y este ya quedo
+         invalido). Sin menus de Odoo, igual que el kiosco normal. -->
+    <template id="kiosk_invalid_token_template" name="Enlace de Quiosco Invalido">
+        <t t-call="web.layout">
+            <t t-set="head">
+                <title>Enlace no valido</title>
+            </t>
+            <t t-set="body_classname">o_facial_kiosk_body</t>
+            <div class="o_facial_kiosk_disabled">
+                <h1>Enlace no válido</h1>
+                <p>
+                    Este enlace de quiosco ya no está activo. Puede haber
+                    sido regenerado o el kiosco fue eliminado. Contacte a
+                    un administrador para obtener el enlace actualizado.
+                </p>
+            </div>
+        </t>
+    </template>
+
     <!-- Accion URL (abre la pagina standalone en nueva pestana) -->
     <record id="action_facial_kiosk" model="ir.actions.act_url">
         <field name="name">Abrir Quiosco de Asistencia</field>

@@ -43,6 +43,19 @@
                         </setting>
                     </block>
 
+                    <block title="Quioscos con Reconocimiento Facial">
+                        <setting string="Quioscos"
+                                 help="Cada dispositivo (tablet, celular) tiene su propio enlace único, igual que el enlace con token del Modo Quiosco nativo de Asistencias -- sin iniciar sesión, sin menús de Odoo, solo la pantalla de cámara.">
+                            <div class="text-muted">
+                                Cada kiosco genera su propio enlace directo. Cree o
+                                gestione sus kioscos desde
+                                <strong>Asistencias → Reconocimiento Facial → Kioscos</strong>,
+                                y copie el enlace de cada uno (campo "Enlace del
+                                Kiosco") al dispositivo dedicado.
+                            </div>
+                        </setting>
+                    </block>
+
                 </app>
             </xpath>
         </field>

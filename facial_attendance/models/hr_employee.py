@@ -187,18 +187,32 @@ class HrEmployee(models.Model):
             raise UserError(_("Error al procesar la imagen: %s") % str(e))
 
     @api.model
-    @ormcache()
+    @ormcache('self.env.company.id')
     def get_all_face_encodings(self):
         """
-        Retorna todas las codificaciones faciales registradas.
+        Retorna todas las codificaciones faciales registradas PARA LA
+        COMPANIA ACTIVA del usuario/kiosco que hace la llamada.
 
-        El resultado se cachea en memoria (ormcache) para evitar
-        deserializar el JSON de todos los empleados en cada ciclo del
-        quiosco (~2.5 s). El cache se invalida explicitamente en
-        save_face_encoding() y action_clear_face(), los dos unicos
-        puntos donde face_encoding cambia.
+        El resultado se cachea en memoria (ormcache, con la compania
+        activa como parte de la clave) para evitar deserializar el JSON
+        de todos los empleados en cada ciclo del quiosco (~2.5 s). El
+        cache se invalida explicitamente en save_face_encoding() y
+        action_clear_face(), los dos unicos puntos donde face_encoding
+        cambia.
+
+        FIX AUDITORIA: antes no se filtraba por company_id ni la cache
+        distinguia compania. En una instalacion multi-company (varias
+        empresas en la misma base de datos), esto permitia que un
+        empleado de la Compania A fuera reconocido en un kiosco
+        configurado para la Compania B -- cruce de datos biometricos
+        entre empresas distintas. Irrelevante si cada cliente corre en
+        una base de datos separada, pero se corrige de forma defensiva
+        ya que no cuesta nada y elimina el riesgo por completo.
         """
-        employees = self.search([('face_encoding', '!=', False)])
+        employees = self.search([
+            ('face_encoding', '!=', False),
+            ('company_id', '=', self.env.company.id),
+        ])
         result = []
         for emp in employees:
             try:

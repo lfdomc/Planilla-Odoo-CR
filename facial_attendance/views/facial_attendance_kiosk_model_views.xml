@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_facial_attendance_kiosk_list" model="ir.ui.view">
+        <field name="name">facial.attendance.kiosk.view.list</field>
+        <field name="model">facial.attendance.kiosk</field>
+        <field name="arch" type="xml">
+            <list string="Kioscos" decoration-muted="state == 'revoked'"
+                  decoration-warning="state == 'pending'">
+                <field name="name"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-warning="state == 'pending'"
+                       decoration-danger="state == 'revoked'"/>
+                <field name="branch_display_name" string="Sucursal"/>
+                <field name="branch_name" string="Sede (texto libre)" optional="hide"/>
+                <field name="require_gps" string="GPS"/>
+                <field name="last_seen"/>
+                <field name="log_count" string="Marcaciones"/>
+                <field name="out_of_range_count" string="Fuera de área (30d)"
+                       decoration-danger="out_of_range_count > 0"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_facial_attendance_kiosk_form" model="ir.ui.view">
+        <field name="name">facial.attendance.kiosk.view.form</field>
+        <field name="model">facial.attendance.kiosk</field>
+        <field name="arch" type="xml">
+            <form string="Kiosco">
+                <header>
+                    <button name="action_activate" string="Activar"
+                            type="object" class="btn-primary"
+                            invisible="state == 'active'"/>
+                    <button name="action_revoke" string="Revocar"
+                            type="object" class="btn-danger"
+                            invisible="state != 'active'"
+                            confirm="¿Revocar este dispositivo? Ya no podrá registrar asistencia hasta que se reactive."/>
+                    <button name="action_reset_to_pending" string="Volver a Pendiente"
+                            type="object"
+                            invisible="state != 'revoked'"/>
+                    <button name="action_recapture_location" string="Recapturar Ubicación"
+                            type="object"
+                            invisible="not require_gps or not kiosk_location_set"
+                            confirm="La próxima vez que el kiosco esté encendido en el sitio de uso, capturará una nueva ubicación de referencia. ¿Continuar?"/>
+                    <button name="action_regenerate_access_token" string="Regenerar Enlace"
+                            type="object"
+                            confirm="El enlace actual dejará de funcionar y se generará uno nuevo. Cualquier dispositivo usando el enlace anterior deberá actualizarlo. ¿Continuar?"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="pending,active"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Ej: Bodega, Obra Curridabat Fase 2"/></h1>
+                    </div>
+                    <group string="Enlace del Kiosco">
+                        <field name="kiosk_url" readonly="1" widget="CopyClipboardChar"
+                               nolabel="1" colspan="2"/>
+                        <div class="text-muted" colspan="2">
+                            Abra este enlace en el dispositivo dedicado (tablet, celular,
+                            computadora) y guárdelo como favorito o en la pantalla de inicio.
+                            No requiere iniciar sesión en Odoo ni muestra ningún menú --
+                            solo la pantalla de cámara. Funciona igual que el enlace de
+                            Kiosco de Asistencia del módulo nativo, pero propio de
+                            Reconocimiento Facial.
+                        </div>
+                    </group>
+                    <group>
+                        <group string="Identificación">
+                            <field name="device_token" readonly="1"/>
+                            <field name="device_info" readonly="1"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Actividad">
+                            <field name="first_seen" readonly="1"/>
+                            <field name="last_seen" readonly="1"/>
+                            <field name="activated_by" readonly="1"/>
+                            <field name="activation_date" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Sede">
+                        <group>
+                            <field name="branch_res_id" invisible="1"/>
+                            <field name="branch_display_name" readonly="1"
+                                   invisible="not branch_display_name"/>
+                            <field name="branch_name"
+                                   help="Use este campo si no hay una sucursal de Planilla vinculada aún."/>
+                        </group>
+                    </group>
+                    <group string="Validación GPS (complementaria, opcional por kiosco)">
+                        <group>
+                            <field name="require_gps" widget="boolean_toggle"/>
+                            <field name="gps_radius_meters"
+                                   invisible="not require_gps"/>
+                            <field name="kiosk_location_set" invisible="not require_gps"/>
+                        </group>
+                        <group invisible="not require_gps">
+                            <field name="kiosk_latitude" readonly="1"/>
+                            <field name="kiosk_longitude" readonly="1"/>
+                            <div class="text-muted" colspan="2">
+                                Estas coordenadas se capturan automáticamente
+                                desde el propio dispositivo la primera vez
+                                que el kiosco esté encendido en el sitio de
+                                uso con GPS activado -- no se digitan
+                                manualmente. Si la sede vinculada ya tiene
+                                coordenadas configuradas, esas tienen
+                                prioridad sobre estas. Use "Recapturar
+                                Ubicación" en el encabezado si el
+                                dispositivo se reubicó físicamente.
+                            </div>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Marcaciones">
+                            <field name="log_ids" readonly="1">
+                                <list decoration-warning="out_of_range == True">
+                                    <field name="recognition_date"/>
+                                    <field name="employee_id"/>
+                                    <field name="action_type"/>
+                                    <field name="confidence"/>
+                                    <field name="out_of_range"/>
+                                    <field name="gps_distance_meters"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_facial_attendance_kiosk_search" model="ir.ui.view">
+        <field name="name">facial.attendance.kiosk.view.search</field>
+        <field name="model">facial.attendance.kiosk</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="branch_display_name"/>
+                <filter string="Pendientes de Activación" name="pending"
+                        domain="[('state','=','pending')]"/>
+                <filter string="Activos" name="active"
+                        domain="[('state','=','active')]"/>
+                <filter string="Con Marcaciones Fuera de Área" name="out_of_range"
+                        domain="[('out_of_range_count','>',0)]"/>
+                <filter name="group_state" string="Estado"
+                        context="{'group_by': 'state'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_facial_attendance_kiosk" model="ir.actions.act_window">
+        <field name="name">Kioscos</field>
+        <field name="res_model">facial.attendance.kiosk</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_pending': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Los kioscos aparecen aquí automáticamente la primera vez
+                que un dispositivo nuevo abre la página del quiosco.
+            </p>
+            <p>
+                Asigne un nombre y actívelos para que puedan registrar
+                asistencia. Un dispositivo no activado no puede marcar.
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -30,6 +30,7 @@
         'data/facial_attendance_data.xml',
         'views/hr_employee_views.xml',
         'views/facial_attendance_log_views.xml',
+        'views/facial_attendance_kiosk_model_views.xml',
         'views/facial_attendance_kiosk_views.xml',
         'views/res_config_settings_views.xml',
         'views/menu_views.xml',

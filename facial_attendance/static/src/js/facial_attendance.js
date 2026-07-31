@@ -11,6 +11,10 @@ import { FacialCameraUtils } from "./face_api_loader";
 const RECOGNITION_INTERVAL = 2500;
 /** Tiempo que se muestra la tarjeta de resultado antes de volver a escanear (ms). */
 const RESULT_DISPLAY_TIME = 4000;
+/** Intervalo entre chequeos de posicion GPS en vivo (ms). Mas espaciado
+ *  que el reconocimiento facial porque el GPS cambia poco y consultarlo
+ *  muy seguido gasta bateria innecesariamente en dispositivos moviles. */
+const GPS_STATUS_INTERVAL = 15000;
 
 // ─── Componente Quiosco ───────────────────────────────────────────────────────
 
@@ -33,23 +37,31 @@ export class FacialAttendanceKiosk extends Component {
         this.canvasRef = useRef("canvas");
 
         this.state = useState({
-            status: "loading",     // loading | ready | scanning | success | error | no_camera
+            status: "loading",     // loading | ready | scanning | success | error | no_camera | pending_activation
             errorMsg: "",
             result: null,
             cameraError: null,
             clockTime: "",
             clockDate: "",
+            // Posicion GPS en vivo del kiosco (independiente del resultado
+            // de una marcacion): 'not_required' | 'ok' | 'out_of_range' | 'no_gps'
+            gpsStatus: "not_required",
+            gpsDistance: null,
         });
+
+        this._deviceToken = FacialCameraUtils.getOrCreateDeviceToken();
 
         this._stream = null;
         this._recognitionTimer = null;
         this._resultTimer = null;
         this._clockTimer = null;
+        this._gpsStatusTimer = null;
         this._isRecognizing = false;
 
         onMounted(async () => {
             this._startClock();
             await this._initCamera();
+            this._startGpsStatusLoop();
         });
 
         onWillUnmount(() => {
@@ -102,6 +114,52 @@ export class FacialAttendanceKiosk extends Component {
         }, RECOGNITION_INTERVAL);
     }
 
+    // ─── Posición GPS en vivo del kiosco ──────────────────────────────────────
+
+    /**
+     * Deriva la URL del endpoint de estado GPS a partir de recognizeUrl,
+     * para que automaticamente use la variante correspondiente
+     * (autenticada, publica compartida, o enlace por token de kiosco)
+     * sin necesidad de otro prop.
+     */
+    get kioskStatusUrl() {
+        // Enlace por token de kiosco: /facial_attendance/k/<token>/recognize
+        // -> /facial_attendance/k/<token>/kiosk_status
+        const tokenMatch = this.recognizeUrl.match(/^\/facial_attendance\/k\/([^/]+)\/recognize$/);
+        if (tokenMatch) {
+            return `/facial_attendance/k/${tokenMatch[1]}/kiosk_status`;
+        }
+        if (this.recognizeUrl.includes("/kiosk/public/")) {
+            return "/facial_attendance/kiosk/public/kiosk_status";
+        }
+        return "/facial_attendance/kiosk_status";
+    }
+
+    _startGpsStatusLoop() {
+        if (!FacialCameraUtils.isGeolocationSupported()) return;
+        this._checkGpsStatus();
+        this._gpsStatusTimer = setInterval(() => {
+            this._checkGpsStatus();
+        }, GPS_STATUS_INTERVAL);
+    }
+
+    async _checkGpsStatus() {
+        try {
+            const pos = await FacialCameraUtils.getCurrentPosition(6000);
+            const result = await rpc(this.kioskStatusUrl, {
+                device_token: this._deviceToken,
+                gps_lat: pos.lat,
+                gps_lng: pos.lng,
+            });
+            this.state.gpsStatus = result.status || "not_required";
+            this.state.gpsDistance = result.distance_meters;
+        } catch (err) {
+            // Fallo silencioso: el chequeo de posicion es informativo,
+            // nunca debe interrumpir el flujo principal del kiosco.
+            console.warn("[FacialAttendance] Error consultando estado GPS:", err);
+        }
+    }
+
     async _doRecognition() {
         const videoEl = this.videoRef.el;
         const canvasEl = this.canvasRef.el;
@@ -113,10 +171,25 @@ export class FacialAttendanceKiosk extends Component {
         this._isRecognizing = true;
         this.state.status = "scanning";
 
+        // GPS es best-effort: si el usuario no ha dado permiso o el
+        // dispositivo no tiene GPS, se envia igual la marcacion sin
+        // coordenadas -- el backend decide si eso importa segun si el
+        // kiosco tiene require_gps activo.
+        let gpsLat = null;
+        let gpsLng = null;
+        if (FacialCameraUtils.isGeolocationSupported()) {
+            const pos = await FacialCameraUtils.getCurrentPosition(5000);
+            gpsLat = pos.lat;
+            gpsLng = pos.lng;
+        }
+
         try {
             const result = await rpc(this.recognizeUrl, {
                 image_data: frame,
                 device_ip: null,
+                device_token: this._deviceToken,
+                gps_lat: gpsLat,
+                gps_lng: gpsLng,
             });
 
             if (result.success) {
@@ -128,6 +201,12 @@ export class FacialAttendanceKiosk extends Component {
                     this.state.status = "ready";
                     this.state.result = null;
                 }, RESULT_DISPLAY_TIME);
+            } else if (result.error === "kiosk_pending_activation") {
+                this.state.status = "pending_activation";
+                this.state.errorMsg = result.error_detail;
+            } else if (result.error === "kiosk_revoked") {
+                this.state.status = "error";
+                this.state.errorMsg = result.error_detail;
             } else {
                 // no_face_detected y no_match son condiciones normales del quiosco,
                 // no errores: simplemente volver al estado "listo" en silencio.
@@ -153,6 +232,7 @@ export class FacialAttendanceKiosk extends Component {
     _cleanup() {
         clearInterval(this._recognitionTimer);
         clearInterval(this._clockTimer);
+        clearInterval(this._gpsStatusTimer);
         clearTimeout(this._resultTimer);
         FacialCameraUtils.stopCamera(this._stream);
     }
@@ -172,7 +252,33 @@ export class FacialAttendanceKiosk extends Component {
     get showError()    { return this.state.status === "error"; }
     get showNoCamera() { return this.state.status === "no_camera"; }
     get showLoading()  { return this.state.status === "loading"; }
+    get showPendingActivation() { return this.state.status === "pending_activation"; }
+    get resultOutOfRange() { return !!(this.state.result && this.state.result.out_of_range); }
     get actionClass()  { return this.state.result?.action_type || ""; }
+
+    /** Clase CSS para el borde del área de cámara según la posición GPS
+     *  en vivo del kiosco: verde = en el lugar correcto, naranja = fuera
+     *  de zona. Sin clase si el kiosco no requiere GPS o aún no hay
+     *  lectura (comportamiento normal, no es un error). */
+    get gpsIndicatorClass() {
+        if (this.state.gpsStatus === "ok") return "o_facial_gps_ok";
+        if (this.state.gpsStatus === "out_of_range") return "o_facial_gps_out";
+        return "";
+    }
+
+    get showGpsBadge() {
+        return this.state.gpsStatus === "ok" || this.state.gpsStatus === "out_of_range";
+    }
+
+    get gpsBadgeText() {
+        if (this.state.gpsStatus === "ok") return "Kiosco GPS en el lugar correcto de Asistencias";
+        if (this.state.gpsStatus === "out_of_range") return "GPS fuera de la zona de Asistencias";
+        return "";
+    }
+
+    get gpsOutOfRangeAlert() {
+        return this.state.gpsStatus === "out_of_range";
+    }
 }
 
 // ─── Componente Widget de Cámara para el Wizard ───────────────────────────────

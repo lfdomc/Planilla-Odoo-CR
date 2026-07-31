@@ -19,8 +19,20 @@
                 <p class="subtitle">Mire directamente a la cámara para registrar su asistencia</p>
             </div>
 
+            <!-- Badge de posición GPS en vivo del kiosco -->
+            <div t-if="showGpsBadge"
+                 t-att-class="'o_facial_gps_badge ' + (state.gpsStatus === 'ok' ? 'gps-ok' : 'gps-out')">
+                <span class="gps-badge-dot"/>
+                <span t-esc="gpsBadgeText"/>
+            </div>
+
+            <!-- Alerta destacada: kiosco fuera de zona -->
+            <div t-if="gpsOutOfRangeAlert" class="o_facial_gps_alert">
+                ⚠️ Kiosco no se encuentra en el lugar correcto. Las marcas se registrarán como fuera de la zona de trabajo.
+            </div>
+
             <!-- Área de cámara -->
-            <div t-att-class="'o_facial_camera_wrapper ' + cameraState">
+            <div t-att-class="'o_facial_camera_wrapper ' + cameraState + ' ' + gpsIndicatorClass">
 
                 <!-- Video -->
                 <video t-ref="video"
@@ -53,13 +65,25 @@
                     <div class="overlay-sub" t-esc="state.cameraError"/>
                 </div>
 
-                <!-- Overlay: éxito -->
-                <div t-if="showResult" class="o_facial_overlay" style="background: rgba(34,197,94,0.15)">
-                    <div class="overlay-icon">✅</div>
+                <!-- Overlay: dispositivo pendiente de activacion -->
+                <div t-if="showPendingActivation" class="o_facial_overlay" style="background: rgba(234,179,8,0.15)">
+                    <div class="overlay-icon">🔒</div>
+                    <div class="overlay-text">Dispositivo no activado</div>
+                    <div class="overlay-sub" t-esc="state.errorMsg"/>
+                </div>
+
+                <!-- Overlay: éxito (verde normal, ambar si quedo fuera de area) -->
+                <div t-if="showResult"
+                     class="o_facial_overlay"
+                     t-att-style="resultOutOfRange ? 'background: rgba(234,179,8,0.18)' : 'background: rgba(34,197,94,0.15)'">
+                    <div class="overlay-icon" t-esc="resultOutOfRange ? '⚠️' : '✅'"/>
                     <div class="overlay-text" t-esc="state.result.employee_name"/>
                     <div class="overlay-sub">
                         <t t-if="state.result.action_type === 'check_in'">🟢 Entrada registrada</t>
                         <t t-elif="state.result.action_type === 'check_out'">🔴 Salida registrada</t>
+                    </div>
+                    <div t-if="resultOutOfRange" class="overlay-sub" style="color:#b45309; font-weight:600">
+                        Fuera del área permitida -- queda marcada para revisión
                     </div>
                 </div>
 
@@ -70,7 +94,7 @@
 
                 <!-- Resultado exitoso -->
                 <t t-if="showResult and state.result">
-                    <div class="o_facial_result_card success-card">
+                    <div t-att-class="'o_facial_result_card ' + (resultOutOfRange ? 'warning-card' : 'success-card')">
                         <div class="o_facial_result_name" t-esc="state.result.employee_name"/>
                         <div t-att-class="'o_facial_result_action ' + actionClass"
                              t-esc="state.result.action_label"/>
@@ -78,6 +102,18 @@
                         <div class="o_facial_result_confidence">
                             Confianza: <t t-esc="state.result.confidence"/>%
                         </div>
+                        <div t-if="resultOutOfRange" class="o_facial_result_error" style="margin-top:6px">
+                            ⚠️ Marcación fuera del área permitida (<t t-esc="state.result.gps_distance_meters"/>m).
+                            Su asistencia fue registrada, pero requiere revisión del supervisor.
+                        </div>
+                    </div>
+                </t>
+
+                <!-- Dispositivo pendiente de activacion -->
+                <t t-if="showPendingActivation">
+                    <div class="o_facial_result_card error-card">
+                        <div class="overlay-icon" style="font-size:2rem">🔒</div>
+                        <div class="o_facial_result_error" t-esc="state.errorMsg"/>
                     </div>
                 </t>
 
@@ -90,7 +126,7 @@
                 </t>
 
                 <!-- Estado listo (instrucción) -->
-                <t t-if="!showResult and !showError and !showLoading and !showNoCamera">
+                <t t-if="!showResult and !showError and !showLoading and !showNoCamera and !showPendingActivation">
                     <p style="color: #64748b; font-size: 0.9rem; margin-top: 12px;">
                         Posicione su rostro dentro del óvalo para registrar su asistencia
                     </p>
