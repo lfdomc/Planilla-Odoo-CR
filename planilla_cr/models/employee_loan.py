@@ -210,26 +210,45 @@ class EmployeeLoan(models.Model):
     def _check_installment_salary_limit(self):
         """Verifica que la cuota no supere el 50% del salario neto del
         periodo correspondiente (Art. 172 CT) -- mensual o quincenal
-        segun installment_frequency."""
+        segun installment_frequency.
+
+        FIX: cambiado de bloqueante (UserError) a advertencia no
+        bloqueante -- el limite del 50% es una referencia legal
+        importante, pero no debe impedir aprobar el prestamo si quien
+        lo autoriza decide continuar de todas formas (ej. el empleado
+        acepta expresamente una cuota mayor, o hay otro acuerdo). La
+        advertencia queda registrada en el historial del prestamo como
+        respaldo, en vez de bloquear la operacion.
+
+        Retorna el texto de advertencia si el limite se supera, o None
+        si esta dentro del limite.
+        """
         self.ensure_one()
         if self.max_installment_allowed and self.installment_amount > self.max_installment_allowed:
             periodo_txt = 'quincenal' if self.installment_frequency == 'biweekly' else 'mensual'
-            raise UserError(
-                f'La cuota {periodo_txt} (CRC{self.installment_amount:,.2f}) supera el 50% '
-                f'del salario neto {periodo_txt} estimado (CRC{self.max_installment_allowed:,.2f}). '
-                f'Ajuste el monto o el numero de cuotas (Art. 172 Codigo de Trabajo).'
+            return (
+                f'ADVERTENCIA: la cuota {periodo_txt} (CRC{self.installment_amount:,.2f}) '
+                f'supera el 50% del salario neto {periodo_txt} estimado '
+                f'(CRC{self.max_installment_allowed:,.2f}) -- Art. 172 Codigo '
+                f'de Trabajo. El prestamo se aprobo de todas formas; '
+                f'verifique que el empleado este de acuerdo con el monto '
+                f'de la cuota.'
             )
+        return None
 
     def action_approve(self):
         self.ensure_one()
         if self.state != 'draft':
             raise UserError('Solo se pueden aprobar prestamos en borrador.')
-        # Verificar limite del 50% del salario neto (Art. 172 CT)
-        self._check_installment_salary_limit()
+        # Verificar limite del 50% del salario neto (Art. 172 CT) --
+        # advertencia no bloqueante, ver _check_installment_salary_limit()
+        warning_msg = self._check_installment_salary_limit()
         self._generate_installments()
         self.state = 'approved'
         # H4 FIX -- Generar asiento contable de otorgamiento
         self._create_loan_accounting_entry()
+        if warning_msg:
+            self.message_post(body=warning_msg, message_type='notification')
 
     def _create_loan_accounting_entry(self):
         """
