@@ -314,3 +314,21 @@ class Overtime(models.Model):
 
     def action_cancel(self):
         self.write({'state': 'cancelled'})
+
+    def unlink(self):
+        """
+        FIX: bloquea el borrado directo de horas extra ya 'Pagado' --
+        mismo patron ya aplicado a cuotas de prestamo y vacaciones.
+        Borrar un registro pagado directamente deja la boleta que lo
+        genero con un monto sin ningun registro real que lo respalde.
+        """
+        paid = self.filtered(lambda o: o.state == 'paid')
+        if paid:
+            raise UserError(
+                f'No se puede eliminar {"la hora extra" if len(paid)==1 else f"las {len(paid)} horas extra"} '
+                f'ya "Pagada" -- esto deja la boleta que la genero con un '
+                f'monto sin respaldo. Si la boleta que la pago se '
+                f'elimina o revierte, este registro se revierte '
+                f'automaticamente a "Aprobado" y puede eliminarse desde ahi.'
+            )
+        return super().unlink()

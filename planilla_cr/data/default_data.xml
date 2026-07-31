@@ -69,6 +69,13 @@
         <field name="active">True</field>
     </record>
 
+    <record id="employee_status_liquidado" model="planilla.employee.status">
+        <field name="code">LIQ</field>
+        <field name="name">Liquidado</field>
+        <field name="is_active_payroll">False</field>
+        <field name="active">True</field>
+    </record>
+
     <!-- ═══════════════════════════════════════════
          TIPOS DE EMPLEADO
     ═══════════════════════════════════════════ -->

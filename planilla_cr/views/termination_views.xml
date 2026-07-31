@@ -32,6 +32,9 @@
                             invisible="state != 'draft'" class="btn-primary"/>
                     <button name="action_pay" type="object" string="Marcar como Pagado"
                             invisible="state != 'confirmed'" class="btn-success"/>
+                    <button name="action_revert_paid" type="object" string="Revertir Liquidacion"
+                            invisible="state != 'paid'" class="btn-warning" icon="fa-undo"
+                            confirm="Esto reactivara al empleado, restaurara su Estado de Empleado anterior, y cancelara el asiento contable si esta posteado. La liquidacion volvera a estado Confirmado. ¿Continuar?"/>
                     <button name="action_print_termination" type="object" string="Imprimir Finiquito"
                             invisible="state == 'draft'"/>
                     <button name="action_print_carta_despido" type="object" string="Carta de Despido"
@@ -60,6 +63,10 @@
                         <group>
                             <field name="employee_id" options="{'no_create': True}"/>
                             <field name="termination_reason" string="Motivo de Salida"/>
+                            <field name="previous_employee_status_id"
+                                   invisible="not previous_employee_status_id"
+                                   readonly="1"
+                                   string="Estado de Empleado (antes de liquidar)"/>
                         </group>
                     </group>
                     <!-- Salarios ultimos 6 meses (Art. 153 CT) -->

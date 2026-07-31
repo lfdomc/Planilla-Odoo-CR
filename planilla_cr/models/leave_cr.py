@@ -387,6 +387,26 @@ class LeaveCR(models.Model):
                 )
         self.write({'state': 'cancelled', 'payslip_id': False})
 
+    def unlink(self):
+        """
+        FIX: bloquea el borrado directo de licencias ya 'Procesado en
+        Planilla' -- mismo patron ya aplicado a cuotas de prestamo,
+        vacaciones y horas extra. Borrar una licencia procesada
+        directamente deja la boleta que la genero con un monto sin
+        ningun registro real que lo respalde.
+        """
+        paid = self.filtered(lambda l: l.state == 'paid')
+        if paid:
+            raise ValidationError(
+                f'No se puede eliminar {"la licencia" if len(paid)==1 else f"las {len(paid)} licencias"} '
+                f'ya "Procesada en Planilla" -- esto deja la boleta que '
+                f'la genero con un monto sin respaldo. Si la boleta que '
+                f'la proceso se elimina o revierte, este registro se '
+                f'revierte automaticamente a "Aprobado" y puede '
+                f'eliminarse desde ahi.'
+            )
+        return super().unlink()
+
     @staticmethod
     def _next_code(env, prefix):
         return env['planilla.rate.helper'].next_sequential_code(

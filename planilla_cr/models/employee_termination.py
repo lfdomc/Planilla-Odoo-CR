@@ -195,6 +195,14 @@ class EmployeeTermination(models.Model):
     )
 
     move_id = fields.Many2one('account.move', string='Asiento Contable', readonly=True)
+    previous_employee_status_id = fields.Many2one(
+        'planilla.employee.status', readonly=True, copy=False,
+        string='Estado de Empleado Anterior a la Liquidacion',
+        help='Guarda el Estado de Empleado que tenia el empleado ANTES '
+             'de procesar esta liquidacion (ej. "Activo"), para poder '
+             'restaurarlo correctamente si la liquidacion se revierte '
+             'despues de pagada.'
+    )
     state = fields.Selection([
         ('draft', 'Borrador'),
         ('confirmed','Confirmado'),
@@ -570,7 +578,19 @@ class EmployeeTermination(models.Model):
             move = self._create_termination_accounting_entry()
             # Inactivar empleado SOLO si el asiento se creo correctamente
             if move:
-                self.employee_id.write({'active': False})
+                emp_vals = {'active': False}
+                # Marcar el Estado de Empleado como 'Liquidado' (code=LIQ),
+                # visible en la ficha del empleado y en reportes -- antes
+                # solo se marcaba active=False (archivado), sin distinguir
+                # que el motivo fue una liquidacion procesada. El estado
+                # anterior se guarda en previous_employee_status_id para
+                # poder restaurarlo si la liquidacion se revierte.
+                self.previous_employee_status_id = self.employee_id.employee_status_id
+                liq_status = self.env['planilla.employee.status'].search(
+                    [('code', '=', 'LIQ')], limit=1)
+                if liq_status:
+                    emp_vals['employee_status_id'] = liq_status.id
+                self.employee_id.write(emp_vals)
             self.write({
                 'state': 'paid',
                 'move_id': move.id if move else False,
@@ -779,6 +799,73 @@ class EmployeeTermination(models.Model):
         # Reactivar empleado si fue inactivado por esta liquidacion
         if self.employee_id and not self.employee_id.active:
             self.employee_id.write({'active': True})
+
+    def unlink(self):
+        """
+        FIX: bloquea el borrado directo de liquidaciones ya 'Pagado' --
+        mismo patron ya aplicado a cuotas de prestamo, vacaciones,
+        horas extra, licencias, incapacidades y cobros al empleado.
+        Especialmente critico aqui: una liquidacion pagada inactiva al
+        empleado y marca su Estado de Empleado como 'Liquidado' --
+        borrarla directamente dejaria al empleado inactivo
+        permanentemente, sin ningun registro de liquidacion que
+        respalde esa inactivacion. Use action_revert_paid() para
+        revertir correctamente (reactiva al empleado y restaura su
+        Estado de Empleado anterior) antes de poder eliminar.
+        """
+        paid = self.filtered(lambda t: t.state == 'paid')
+        if paid:
+            raise UserError(
+                f'No se puede eliminar {"la liquidacion" if len(paid)==1 else f"las {len(paid)} liquidaciones"} '
+                f'ya "Pagada" -- esto puede dejar al empleado inactivo '
+                f'sin ningun registro que lo respalde. Primero use el '
+                f'boton "Revertir Liquidacion" para devolverla a '
+                f'Confirmado, lo cual reactiva al empleado y restaura su '
+                f'Estado de Empleado anterior correctamente, y luego '
+                f'elimine desde ahi si es necesario.'
+            )
+        return super().unlink()
+
+    def action_revert_paid(self):
+        """
+        Revierte una liquidacion ya 'Pagada' de vuelta a 'Confirmado',
+        restaurando correctamente al empleado: active=True y el Estado
+        de Empleado que tenia ANTES de la liquidacion (guardado en
+        previous_employee_status_id al pagar). Tambien cancela el
+        asiento contable si esta posteado.
+
+        Este es el flujo que faltaba: action_cancel() y
+        action_reset_to_draft() nunca permitieron revertir desde
+        'paid' -- la unica forma de "deshacer" una liquidacion pagada
+        era eliminarla directamente, lo cual dejaba al empleado inactivo
+        para siempre sin ningun registro que lo explique (ver
+        unlink(), que ahora bloquea eso y senala este boton en su
+        lugar).
+        """
+        self.ensure_one()
+        if self.state != 'paid':
+            raise UserError(
+                'Solo se puede revertir una liquidacion en estado "Pagado".'
+            )
+        if self.move_id and self.move_id.state == 'posted':
+            self.move_id.button_cancel()
+        if self.employee_id:
+            emp_vals = {'active': True}
+            if self.previous_employee_status_id:
+                emp_vals['employee_status_id'] = self.previous_employee_status_id.id
+            self.employee_id.write(emp_vals)
+        self.write({'state': 'confirmed'})
+        self.message_post(
+            body=(
+                'Liquidacion revertida de "Pagado" a "Confirmado". '
+                'El empleado fue reactivado y su Estado de Empleado '
+                'restaurado' + (
+                    f' a "{self.previous_employee_status_id.name}"'
+                    if self.previous_employee_status_id else ''
+                ) + '.'
+            ),
+            message_type='notification',
+        )
 
     def action_reset_to_draft(self):
         self.ensure_one()

@@ -235,6 +235,7 @@ def post_migrate_hook(env):
     _fix_income_tax_bracket_company_scope(env)
     _fix_minimum_salary_company_scope(env)
     _ensure_default_branch(env)
+    _ensure_liquidado_employee_status(env)
     _fix_holiday_company_scope(env)
     _fix_employee_document_type_company_scope(env)
     _fix_hour_license_date_end(env)
@@ -747,6 +748,25 @@ def _fix_minimum_salary_company_scope(env):
         ],
         key_fields=['category', 'valid_from'],
     )
+
+
+def _ensure_liquidado_employee_status(env):
+    """
+    Garantiza que exista el estado de empleado 'Liquidado' (code='LIQ'),
+    usado automaticamente por employee_termination.py::action_pay() al
+    procesar una liquidacion. Se agrego a data/default_data.xml despues
+    de la instalacion inicial del modulo -- como ese archivo tiene
+    noupdate="1", el registro nunca se crea solo en instalaciones
+    existentes sin este hook.
+    """
+    Status = env['planilla.employee.status']
+    if not Status.search([('code', '=', 'LIQ')], limit=1):
+        Status.create({
+            'code': 'LIQ',
+            'name': 'Liquidado',
+            'is_active_payroll': False,
+            'active': True,
+        })
 
 
 def _ensure_default_branch(env):

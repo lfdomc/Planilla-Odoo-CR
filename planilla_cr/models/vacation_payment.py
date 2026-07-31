@@ -238,6 +238,28 @@ class VacationPayment(models.Model):
     def action_cancel(self):
         self.write({'state': 'cancelled'})
 
+    def unlink(self):
+        """
+        FIX: bloquea el borrado directo de vacaciones ya 'Pagado' --
+        mismo patron ya aplicado a cuotas de prestamo
+        (planilla.loan.installment.unlink()). Borrar un registro de
+        vacacion pagada directamente deja la boleta que la genero con
+        una linea de deduccion "fantasma" (el monto sigue en el total
+        de la boleta, pero ya no hay ningun registro de vacacion real
+        que lo respalde ni que se pueda reprogramar si se regenera la
+        planilla).
+        """
+        paid = self.filtered(lambda v: v.state == 'paid')
+        if paid:
+            raise UserError(
+                f'No se puede eliminar {"el registro de vacaciones" if len(paid)==1 else f"los {len(paid)} registros de vacaciones"} '
+                f'ya "Pagado" -- esto deja la boleta que lo genero con un '
+                f'monto sin respaldo. Si la boleta que lo pago se '
+                f'elimina o revierte, este registro se revierte '
+                f'automaticamente a "Aprobado" y puede eliminarse desde ahi.'
+            )
+        return super().unlink()
+
     def write(self, vals):
         res = super().write(vals)
         if 'state' in vals:

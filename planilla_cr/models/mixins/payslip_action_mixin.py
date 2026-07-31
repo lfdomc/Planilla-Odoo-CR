@@ -296,9 +296,27 @@ class PayslipActionMixin(models.AbstractModel):
         for rec in self:
             if rec.move_id and rec.move_id.state == 'posted':
                 rec.move_id.button_cancel()
-            for line in rec.deduction_line_ids.filtered(lambda l: l.loan_installment_id):
-                inst = line.loan_installment_id
-                if inst.state == 'deducted' and inst.payslip_id == rec:
+            # FIX: restaurar cuotas de prestamo en DOS fuentes, mismo
+            # patron ya usado mas abajo para cobros al empleado:
+            # 1. Lineas de deduccion existentes (flujo normal)
+            # 2. Busqueda directa por payslip_id (funciona aunque las
+            #    lineas de deduccion ya hayan sido borradas por cascade
+            #    de PostgreSQL o manualmente -- este era exactamente el
+            #    hueco que dejaba cuotas de prestamo huerfanas, marcadas
+            #    'Descontada' sin ninguna boleta real que las respalde).
+            inst_ids_from_lines = set(
+                l.loan_installment_id.id for l in rec.deduction_line_ids
+                if l.loan_installment_id
+            )
+            inst_via_payslip = self.env['planilla.loan.installment'].search([
+                ('payslip_id', '=', rec.id),
+                ('state', '=', 'deducted'),
+            ])
+            all_inst_ids = inst_ids_from_lines | set(inst_via_payslip.ids)
+            if all_inst_ids:
+                all_installments = self.env['planilla.loan.installment'].browse(
+                    list(all_inst_ids)).exists()
+                for inst in all_installments.filtered(lambda i: i.state == 'deducted'):
                     inst.write({'state': 'pending', 'payslip_id': False})
                     if inst.loan_id.state == 'paid':
                         inst.loan_id.write({'state': 'active'})

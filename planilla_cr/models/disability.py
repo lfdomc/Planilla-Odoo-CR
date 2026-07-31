@@ -620,3 +620,23 @@ class Disability(models.Model):
 
     def action_cancel(self):
         self.write({'state': 'cancelled'})
+
+    def unlink(self):
+        """
+        FIX: bloquea el borrado directo de incapacidades ya 'Procesado
+        en Planilla' -- mismo patron ya aplicado a cuotas de prestamo,
+        vacaciones, horas extra y licencias. Borrar una incapacidad
+        procesada directamente deja la(s) boleta(s) que la generaron
+        con un monto sin ningun registro real que lo respalde.
+        """
+        paid = self.filtered(lambda d: d.state == 'paid')
+        if paid:
+            raise UserError(
+                f'No se puede eliminar {"la incapacidad" if len(paid)==1 else f"las {len(paid)} incapacidades"} '
+                f'ya "Procesada en Planilla" -- esto deja la(s) boleta(s) '
+                f'que la generaron con un monto sin respaldo. Si la '
+                f'boleta que la proceso se elimina o revierte, este '
+                f'registro se revierte automaticamente a "Confirmado" y '
+                f'puede eliminarse desde ahi.'
+            )
+        return super().unlink()

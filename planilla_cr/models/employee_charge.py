@@ -458,6 +458,28 @@ class PlanillaEmployeeCharge(models.Model):
                 )
         self.write({'state': 'cancelled', 'payslip_id': False})
 
+    def unlink(self):
+        """
+        FIX: bloquea el borrado directo de cobros UNICOS (no
+        recurrentes) ya 'Aplicado en Boleta' -- mismo patron ya
+        aplicado a cuotas de prestamo, vacaciones, horas extra,
+        licencias e incapacidades. Los cobros recurrentes NO se
+        bloquean aqui porque pueden estar aplicados a multiples boletas
+        de forma legitima (mismo criterio que ya usa action_cancel).
+        """
+        blocked = self.filtered(
+            lambda c: not c.is_recurring and c.state == 'applied' and c.payslip_id
+        )
+        if blocked:
+            raise UserError(
+                f'No se puede eliminar {"el cobro" if len(blocked)==1 else f"los {len(blocked)} cobros"} '
+                f'ya "Aplicado en Boleta" -- esto deja la boleta con un '
+                f'monto sin respaldo. Si la boleta que lo aplico se '
+                f'elimina o revierte, este registro se revierte '
+                f'automaticamente a "Aprobado" y puede eliminarse desde ahi.'
+            )
+        return super().unlink()
+
     def action_reset_to_draft(self):
         """Reactivar cobro cancelado a borrador."""
         for rec in self:
