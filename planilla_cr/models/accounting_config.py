@@ -35,13 +35,15 @@ class PayrollAccountingConfig(models.Model):
     # -- Base Minima Contributiva CCSS (piso de cotizacion) ---------
     apply_ccss_bmc = fields.Boolean(
         string='Aplicar Base Minima Contributiva CCSS',
-        default=True,
+        default=False,
         help='Si el salario cotizable de un periodo es menor al monto de abajo, '
              'CCSS obrero y patronal se calculan sobre ese piso en vez del '
              'salario real. Aplica principalmente a empleados de tiempo '
-             'parcial. Requerido por la CCSS -- desactivelo solo si su '
-             'contador confirma que ningun empleado esta por debajo del piso, '
-             'o si prefiere manejar la BMC manualmente fuera del sistema.\\n\\n'
+             'parcial. Requerido por la CCSS para esos casos -- activelo '
+             'si su contador confirma que aplica a su empresa (empleados '
+             'con salario por debajo del piso legal), o dejelo '
+             'desactivado (por defecto) si maneja la BMC manualmente '
+             'fuera del sistema o no le aplica.\\n\\n'
              'NO se aplica durante incapacidades activas (tienen su propia '
              'base legal, Art. 79/94 CT) ni cuando hay licencias sin goce/'
              'ausencias en el periodo -- esos casos ya tienen su propio '
