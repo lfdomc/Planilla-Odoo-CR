@@ -77,36 +77,47 @@ class FacialAttendanceKiosk(models.Model):
     )
 
     # -- Sede asociada (integracion opcional con planilla_cr) --------------
-    # NO se declara un Many2one('planilla.branch', ...) clasico: ese modelo
+    # -- Sucursal (modelo propio, ver facial_attendance_branch.py) ---------
+    # facial.attendance.branch es un modelo PROPIO de este modulo,
+    # independiente de planilla_cr -- si planilla_cr esta instalado, sus
+    # sucursales se pueden importar/sincronizar aqui con un clic
+    # (ver FacialAttendanceBranch.action_sync_from_planilla()), pero el
+    # modulo funciona igual de bien sin planilla_cr instalado, creando
+    # las sucursales directamente aqui.
+    facial_branch_id = fields.Many2one(
+        'facial.attendance.branch', string='Sucursal',
+        help='Sucursal de Reconocimiento Facial vinculada a este '
+             'kiosco. Si el modulo Planilla CR esta instalado, puede '
+             'importar sus sucursales existentes desde Sucursales > '
+             'Sincronizar desde Planilla, en vez de crearlas dos veces.',
+    )
+
+    # -- Campos viejos, mantenidos por compatibilidad con kioscos que ya
+    # tenian una sucursal de planilla_cr vinculada por el mecanismo
+    # anterior (antes de existir facial.attendance.branch). NO se
+    # declara un Many2one('planilla.branch', ...) clasico: ese modelo
     # solo existe si planilla_cr esta instalado, y facial_attendance no
     # depende de planilla_cr (ni al reves). Declarar un Many2one a un
     # modelo que podria no existir rompe la carga del modulo para
     # cualquier cliente que no tenga planilla_cr instalado.
-    #
-    # En su lugar: branch_res_id guarda el ID numerico de la sede de forma
-    # generica (sin FK real), y branch_display_name se resuelve en
-    # tiempo de ejecucion consultando 'planilla.branch' solo si ese
-    # modelo existe en el registro (self.env.get(...) -- mismo patron ya
-    # usado en planilla_cr/models/mixins/payslip_auto_overtime_mixin.py
-    # para leer nombramientos.turno de forma segura).
     branch_res_id = fields.Integer(
-        string='ID Sucursal (Planilla)',
-        help='ID interno de la sucursal de planilla_cr asociada a este '
-             'kiosco. Se gestiona desde el selector "Sucursal (Planilla)" '
-             'en el formulario -- no editar este numero directamente.',
+        string='ID Sucursal (Planilla, obsoleto)',
+        help='OBSOLETO -- use el campo Sucursal (facial_branch_id) en '
+             'su lugar. Se mantiene solo por compatibilidad con '
+             'kioscos configurados antes de que existiera el modelo '
+             'propio de sucursales de este modulo.',
     )
     branch_display_name = fields.Char(
-        string='Sucursal (Planilla)', compute='_compute_branch_display_name',
-        help='Nombre de la sucursal de planilla_cr vinculada. Solo '
-             'disponible si el modulo Planilla CR esta instalado.',
+        string='Sucursal (Planilla, obsoleto)',
+        compute='_compute_branch_display_name',
+        help='OBSOLETO -- use el campo Sucursal (facial_branch_id).',
     )
     branch_name = fields.Char(
         string='Sede (texto libre)',
-        help='Nombre de la sede si el modulo Nombramientos/Planilla no '
-             'esta instalado, o si prefiere no vincular una sucursal '
-             'formal (ej. obra temporal sin sucursal creada todavia). '
-             'Si hay una Sucursal (Planilla) vinculada, ese nombre tiene '
-             'prioridad para mostrar en reportes.',
+        help='Nombre libre de la sede si prefiere no vincular una '
+             'Sucursal formal (ej. obra temporal). Si hay una Sucursal '
+             'vinculada, ese nombre tiene prioridad para mostrar en '
+             'reportes.',
     )
 
     def _compute_branch_display_name(self):
@@ -186,7 +197,9 @@ class FacialAttendanceKiosk(models.Model):
              'visualmente en un mapa que la posicion sea correcta.',
     )
 
-    @api.depends('kiosk_latitude', 'kiosk_longitude', 'branch_res_id')
+    @api.depends('kiosk_latitude', 'kiosk_longitude', 'branch_res_id',
+                 'facial_branch_id', 'facial_branch_id.latitude',
+                 'facial_branch_id.longitude')
     def _compute_maps_url(self):
         for rec in self:
             lat, lng, _source = rec.get_reference_coordinates()
@@ -377,12 +390,17 @@ class FacialAttendanceKiosk(models.Model):
 
     def get_reference_coordinates(self):
         """Retorna (lat, lng, origen) a usar como referencia para validar
-        GPS: prioriza las coordenadas de la sede vinculada (si planilla_cr
-        esta instalado y la sede tiene coordenadas), y usa las
-        coordenadas propias del kiosco (capturadas automaticamente en la
-        activacion) como respaldo.
+        GPS: prioriza las coordenadas de la Sucursal vinculada
+        (facial_branch_id, el modelo propio de este modulo), luego las
+        del mecanismo viejo (branch_res_id, mantenido por compatibilidad
+        con kioscos configurados antes de que existiera
+        facial.attendance.branch), y usa las coordenadas propias del
+        kiosco (capturadas automaticamente en la activacion) como
+        ultimo respaldo.
         """
         self.ensure_one()
+        if self.facial_branch_id and self.facial_branch_id.latitude and self.facial_branch_id.longitude:
+            return self.facial_branch_id.latitude, self.facial_branch_id.longitude, 'sede'
         Branch = self.env.get('planilla.branch')
         if Branch is not None and self.branch_res_id:
             branch = Branch.sudo().browse(self.branch_res_id)

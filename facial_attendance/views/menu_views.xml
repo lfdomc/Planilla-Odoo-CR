@@ -25,6 +25,14 @@
               sequence="20"
               groups="hr.group_hr_user"/>
 
+    <!-- Sucursales -->
+    <menuitem id="menu_facial_attendance_branches"
+              name="Sucursales"
+              parent="menu_facial_attendance_root"
+              action="action_facial_attendance_branch"
+              sequence="22"
+              groups="hr.group_hr_manager"/>
+
     <!-- Kioscos -->
     <menuitem id="menu_facial_attendance_kiosks"
               name="Kioscos"

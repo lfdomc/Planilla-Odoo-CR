@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_facial_attendance_branch_list" model="ir.ui.view">
+        <field name="name">facial.attendance.branch.list</field>
+        <field name="model">facial.attendance.branch</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="address"/>
+                <field name="kiosk_count" string="Kioscos"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_facial_attendance_branch_form" model="ir.ui.view">
+        <field name="name">facial.attendance.branch.form</field>
+        <field name="model">facial.attendance.branch</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button type="action" name="%(action_facial_attendance_kiosk)d"
+                                class="oe_stat_button" icon="fa-television"
+                                context="{'search_default_facial_branch_id': id}"
+                                invisible="not kiosk_count">
+                            <field name="kiosk_count" widget="statinfo" string="Kioscos"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="address"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group string="Ubicación GPS (opcional)">
+                            <field name="latitude"/>
+                            <field name="longitude"/>
+                        </group>
+                    </group>
+                    <div class="text-muted" invisible="not planilla_branch_res_id">
+                        <i class="fa fa-link"/> Esta sucursal fue importada desde Planilla CR.
+                        Use "Sincronizar desde Planilla" en la lista para actualizarla si
+                        cambió allí.
+                    </div>
+                    <field name="planilla_branch_res_id" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_facial_attendance_branch" model="ir.actions.act_window">
+        <field name="name">Sucursales</field>
+        <field name="res_model">facial.attendance.branch</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Cree una sucursal para vincularla a sus kioscos
+            </p>
+            <p>
+                Si tiene el módulo Planilla CR instalado, puede importar sus
+                sucursales existentes con el botón "Sincronizar desde Planilla"
+                en vez de crearlas dos veces.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_facial_attendance_branch_sync" model="ir.actions.server">
+        <field name="name">Sincronizar desde Planilla</field>
+        <field name="model_id" ref="model_facial_attendance_branch"/>
+        <field name="binding_model_id" ref="model_facial_attendance_branch"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = model.action_sync_from_planilla()</field>
+    </record>
+
+</odoo>

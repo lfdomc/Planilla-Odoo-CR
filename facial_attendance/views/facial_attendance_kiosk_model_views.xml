@@ -12,7 +12,7 @@
                        decoration-success="state == 'active'"
                        decoration-warning="state == 'pending'"
                        decoration-danger="state == 'revoked'"/>
-                <field name="branch_display_name" string="Sucursal"/>
+                <field name="facial_branch_id" string="Sucursal"/>
                 <field name="branch_name" string="Sede (texto libre)" optional="hide"/>
                 <field name="require_gps" string="GPS"/>
                 <field name="last_seen"/>
@@ -80,11 +80,15 @@
                     </group>
                     <group string="Sede">
                         <group>
+                            <field name="facial_branch_id"
+                                   options="{'no_quick_create': False}"/>
+                            <field name="branch_name"
+                                   help="Nombre libre de la sede si prefiere no vincular una Sucursal formal."/>
+                        </group>
+                        <group invisible="not branch_display_name">
                             <field name="branch_res_id" invisible="1"/>
                             <field name="branch_display_name" readonly="1"
-                                   invisible="not branch_display_name"/>
-                            <field name="branch_name"
-                                   help="Use este campo si no hay una sucursal de Planilla vinculada aún."/>
+                                   string="Sucursal vinculada (mecanismo anterior)"/>
                         </group>
                     </group>
                     <group string="Validación GPS (complementaria, opcional por kiosco)">
@@ -138,6 +142,7 @@
         <field name="arch" type="xml">
             <search>
                 <field name="name"/>
+                <field name="facial_branch_id"/>
                 <field name="branch_display_name"/>
                 <filter string="Pendientes de Activación" name="pending"
                         domain="[('state','=','pending')]"/>

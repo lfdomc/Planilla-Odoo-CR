@@ -515,21 +515,31 @@
         min-height: 100vh;
         min-height: 100dvh;
         justify-content: center;
-        padding: 16px;
+        /* FIX: padding reducido al minimo -- se pidio explicitamente
+           que el recuadro de camara llegue casi al borde de la
+           pantalla en movil, no que quede centrado con margenes
+           amplios como un elemento mas entre varios. */
+        padding: 8px;
+    }
+    .o_facial_kiosk_header {
+        margin-bottom: 8px;
     }
     .o_facial_camera_wrapper {
-        /* FIX: antes el alto estaba fijo en 260px sin importar el
-           tamano real de la pantalla, dejando el recuadro pequeno con
-           mucho espacio vacio en telefonos modernos con pantallas
-           altas. Ahora el ancho y el alto son proporcionales al
-           viewport disponible, centrado y ocupando la mayor parte de
-           la pantalla como en un kiosco real. */
-        width: min(92vw, 480px);
-        height: min(72vh, 600px);
-        max-height: 75vh;
+        /* FIX: ancho y alto casi al borde de la pantalla (96vw / 82vh),
+           tal como se pidio explicitamente -- la camara es el
+           elemento protagonista del kiosco, el resto (reloj, texto,
+           badge GPS) debe ocupar el minimo espacio posible alrededor. */
+        width: 96vw;
+        height: 82vh;
+        max-height: 82dvh;
     }
     .o_facial_kiosk_header h1 {
-        font-size: 1.4rem;
+        font-size: 1.25rem;
+        margin: 0 0 2px 0;
+    }
+    .o_facial_kiosk_header .subtitle {
+        font-size: 0.8rem;
+        margin: 0;
     }
     .o_facial_result_time {
         font-size: 1.75rem;
@@ -538,25 +548,83 @@
         font-size: 1.3rem;
     }
     .o_facial_clock {
-        top: 12px;
-        right: 16px;
+        top: 8px;
+        right: 12px;
     }
     .o_facial_clock .clock-time {
-        font-size: 1.25rem;
+        font-size: 1.1rem;
+    }
+    .o_facial_clock .clock-date {
+        font-size: 0.7rem;
     }
 }
 
 /* Pantallas de telefono con poca altura (ej. iPhone SE, algunos
-   Android compactos): el 72vh del bloque anterior se desborda y
+   Android compactos): el 82vh del bloque anterior se desborda y
    genera scroll no deseado en estas pantallas cortas. Se reduce el
-   porcentaje de altura solo para este caso especifico. */
+   porcentaje de altura solo para este caso especifico -- pero sigue
+   siendo casi al borde de la pantalla, solo un poco menor que en
+   pantallas altas. */
 @media (max-width: 599px) and (max-height: 700px) {
     .o_facial_camera_wrapper {
-        height: min(52vh, 420px);
+        height: min(70vh, 480px);
     }
 }
 
 /* ─── Responsive — tablet horizontal (600 – 1024 px) ───────────────────────── */
+
+/* Telefono en horizontal (landscape): el ancho cae en rango similar al
+   de tablet, pero el alto disponible es mucho menor (tipicamente
+   350-450px en telefonos modernos acostados). Se pidio explicitamente
+   que la camara toque casi los bordes superior e inferior en este
+   caso -- se distingue de una tablet real en landscape usando
+   max-height, ya que una tablet acostada tiene mucho mas alto
+   disponible que un telefono acostado. */
+@media (orientation: landscape) and (max-height: 500px) {
+    .o_facial_kiosk {
+        min-height: 100vh;
+        min-height: 100dvh;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        padding: 8px;
+        gap: 16px;
+    }
+    .o_facial_kiosk_header {
+        margin-bottom: 0;
+        flex-shrink: 0;
+    }
+    .o_facial_kiosk_header h1 {
+        font-size: 1.1rem;
+        margin: 0;
+    }
+    .o_facial_kiosk_header .subtitle {
+        display: none;
+    }
+    .o_facial_camera_wrapper {
+        /* Casi al borde superior/inferior: 90dvh de alto. El ancho se
+           calcula a partir del alto para mantener buena proporcion
+           (4:3 aprox), sin depender del ancho total de la pantalla,
+           que en landscape puede variar mucho entre modelos. */
+        width: min(90vw, 88dvh);
+        height: 90dvh;
+        max-height: 90vh;
+    }
+    .o_facial_clock {
+        position: static;
+        text-align: center;
+        flex-shrink: 0;
+    }
+    .o_facial_clock .clock-time {
+        font-size: 1.1rem;
+    }
+    .o_facial_clock .clock-date {
+        font-size: 0.65rem;
+    }
+    .o_facial_kiosk_footer {
+        display: none;
+    }
+}
 
 @media (min-width: 600px) and (max-width: 1024px) {
     .o_facial_kiosk {
@@ -573,10 +641,12 @@
         font-size: 1.6rem;
     }
     .o_facial_camera_wrapper {
-        /* Ancho adaptativo: ocupa hasta el 90 % del viewport
-           pero no mas de 420 px en este rango */
-        width: min(420px, 90vw);
-        height: min(315px, 55vh);
+        /* FIX: se quita el tope fijo de 420px (que limitaba
+           innecesariamente en tablets grandes) y se sube el
+           porcentaje de viewport usado, siguiendo el mismo criterio
+           de "casi al borde" aplicado en movil. */
+        width: min(92vw, 700px);
+        height: min(70vh, 560px);
     }
     .o_facial_result {
         margin-top: 12px;
