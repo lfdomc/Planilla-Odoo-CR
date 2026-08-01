@@ -38,14 +38,13 @@
                 <field name="kiosk_id"/>
                 <filter string="Exitosos" name="success" domain="[('state','=','success')]"/>
                 <filter string="Fallidos" name="failed" domain="[('state','=','failed')]"/>
-                <group expand="0" string="Agrupar por">
-                    <filter string="Sucursal" name="group_branch"
-                            context="{'group_by': 'facial_branch_id'}"/>
-                    <filter string="Empleado" name="group_employee"
-                            context="{'group_by': 'employee_id'}"/>
-                    <filter string="Estado" name="group_state"
-                            context="{'group_by': 'state'}"/>
-                </group>
+                <separator/>
+                <filter string="Sucursal" name="group_branch"
+                        context="{'group_by': 'facial_branch_id'}"/>
+                <filter string="Empleado" name="group_employee"
+                        context="{'group_by': 'employee_id'}"/>
+                <filter string="Estado" name="group_state"
+                        context="{'group_by': 'state'}"/>
             </search>
         </field>
     </record>
