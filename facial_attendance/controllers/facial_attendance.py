@@ -105,7 +105,8 @@ class FacialAttendanceController(http.Controller):
 
     @http.route('/facial_attendance/recognize', type='json', auth='user', methods=['POST'])
     def recognize_face(self, image_data, action_type=None, device_ip=None,
-                        device_token=None, gps_lat=None, gps_lng=None, **kwargs):
+                        device_token=None, gps_lat=None, gps_lng=None,
+                        log_on_failure=True, **kwargs):
         """
         Recibe una imagen en base64, busca coincidencia facial
         y registra la asistencia. Requiere sesion de usuario interno.
@@ -124,6 +125,7 @@ class FacialAttendanceController(http.Controller):
             return self._do_recognize(
                 image_data, action_type, device_ip,
                 device_token=device_token, gps_lat=gps_lat, gps_lng=gps_lng,
+                log_on_failure=log_on_failure,
             )
         except Exception as e:
             _logger.error('Error en reconocimiento facial: %s', str(e), exc_info=True)
@@ -141,7 +143,8 @@ class FacialAttendanceController(http.Controller):
     @http.route('/facial_attendance/kiosk/public/recognize',
                 type='json', auth='public', methods=['POST'])
     def recognize_face_public(self, image_data, action_type=None, device_ip=None,
-                               device_token=None, gps_lat=None, gps_lng=None, **kwargs):
+                               device_token=None, gps_lat=None, gps_lng=None,
+                               log_on_failure=True, **kwargs):
         """Variante publica (sin login) de recognize_face, para tablets dedicadas.
         Deshabilitada por defecto; debe activarse desde Ajustes > Reconocimiento Facial."""
         ICP = request.env['ir.config_parameter'].sudo()
@@ -157,11 +160,24 @@ class FacialAttendanceController(http.Controller):
         return self.recognize_face(
             image_data, action_type=action_type, device_ip=device_ip,
             device_token=device_token, gps_lat=gps_lat, gps_lng=gps_lng,
+            log_on_failure=log_on_failure,
         )
 
     def _do_recognize(self, image_data, action_type, device_ip,
-                       device_token=None, gps_lat=None, gps_lng=None):
-        """Logica principal de reconocimiento facial."""
+                       device_token=None, gps_lat=None, gps_lng=None,
+                       log_on_failure=True):
+        """Logica principal de reconocimiento facial.
+
+        log_on_failure: si es False, los intentos fallidos (no_match,
+        encoding_failed) NO se registran en facial.attendance.log. Se
+        usa desde el kiosco para que, dentro de una misma ventana de
+        deteccion activa (varios reintentos automaticos tras presionar
+        "Marcar Asistencia"), solo el ultimo intento de la ventana
+        quede registrado -- evita que una sola sesion de intento del
+        usuario genere 3-4 registros identicos en la base de datos.
+        Default True por seguridad: si algun llamador no envia este
+        parametro, el comportamiento es el mismo de siempre (registrar).
+        """
         env = request.env
         FacialLog = env['facial.attendance.log'].sudo()
         Kiosk = env['facial.attendance.kiosk'].sudo()
@@ -248,9 +264,10 @@ class FacialAttendanceController(http.Controller):
                 'No se encontro coincidencia. '
                 'Asegurese de tener buena iluminacion y mirar directamente a la camara.'
             )
-            FacialLog.create_failed_log(error_code='no_match', error_detail=detail,
-                                        confidence=confidence, device_ip=device_ip,
-                                        kiosk_id=kiosk.id if kiosk else None)
+            if log_on_failure:
+                FacialLog.create_failed_log(error_code='no_match', error_detail=detail,
+                                            confidence=confidence, device_ip=device_ip,
+                                            kiosk_id=kiosk.id if kiosk else None)
             return {
                 'success': False,
                 'error': 'no_match',

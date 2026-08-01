@@ -504,9 +504,29 @@
 /* ─── Responsive — móvil (< 600 px) ────────────────────────────────────────── */
 
 @media (max-width: 599px) {
+    .o_facial_kiosk {
+        /* min-height con dvh (dynamic viewport height) en vez de solo
+           vh: evita el salto visual quel produce la barra de
+           direcciones del navegador movil al aparecer/ocultarse
+           mientras se hace scroll -- 100vh en movil a veces incluye
+           el area de la barra de direcciones y a veces no, causando
+           que el contenido "salte". min-height combina ambos: usa
+           dvh si el navegador lo soporta, con vh como respaldo. */
+        min-height: 100vh;
+        min-height: 100dvh;
+        justify-content: center;
+        padding: 16px;
+    }
     .o_facial_camera_wrapper {
-        width: 100%;
-        height: 260px;
+        /* FIX: antes el alto estaba fijo en 260px sin importar el
+           tamano real de la pantalla, dejando el recuadro pequeno con
+           mucho espacio vacio en telefonos modernos con pantallas
+           altas. Ahora el ancho y el alto son proporcionales al
+           viewport disponible, centrado y ocupando la mayor parte de
+           la pantalla como en un kiosco real. */
+        width: min(92vw, 480px);
+        height: min(72vh, 600px);
+        max-height: 75vh;
     }
     .o_facial_kiosk_header h1 {
         font-size: 1.4rem;
@@ -523,6 +543,16 @@
     }
     .o_facial_clock .clock-time {
         font-size: 1.25rem;
+    }
+}
+
+/* Pantallas de telefono con poca altura (ej. iPhone SE, algunos
+   Android compactos): el 72vh del bloque anterior se desborda y
+   genera scroll no deseado en estas pantallas cortas. Se reduce el
+   porcentaje de altura solo para este caso especifico. */
+@media (max-width: 599px) and (max-height: 700px) {
+    .o_facial_camera_wrapper {
+        height: min(52vh, 420px);
     }
 }
 

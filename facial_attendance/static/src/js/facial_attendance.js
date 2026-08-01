@@ -156,7 +156,18 @@ export class FacialAttendanceKiosk extends Component {
                 return;
             }
             if (!this._isRecognizing) {
-                await this._doRecognition();
+                // Este intento es el "ultimo" de la ventana si, para
+                // cuando termine y se evalue el siguiente, ya no
+                // quedaria tiempo suficiente para otro intento
+                // completo -- en ese caso, si falla, se le pide al
+                // backend que SI registre el resultado (ver
+                // log_on_failure en _doRecognition), para que la
+                // sesion de intento del usuario deje un solo registro
+                // en vez de uno por cada reintento intermedio.
+                const isLastAttempt = (
+                    this._detectionWindowEnd - Date.now() <= RECOGNITION_INTERVAL
+                );
+                await this._doRecognition(isLastAttempt);
             }
             // Si _doRecognition() encontro una coincidencia, ya cambio
             // this.state.status a "success" -- no programar otro intento.
@@ -221,7 +232,7 @@ export class FacialAttendanceKiosk extends Component {
         }
     }
 
-    async _doRecognition() {
+    async _doRecognition(isLastAttempt = false) {
         const videoEl = this.videoRef.el;
         const canvasEl = this.canvasRef.el;
         if (!videoEl || !canvasEl) return;
@@ -251,6 +262,15 @@ export class FacialAttendanceKiosk extends Component {
                 device_token: this._deviceToken,
                 gps_lat: gpsLat,
                 gps_lng: gpsLng,
+                // FIX: solo el ultimo intento de la ventana de
+                // deteccion activa pide guardar el registro de fallo
+                // (no_match) en la base de datos -- evita que una
+                // sola pulsacion del boton "Marcar Asistencia" genere
+                // 3-4 registros identicos (uno por cada reintento
+                // dentro de la ventana de ACTIVE_DETECTION_WINDOW
+                // milisegundos), quedando solo el resultado final de
+                // esa sesion de intento.
+                log_on_failure: isLastAttempt,
             });
 
             if (result.success) {
