@@ -13,6 +13,7 @@
                 <field name="recognition_date" string="Fecha y Hora"/>
                 <field name="employee_id" string="Empleado"/>
                 <field name="department_id" string="Departamento" optional="show"/>
+                <field name="facial_branch_id" string="Sucursal" optional="show"/>
                 <field name="action_type" string="Acción"/>
                 <field name="confidence" string="Confianza (%)"/>
                 <field name="state" string="Estado" widget="badge"
@@ -23,6 +24,29 @@
                 <field name="attendance_id" string="Registro Asistencia" optional="show"/>
                 <field name="device_ip" string="IP Dispositivo" optional="hide"/>
             </list>
+        </field>
+    </record>
+
+    <!-- Vista de busqueda -->
+    <record id="facial_attendance_log_view_search" model="ir.ui.view">
+        <field name="name">facial.attendance.log.view.search</field>
+        <field name="model">facial.attendance.log</field>
+        <field name="arch" type="xml">
+            <search string="Registros de Reconocimiento Facial">
+                <field name="employee_id"/>
+                <field name="facial_branch_id"/>
+                <field name="kiosk_id"/>
+                <filter string="Exitosos" name="success" domain="[('state','=','success')]"/>
+                <filter string="Fallidos" name="failed" domain="[('state','=','failed')]"/>
+                <group expand="0" string="Agrupar por">
+                    <filter string="Sucursal" name="group_branch"
+                            context="{'group_by': 'facial_branch_id'}"/>
+                    <filter string="Empleado" name="group_employee"
+                            context="{'group_by': 'employee_id'}"/>
+                    <filter string="Estado" name="group_state"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
         </field>
     </record>
 
@@ -49,6 +73,7 @@
                                    decoration-muted="state == 'manual'"/>
                             <field name="attendance_id" readonly="1"/>
                             <field name="device_ip" readonly="1"/>
+                            <field name="facial_branch_id" readonly="1"/>
                         </group>
                         <group string="Empleado">
                             <field name="department_id" readonly="1"/>
@@ -76,6 +101,7 @@
         <field name="name">Registros de Reconocimiento Facial</field>
         <field name="res_model">facial.attendance.log</field>
         <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="facial_attendance_log_view_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Aún no hay registros de reconocimiento facial.

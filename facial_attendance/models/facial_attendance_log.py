@@ -71,6 +71,14 @@ class FacialAttendanceLog(models.Model):
         index=True,
         help='Dispositivo desde el cual se realizo esta marcacion.',
     )
+    facial_branch_id = fields.Many2one(
+        related='kiosk_id.facial_branch_id', string='Sucursal',
+        store=True, readonly=True,
+        help='Sucursal vinculada al kiosco desde el cual se realizo '
+             'esta marcacion. Vacio si el kiosco no tiene sucursal '
+             'asignada, o si la marcacion no vino de ningun kiosco '
+             '(ej. registrada directamente desde el backend).',
+    )
     gps_latitude = fields.Float(
         string='Latitud GPS', digits=(10, 7),
         help='Ubicacion reportada por el navegador al momento de marcar, '
