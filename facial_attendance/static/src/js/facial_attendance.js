@@ -55,6 +55,12 @@ export class FacialAttendanceKiosk extends Component {
             // de una marcacion): 'not_required' | 'ok' | 'out_of_range' | 'no_gps'
             gpsStatus: "not_required",
             gpsDistance: null,
+            // Boton de instalacion de PWA (Android/iPhone, sin tienda de
+            // apps): showInstallButton controla si mostrarlo, showIosInstructions
+            // si ademas hay que mostrar el texto de instrucciones manuales de
+            // iOS (que no dispara beforeinstallprompt como Android/Chrome).
+            showInstallButton: false,
+            showIosInstructions: false,
         });
 
         this._deviceToken = FacialCameraUtils.getOrCreateDeviceToken();
@@ -71,6 +77,7 @@ export class FacialAttendanceKiosk extends Component {
             this._startClock();
             await this._initCamera();
             this._startGpsStatusLoop();
+            this._setupInstallPrompt();
         });
 
         onWillUnmount(() => {
@@ -320,6 +327,60 @@ export class FacialAttendanceKiosk extends Component {
         } finally {
             this._isRecognizing = false;
         }
+    }
+
+    // ─── Instalacion de PWA (Android/iPhone, sin tienda de apps) ──────────────
+
+    /**
+     * Configura la deteccion de instalabilidad de la PWA:
+     *  - Android/Chrome/Edge: escucha el evento beforeinstallprompt, lo
+     *    guarda para dispararlo despues desde el boton propio del
+     *    kiosco (en vez de depender del menu del navegador), y muestra
+     *    el boton solo cuando el navegador confirma que la app es
+     *    instalable.
+     *  - iPhone/Safari: no dispara beforeinstallprompt (nunca lo ha
+     *    soportado) -- se detecta el navegador y se muestra el boton
+     *    con instrucciones manuales (Compartir > Anadir a pantalla de
+     *    inicio) en su lugar.
+     *  - Si la app ya esta instalada (se abrio en modo standalone), no
+     *    se muestra nada -- no tiene sentido ofrecer instalar de nuevo.
+     */
+    _setupInstallPrompt() {
+        const isStandalone = (
+            window.matchMedia("(display-mode: standalone)").matches
+            || window.navigator.standalone === true
+        );
+        if (isStandalone) return;
+
+        const ua = window.navigator.userAgent || "";
+        const isIos = /iphone|ipad|ipod/i.test(ua);
+
+        if (isIos) {
+            this.state.showInstallButton = true;
+            this.state.showIosInstructions = true;
+            return;
+        }
+
+        window.addEventListener("beforeinstallprompt", (event) => {
+            event.preventDefault();
+            this._deferredInstallPrompt = event;
+            this.state.showInstallButton = true;
+        });
+    }
+
+    async installApp() {
+        if (this.state.showIosInstructions) {
+            // En iOS no hay dialogo programatico -- el boton solo
+            // revela/oculta el texto de instrucciones manuales.
+            return;
+        }
+        if (!this._deferredInstallPrompt) return;
+        this._deferredInstallPrompt.prompt();
+        await this._deferredInstallPrompt.userChoice;
+        // Se use o no, el evento guardado ya no sirve para un segundo
+        // intento -- el navegador lo invalida tras el primer uso.
+        this._deferredInstallPrompt = null;
+        this.state.showInstallButton = false;
     }
 
     // ─── Cleanup ──────────────────────────────────────────────────────────────

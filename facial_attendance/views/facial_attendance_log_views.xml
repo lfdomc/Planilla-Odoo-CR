@@ -14,6 +14,7 @@
                 <field name="employee_id" string="Empleado"/>
                 <field name="department_id" string="Departamento" optional="show"/>
                 <field name="facial_branch_id" string="Sucursal" optional="show"/>
+                <field name="kiosk_id" string="Kiosco" optional="show"/>
                 <field name="action_type" string="Acción"/>
                 <field name="confidence" string="Confianza (%)"/>
                 <field name="state" string="Estado" widget="badge"
@@ -41,6 +42,8 @@
                 <separator/>
                 <filter string="Sucursal" name="group_branch"
                         context="{'group_by': 'facial_branch_id'}"/>
+                <filter string="Kiosco" name="group_kiosk"
+                        context="{'group_by': 'kiosk_id'}"/>
                 <filter string="Empleado" name="group_employee"
                         context="{'group_by': 'employee_id'}"/>
                 <filter string="Estado" name="group_state"
@@ -101,6 +104,7 @@
         <field name="res_model">facial.attendance.log</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="facial_attendance_log_view_search"/>
+        <field name="context">{'search_default_group_kiosk': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Aún no hay registros de reconocimiento facial.

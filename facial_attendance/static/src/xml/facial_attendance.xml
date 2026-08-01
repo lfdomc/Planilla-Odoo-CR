@@ -148,6 +148,17 @@
                 <span class="o_facial_status_label">Sistema activo - Reconocimiento automático</span>
             </div>
 
+            <!-- Boton de instalacion como app (PWA), sin tienda de apps -->
+            <div t-if="state.showInstallButton" class="o_facial_install_wrap">
+                <button class="o_facial_install_btn" t-on-click="installApp">
+                    <i class="fa fa-download"/> Instalar como App
+                </button>
+                <div t-if="state.showIosInstructions" class="o_facial_install_ios_hint">
+                    Toque <i class="fa fa-share-square-o"/> Compartir, luego
+                    "Añadir a pantalla de inicio"
+                </div>
+            </div>
+
         </div>
     </t>
 

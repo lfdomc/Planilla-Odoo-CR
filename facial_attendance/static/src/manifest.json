@@ -1,0 +1,37 @@
+{
+    "name": "Control de Asistencia - Reconocimiento Facial",
+    "short_name": "Asistencia Facial",
+    "description": "Kiosco de reconocimiento facial para control de asistencia.",
+    "start_url": "/facial_attendance/kiosk/public",
+    "scope": "/facial_attendance/kiosk/",
+    "display": "standalone",
+    "orientation": "any",
+    "background_color": "#0f172a",
+    "theme_color": "#0f172a",
+    "icons": [
+        {
+            "src": "/facial_attendance/static/src/img/pwa_icon_192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/facial_attendance/static/src/img/pwa_icon_192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/facial_attendance/static/src/img/pwa_icon_512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/facial_attendance/static/src/img/pwa_icon_512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}

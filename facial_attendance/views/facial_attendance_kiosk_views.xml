@@ -26,6 +26,22 @@
                 -->
                 <t t-call-assets="facial_attendance.assets_kiosk" t-js="true" t-css="true"/>
                 <title>Quiosco de Asistencia - <t t-esc="company.name"/></title>
+
+                <!-- PWA: permite instalar el kiosco como app en Android/iPhone,
+                     sin pasar por Play Store ni App Store, mismo mecanismo que
+                     usa el kiosco nativo de Asistencias de Odoo. -->
+                <link rel="manifest" href="/facial_attendance/static/src/manifest.json"/>
+                <meta name="theme-color" content="#0f172a"/>
+                <link rel="icon" type="image/png" sizes="192x192"
+                      href="/facial_attendance/static/src/img/pwa_icon_192.png"/>
+                <!-- iOS/Safari no lee manifest.json para el icono de instalacion
+                     ni para el modo pantalla completa, requiere estos tags
+                     propios ademas del manifest. -->
+                <link rel="apple-touch-icon"
+                      href="/facial_attendance/static/src/img/pwa_icon_apple_180.png"/>
+                <meta name="apple-mobile-web-app-capable" content="yes"/>
+                <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+                <meta name="apple-mobile-web-app-title" content="Asistencia Facial"/>
             </t>
             <t t-set="body_classname">o_facial_kiosk_body</t>
 

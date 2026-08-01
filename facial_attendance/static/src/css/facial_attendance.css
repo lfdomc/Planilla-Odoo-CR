@@ -440,6 +440,43 @@
     50%       { opacity: 0.4; }
 }
 
+/* ─── Instalacion de PWA (Android/iPhone, sin tienda de apps) ──────────────── */
+
+.o_facial_install_wrap {
+    position: fixed;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    z-index: 5;
+}
+
+.o_facial_install_btn {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    padding: 8px 18px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.o_facial_install_btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.o_facial_install_ios_hint {
+    font-size: 0.7rem;
+    color: #94a3b8;
+    text-align: center;
+    max-width: 280px;
+}
+
 .o_facial_status_label {
     font-size: 0.75rem;
     color: #64748b;
@@ -633,6 +670,13 @@
         font-size: 0.65rem;
     }
     .o_facial_kiosk_footer {
+        display: none;
+    }
+    .o_facial_install_wrap {
+        /* Mismo criterio que el pie de pagina: en este modo compacto
+           el espacio vertical es muy limitado y la camara debe tener
+           prioridad. El usuario puede instalar la app en vertical,
+           donde si hay espacio para el boton sin competir con nada. */
         display: none;
     }
 }
