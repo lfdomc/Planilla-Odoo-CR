@@ -6,6 +6,12 @@
         <field name="model">facial.attendance.branch</field>
         <field name="arch" type="xml">
             <list>
+                <header>
+                    <button name="action_sync_from_planilla" type="object"
+                            string="Sincronizar desde Planilla" class="btn-secondary"
+                            display="always"
+                            help="Importa o actualiza las sucursales existentes en Planilla CR, si ese modulo esta instalado."/>
+                </header>
                 <field name="name"/>
                 <field name="code"/>
                 <field name="address"/>
@@ -66,15 +72,6 @@
                 en vez de crearlas dos veces.
             </p>
         </field>
-    </record>
-
-    <record id="action_facial_attendance_branch_sync" model="ir.actions.server">
-        <field name="name">Sincronizar desde Planilla</field>
-        <field name="model_id" ref="model_facial_attendance_branch"/>
-        <field name="binding_model_id" ref="model_facial_attendance_branch"/>
-        <field name="binding_view_types">list</field>
-        <field name="state">code</field>
-        <field name="code">action = model.action_sync_from_planilla()</field>
     </record>
 
 </odoo>
