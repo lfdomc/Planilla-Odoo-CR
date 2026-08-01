@@ -152,7 +152,7 @@
         <field name="name">Kioscos</field>
         <field name="res_model">facial.attendance.kiosk</field>
         <field name="view_mode">list,form</field>
-        <field name="context">{'search_default_pending': 1}</field>
+        <field name="context">{'search_default_pending': 1, 'create': False}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Los kioscos aparecen aquí automáticamente la primera vez
