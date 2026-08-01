@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { mount } from "@odoo/owl";
+import { mountComponent } from "@web/env";
 import { FacialAttendanceKiosk } from "./facial_attendance";
 
 /**
@@ -16,9 +16,15 @@ import { FacialAttendanceKiosk } from "./facial_attendance";
  * una pagina standalone: nadie lo montaba. Esto dejaba el quiosco publico
  * (pensado para una tablet sin login) como una pantalla en blanco.
  *
- * mount() de OWL no requiere los servicios del webclient (useService, etc.):
- * FacialAttendanceKiosk solo usa rpc() (fetch directo al endpoint JSON-RPC)
- * y APIs nativas del navegador (getUserMedia, canvas).
+ * FIX: se usa mountComponent() de @web/env, NO mount() generico de
+ * @odoo/owl. Segun la documentacion oficial de Odoo 19 ("Create a
+ * standalone Owl application"), mountComponent() es la utilidad
+ * especifica de Odoo que crea el entorno, inicia los servicios,
+ * activa las traducciones, Y da acceso al componente a los templates
+ * QWeb del bundle de assets -- mount() puro de OWL no hace esa ultima
+ * parte, lo que causaba "OwlError: Missing template:
+ * facial_attendance.Kiosk" aunque el archivo XML del template ya
+ * estuviera correctamente declarado en el bundle.
  */
 function mountStandaloneKiosk() {
     const target = document.getElementById("facial_kiosk_app");
@@ -30,8 +36,7 @@ function mountStandaloneKiosk() {
         return;
     }
 
-    mount(FacialAttendanceKiosk, target, {
-        dev: false,
+    mountComponent(FacialAttendanceKiosk, target, {
         props: {
             // recognizeUrl se inyecta como data-attribute por el controlador
             // de Odoo segun si la pagina es autenticada o publica.
