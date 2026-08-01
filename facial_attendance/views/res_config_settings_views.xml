@@ -36,6 +36,17 @@
                         </setting>
                     </block>
 
+                    <block title="Sucursales">
+                        <setting string="Sucursales de Reconocimiento Facial"
+                                 help="Sucursales propias de este módulo, usadas para vincular cada kiosco a un lugar físico. Si tiene el módulo Planilla CR instalado, puede importar sus sucursales existentes en vez de crearlas dos veces.">
+                            <button name="action_sync_branches_from_planilla" type="object"
+                                    string="Sincronizar desde Planilla" class="btn-secondary"
+                                    no_save="True"/>
+                            <button name="%(action_facial_attendance_branch)d" type="action"
+                                    string="Ver Sucursales" class="btn-link"/>
+                        </setting>
+                    </block>
+
                     <block title="Quiosco Público">
                         <setting string="Habilitar Quiosco Público (sin login)"
                                  help="Activa /facial_attendance/kiosk/public para tablets dedicadas en la entrada sin requerir inicio de sesión de Odoo. Use solo en redes controladas.">

@@ -72,3 +72,16 @@ class ResConfigSettings(models.TransientModel):
              'en el dispositivo, en vez de compartir el enlace del Modo '
              'Quiosco nativo de Asistencias.',
     )
+
+    def action_sync_branches_from_planilla(self):
+        """
+        Delega a facial.attendance.branch.action_sync_from_planilla().
+        Se expone aqui (en vez de solo en la lista de Sucursales) para
+        que el boton de sincronizacion siempre este visible en Ajustes,
+        sin importar si la lista de sucursales ya tiene registros --
+        cuando esta vacia, Odoo muestra el mensaje de bienvenida
+        ("Cree una sucursal...") en vez del header con los botones de
+        la lista, dejando ese boton inaccesible la primera vez que se
+        usa el modulo.
+        """
+        return self.env['facial.attendance.branch'].action_sync_from_planilla()
