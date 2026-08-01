@@ -6,3 +6,4 @@ access_facial_attendance_kiosk_user,facial.attendance.kiosk.user,model_facial_at
 access_facial_attendance_kiosk_manager,facial.attendance.kiosk.manager,model_facial_attendance_kiosk,hr.group_hr_manager,1,1,1,1
 access_facial_attendance_branch_user,facial.attendance.branch.user,model_facial_attendance_branch,hr.group_hr_user,1,0,0,0
 access_facial_attendance_branch_manager,facial.attendance.branch.manager,model_facial_attendance_branch,hr.group_hr_manager,1,1,1,1
+access_facial_kiosk_activate_wizard,facial.kiosk.activate.wizard,model_facial_kiosk_activate_wizard,hr.group_hr_manager,1,1,1,1

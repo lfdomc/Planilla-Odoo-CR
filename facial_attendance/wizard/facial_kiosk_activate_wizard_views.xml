@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_facial_kiosk_activate_wizard_form" model="ir.ui.view">
+        <field name="name">facial.kiosk.activate.wizard.form</field>
+        <field name="model">facial.kiosk.activate.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Activar Kiosco">
+                <field name="kiosk_id" invisible="1"/>
+                <field name="suggested_branch_id" invisible="1"/>
+                <group>
+                    <field name="kiosk_name" placeholder="Ej: Bodega, Entrada Principal Escazú..."/>
+                </group>
+                <group string="Sucursal">
+                    <field name="branch_option" widget="radio"/>
+                    <div invisible="branch_option != 'existing'" class="mb-2">
+                        <i class="fa fa-map-marker text-success"/>
+                        <field name="suggested_branch_id" readonly="1" nolabel="1"/>
+                        (detectada por GPS, a menos de 300 metros)
+                    </div>
+                    <field name="new_branch_name"
+                           string="Nombre de la Nueva Sucursal"
+                           invisible="branch_option != 'new'"
+                           required="branch_option == 'new'"
+                           placeholder="Ej: Sede Curridabat"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object"
+                            string="Confirmar y Activar" class="btn-primary"/>
+                    <button special="cancel" string="Cancelar" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

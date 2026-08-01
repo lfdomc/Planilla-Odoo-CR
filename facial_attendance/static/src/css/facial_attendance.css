@@ -264,8 +264,19 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 200px;
-    height: 260px;
+    /* FIX: antes tenia tamano fijo en pixeles (200x260px), sin
+       relacion con el tamano real del contenedor de camara -- al
+       agrandar la camara para que ocupe casi toda la pantalla (ver
+       ajuste responsive), el ovalo se quedo pequeno y desproporcionado
+       respecto al video, dificultando que la persona se ubique bien
+       dentro de la guia. Ahora es proporcional al contenedor (60% del
+       ancho, 70% del alto), manteniendo una proporcion realista de
+       rostro humano, y crece junto con la camara en cualquier tamano
+       de pantalla. min()/max() evitan que quede demasiado grande en
+       pantallas muy anchas o demasiado chico en muy angostas.
+    */
+    width: clamp(140px, 60%, 340px);
+    height: clamp(180px, 70%, 440px);
     border: 3px solid rgba(255, 255, 255, 0.5);
     border-radius: 50%;
     transition: border-color 0.3s ease;

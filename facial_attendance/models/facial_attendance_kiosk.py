@@ -91,6 +91,55 @@ class FacialAttendanceKiosk(models.Model):
              'importar sus sucursales existentes desde Sucursales > '
              'Sincronizar desde Planilla, en vez de crearlas dos veces.',
     )
+    suggested_branch_id = fields.Many2one(
+        'facial.attendance.branch', string='Sucursal Sugerida',
+        compute='_compute_suggested_branch_id',
+        help='Sucursal existente mas cercana (dentro de 300 metros) '
+             'segun el GPS capturado por el dispositivo. Solo se '
+             'calcula para dispositivos pendientes de activacion, '
+             'para agilizar la aprobacion -- el administrador solo '
+             'confirma o ajusta, en vez de adivinar cual sucursal es '
+             'o crear una nueva sin saber si ya existe una para ese '
+             'lugar.',
+    )
+    suggested_branch_name = fields.Char(
+        string='Nombre Sugerido para Nueva Sucursal',
+        compute='_compute_suggested_branch_id',
+        help='Si no hay ninguna sucursal existente cerca, sugiere un '
+             'nombre generico basado en la fecha de la primera '
+             'conexion, para que el administrador solo tenga que '
+             'ajustarlo en vez de escribirlo desde cero.',
+    )
+
+    @api.depends('state', 'kiosk_latitude', 'kiosk_longitude', 'first_seen')
+    def _compute_suggested_branch_id(self):
+        Branch = self.env['facial.attendance.branch']
+        all_branches = Branch.search([
+            ('company_id', 'in', self.env.companies.ids),
+            ('latitude', '!=', False),
+            ('longitude', '!=', False),
+        ])
+        for rec in self:
+            rec.suggested_branch_id = False
+            rec.suggested_branch_name = False
+            if rec.state != 'pending':
+                continue
+            if not rec.first_seen:
+                rec.suggested_branch_name = _('Dispositivo %s') % (rec.id or '')
+            else:
+                rec.suggested_branch_name = _('Sede %s') % rec.first_seen.strftime('%d/%m/%Y')
+            if not rec.kiosk_latitude or not rec.kiosk_longitude or not all_branches:
+                continue
+            closest, closest_dist = None, None
+            for branch in all_branches:
+                dist = rec._haversine_meters(
+                    rec.kiosk_latitude, rec.kiosk_longitude,
+                    branch.latitude, branch.longitude,
+                )
+                if closest_dist is None or dist < closest_dist:
+                    closest, closest_dist = branch, dist
+            if closest is not None and closest_dist <= 300:
+                rec.suggested_branch_id = closest.id
 
     # -- Campos viejos, mantenidos por compatibilidad con kioscos que ya
     # tenian una sucursal de planilla_cr vinculada por el mecanismo
@@ -304,32 +353,74 @@ class FacialAttendanceKiosk(models.Model):
             rec.write({'access_token': self._generate_token()})
 
     @api.model
-    def get_or_create_pending(self, device_token, user_agent=None):
+    def get_or_create_pending(self, device_token, user_agent=None,
+                               gps_lat=None, gps_lng=None):
         """Punto de entrada desde el controlador: dado el token que envia
         el navegador, retorna el kiosco correspondiente. Si el token no
         existe todavia (primera conexion de este dispositivo), lo crea
         en estado 'pending' automaticamente -- sin autorizar nada, solo
         para que aparezca en la lista de dispositivos por aprobar.
+
+        Si el dispositivo ya otorgo permiso de GPS al navegador (best
+        effort, no bloqueante), se captura la ubicacion desde este
+        primer contacto -- asi el administrador ya ve la ubicacion
+        real al revisar el dispositivo pendiente, sin tener que
+        activarlo primero y esperar otro reporte de GPS despues.
         """
         if not device_token:
             return self.browse()
         kiosk = self.sudo().search([('device_token', '=', device_token)], limit=1)
         if kiosk:
-            kiosk.write({'last_seen': fields.Datetime.now()})
+            vals = {'last_seen': fields.Datetime.now()}
+            # Solo capturar/actualizar GPS si el kiosco aun no tiene
+            # ubicacion propia guardada -- una vez capturada, no se
+            # sobreescribe automaticamente en cada visita (para eso
+            # existe "Recapturar Ubicacion" en el kiosco activado).
+            if gps_lat and gps_lng and not kiosk.kiosk_location_set:
+                vals.update({
+                    'kiosk_latitude': gps_lat,
+                    'kiosk_longitude': gps_lng,
+                    'kiosk_location_set': True,
+                })
+            kiosk.write(vals)
             return kiosk
-        kiosk = self.sudo().create({
+        create_vals = {
             'name': _('Dispositivo sin nombre'),
             'device_token': device_token,
             'device_info': (user_agent or '')[:250],
             'first_seen': fields.Datetime.now(),
             'last_seen': fields.Datetime.now(),
             'state': 'pending',
-        })
+        }
+        if gps_lat and gps_lng:
+            create_vals.update({
+                'kiosk_latitude': gps_lat,
+                'kiosk_longitude': gps_lng,
+                'kiosk_location_set': True,
+            })
+        kiosk = self.sudo().create(create_vals)
         _logger.info(
             'facial_attendance: nuevo dispositivo pendiente de activacion, token=%s...',
             device_token[:12],
         )
         return kiosk
+
+    def action_open_activate_wizard(self):
+        """
+        Abre el wizard de activacion, donde el usuario puede escribir o
+        editar el nombre del kiosco (y de la sucursal, si crea una
+        nueva) antes de confirmar -- en vez de aplicar directamente
+        cualquier nombre autogenerado.
+        """
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Activar Kiosco',
+            'res_model': 'facial.kiosk.activate.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {'default_kiosk_id': self.id},
+        }
 
     def action_activate(self):
         for rec in self:

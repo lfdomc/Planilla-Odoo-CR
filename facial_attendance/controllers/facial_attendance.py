@@ -189,7 +189,10 @@ class FacialAttendanceController(http.Controller):
         kiosk = Kiosk.browse()
         if device_token:
             user_agent = request.httprequest.headers.get('User-Agent', '')
-            kiosk = Kiosk.get_or_create_pending(device_token, user_agent=user_agent)
+            kiosk = Kiosk.get_or_create_pending(
+                device_token, user_agent=user_agent,
+                gps_lat=gps_lat, gps_lng=gps_lng,
+            )
             if kiosk and kiosk.state == 'pending':
                 return {
                     'success': False,
@@ -429,19 +432,31 @@ class FacialAttendanceController(http.Controller):
         if not device_token:
             return {'status': 'not_required', 'distance_meters': None}
 
-        kiosk = Kiosk.search([('device_token', '=', device_token)], limit=1)
-        if not kiosk or kiosk.state != 'active':
-            # Dispositivo pendiente/revocado/desconocido: el chequeo de
-            # posicion no aplica todavia -- eso lo maneja el flujo normal
-            # de reconocimiento (recognize_face), que si informa
-            # claramente "dispositivo no activado".
-            return {'status': 'not_required', 'distance_meters': None}
-
         try:
             lat_f = float(gps_lat) if gps_lat is not None else None
             lng_f = float(gps_lng) if gps_lng is not None else None
         except (TypeError, ValueError):
             lat_f = lng_f = None
+
+        kiosk = Kiosk.search([('device_token', '=', device_token)], limit=1)
+        if not kiosk or kiosk.state != 'active':
+            # FIX: capturar el GPS desde el primer contacto, aunque el
+            # dispositivo siga pendiente de activacion -- asi el
+            # administrador ya ve la ubicacion real al revisar el
+            # dispositivo pendiente, en vez de tener que activarlo
+            # primero y esperar otra visita para que se reporte el GPS.
+            # get_or_create_pending() ya maneja tanto crear el registro
+            # nuevo como actualizar uno existente que aun no tenga
+            # ubicacion capturada.
+            if lat_f and lng_f:
+                Kiosk.get_or_create_pending(
+                    device_token, gps_lat=lat_f, gps_lng=lng_f,
+                )
+            # El chequeo de posicion "en vivo" (contra el radio permitido)
+            # no aplica todavia -- eso lo maneja el flujo normal de
+            # reconocimiento (recognize_face), que si informa claramente
+            # "dispositivo no activado".
+            return {'status': 'not_required', 'distance_meters': None}
 
         return kiosk.check_live_position(lat_f, lng_f)
 

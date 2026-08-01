@@ -29,7 +29,7 @@
         <field name="arch" type="xml">
             <form string="Kiosco">
                 <header>
-                    <button name="action_activate" string="Activar"
+                    <button name="action_open_activate_wizard" string="Activar"
                             type="object" class="btn-primary"
                             invisible="state == 'active'"/>
                     <button name="action_revoke" string="Revocar"
@@ -78,6 +78,18 @@
                             <field name="activation_date" readonly="1"/>
                         </group>
                     </group>
+                    <div class="alert alert-info"
+                         invisible="state != 'pending' or not suggested_branch_id">
+                        <i class="fa fa-map-marker"/> Hay una sucursal cerca (dentro de 300m):
+                        <strong><field name="suggested_branch_id" readonly="1" nolabel="1"/></strong>.
+                        Al presionar "Activar" podrá confirmarla o cambiarla.
+                    </div>
+                    <div class="alert alert-info"
+                         invisible="state != 'pending' or suggested_branch_id or not suggested_branch_name">
+                        <i class="fa fa-plus-circle"/> No hay ninguna sucursal registrada cerca.
+                        Al presionar "Activar" podrá escribir el nombre que prefiera
+                        para el kiosco y, si quiere, para una sucursal nueva.
+                    </div>
                     <group string="Sede">
                         <group>
                             <field name="facial_branch_id"
