@@ -6,6 +6,20 @@
         <t t-call="web.layout">
             <t t-set="head">
                 <!--
+                    FIX: cargar primero web._assets_core, el bundle
+                    minimo documentado oficialmente por Odoo 19 para
+                    aplicaciones OWL standalone (contiene el framework
+                    JS de Odoo y las librerias centrales que necesita,
+                    como Owl y luxon, ver "Create a standalone Owl
+                    application" en la documentacion de Odoo 19).
+                    Sin esto, el navegador ejecutaba nuestro codigo
+                    standalone sin que el sistema de modulos de Odoo
+                    estuviera inicializado, causando "Uncaught
+                    TypeError: odoo.define is not a function" y una
+                    pagina completamente en blanco.
+                -->
+                <t t-call-assets="web._assets_core" t-js="true" t-css="false"/>
+                <!--
                     Carga CSS + JS del quiosco a traves del bundle dedicado.
                     Incluye kiosk_standalone.js, que monta el componente OWL
                     en #facial_kiosk_app al cargar la pagina.
