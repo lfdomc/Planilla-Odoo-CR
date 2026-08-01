@@ -187,8 +187,44 @@ class FacialAttendanceKiosk(models.Model):
     )
     out_of_range_count = fields.Integer(
         string='Fuera de Area (30 dias)', compute='_compute_log_count',
+        search='_search_out_of_range_count',
         help='Marcaciones fuera del radio GPS permitido en los ultimos 30 dias.',
     )
+
+    def _search_out_of_range_count(self, operator, value):
+        """
+        FIX BUG: out_of_range_count es un campo Integer computado sin
+        store=True (se desactualizaria solo con el paso del tiempo si
+        se guardara, ya que la ventana de "ultimos 30 dias" cambia cada
+        dia sin necesidad de que se cree ningun registro nuevo). Sin
+        este metodo search, el filtro de busqueda "Con Marcaciones
+        Fuera de Area" (domain=[('out_of_range_count','>',0)]) rompia
+        la carga de la vista con "No se puede buscar el campo" -- Odoo
+        no puede traducir un domain sobre un campo computado sin
+        store=True ni search= a SQL.
+
+        Traduce el filtro directamente a una subconsulta sobre
+        facial.attendance.log: encuentra los kioscos que SI tienen al
+        menos una marcacion fuera de rango en los ultimos 30 dias
+        (para operator > y value=0, el caso real usado en la vista), y
+        retorna el domain equivalente ('id', 'in', [...]).
+        """
+        from datetime import timedelta
+        if operator not in ('>', '!=') or not (value == 0 or value is False):
+            # Solo se soporta el caso real usado en la vista (kioscos
+            # CON marcaciones fuera de rango). Otras combinaciones
+            # (ej. buscar un numero exacto de marcaciones) no tienen
+            # un caso de uso real -- se devuelve un domain que no
+            # filtra nada, en vez de fallar, para no romper otros usos
+            # inesperados del campo.
+            return []
+        cutoff = fields.Datetime.now() - timedelta(days=30)
+        Log = self.env['facial.attendance.log']
+        kiosk_ids = Log.sudo().search([
+            ('out_of_range', '=', True),
+            ('recognition_date', '>=', cutoff),
+        ]).mapped('kiosk_id').ids
+        return [('id', 'in', kiosk_ids)]
 
     def _compute_log_count(self):
         from datetime import timedelta
