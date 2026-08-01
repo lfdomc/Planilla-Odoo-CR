@@ -11,6 +11,14 @@ import { FacialCameraUtils } from "./face_api_loader";
 const RECOGNITION_INTERVAL = 2500;
 /** Tiempo que se muestra la tarjeta de resultado antes de volver a escanear (ms). */
 const RESULT_DISPLAY_TIME = 4000;
+/**
+ * Duracion de la ventana de deteccion activa despues de presionar el
+ * boton "Marcar Asistencia" (ms). Durante esta ventana el kiosco
+ * reintenta el reconocimiento cada RECOGNITION_INTERVAL; si nadie se
+ * reconoce dentro de este tiempo, el kiosco vuelve al estado de espera
+ * (boton) automaticamente, sin seguir escaneando de forma indefinida.
+ */
+const ACTIVE_DETECTION_WINDOW = 8000;
 /** Intervalo entre chequeos de posicion GPS en vivo (ms). Mas espaciado
  *  que el reconocimiento facial porque el GPS cambia poco y consultarlo
  *  muy seguido gasta bateria innecesariamente en dispositivos moviles. */
@@ -37,7 +45,7 @@ export class FacialAttendanceKiosk extends Component {
         this.canvasRef = useRef("canvas");
 
         this.state = useState({
-            status: "loading",     // loading | ready | scanning | success | error | no_camera | pending_activation
+            status: "loading",     // loading | waiting_for_button | scanning | success | error | no_camera | pending_activation
             errorMsg: "",
             result: null,
             cameraError: null,
@@ -52,7 +60,8 @@ export class FacialAttendanceKiosk extends Component {
         this._deviceToken = FacialCameraUtils.getOrCreateDeviceToken();
 
         this._stream = null;
-        this._recognitionTimer = null;
+        this._activeDetectionTimer = null;
+        this._detectionWindowEnd = 0;
         this._resultTimer = null;
         this._clockTimer = null;
         this._gpsStatusTimer = null;
@@ -96,22 +105,74 @@ export class FacialAttendanceKiosk extends Component {
         try {
             this.state.status = "loading";
             this._stream = await FacialCameraUtils.startCamera(this.videoRef.el);
-            this.state.status = "ready";
-            // Esperar un momento para que la cámara se estabilice
-            setTimeout(() => this._startRecognitionLoop(), 1000);
+            // FIX: ya NO se arranca el bucle de reconocimiento
+            // automatico aqui. La camara queda encendida (para que la
+            // persona pueda verse y encuadrarse), pero el
+            // reconocimiento activo solo empieza cuando el usuario
+            // presiona el boton "Marcar Asistencia" -- ver
+            // startActiveDetection(). Esto evita que el kiosco este
+            // intentando reconocer cada 2.5s de forma indefinida sin
+            // que haya nadie enfrente.
+            this.state.status = "waiting_for_button";
         } catch (err) {
             this.state.status = "no_camera";
             this.state.cameraError = err.message;
         }
     }
 
-    // ─── Loop de reconocimiento ───────────────────────────────────────────────
+    // ─── Deteccion activa (por boton, con ventana de tiempo) ──────────────────
 
-    _startRecognitionLoop() {
-        this._recognitionTimer = setInterval(async () => {
-            if (this._isRecognizing || this.state.status === "success") return;
-            await this._doRecognition();
-        }, RECOGNITION_INTERVAL);
+    /**
+     * Inicia una ventana de deteccion activa de ACTIVE_DETECTION_WINDOW
+     * milisegundos: reintenta el reconocimiento cada RECOGNITION_INTERVAL
+     * mientras dura la ventana. Se detiene automaticamente al vencerse
+     * el tiempo (volviendo al estado "waiting_for_button", listo para
+     * un nuevo intento) o antes si hay un reconocimiento exitoso.
+     *
+     * FIX: reemplaza el bucle indefinido anterior (_startRecognitionLoop,
+     * que corria cada 2.5s sin parar mientras el kiosco estuviera
+     * montado). Ese bucle generaba un intento de reconocimiento -- y,
+     * antes del fix del backend, un registro en la base de datos --
+     * cada 2.5 segundos incluso sin nadie enfrente de la camara,
+     * acumulando decenas de registros de "no se detecto rostro" por
+     * cada sesion de espera. Ahora el reconocimiento solo corre
+     * cuando el usuario presiona explicitamente "Marcar Asistencia",
+     * y se apaga solo despues de unos segundos si no encuentra a nadie.
+     */
+    startActiveDetection() {
+        if (this.state.status !== "waiting_for_button") return;
+
+        this.state.status = "scanning";
+        this._detectionWindowEnd = Date.now() + ACTIVE_DETECTION_WINDOW;
+
+        const attempt = async () => {
+            // La ventana pudo cerrarse mientras un intento anterior
+            // seguia en curso (ej. esperando la respuesta del backend);
+            // no seguir intentando ni programar el siguiente intento.
+            if (this.state.status !== "scanning") return;
+
+            if (Date.now() >= this._detectionWindowEnd) {
+                this._stopActiveDetection();
+                return;
+            }
+            if (!this._isRecognizing) {
+                await this._doRecognition();
+            }
+            // Si _doRecognition() encontro una coincidencia, ya cambio
+            // this.state.status a "success" -- no programar otro intento.
+            if (this.state.status === "scanning") {
+                this._activeDetectionTimer = setTimeout(attempt, RECOGNITION_INTERVAL);
+            }
+        };
+        this._activeDetectionTimer = setTimeout(attempt, RECOGNITION_INTERVAL);
+    }
+
+    _stopActiveDetection() {
+        clearTimeout(this._activeDetectionTimer);
+        this._activeDetectionTimer = null;
+        if (this.state.status === "scanning") {
+            this.state.status = "waiting_for_button";
+        }
     }
 
     // ─── Posición GPS en vivo del kiosco ──────────────────────────────────────
@@ -193,35 +254,49 @@ export class FacialAttendanceKiosk extends Component {
             });
 
             if (result.success) {
+                clearTimeout(this._activeDetectionTimer);
+                this._activeDetectionTimer = null;
                 this.state.status = "success";
                 this.state.result = result;
 
                 clearTimeout(this._resultTimer);
                 this._resultTimer = setTimeout(() => {
-                    this.state.status = "ready";
+                    this.state.status = "waiting_for_button";
                     this.state.result = null;
                 }, RESULT_DISPLAY_TIME);
             } else if (result.error === "kiosk_pending_activation") {
+                clearTimeout(this._activeDetectionTimer);
+                this._activeDetectionTimer = null;
                 this.state.status = "pending_activation";
                 this.state.errorMsg = result.error_detail;
             } else if (result.error === "kiosk_revoked") {
+                clearTimeout(this._activeDetectionTimer);
+                this._activeDetectionTimer = null;
                 this.state.status = "error";
                 this.state.errorMsg = result.error_detail;
             } else {
-                // no_face_detected y no_match son condiciones normales del quiosco,
-                // no errores: simplemente volver al estado "listo" en silencio.
+                // no_face_detected y no_match son condiciones normales
+                // durante la ventana de deteccion activa -- se deja el
+                // estado en "scanning" para que startActiveDetection()
+                // siga reintentando hasta que se acabe la ventana de
+                // tiempo o alguien sea reconocido. No es un error real,
+                // asi que NO se detiene el ciclo activo por esto.
                 const silentErrors = ["no_face_detected", "no_match"];
                 if (silentErrors.includes(result.error)) {
-                    this.state.status = "ready";
+                    this.state.status = "scanning";
                 } else {
+                    clearTimeout(this._activeDetectionTimer);
+                    this._activeDetectionTimer = null;
                     this.state.status = "error";
                     this.state.errorMsg = result.error_detail || "Error desconocido";
-                    setTimeout(() => { this.state.status = "ready"; }, 3000);
+                    setTimeout(() => { this.state.status = "waiting_for_button"; }, 3000);
                 }
             }
         } catch (err) {
             console.error("[FacialAttendance] Error RPC:", err);
-            this.state.status = "ready";
+            clearTimeout(this._activeDetectionTimer);
+            this._activeDetectionTimer = null;
+            this.state.status = "waiting_for_button";
         } finally {
             this._isRecognizing = false;
         }
@@ -230,7 +305,7 @@ export class FacialAttendanceKiosk extends Component {
     // ─── Cleanup ──────────────────────────────────────────────────────────────
 
     _cleanup() {
-        clearInterval(this._recognitionTimer);
+        clearTimeout(this._activeDetectionTimer);
         clearInterval(this._clockTimer);
         clearInterval(this._gpsStatusTimer);
         clearTimeout(this._resultTimer);
@@ -253,6 +328,7 @@ export class FacialAttendanceKiosk extends Component {
     get showNoCamera() { return this.state.status === "no_camera"; }
     get showLoading()  { return this.state.status === "loading"; }
     get showPendingActivation() { return this.state.status === "pending_activation"; }
+    get showWaitingButton() { return this.state.status === "waiting_for_button"; }
     get resultOutOfRange() { return !!(this.state.result && this.state.result.out_of_range); }
     get actionClass()  { return this.state.result?.action_type || ""; }
 

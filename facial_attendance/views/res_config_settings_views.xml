@@ -41,6 +41,11 @@
                                  help="Activa /facial_attendance/kiosk/public para tablets dedicadas en la entrada sin requerir inicio de sesión de Odoo. Use solo en redes controladas.">
                             <field name="facial_enable_public_kiosk"/>
                         </setting>
+                        <setting string="Enlace del Quiosco Público"
+                                 invisible="not facial_enable_public_kiosk"
+                                 help="Copie este enlace y ábralo en el dispositivo dedicado (tablet, celular, computadora).">
+                            <field name="facial_public_kiosk_url" widget="CopyClipboardChar" readonly="1"/>
+                        </setting>
                     </block>
 
                     <block title="Quioscos con Reconocimiento Facial">

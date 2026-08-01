@@ -97,6 +97,9 @@
                         <group invisible="not require_gps">
                             <field name="kiosk_latitude" readonly="1"/>
                             <field name="kiosk_longitude" readonly="1"/>
+                            <field name="maps_url" widget="url"
+                                   text="Ver ubicación en Google Maps"
+                                   invisible="not maps_url"/>
                             <div class="text-muted" colspan="2">
                                 Estas coordenadas se capturan automáticamente
                                 desde el propio dispositivo la primera vez

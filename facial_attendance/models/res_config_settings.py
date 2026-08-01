@@ -47,6 +47,20 @@ class ResConfigSettings(models.TransientModel):
              'Activelo solo si el dispositivo esta en una red controlada, '
              'ya que expone el reconocimiento facial sin autenticacion.',
     )
+    facial_public_kiosk_url = fields.Char(
+        string='Enlace del Quiosco Publico',
+        compute='_compute_facial_public_kiosk_url',
+        help='URL completa del quiosco publico, lista para copiar y abrir '
+             'directamente en el dispositivo dedicado (tablet, celular).',
+    )
+
+    @api.depends('facial_enable_public_kiosk')
+    def _compute_facial_public_kiosk_url(self):
+        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url', '')
+        for rec in self:
+            rec.facial_public_kiosk_url = (
+                f'{base_url}/facial_attendance/kiosk/public' if base_url else False
+            )
     facial_replace_native_kiosk = fields.Boolean(
         string='Usar reconocimiento facial como quiosco principal',
         default=False,

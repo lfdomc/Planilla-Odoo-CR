@@ -178,6 +178,22 @@ class FacialAttendanceKiosk(models.Model):
              'referencia. Se marca automaticamente la primera vez que el '
              'kiosco reporta su posicion con require_gps activo.',
     )
+    maps_url = fields.Char(
+        string='Ver en Google Maps', compute='_compute_maps_url',
+        help='Enlace a Google Maps con la ubicacion de referencia del '
+             'kiosco (la sede vinculada si tiene coordenadas propias, '
+             'o la capturada por el dispositivo), para verificar '
+             'visualmente en un mapa que la posicion sea correcta.',
+    )
+
+    @api.depends('kiosk_latitude', 'kiosk_longitude', 'branch_res_id')
+    def _compute_maps_url(self):
+        for rec in self:
+            lat, lng, _source = rec.get_reference_coordinates()
+            if lat and lng:
+                rec.maps_url = f'https://www.google.com/maps?q={lat},{lng}'
+            else:
+                rec.maps_url = False
 
     log_ids = fields.One2many(
         'facial.attendance.log', 'kiosk_id', string='Marcaciones',

@@ -72,6 +72,14 @@
                     <div class="overlay-sub" t-esc="state.errorMsg"/>
                 </div>
 
+                <!-- Boton: listo para marcar, esperando que el usuario inicie la deteccion -->
+                <div t-if="showWaitingButton" class="o_facial_overlay o_facial_waiting_button">
+                    <button class="o_facial_mark_btn" t-on-click="startActiveDetection">
+                        Marcar Asistencia
+                    </button>
+                    <div class="overlay-sub">Presione el boton y mire a la camara</div>
+                </div>
+
                 <!-- Overlay: éxito (verde normal, ambar si quedo fuera de area) -->
                 <div t-if="showResult"
                      class="o_facial_overlay"

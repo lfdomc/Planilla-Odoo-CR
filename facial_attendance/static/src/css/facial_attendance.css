@@ -220,6 +220,37 @@
     text-align: center;
 }
 
+/* ─── Boton de Marcar Asistencia (espera por accion del usuario) ────────────── */
+
+.o_facial_waiting_button {
+    background: rgba(15, 23, 42, 0.35);
+}
+
+.o_facial_mark_btn {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    border: none;
+    border-radius: 999px;
+    padding: 18px 48px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(37, 99, 235, 0.5);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    /* Boton grande y facil de tocar en tablet/celular */
+    min-width: 220px;
+    min-height: 56px;
+}
+
+.o_facial_mark_btn:hover {
+    transform: scale(1.03);
+    box-shadow: 0 6px 24px rgba(37, 99, 235, 0.65);
+}
+
+.o_facial_mark_btn:active {
+    transform: scale(0.98);
+}
+
 /* ─── Guía de posición facial ───────────────────────────────────────────────── */
 
 .o_facial_guide {

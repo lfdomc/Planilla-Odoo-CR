@@ -211,9 +211,12 @@ class FacialAttendanceController(http.Controller):
         face_locations = face_recognition.face_locations(image_np, model=recognition_model)
         if not face_locations:
             detail = 'No se detecto ningun rostro. Acerquese a la camara.'
-            FacialLog.create_failed_log(error_code='no_face_detected',
-                                        error_detail=detail, device_ip=device_ip,
-                                        kiosk_id=kiosk.id if kiosk else None)
+            # FIX: ya no se registra en la base de datos -- "no habia
+            # nadie enfrente" no aporta valor de auditoria, y generaba
+            # decenas de registros identicos por sesion mientras el
+            # kiosco esperaba a que alguien se acercara. Los demas
+            # errores reales (no_match, encoding_failed,
+            # no_employees_registered) si se siguen registrando.
             return {'success': False, 'error': 'no_face_detected', 'error_detail': detail}
 
         captured_encodings = face_recognition.face_encodings(image_np, face_locations)
