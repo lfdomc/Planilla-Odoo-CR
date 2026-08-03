@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_facial_log_cleanup_wizard_form" model="ir.ui.view">
+        <field name="name">facial.log.cleanup.wizard.form</field>
+        <field name="model">facial.log.cleanup.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Limpiar Imagenes Antiguas">
+                <div class="alert alert-warning" role="alert">
+                    <i class="fa fa-exclamation-triangle"/> Esto elimina las
+                    fotos capturadas de reconocimientos antiguos para liberar
+                    espacio. Los registros de marcación (fecha, empleado,
+                    resultado) NO se borran, solo las imágenes.
+                </div>
+                <group>
+                    <field name="days"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object"
+                            string="Eliminar Imagenes Antiguas" class="btn-primary"/>
+                    <button special="cancel" string="Cancelar" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_facial_log_cleanup_wizard" model="ir.actions.act_window">
+        <field name="name">Limpiar Imagenes Antiguas</field>
+        <field name="res_model">facial.log.cleanup.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

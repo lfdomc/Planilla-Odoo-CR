@@ -32,6 +32,7 @@
         'views/facial_attendance_log_views.xml',
         'views/facial_attendance_branch_views.xml',
         'wizard/facial_kiosk_activate_wizard_views.xml',
+        'wizard/facial_log_cleanup_wizard_views.xml',
         'views/facial_attendance_kiosk_model_views.xml',
         'views/facial_attendance_kiosk_views.xml',
         'views/res_config_settings_views.xml',

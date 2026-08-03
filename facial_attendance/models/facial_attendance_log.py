@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import base64
 import logging
+from datetime import timedelta
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
@@ -100,6 +101,23 @@ class FacialAttendanceLog(models.Model):
              'fuera del radio permitido configurado en el kiosco. '
              'Requiere revision del supervisor.',
     )
+    gps_status_label = fields.Char(
+        string='Estado GPS', compute='_compute_gps_status_label',
+        help='Resumen legible del estado GPS de esta marcacion: si '
+             'quedo dentro del radio permitido, fuera de rango, o si '
+             'el kiosco no tiene GPS complementario activado.',
+    )
+
+    @api.depends('out_of_range', 'gps_latitude', 'gps_longitude', 'gps_distance_meters')
+    def _compute_gps_status_label(self):
+        for rec in self:
+            if not rec.gps_latitude and not rec.gps_longitude:
+                rec.gps_status_label = 'Sin GPS'
+            elif rec.out_of_range:
+                dist = f' ({rec.gps_distance_meters:.0f}m)' if rec.gps_distance_meters else ''
+                rec.gps_status_label = f'Fuera de rango{dist}'
+            else:
+                rec.gps_status_label = 'Dentro del rango'
 
     department_id = fields.Many2one(
         related='employee_id.department_id',
@@ -254,6 +272,36 @@ class FacialAttendanceLog(models.Model):
                 })
 
         return False
+
+    @api.model
+    def action_cleanup_old_images(self, days=30):
+        """
+        Borra las imagenes capturadas (captured_image) de registros con
+        mas de 'days' dias de antiguedad, sin borrar los registros de
+        log en si -- el historial de marcaciones (fecha, empleado,
+        confianza, resultado) se conserva intacto, solo se libera el
+        espacio de las fotos adjuntas.
+
+        Pensado para dos casos:
+          1. Limpieza periodica si 'Guardar imagenes capturadas' esta
+             activo permanentemente (ej. cron mensual).
+          2. Limpieza puntual de las imagenes que ya se acumularon
+             mientras el toggle estuvo activo, antes de desactivarlo.
+        """
+        cutoff = fields.Datetime.now() - timedelta(days=days)
+        old_logs = self.search([
+            ('recognition_date', '<', cutoff),
+            ('captured_image', '!=', False),
+        ])
+        count = len(old_logs)
+        if count:
+            old_logs.write({'captured_image': False})
+            _logger.info(
+                'facial_attendance: %d imagen(es) capturada(s) eliminada(s) '
+                '(registros con mas de %d dias de antiguedad).',
+                count, days,
+            )
+        return count
 
 # Nota: el modelo 'facial.attendance.config' (configuracion de quiosco) se
 # elimino en v19.0.1.1.0 porque no estaba conectado a ninguna logica real:

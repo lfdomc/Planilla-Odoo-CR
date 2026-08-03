@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Menú principal dentro de Asistencias -->
+    <!-- Menú principal dentro de Asistencias.
+         FIX: sequence=30 (antes 1), el menu nativo "Check In / Check
+         Out" usa sequence=10 y "Manage Attendances" (registros
+         normales de asistencia) usa sequence=20 en Odoo 19 (confirmado
+         contra el codigo fuente real de hr_attendance). Con sequence=1
+         este menu quedaba ANTES de ambos, haciendo que "Reconocimiento
+         Facial" apareciera como la primera pantalla al entrar al
+         modulo de Asistencias, en vez del comportamiento nativo
+         esperado (que muestre primero los registros de asistencia). -->
     <menuitem id="menu_facial_attendance_root"
               name="Reconocimiento Facial"
               parent="hr_attendance.menu_hr_attendance_root"
-              sequence="1"
+              sequence="30"
               groups="hr.group_hr_user"/>
 
     <!-- Quiosco: sequence=1 lo ubica como primera opcion visible dentro
@@ -50,6 +58,13 @@
               groups="hr.group_hr_manager"/>
 
     <!-- Configuración -->
+    <menuitem id="menu_facial_log_cleanup"
+              name="Limpiar Imagenes Antiguas"
+              parent="menu_facial_attendance_root"
+              action="action_facial_log_cleanup_wizard"
+              sequence="26"
+              groups="hr.group_hr_manager"/>
+
     <menuitem id="menu_facial_attendance_config"
               name="Configuración"
               parent="menu_facial_attendance_root"

@@ -20,8 +20,15 @@ class ResConfigSettings(models.TransientModel):
     )
     facial_save_images = fields.Boolean(
         string='Guardar imagenes capturadas',
-        default=True,
+        default=False,
         config_parameter='facial_attendance.save_images',
+        help='Si esta activo, CADA intento de reconocimiento (exitoso o '
+             'fallido) guarda la foto capturada como adjunto permanente. '
+             'Con el tiempo esto acumula miles de imagenes en el '
+             'servidor sin ningun mecanismo de limpieza automatica. '
+             'Se recomienda dejarlo desactivado (por defecto) y '
+             'activarlo solo temporalmente si necesita revisar por que '
+             'un dispositivo no esta reconociendo bien a los empleados.',
     )
     facial_auto_action = fields.Boolean(
         string='Accion automatica (entrada/salida)',
