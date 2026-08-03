@@ -221,10 +221,21 @@ class FacialAttendanceController(http.Controller):
         image_np = np.array(image)
 
         ICP = env['ir.config_parameter'].sudo()
+        # IMPORTANTE: Odoo BORRA la fila de ir.config_parameter (no la
+        # deja en 'False') cuando un campo Boolean de Ajustes se
+        # desmarca y se guarda. Esto significa que get_param() siempre
+        # cae al default especificado aqui cuando el usuario desactiva
+        # un toggle -- ese default DEBE coincidir exactamente con el
+        # default=... del campo correspondiente en
+        # res_config_settings.py, o el toggle parecera no tener efecto
+        # (sintoma real que ocurrio con save_images: el campo tenia
+        # default=False en Python, pero el get_param() de aqui seguia
+        # usando 'True' como default, asi que desmarcar y guardar el
+        # toggle nunca cambiaba el comportamiento real).
         tolerance = float(ICP.get_param('facial_attendance.tolerance', 0.55))
         confidence_threshold = float(ICP.get_param('facial_attendance.confidence_threshold', 60.0))
         recognition_model = ICP.get_param('facial_attendance.recognition_model', 'hog')
-        save_images = ICP.get_param('facial_attendance.save_images', 'True') == 'True'
+        save_images = ICP.get_param('facial_attendance.save_images', 'False') == 'True'
         auto_action = ICP.get_param('facial_attendance.auto_action', 'True') == 'True'
 
         face_locations = face_recognition.face_locations(image_np, model=recognition_model)
