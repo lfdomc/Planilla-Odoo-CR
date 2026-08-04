@@ -105,7 +105,8 @@ class FacialAttendanceBranch(models.Model):
         ])
         existing_by_source = {b.planilla_branch_res_id: b for b in existing}
 
-        created, updated = 0, 0
+        updated = 0
+        create_vals_list = []
         for pb in planilla_branches:
             vals = {
                 'name': pb.name,
@@ -117,11 +118,22 @@ class FacialAttendanceBranch(models.Model):
                 'planilla_branch_res_id': pb.id,
             }
             if pb.id in existing_by_source:
+                # Odoo no soporta escribir valores DISTINTOS por
+                # registro en una sola operacion nativa -- las
+                # actualizaciones siguen siendo individuales. El caso
+                # mas comun (primera sincronizacion, sin sucursales
+                # existentes aun) ya no pasa por aqui.
                 existing_by_source[pb.id].sudo().write(vals)
                 updated += 1
             else:
-                self.sudo().create(vals)
-                created += 1
+                create_vals_list.append(vals)
+
+        # FIX N+1: agrupar todas las creaciones en un solo create()
+        # batch, en vez de una consulta de creacion por cada sucursal
+        # nueva -- reduce N queries a 1 para el caso mas comun.
+        created = len(create_vals_list)
+        if create_vals_list:
+            self.sudo().create(create_vals_list)
 
         return {
             'type': 'ir.actions.client',

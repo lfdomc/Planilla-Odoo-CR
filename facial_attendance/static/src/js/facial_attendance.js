@@ -302,13 +302,14 @@ export class FacialAttendanceKiosk extends Component {
                 this.state.status = "error";
                 this.state.errorMsg = result.error_detail;
             } else {
-                // no_face_detected y no_match son condiciones normales
-                // durante la ventana de deteccion activa -- se deja el
-                // estado en "scanning" para que startActiveDetection()
-                // siga reintentando hasta que se acabe la ventana de
-                // tiempo o alguien sea reconocido. No es un error real,
-                // asi que NO se detiene el ciclo activo por esto.
-                const silentErrors = ["no_face_detected", "no_match"];
+                // no_face_detected, no_match y liveness_check son
+                // condiciones normales durante la ventana de deteccion
+                // activa -- se deja el estado en "scanning" para que
+                // startActiveDetection() siga reintentando hasta que
+                // se acabe la ventana de tiempo o alguien sea
+                // reconocido. No son errores reales, asi que NO se
+                // detiene el ciclo activo por esto.
+                const silentErrors = ["no_face_detected", "no_match", "liveness_check"];
                 if (silentErrors.includes(result.error)) {
                     this.state.status = "scanning";
                 } else {

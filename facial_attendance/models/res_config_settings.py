@@ -18,6 +18,23 @@ class ResConfigSettings(models.TransientModel):
         config_parameter='facial_attendance.confidence_threshold',
         digits=(5, 2),
     )
+    facial_liveness_enabled = fields.Boolean(
+        string='Deteccion de vida (anti-suplantacion)',
+        default=False,
+        config_parameter='facial_attendance.liveness_enabled',
+        help='Exige confirmar un parpadeo real antes de aceptar el '
+             'reconocimiento, para evitar que alguien marque asistencia '
+             'de otra persona mostrando una foto (impresa o en '
+             'pantalla) a la camara en vez de su propio rostro -- '
+             'tecnica conocida en la industria como "buddy punching". '
+             'Añade 1-2 intentos adicionales al proceso normal (la '
+             'persona ya esta parada frente a la camara varios '
+             'segundos de forma natural; el sistema aprovecha ese '
+             'tiempo para confirmar el parpadeo sin pedir nada '
+             'especial). Desactivado por defecto -- activelo si sus '
+             'kioscos estan en zonas sin supervision donde suplantar '
+             'la identidad de otro empleado sea un riesgo real.',
+    )
     facial_save_images = fields.Boolean(
         string='Guardar imagenes capturadas',
         default=False,

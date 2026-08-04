@@ -53,6 +53,25 @@ class FacialAttendanceKiosk(models.Model):
              'regenerarse con el boton "Regenerar Enlace" si se '
              'compromete o se quiere invalidar el anterior.',
     )
+    liveness_last_ear = fields.Float(
+        string='Ultimo EAR Observado (interno)', digits=(4, 3),
+        help='Ultimo Eye Aspect Ratio (indicador de apertura de ojos) '
+             'observado en un intento de reconocimiento de este kiosco. '
+             'Se usa internamente para deteccion de vida por parpadeo: '
+             'se compara contra el EAR del siguiente intento para '
+             'confirmar que hubo un cambio real (ojo abierto -> cerrado '
+             'o viceversa), evitando que una foto estatica de otra '
+             'persona pueda marcar asistencia. Se guarda en la base de '
+             'datos (no en memoria del servidor) para funcionar '
+             'correctamente sin importar cuantos workers/procesos '
+             'tenga el servidor de produccion.',
+    )
+    liveness_last_ear_time = fields.Datetime(
+        string='Hora del Ultimo EAR (interno)',
+        help='Momento en que se registro liveness_last_ear -- si ya '
+             'pasaron mas de LIVENESS_WINDOW_SECONDS, se considera que '
+             'el intento anterior ya expiro y no cuenta para comparar.',
+    )
     kiosk_url = fields.Char(
         string='Enlace del Kiosco', compute='_compute_kiosk_url',
         help='Enlace directo y unico de este kiosco. Abralo en el '

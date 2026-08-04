@@ -1,11 +1,21 @@
 # -*- coding: utf-8 -*-
-import base64
-import json
-import logging
-import io
+"""
+Flujo principal de reconocimiento facial: recibe una foto, encuentra
+el rostro, lo compara contra los empleados registrados, y registra la
+asistencia si hay coincidencia.
 
-from odoo import http, fields, _
+Dividido en sub-metodos con responsabilidad unica (ver _do_recognize)
+para que cada paso del proceso sea facil de leer, probar y modificar
+de forma aislada, en vez de una sola funcion larga que hace todo.
+"""
+import base64
+import io
+import logging
+
+from odoo import http, fields
 from odoo.http import request
+
+from . import _liveness_utils
 
 _logger = logging.getLogger(__name__)
 
@@ -17,58 +27,18 @@ try:
 except ImportError:
     FACE_RECOGNITION_AVAILABLE = False
 
+# -- Constantes de deteccion de vida (liveness) por parpadeo -----------------
+LIVENESS_WINDOW_SECONDS = 12  # ventana de tiempo para comparar dos intentos
+                               # consecutivos del mismo kiosco como parte de
+                               # la misma "sesion" de verificacion.
+EAR_BLINK_THRESHOLD = 0.05    # diferencia minima de Eye Aspect Ratio entre
+                               # intentos para considerarla un parpadeo real,
+                               # no ruido normal de la deteccion.
 
-class FacialAttendanceController(http.Controller):
 
-    # -- Quiosco --------------------
+class FacialRecognitionController(http.Controller):
 
-    @http.route('/facial_attendance/kiosk', type='http', auth='user', website=False)
-    def kiosk(self, **kwargs):
-        """Pagina principal del quiosco (usuario logueado en el backend)."""
-        return request.render('facial_attendance.kiosk_template', {
-            'company': request.env.company,
-            'public_mode': False,
-            'public_kiosk_enabled': True,
-            'recognize_url': '/facial_attendance/recognize',
-        })
-
-    @http.route('/facial_attendance/kiosk/public', type='http', auth='public', website=False)
-    def kiosk_public(self, **kwargs):
-        """Quiosco en modo publico (sin login), pensado para tablets dedicadas.
-        Debe habilitarse explicitamente desde Ajustes por motivos de seguridad."""
-        ICP = request.env['ir.config_parameter'].sudo()
-        enabled = ICP.get_param('facial_attendance.enable_public_kiosk', 'False') == 'True'
-        return request.render('facial_attendance.kiosk_template', {
-            'company': request.env.company,
-            'public_mode': True,
-            'public_kiosk_enabled': enabled,
-            'recognize_url': '/facial_attendance/kiosk/public/recognize',
-        })
-
-    @http.route('/facial_attendance/k/<string:token>', type='http', auth='public', website=False)
-    def kiosk_by_token(self, token, **kwargs):
-        """Enlace directo y unico de un kiosco especifico, identificado por
-        su access_token. Publico (sin login) y sin ningun menu de Odoo
-        alrededor -- equivalente al enlace con token que genera el
-        Modo Quiosco nativo de Asistencias, pero propio de Reconocimiento
-        Facial y por kiosco individual (cada dispositivo puede tener su
-        propio enlace, en vez de un unico enlace compartido por toda la
-        compania).
-
-        No requiere que el toggle 'quiosco publico' este activo -- el
-        propio token ya es el mecanismo de control de acceso, igual que
-        el token del kiosco nativo de Odoo.
-        """
-        Kiosk = request.env['facial.attendance.kiosk'].sudo()
-        kiosk = Kiosk.search([('access_token', '=', token)], limit=1)
-        if not kiosk:
-            return request.render('facial_attendance.kiosk_invalid_token_template', {})
-        return request.render('facial_attendance.kiosk_template', {
-            'company': kiosk.company_id or request.env.company,
-            'public_mode': True,
-            'public_kiosk_enabled': True,
-            'recognize_url': f'/facial_attendance/k/{token}/recognize',
-        })
+    # -- Rutas HTTP -----------------------------------------------------
 
     @http.route('/facial_attendance/k/<string:token>/recognize',
                 type='json', auth='public', methods=['POST'])
@@ -90,18 +60,6 @@ class FacialAttendanceController(http.Controller):
             image_data, action_type=action_type, device_ip=device_ip,
             device_token=device_token, gps_lat=gps_lat, gps_lng=gps_lng,
         )
-
-    @http.route('/facial_attendance/k/<string:token>/kiosk_status',
-                type='json', auth='public', methods=['POST'])
-    def kiosk_status_by_token(self, token, device_token=None,
-                               gps_lat=None, gps_lng=None, **kwargs):
-        """Variante de kiosk_status para el enlace con token por kiosco."""
-        Kiosk = request.env['facial.attendance.kiosk'].sudo()
-        if not Kiosk.search_count([('access_token', '=', token)]):
-            return {'status': 'not_required', 'distance_meters': None}
-        return self._do_kiosk_status(device_token, gps_lat, gps_lng)
-
-    # -- API de reconocimiento (usuario autenticado) --------------------
 
     @http.route('/facial_attendance/recognize', type='json', auth='user', methods=['POST'])
     def recognize_face(self, image_data, action_type=None, device_ip=None,
@@ -137,7 +95,16 @@ class FacialAttendanceController(http.Controller):
             return {
                 'success': False,
                 'error': 'error_interno',
-                'error_detail': str(e),
+                # No se expone str(e) (detalle tecnico crudo de la
+                # excepcion) en la respuesta publica -- queda registrado
+                # en el log interno (arriba) y en el log del servidor
+                # para diagnostico del administrador, pero el kiosco
+                # publico solo ve un mensaje generico y seguro.
+                'error_detail': (
+                    'Ocurrio un error inesperado al procesar el '
+                    'reconocimiento. Intente de nuevo o contacte a un '
+                    'administrador si el problema persiste.'
+                ),
             }
 
     @http.route('/facial_attendance/kiosk/public/recognize',
@@ -163,10 +130,20 @@ class FacialAttendanceController(http.Controller):
             log_on_failure=log_on_failure,
         )
 
+    # -- Orquestacion principal -------------------------------------------
+
     def _do_recognize(self, image_data, action_type, device_ip,
                        device_token=None, gps_lat=None, gps_lng=None,
                        log_on_failure=True):
-        """Logica principal de reconocimiento facial.
+        """
+        Logica principal de reconocimiento facial, dividida en pasos
+        claros (cada uno en su propio metodo privado abajo):
+          1. Resolver/registrar el kiosco desde el token del dispositivo.
+          2. Decodificar la imagen recibida.
+          3. Verificar deteccion de vida por parpadeo (si esta activa).
+          4. Detectar el rostro y compararlo contra los empleados
+             registrados.
+          5. Registrar la asistencia y armar la respuesta final.
 
         log_on_failure: si es False, los intentos fallidos (no_match,
         encoding_failed) NO se registran en facial.attendance.log. Se
@@ -180,45 +157,12 @@ class FacialAttendanceController(http.Controller):
         """
         env = request.env
         FacialLog = env['facial.attendance.log'].sudo()
-        Kiosk = env['facial.attendance.kiosk'].sudo()
 
-        # -- Resolver/registrar el kiosco desde el token del dispositivo --
-        # Si no se envia token (navegador viejo en cache, o llamada
-        # directa a la API), se continua sin kiosco -- no bloquea la
-        # marcacion, solo queda sin device asociado ni validacion GPS.
-        kiosk = Kiosk.browse()
-        if device_token:
-            user_agent = request.httprequest.headers.get('User-Agent', '')
-            kiosk = Kiosk.get_or_create_pending(
-                device_token, user_agent=user_agent,
-                gps_lat=gps_lat, gps_lng=gps_lng,
-            )
-            if kiosk and kiosk.state == 'pending':
-                return {
-                    'success': False,
-                    'error': 'kiosk_pending_activation',
-                    'error_detail': (
-                        'Este dispositivo aun no ha sido activado. '
-                        'Contacte a un administrador para autorizarlo '
-                        'desde Reconocimiento Facial > Kioscos.'
-                    ),
-                }
-            if kiosk and kiosk.state == 'revoked':
-                return {
-                    'success': False,
-                    'error': 'kiosk_revoked',
-                    'error_detail': (
-                        'Este dispositivo fue revocado y ya no puede '
-                        'registrar asistencia. Contacte a un administrador.'
-                    ),
-                }
+        kiosk, kiosk_error = self._resolve_kiosk(device_token, gps_lat, gps_lng)
+        if kiosk_error:
+            return kiosk_error
 
-        if ',' in image_data:
-            image_data = image_data.split(',')[1]
-
-        image_bytes = base64.b64decode(image_data)
-        image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-        image_np = np.array(image)
+        image_np = self._decode_image(image_data)
 
         ICP = env['ir.config_parameter'].sudo()
         # IMPORTANTE: Odoo BORRA la fila de ir.config_parameter (no la
@@ -237,18 +181,165 @@ class FacialAttendanceController(http.Controller):
         recognition_model = ICP.get_param('facial_attendance.recognition_model', 'hog')
         save_images = ICP.get_param('facial_attendance.save_images', 'False') == 'True'
         auto_action = ICP.get_param('facial_attendance.auto_action', 'True') == 'True'
+        liveness_enabled = ICP.get_param('facial_attendance.liveness_enabled', 'False') == 'True'
 
         face_locations = face_recognition.face_locations(image_np, model=recognition_model)
         if not face_locations:
             detail = 'No se detecto ningun rostro. Acerquese a la camara.'
-            # FIX: ya no se registra en la base de datos -- "no habia
-            # nadie enfrente" no aporta valor de auditoria, y generaba
+            # No se registra en la base de datos -- "no habia nadie
+            # enfrente" no aporta valor de auditoria, y generaba
             # decenas de registros identicos por sesion mientras el
             # kiosco esperaba a que alguien se acercara. Los demas
             # errores reales (no_match, encoding_failed,
             # no_employees_registered) si se siguen registrando.
             return {'success': False, 'error': 'no_face_detected', 'error_detail': detail}
 
+        if liveness_enabled and kiosk:
+            liveness_error = self._check_liveness(kiosk, image_np)
+            if liveness_error:
+                return liveness_error
+
+        match_result = self._match_employee(
+            image_np, face_locations, tolerance, confidence_threshold,
+            FacialLog, device_ip, kiosk, log_on_failure,
+        )
+        if not match_result['success']:
+            return match_result
+
+        return self._register_attendance_and_respond(
+            env, FacialLog, match_result, action_type, auto_action,
+            gps_lat, gps_lng, kiosk, image_data, save_images, device_ip,
+        )
+
+    # -- Paso 1: resolver el kiosco ----------------------------------------
+
+    def _resolve_kiosk(self, device_token, gps_lat, gps_lng):
+        """
+        Resuelve el kiosco a partir del token del dispositivo, o lo
+        registra como pendiente de activacion si es la primera vez que
+        se ve ese token.
+
+        Retorna (kiosk, error_response). Si error_response no es None,
+        el llamador debe devolverlo de inmediato sin continuar el
+        reconocimiento (dispositivo pendiente o revocado).
+        """
+        env = request.env
+        Kiosk = env['facial.attendance.kiosk'].sudo()
+        kiosk = Kiosk.browse()
+
+        # Si no se envia token (navegador viejo en cache, o llamada
+        # directa a la API), se continua sin kiosco -- no bloquea la
+        # marcacion, solo queda sin device asociado ni validacion GPS.
+        if not device_token:
+            return kiosk, None
+
+        user_agent = request.httprequest.headers.get('User-Agent', '')
+        kiosk = Kiosk.get_or_create_pending(
+            device_token, user_agent=user_agent,
+            gps_lat=gps_lat, gps_lng=gps_lng,
+        )
+        if kiosk and kiosk.state == 'pending':
+            return kiosk, {
+                'success': False,
+                'error': 'kiosk_pending_activation',
+                'error_detail': (
+                    'Este dispositivo aun no ha sido activado. '
+                    'Contacte a un administrador para autorizarlo '
+                    'desde Reconocimiento Facial > Kioscos.'
+                ),
+            }
+        if kiosk and kiosk.state == 'revoked':
+            return kiosk, {
+                'success': False,
+                'error': 'kiosk_revoked',
+                'error_detail': (
+                    'Este dispositivo fue revocado y ya no puede '
+                    'registrar asistencia. Contacte a un administrador.'
+                ),
+            }
+        return kiosk, None
+
+    # -- Paso 2: decodificar la imagen -------------------------------------
+
+    @staticmethod
+    def _decode_image(image_data):
+        """Convierte la imagen recibida en base64 a un array de NumPy RGB."""
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        image_bytes = base64.b64decode(image_data)
+        image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        return np.array(image)
+
+    # -- Paso 3: deteccion de vida por parpadeo ----------------------------
+
+    def _check_liveness(self, kiosk, image_np):
+        """
+        Verifica deteccion de vida por parpadeo (anti-suplantacion):
+        compara el Eye Aspect Ratio (EAR) del intento actual contra el
+        guardado en el kiosco del intento anterior. Si ambos existen y
+        estan dentro de LIVENESS_WINDOW_SECONDS, un cambio significativo
+        entre ellos (>= EAR_BLINK_THRESHOLD) confirma parpadeo real.
+
+        El EAR se guarda en la BASE DE DATOS (no en memoria del
+        proceso) para funcionar correctamente sin importar cuantos
+        workers tenga el servidor de produccion.
+
+        Retorna None si el parpadeo se confirma (o si no se pudo
+        calcular el EAR, para no bloquear el flujo por un caso
+        tecnico), o el diccionario de rechazo si aun no se confirma.
+        """
+        current_ear = _liveness_utils.get_ear_from_image(image_np)
+        if current_ear is None:
+            return None
+
+        prev_ear = kiosk.liveness_last_ear
+        prev_time = kiosk.liveness_last_ear_time
+        blink_confirmed = False
+        if prev_ear and prev_time:
+            seconds_elapsed = (fields.Datetime.now() - prev_time).total_seconds()
+            if seconds_elapsed <= LIVENESS_WINDOW_SECONDS:
+                if abs(current_ear - prev_ear) >= EAR_BLINK_THRESHOLD:
+                    blink_confirmed = True
+
+        if not blink_confirmed:
+            # Guardar el EAR actual para comparar en el proximo
+            # intento, y rechazar este intento pidiendo que se
+            # mantenga frente a la camara un momento mas.
+            kiosk.sudo().write({
+                'liveness_last_ear': current_ear,
+                'liveness_last_ear_time': fields.Datetime.now(),
+            })
+            return {
+                'success': False,
+                'error': 'liveness_check',
+                'error_detail': (
+                    'Verificando... mantenga la mirada en la '
+                    'camara un momento.'
+                ),
+            }
+
+        # Parpadeo confirmado: limpiar el estado para no reusar el
+        # mismo parpadeo en un intento futuro no relacionado.
+        kiosk.sudo().write({
+            'liveness_last_ear': 0.0,
+            'liveness_last_ear_time': False,
+        })
+        return None
+
+    # -- Paso 4: detectar y comparar el rostro -----------------------------
+
+    def _match_employee(self, image_np, face_locations, tolerance,
+                         confidence_threshold, FacialLog, device_ip,
+                         kiosk, log_on_failure):
+        """
+        Calcula la codificacion facial del rostro detectado y la
+        compara contra todos los empleados con rostro registrado.
+
+        Retorna un dict. Si 'success' es False, es la respuesta final
+        que el llamador debe devolver de inmediato. Si es True, incluye
+        'employee_id', 'employee_name' y 'confidence' para que
+        _register_attendance_and_respond() continue el flujo.
+        """
         captured_encodings = face_recognition.face_encodings(image_np, face_locations)
         if not captured_encodings:
             detail = 'No se pudo procesar el rostro detectado.'
@@ -258,7 +349,7 @@ class FacialAttendanceController(http.Controller):
             return {'success': False, 'error': 'encoding_failed', 'error_detail': detail}
         captured_encoding = captured_encodings[0]
 
-        all_encodings = env['hr.employee'].sudo().get_all_face_encodings()
+        all_encodings = request.env['hr.employee'].sudo().get_all_face_encodings()
         if not all_encodings:
             detail = 'No hay empleados con rostro registrado en el sistema.'
             FacialLog.create_failed_log(error_code='no_employees_registered',
@@ -266,7 +357,11 @@ class FacialAttendanceController(http.Controller):
                                         kiosk_id=kiosk.id if kiosk else None)
             return {'success': False, 'error': 'no_employees_registered', 'error_detail': detail}
 
-        known_encodings = [np.array(e['encoding']) for e in all_encodings]
+        # get_all_face_encodings() ya devuelve cada 'encoding' como
+        # np.array (no como lista de Python), asi que ya no hace falta
+        # reconstruirlo aqui -- esa conversion ocurre una sola vez
+        # dentro del cache, no en cada llamada.
+        known_encodings = [e['encoding'] for e in all_encodings]
         distances = face_recognition.face_distance(known_encodings, captured_encoding)
 
         best_idx = int(np.argmin(distances))
@@ -290,8 +385,27 @@ class FacialAttendanceController(http.Controller):
             }
 
         matched = all_encodings[best_idx]
-        employee_id = matched['employee_id']
-        employee_name = matched['employee_name']
+        return {
+            'success': True,
+            'employee_id': matched['employee_id'],
+            'employee_name': matched['employee_name'],
+            'confidence': confidence,
+        }
+
+    # -- Paso 5: registrar asistencia y armar la respuesta -----------------
+
+    def _register_attendance_and_respond(self, env, FacialLog, match_result,
+                                          action_type, auto_action, gps_lat,
+                                          gps_lng, kiosk, image_data,
+                                          save_images, device_ip):
+        """
+        Determina la accion (entrada/salida), valida GPS de forma
+        complementaria (nunca bloquea la marcacion), crea el registro
+        de asistencia, y arma la respuesta final de exito.
+        """
+        employee_id = match_result['employee_id']
+        employee_name = match_result['employee_name']
+        confidence = match_result['confidence']
 
         if auto_action and not action_type:
             action_type = self._determine_action_type(employee_id)
@@ -356,128 +470,3 @@ class FacialAttendanceController(http.Controller):
             ('check_out', '=', False),
         ], limit=1)
         return 'check_out' if open_att else 'check_in'
-
-    # -- Registro facial --------------------
-
-    @http.route('/facial_attendance/register', type='json', auth='user', methods=['POST'])
-    def register_face(self, employee_id, image_data, **kwargs):
-        """Registra el rostro de un empleado.
-
-        El modelo se escribe con sudo() por simplicidad interna, por lo que el
-        control de acceso debe validarse explicitamente aqui antes de delegar.
-        """
-        if not request.env.user.has_group('hr.group_hr_user'):
-            return {
-                'success': False,
-                'error': 'No tiene permisos para registrar rostros de empleados.',
-            }
-        try:
-            employee = request.env['hr.employee'].browse(int(employee_id))
-            if not employee.exists():
-                return {'success': False, 'error': 'Empleado no encontrado.'}
-            employee.sudo().save_face_encoding(image_data)
-            return {
-                'success': True,
-                'message': 'Rostro de %s registrado exitosamente.' % employee.name,
-                'employee_name': employee.name,
-            }
-        except Exception as e:
-            _logger.error('Error al registrar rostro: %s', str(e))
-            return {'success': False, 'error': str(e)}
-
-    # -- Estado del empleado --------------------
-
-    @http.route('/facial_attendance/employee_status/<int:employee_id>',
-                type='json', auth='user', methods=['GET', 'POST'])
-    def employee_status(self, employee_id, **kwargs):
-        """Retorna el estado de asistencia actual de un empleado."""
-        open_att = request.env['hr.attendance'].sudo().search([
-            ('employee_id', '=', employee_id),
-            ('check_out', '=', False),
-        ], limit=1, order='check_in desc')
-
-        status = 'out'
-        check_in_time = None
-        if open_att:
-            status = 'in'
-            check_in_time = open_att.check_in.strftime('%H:%M') if open_att.check_in else None
-
-        return {
-            'employee_id': employee_id,
-            'status': status,
-            'check_in_time': check_in_time,
-        }
-
-    # -- Verificacion de libreria --------------------
-
-    @http.route('/facial_attendance/kiosk_status', type='json', auth='user', methods=['POST'])
-    def kiosk_status(self, device_token=None, gps_lat=None, gps_lng=None, **kwargs):
-        """Chequeo de posicion EN VIVO del kiosco, sin foto. El frontend
-        lo llama periodicamente mientras la pantalla esta en espera, para
-        mostrar el borde verde ("en el lugar correcto") o naranja/rojo
-        ("fuera de zona") antes de que nadie intente marcar.
-
-        Tambien es el punto donde se captura la ubicacion de referencia
-        del kiosco la primera vez (ver
-        FacialAttendanceKiosk.set_kiosk_location_from_device): si el
-        kiosco requiere GPS y todavia no tiene una ubicacion guardada,
-        la primera posicion valida que llega aqui se convierte en el
-        punto de referencia contra el que se miden todas las
-        marcaciones futuras.
-        """
-        return self._do_kiosk_status(device_token, gps_lat, gps_lng)
-
-    @http.route('/facial_attendance/kiosk/public/kiosk_status',
-                type='json', auth='public', methods=['POST'])
-    def kiosk_status_public(self, device_token=None, gps_lat=None, gps_lng=None, **kwargs):
-        """Variante publica de kiosk_status, para tablets dedicadas sin login."""
-        ICP = request.env['ir.config_parameter'].sudo()
-        if ICP.get_param('facial_attendance.enable_public_kiosk', 'False') != 'True':
-            return {'status': 'not_required', 'distance_meters': None}
-        return self._do_kiosk_status(device_token, gps_lat, gps_lng)
-
-    def _do_kiosk_status(self, device_token, gps_lat, gps_lng):
-        env = request.env
-        Kiosk = env['facial.attendance.kiosk'].sudo()
-
-        if not device_token:
-            return {'status': 'not_required', 'distance_meters': None}
-
-        try:
-            lat_f = float(gps_lat) if gps_lat is not None else None
-            lng_f = float(gps_lng) if gps_lng is not None else None
-        except (TypeError, ValueError):
-            lat_f = lng_f = None
-
-        kiosk = Kiosk.search([('device_token', '=', device_token)], limit=1)
-        if not kiosk or kiosk.state != 'active':
-            # FIX: capturar el GPS desde el primer contacto, aunque el
-            # dispositivo siga pendiente de activacion -- asi el
-            # administrador ya ve la ubicacion real al revisar el
-            # dispositivo pendiente, en vez de tener que activarlo
-            # primero y esperar otra visita para que se reporte el GPS.
-            # get_or_create_pending() ya maneja tanto crear el registro
-            # nuevo como actualizar uno existente que aun no tenga
-            # ubicacion capturada.
-            if lat_f and lng_f:
-                Kiosk.get_or_create_pending(
-                    device_token, gps_lat=lat_f, gps_lng=lng_f,
-                )
-            # El chequeo de posicion "en vivo" (contra el radio permitido)
-            # no aplica todavia -- eso lo maneja el flujo normal de
-            # reconocimiento (recognize_face), que si informa claramente
-            # "dispositivo no activado".
-            return {'status': 'not_required', 'distance_meters': None}
-
-        return kiosk.check_live_position(lat_f, lng_f)
-
-    @http.route('/facial_attendance/check_library', type='json', auth='user', methods=['POST'])
-    def check_library(self, **kwargs):
-        """Verifica si la libreria face_recognition esta disponible."""
-        return {
-            'available': FACE_RECOGNITION_AVAILABLE,
-            'message': (
-                'face_recognition disponible' if FACE_RECOGNITION_AVAILABLE
-                else 'Ejecute: pip install face_recognition numpy Pillow'
-            ),
-        }

@@ -34,7 +34,11 @@ class HrEmployee(models.Model):
     face_image = fields.Binary(
         string='Imagen Facial de Referencia',
         attachment=True,
-        help='Foto de referencia usada para el reconocimiento facial',
+        groups='hr.group_hr_user',
+        help='Foto de referencia usada para el reconocimiento facial. '
+             'Restringida al mismo grupo que face_encoding -- es un dato '
+             'biometrico sensible, no debe ser visible para cualquier '
+             'usuario con acceso de lectura a la ficha del empleado.',
     )
     face_image_filename = fields.Char(string='Nombre de archivo facial')
     face_registered = fields.Boolean(
@@ -220,7 +224,18 @@ class HrEmployee(models.Model):
                 result.append({
                     'employee_id': emp.id,
                     'employee_name': emp.name,
-                    'encoding': encoding,
+                    # FIX RENDIMIENTO: se guarda directamente como
+                    # np.array (no como lista de Python plana) para
+                    # que el ormcache almacene el array ya construido.
+                    # Antes, aunque este metodo ya estaba cacheado, el
+                    # controlador reconstruia np.array(encoding) para
+                    # CADA empleado en CADA ciclo de reconocimiento
+                    # (~cada 2.5s) -- trabajo repetido que el cache no
+                    # evitaba porque devolvia listas planas. Con 50-100
+                    # empleados registrados, esta reconstruccion
+                    # repetida podia sumar una fraccion notable del
+                    # tiempo total de cada intento de reconocimiento.
+                    'encoding': np.array(encoding) if FACE_RECOGNITION_AVAILABLE else encoding,
                 })
             except Exception as e:
                 _logger.warning(

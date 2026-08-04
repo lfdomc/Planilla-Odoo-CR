@@ -23,6 +23,10 @@
                                  help="Porcentaje mínimo para aceptar el reconocimiento. Recomendado: 60%">
                             <field name="facial_confidence_threshold"/>
                         </setting>
+                        <setting string="Detección de Vida (Anti-Suplantación)"
+                                 help="Exige confirmar un parpadeo real antes de aceptar el reconocimiento, para evitar que alguien marque con una foto de otra persona en vez de su propio rostro.">
+                            <field name="facial_liveness_enabled"/>
+                        </setting>
                     </block>
 
                     <block title="Comportamiento">
