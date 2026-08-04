@@ -50,7 +50,11 @@ class FacialAttendanceLog(models.Model):
     confidence = fields.Float(
         string='Confianza (%)',
         digits=(5, 2),
-        help='Porcentaje de confianza del reconocimiento (0-100)',
+        group_operator='avg',
+        help='Porcentaje de confianza del reconocimiento (0-100). '
+             'Al agrupar registros, se muestra el PROMEDIO (no la suma) '
+             '-- un porcentaje sumado entre varios registros no tiene '
+             'significado real.',
     )
     captured_image = fields.Binary(
         string='Imagen Capturada',
@@ -114,7 +118,12 @@ class FacialAttendanceLog(models.Model):
             if not rec.gps_latitude and not rec.gps_longitude:
                 rec.gps_status_label = 'Sin GPS'
             elif rec.out_of_range:
-                dist = f' ({rec.gps_distance_meters:.0f}m)' if rec.gps_distance_meters else ''
+                dist = ''
+                if rec.gps_distance_meters:
+                    if rec.gps_distance_meters >= 1000:
+                        dist = f' ({rec.gps_distance_meters / 1000:.1f}km)'
+                    else:
+                        dist = f' ({rec.gps_distance_meters:.0f}m)'
                 rec.gps_status_label = f'Fuera de rango{dist}'
             else:
                 rec.gps_status_label = 'Dentro del rango'

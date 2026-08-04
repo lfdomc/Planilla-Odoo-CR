@@ -19,8 +19,8 @@
                        decoration-danger="out_of_range"
                        decoration-success="not out_of_range and gps_latitude"
                        decoration-muted="not gps_latitude"/>
-                <field name="out_of_range" invisible="1"/>
-                <field name="gps_latitude" invisible="1"/>
+                <field name="out_of_range" column_invisible="1"/>
+                <field name="gps_latitude" column_invisible="1"/>
                 <field name="action_type" string="Acción"/>
                 <field name="confidence" string="Confianza (%)"/>
                 <field name="state" string="Estado" widget="badge"
