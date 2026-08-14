@@ -206,8 +206,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         #     informacion relevante para este reporte.
         #   - Se agrego Maternidad como columna propia, separada de
         #     Incapacidad C.C.S.S. (antes iban agrupadas).
-        #   - Se agrego Facturas como columna propia (Cobros al
-        #     Empleado: compras/prestamos internos), separada de Otros.
+        #   - "Facturas" y "Prestamos Internos" se unificaron en una
+        #     sola columna "Facturas / Prestamos", porque representan
+        #     el mismo concepto para el negocio (dinero que se le
+        #     descuenta al empleado por una compra o prestamo interno).
         #   - Se agrego Total al final de cada fila: el neto real que
         #     recibe el empleado (ingresos menos todos los rebajos).
         # (encabezado, ancho, tipo: 'lbl'/'ing'/'ded'/'tot', formato)
@@ -224,10 +226,9 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ('Ahorro\nNavideño',                11, 'ded',  fd_ded),
             ('Permiso sin\nGoce de Salario',    12, 'ded',  fd_ded),
             ('Impuesto\nde Renta',              11, 'ded',  fd_ded),
-            ('Facturas',                        11, 'ded',  fd_ded),
+            ('Facturas /\nPrestamos',           13, 'ded',  fd_ded),
             ('Otros',                           11, 'ded',  fd_ded),
             ('Embargos',                        11, 'ded',  fd_ded),
-            ('Préstamos\nInternos',             11, 'ded',  fd_ded),
             ('Total',                           13, 'tot',  None),
         ]
         N = len(cols)
@@ -326,16 +327,28 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ahorro = _sum_cat(slip, 'ahorro')
             permiso_sg = _sum_cat(slip, 'licencia_sin_goce', 'ausencia')
             renta = slip.income_tax or 0
-            embargo = _sum_cat(slip, 'embargo', 'embargo_judicial')
-            prestamos = _sum_cat(slip, 'loan', 'prestamo', 'prestamo_interno')
-            # "Facturas" = Cobros al Empleado (compras/prestamos
-            # internos que se le cobran al empleado, ej. producto
-            # comprado en la empresa) -- antes agrupado dentro de
-            # "Otros", ahora columna propia por pedido explicito.
-            facturas = round(sum(
+            # FIX: 'embargo_judicial' nunca fue una categoria real del
+            # sistema (confirmado contra la definicion real del campo
+            # deduction_category) -- solo 'embargo' existe.
+            embargo = _sum_cat(slip, 'embargo')
+            # FIX: unificar Facturas y Prestamos Internos en una sola
+            # columna, por pedido explicito (son el mismo concepto
+            # para el negocio: dinero que se le descuenta al empleado
+            # por una compra o prestamo interno). Se identifican por
+            # los campos de VINCULO directo (loan_installment_id,
+            # employee_charge_id), no solo por deduction_category --
+            # 'prestamo', 'prestamo_interno', 'cobro', 'cobro_empleado'
+            # y 'employee_charge' nunca fueron categorias reales del
+            # sistema, y aunque 'loan' si es real, no todas las lineas
+            # de prestamo/cobro quedan siempre bien categorizadas con
+            # ese texto -- el vinculo directo al registro de origen es
+            # la fuente confiable.
+            facturas_prestamos = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if getattr(l, 'line_type', '') == 'deduction'
-                and getattr(l, 'deduction_category', '') in ('cobro', 'cobro_empleado', 'employee_charge')
+                and (getattr(l, 'loan_installment_id', False)
+                     or getattr(l, 'employee_charge_id', False)
+                     or getattr(l, 'deduction_category', '') == 'loan')
             ), 2)
             # "Otros" = todo lo demas que no tiene columna propia en este
             # reporte reducido (cuota sindical, cooperativa, ROP,
@@ -343,13 +356,30 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # rebajo consolidado de renta).
             otros_ded = _sum_cat(
                 slip, 'sindical', 'cooperativa', 'rop', 'seguro',
-                'pension_vol', 'pension_alimentaria', 'other')
+                'pension_vol', 'pension_alimentaria')
             otros_ded += round(getattr(slip, 'rebajo_renta_amount', 0) or 0, 2)
+            # Cualquier linea de deduccion que no encaje en NINGUNA
+            # columna especifica de arriba (incluyendo la categoria
+            # 'other' o cualquier otra no contemplada) tambien cae aqui
+            # -- se excluyen explicitamente las lineas ya contadas en
+            # facturas_prestamos y embargo para no duplicarlas.
+            categorias_con_columna_propia = {
+                'ahorro', 'licencia_sin_goce', 'ausencia', 'embargo',
+                'sindical', 'cooperativa', 'rop', 'seguro',
+                'pension_vol', 'pension_alimentaria', 'loan',
+            }
+            otros_ded += round(sum(
+                l.amount for l in slip.deduction_line_ids
+                if getattr(l, 'line_type', '') == 'deduction'
+                and not getattr(l, 'loan_installment_id', False)
+                and not getattr(l, 'employee_charge_id', False)
+                and getattr(l, 'deduction_category', '') not in categorias_con_columna_propia
+            ), 2)
 
             total_rebajos = (
                 ccss_emp + monto_incap_ccss + monto_incap_ins + monto_maternidad
-                + ahorro + permiso_sg + renta + facturas + otros_ded
-                + embargo + prestamos
+                + ahorro + permiso_sg + renta + facturas_prestamos + otros_ded
+                + embargo
             )
             total_empleado = round(sub_total - total_rebajos, 2)
 
@@ -357,8 +387,8 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 emp.name or '',
                 sal_base, otros_ing, extras, sub_total,
                 ccss_emp, monto_incap_ccss, monto_incap_ins, monto_maternidad,
-                ahorro, permiso_sg, renta, facturas, otros_ded, embargo,
-                prestamos, total_empleado,
+                ahorro, permiso_sg, renta, facturas_prestamos, otros_ded, embargo,
+                total_empleado,
             ]
 
             for ci, (val, (_, _, tipo, dfmt)) in enumerate(zip(vals, cols)):
@@ -411,9 +441,12 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             'Datos leidos directamente de las boletas confirmadas. '
             'Total = neto real del empleado (ingresos menos todos los '
             'rebajos). '
+            '"Facturas / Prestamos" = cuotas de prestamos internos y '
+            'cobros al empleado (ej. compras en la empresa). '
             '"Otros" en Rebajos agrupa: cuota sindical, cooperativa, ROP, '
-            'seguro/poliza, pension voluntaria, pension alimentaria, y '
-            'rebajo consolidado de renta.',
+            'seguro/poliza, pension voluntaria, pension alimentaria, '
+            'rebajo consolidado de renta, y cualquier otra deduccion sin '
+            'columna propia en este reporte.',
             note_fmt)
 
         ws.freeze_panes(4, 1)
