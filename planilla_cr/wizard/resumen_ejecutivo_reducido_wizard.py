@@ -398,6 +398,12 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     # individuales, que se dejan en blanco cuando no
                     # aplican para no saturar visualmente la hoja.
                     ws.write(row, ci, val, ft_tot)
+                    # FIX: acumular tambien la columna Total en los
+                    # totales de departamento y general -- antes el
+                    # 'continue' saltaba esta linea, dejando la
+                    # sumatoria de Total vacia en ambas filas de cierre.
+                    totales[ci] += val
+                    dept_totals[ci] += val
                     continue
                 is_num = isinstance(val, (int, float)) and tipo in ('ing', 'ded')
                 ws.write(row, ci, val if val != 0 or not is_num else None, dfmt)
