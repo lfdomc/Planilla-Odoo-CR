@@ -670,9 +670,18 @@ class PayslipValidationMixin(models.AbstractModel):
             # FIX-M3: NO separar licencias_con_goce del sum(income_lines) -- ya estan incluidas
             # en ese total. Separarlas y sumarlas por separado causaba doble conteo, haciendo
             # que max_net_expected fuera mayor de lo correcto y la validacion nunca detectara errores.
+            # FIX: ccss_subsidy_total solo cubre el subsidio CCSS de dias 4+ (por diseño,
+            # ver su docstring) -- NUNCA incluye el subsidio PATRONAL de los dias 1-3 al
+            # 50% (Art. 79 CT), que es un concepto de ingreso legitimo y distinto, calculado
+            # en costo_patrono_periodo. Sin sumarlo aqui, cualquier boleta con incapacidad
+            # que incluya dias 1-3 dentro del periodo (comun en maternidad y enfermedad)
+            # quedaba con un neto real correcto pero MAYOR al maximo esperado calculado,
+            # y la planilla se rechazaba con un falso positivo de "salario neto supera el
+            # maximo esperado" aunque el calculo real de la boleta fuera correcto.
             max_net_expected = round(
                 rec.gross_salary
                 + (rec.ccss_subsidy_total or 0.0)
+                + (rec.costo_patrono_periodo or 0.0)
                 + (rec.paternity_amount or 0.0)
                 + sum(
                     l.amount for l in rec.deduction_line_ids
