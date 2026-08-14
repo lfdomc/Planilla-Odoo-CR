@@ -41,31 +41,36 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
 
     def _dias_incapacidad_por_tipo(self, slip):
         """
-        Suma los dias de incapacidad de esta boleta, separados en dos
-        grupos: CCSS (enfermedad + accidente laboral + maternidad) e INS
-        (riesgo laboral). Replica el mismo calculo de traslape de fechas
-        que usa payslip_compute_mixin.py para disability_days_in_period,
-        pero acumulando por separado segun disability_type -- ese campo
-        ya existe en planilla.disability (ccss/ccss_accident/ins/
+        Suma los dias de incapacidad de esta boleta, separados en TRES
+        grupos: CCSS (enfermedad + accidente laboral), INS (riesgo
+        laboral), y Maternidad (licencia de maternidad, con columna
+        propia por pedido explicito -- antes se agrupaba junto con
+        CCSS porque legalmente ambas van por la misma via de subsidio,
+        pero se separo para que el reporte sea mas claro). Replica el
+        mismo calculo de traslape de fechas que usa
+        payslip_compute_mixin.py para disability_days_in_period, pero
+        acumulando por separado segun disability_type -- ese campo ya
+        existe en planilla.disability (ccss/ccss_accident/ins/
         maternity/other) y cada boleta tiene acceso directo a sus
         incapacidades vinculadas via slip.disability_ids, sin necesitar
         reabrir el calculo completo de subsidios/dias patronales (eso
         afecta montos que ya vienen correctos en la boleta, no la
         simple cuenta de dias por tipo que se pide aqui).
 
-        Retorna (dias_ccss, dias_ins) -- ambos como float, ya que un
-        traslape puede incluir medio dia extra del primer dia
-        (extra_half_day), igual que el calculo original.
+        Retorna (dias_ccss, dias_ins, dias_maternidad) -- todos como
+        float, ya que un traslape puede incluir medio dia extra del
+        primer dia (extra_half_day), igual que el calculo original.
         """
         dias_ccss = 0.0
         dias_ins = 0.0
+        dias_maternidad = 0.0
         active_dis = getattr(slip, 'disability_ids', None)
         if not active_dis:
-            return dias_ccss, dias_ins
+            return dias_ccss, dias_ins, dias_maternidad
         date_from = getattr(slip, 'date_from', None)
         date_to = getattr(slip, 'date_to', None)
         if not date_from or not date_to:
-            return dias_ccss, dias_ins
+            return dias_ccss, dias_ins, dias_maternidad
 
         for dis in active_dis:
             if not dis.date_start or not dis.date_end:
@@ -80,11 +85,13 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     dias_overlap += 0.5
             if dis.disability_type == 'ins':
                 dias_ins += dias_overlap
+            elif dis.disability_type == 'maternity':
+                dias_maternidad += dias_overlap
             else:
-                # ccss, ccss_accident, maternity, other -> se agrupan
-                # bajo "Incapacidad CCSS" para este reporte reducido
+                # ccss, ccss_accident, other -> se agrupan bajo
+                # "Incapacidad CCSS" para este reporte reducido
                 dias_ccss += dias_overlap
-        return dias_ccss, dias_ins
+        return dias_ccss, dias_ins, dias_maternidad
 
     def action_generate(self):
         self.ensure_one()
@@ -189,16 +196,23 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         fh_ded = F(bold=True, bg=C_DED, fg='#FFFFFF', sz=9, wrap=True)
 
         fd_lbl = F(align='left')
-        fd_tipo = F(align='center')
         fd_ing = F(bg=BG_ING, num='#,##0')
         fd_ded = F(bg=BG_DED, num='#,##0', fg='#C00000')
         ft_ing = F(bg=BG_ING, num='#,##0', bold=True, border=2)
 
-        # -- Columnas, igual al Excel de referencia de Mundopet -------------
-        # (encabezado, ancho, tipo: 'lbl'/'tipo'/'ing'/'ded', formato)
+        # -- Columnas, igual al Excel de referencia de Mundopet, con las
+        # siguientes diferencias por pedido explicito:
+        #   - Se quito la columna T (tipo de empleado) -- no aportaba
+        #     informacion relevante para este reporte.
+        #   - Se agrego Maternidad como columna propia, separada de
+        #     Incapacidad C.C.S.S. (antes iban agrupadas).
+        #   - Se agrego Facturas como columna propia (Cobros al
+        #     Empleado: compras/prestamos internos), separada de Otros.
+        #   - Se agrego Total al final de cada fila: el neto real que
+        #     recibe el empleado (ingresos menos todos los rebajos).
+        # (encabezado, ancho, tipo: 'lbl'/'ing'/'ded'/'tot', formato)
         cols = [
             ('Nombre',                          26, 'lbl',  fd_lbl),
-            ('T',                                4, 'tipo', fd_tipo),
             ('Salario\nQuincenal',              12, 'ing',  fd_ing),
             ('Otros',                           10, 'ing',  fd_ing),
             ('Extras',                          10, 'ing',  fd_ing),
@@ -206,15 +220,20 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ('C.C.S.S.',                        11, 'ded',  fd_ded),
             ('Incapacidad\nC.C.S.S.',           11, 'ded',  fd_ded),
             ('Incapacidad\nI.N.S.',             11, 'ded',  fd_ded),
+            ('Maternidad',                      11, 'ded',  fd_ded),
             ('Ahorro\nNavideño',                11, 'ded',  fd_ded),
             ('Permiso sin\nGoce de Salario',    12, 'ded',  fd_ded),
             ('Impuesto\nde Renta',              11, 'ded',  fd_ded),
+            ('Facturas',                        11, 'ded',  fd_ded),
             ('Otros',                           11, 'ded',  fd_ded),
             ('Embargos',                        11, 'ded',  fd_ded),
             ('Préstamos\nInternos',             11, 'ded',  fd_ded),
+            ('Total',                           13, 'tot',  None),
         ]
         N = len(cols)
-        tipo_hdr = {'lbl': fh_lbl, 'tipo': fh_lbl, 'ing': fh_ing, 'ded': fh_ded}
+        tipo_hdr = {'lbl': fh_lbl, 'ing': fh_ing, 'ded': fh_ded,
+                    'tot': F(bold=True, bg='#1F4E79', fg='#FFFFFF', sz=9, wrap=True)}
+        ft_tot = F(bg='#FFF2CC', num='#,##0', bold=True, border=2)
 
         for ci, (_, w, _, _) in enumerate(cols):
             ws.set_column(ci, ci, w)
@@ -241,11 +260,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
 
         # -- Fila de sección + encabezados ----------------------------------
         row_sec = 2
-        sec_labels = [('lbl', 'IDENTIFICACION', 0, 1),
-                      ('ing', 'INGRESOS', 2, 5),
-                      ('ded', 'REBAJOS', 6, N - 1)]
-        for tipo, label, ci_start, ci_end in sec_labels:
-            ws.merge_range(row_sec, ci_start, row_sec, ci_end, label, tipo_hdr[tipo])
+        ws.write(row_sec, 0, 'IDENTIFICACION', tipo_hdr['lbl'])
+        ws.merge_range(row_sec, 1, row_sec, 4, 'INGRESOS', tipo_hdr['ing'])
+        ws.merge_range(row_sec, 5, row_sec, N - 2, 'REBAJOS', tipo_hdr['ded'])
+        ws.write(row_sec, N - 1, 'TOTAL', tipo_hdr['tot'])
         ws.set_row(row_sec, 16)
 
         row_hdr = 3
@@ -276,11 +294,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
                     for ci in range(1, N):
                         _, _, tipo, _ = cols[ci]
-                        if tipo == 'tipo':
-                            ws.write(row, ci, '', sub_lbl_fmt)
-                            continue
+                        color = '#C00000' if tipo == 'ded' else (
+                            '#1F4E79' if tipo == 'tot' else '#000000')
                         sf = F(bold=True, bg='#F2F2F2', num='#,##0', border=1,
-                               fg='#C00000' if tipo == 'ded' else '#000000')
+                               fg=color)
                         v = dept_totals[ci]
                         ws.write(row, ci, v if v else None, sf)
                     ws.set_row(row, 14)
@@ -294,49 +311,64 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 row += 1
                 prev_dept = dept
 
-            # T = tipo de empleado (A=administrativo, O=operativo), toma
-            # la primera letra del codigo de employee_type_id si existe.
-            tipo_letra = ''
-            if emp.employee_type_id and emp.employee_type_id.code:
-                tipo_letra = emp.employee_type_id.code[0].upper()
-
             sal_base = slip.base_salary or 0
             extras = slip.overtime_amount or 0
             otros_ing = slip.other_income or 0
             sub_total = sal_base + extras + otros_ing
 
             ccss_emp = slip.ccss_employee or 0
-            dias_ccss, dias_ins = self._dias_incapacidad_por_tipo(slip)
+            dias_ccss, dias_ins, dias_maternidad = self._dias_incapacidad_por_tipo(slip)
             _daily_rate = round((slip.base_salary or 0) / 30, 4)
             monto_incap_ccss = round(dias_ccss * _daily_rate, 2)
             monto_incap_ins = round(dias_ins * _daily_rate, 2)
+            monto_maternidad = round(dias_maternidad * _daily_rate, 2)
 
             ahorro = _sum_cat(slip, 'ahorro')
             permiso_sg = _sum_cat(slip, 'licencia_sin_goce', 'ausencia')
             renta = slip.income_tax or 0
             embargo = _sum_cat(slip, 'embargo', 'embargo_judicial')
             prestamos = _sum_cat(slip, 'loan', 'prestamo', 'prestamo_interno')
-            # "Otros" = todo lo demas que no tiene columna propia en este
-            # reporte reducido (seguro, pension voluntaria, cobros al
-            # empleado, pension alimentaria, rebajo consolidado, etc.)
-            otros_ded = _sum_cat(
-                slip, 'sindical', 'cooperativa', 'rop', 'seguro',
-                'pension_vol', 'pension_alimentaria', 'other')
-            otros_ded += round(getattr(slip, 'rebajo_renta_amount', 0) or 0, 2)
-            otros_ded += round(sum(
+            # "Facturas" = Cobros al Empleado (compras/prestamos
+            # internos que se le cobran al empleado, ej. producto
+            # comprado en la empresa) -- antes agrupado dentro de
+            # "Otros", ahora columna propia por pedido explicito.
+            facturas = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if getattr(l, 'line_type', '') == 'deduction'
                 and getattr(l, 'deduction_category', '') in ('cobro', 'cobro_empleado', 'employee_charge')
             ), 2)
+            # "Otros" = todo lo demas que no tiene columna propia en este
+            # reporte reducido (cuota sindical, cooperativa, ROP,
+            # seguro/poliza, pension voluntaria, pension alimentaria,
+            # rebajo consolidado de renta).
+            otros_ded = _sum_cat(
+                slip, 'sindical', 'cooperativa', 'rop', 'seguro',
+                'pension_vol', 'pension_alimentaria', 'other')
+            otros_ded += round(getattr(slip, 'rebajo_renta_amount', 0) or 0, 2)
+
+            total_rebajos = (
+                ccss_emp + monto_incap_ccss + monto_incap_ins + monto_maternidad
+                + ahorro + permiso_sg + renta + facturas + otros_ded
+                + embargo + prestamos
+            )
+            total_empleado = round(sub_total - total_rebajos, 2)
 
             vals = [
-                emp.name or '', tipo_letra,
+                emp.name or '',
                 sal_base, otros_ing, extras, sub_total,
-                ccss_emp, monto_incap_ccss, monto_incap_ins, ahorro,
-                permiso_sg, renta, otros_ded, embargo, prestamos,
+                ccss_emp, monto_incap_ccss, monto_incap_ins, monto_maternidad,
+                ahorro, permiso_sg, renta, facturas, otros_ded, embargo,
+                prestamos, total_empleado,
             ]
 
             for ci, (val, (_, _, tipo, dfmt)) in enumerate(zip(vals, cols)):
+                if tipo == 'tot':
+                    # El Total de la fila siempre se muestra, incluso
+                    # si diera 0 -- a diferencia de ingresos/rebajos
+                    # individuales, que se dejan en blanco cuando no
+                    # aplican para no saturar visualmente la hoja.
+                    ws.write(row, ci, val, ft_tot)
+                    continue
                 is_num = isinstance(val, (int, float)) and tipo in ('ing', 'ded')
                 ws.write(row, ci, val if val != 0 or not is_num else None, dfmt)
                 if is_num and val:
@@ -351,11 +383,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
             for ci in range(1, N):
                 _, _, tipo, _ = cols[ci]
-                if tipo == 'tipo':
-                    ws.write(row, ci, '', sub_lbl_fmt)
-                    continue
+                color = '#C00000' if tipo == 'ded' else (
+                    '#1F4E79' if tipo == 'tot' else '#000000')
                 sf = F(bold=True, bg='#F2F2F2', num='#,##0', border=1,
-                       fg='#C00000' if tipo == 'ded' else '#000000')
+                       fg=color)
                 v = dept_totals[ci]
                 ws.write(row, ci, v if v else None, sf)
             ws.set_row(row, 14)
@@ -366,11 +397,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         ws.write(row, 0, 'TOTAL GENERAL', tot_lbl_fmt)
         for ci in range(1, N):
             _, _, tipo, _ = cols[ci]
-            if tipo == 'tipo':
-                ws.write(row, ci, '', tot_lbl_fmt)
-                continue
+            color = '#C00000' if tipo == 'ded' else (
+                '#1F4E79' if tipo == 'tot' else '#000000')
             tf = F(bold=True, bg=BG_TOT, num='#,##0', border=2,
-                   fg='#C00000' if tipo == 'ded' else '#000000')
+                   fg=color)
             v = totales[ci]
             ws.write(row, ci, v if v else None, tf)
         ws.set_row(row, 18)
@@ -379,13 +409,14 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         note_fmt = F(sz=8, align='left', italic=True, fg='#666666', border=0)
         ws.merge_range(row, 0, row, N - 1,
             'Datos leidos directamente de las boletas confirmadas. '
-            'T = Tipo de Empleado (primera letra del codigo configurado). '
+            'Total = neto real del empleado (ingresos menos todos los '
+            'rebajos). '
             '"Otros" en Rebajos agrupa: cuota sindical, cooperativa, ROP, '
-            'seguro/poliza, pension voluntaria, pension alimentaria, cobros '
-            'al empleado, y rebajo consolidado de renta.',
+            'seguro/poliza, pension voluntaria, pension alimentaria, y '
+            'rebajo consolidado de renta.',
             note_fmt)
 
-        ws.freeze_panes(4, 2)
+        ws.freeze_panes(4, 1)
 
         wb.close()
         xlsx_data = base64.b64encode(output.getvalue()).decode()
