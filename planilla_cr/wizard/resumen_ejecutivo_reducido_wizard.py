@@ -210,8 +210,11 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         #     sola columna "Facturas / Prestamos", porque representan
         #     el mismo concepto para el negocio (dinero que se le
         #     descuenta al empleado por una compra o prestamo interno).
-        #   - Se agrego Total al final de cada fila: el neto real que
-        #     recibe el empleado (ingresos menos todos los rebajos).
+        #   - Total (leido de salary_payable, no reconstruido) al final de
+        #     cada fila: neto del empleado incluyendo subsidios CCSS/INS.
+        #   - Deposito Patrono (leido de deposito_patrono) como ultima
+        #     columna: el monto real que la empresa deposita, excluyendo
+        #     esos subsidios -- valor correcto para libros contables.
         # (encabezado, ancho, tipo: 'lbl'/'ing'/'ded'/'tot', formato)
         cols = [
             ('Nombre',                          26, 'lbl',  fd_lbl),
@@ -230,6 +233,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ('Otros',                           11, 'ded',  fd_ded),
             ('Embargos',                        11, 'ded',  fd_ded),
             ('Total',                           13, 'tot',  None),
+            ('Depósito\nPatrono',               14, 'tot',  None),
         ]
         N = len(cols)
         tipo_hdr = {'lbl': fh_lbl, 'ing': fh_ing, 'ded': fh_ded,
@@ -263,8 +267,8 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         row_sec = 2
         ws.write(row_sec, 0, 'IDENTIFICACION', tipo_hdr['lbl'])
         ws.merge_range(row_sec, 1, row_sec, 4, 'INGRESOS', tipo_hdr['ing'])
-        ws.merge_range(row_sec, 5, row_sec, N - 2, 'REBAJOS', tipo_hdr['ded'])
-        ws.write(row_sec, N - 1, 'TOTAL', tipo_hdr['tot'])
+        ws.merge_range(row_sec, 5, row_sec, N - 3, 'REBAJOS', tipo_hdr['ded'])
+        ws.merge_range(row_sec, N - 2, row_sec, N - 1, 'TOTAL', tipo_hdr['tot'])
         ws.set_row(row_sec, 16)
 
         row_hdr = 3
@@ -376,19 +380,33 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 and getattr(l, 'deduction_category', '') not in categorias_con_columna_propia
             ), 2)
 
-            total_rebajos = (
-                ccss_emp + monto_incap_ccss + monto_incap_ins + monto_maternidad
-                + ahorro + permiso_sg + renta + facturas_prestamos + otros_ded
-                + embargo
-            )
-            total_empleado = round(sub_total - total_rebajos, 2)
+            # FIX: Total y Deposito Patrono ya NO se reconstruyen sumando/
+            # restando columnas de este reporte (ej. total_rebajos que se
+            # calculaba aqui antes) -- se leen DIRECTAMENTE de los campos
+            # reales que ya calculo y confirmo la boleta (salary_payable,
+            # deposito_patrono). Reconstruirlos manualmente arrastraba
+            # error acumulado cada vez que algun concepto de la boleta no
+            # tenia columna propia en este reporte reducido (ej. el
+            # subsidio patronal de dias 1-3 de incapacidad, que no es una
+            # deduccion sino parte del calculo de ingresos, y por lo tanto
+            # nunca se restaba en la reconstruccion manual) -- confirmado
+            # con casos reales donde el Total de este reporte no coincidia
+            # con el Salario Neto real de la planilla ya pagada.
+            #   - Total = salary_payable: neto del empleado incluyendo
+            #     subsidios CCSS/INS (lo que efectivamente recibe la persona).
+            #   - Deposito Patrono = deposito_patrono: monto real que la
+            #     empresa deposita, excluyendo esos subsidios (que paga la
+            #     Caja/INS directamente) -- el valor correcto para libros
+            #     contables, documentado asi en el propio modelo de boleta.
+            total_empleado = round(slip.salary_payable or 0.0, 2)
+            deposito_patrono = round(slip.deposito_patrono or 0.0, 2)
 
             vals = [
                 emp.name or '',
                 sal_base, otros_ing, extras, sub_total,
                 ccss_emp, monto_incap_ccss, monto_incap_ins, monto_maternidad,
                 ahorro, permiso_sg, renta, facturas_prestamos, otros_ded, embargo,
-                total_empleado,
+                total_empleado, deposito_patrono,
             ]
 
             for ci, (val, (_, _, tipo, dfmt)) in enumerate(zip(vals, cols)):
@@ -445,8 +463,11 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         note_fmt = F(sz=8, align='left', italic=True, fg='#666666', border=0)
         ws.merge_range(row, 0, row, N - 1,
             'Datos leidos directamente de las boletas confirmadas. '
-            'Total = neto real del empleado (ingresos menos todos los '
-            'rebajos). '
+            'Total = Salario Neto real de la boleta (incluye subsidios '
+            'CCSS/INS que recibe el empleado). '
+            'Deposito Patrono = monto real que la empresa deposita '
+            '(excluye subsidios que paga la Caja/INS directamente) -- '
+            'valor correcto para libros contables. '
             '"Facturas / Prestamos" = cuotas de prestamos internos y '
             'cobros al empleado (ej. compras en la empresa). '
             '"Otros" en Rebajos agrupa: cuota sindical, cooperativa, ROP, '
