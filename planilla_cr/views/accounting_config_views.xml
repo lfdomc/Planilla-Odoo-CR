@@ -135,6 +135,12 @@
                                 <i class="fa fa-info-circle"/> Si el salario cotizable de un período es menor a este monto mensual (prorrateado según frecuencia de pago), CCSS obrero y patronal se calculan sobre este piso. Aplica principalmente a empleados de tiempo parcial. No se aplica durante incapacidades activas ni licencias sin goce. Verifique el monto vigente en ccss.sa.cr/patronos al inicio de cada año.
                             </div>
                         </group>
+                        <group string="Formato del Comprobante de Pago (PDF)">
+                            <field name="show_subsidio_detail_in_report"/>
+                            <div class="text-muted" colspan="2" invisible="show_subsidio_detail_in_report">
+                                <i class="fa fa-info-circle"/> El comprobante ya no mostrará la fila "Neto total del período (patrono + CCSS)" ni "Subsidio patrono días 1-3" durante incapacidades. Ambas son solo informativas -- ningún monto real de la boleta cambia.
+                            </div>
+                        </group>
                     </group>
 
 

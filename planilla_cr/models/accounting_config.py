@@ -49,6 +49,18 @@ class PayrollAccountingConfig(models.Model):
              'ausencias en el periodo -- esos casos ya tienen su propio '
              'tratamiento legal y no deben forzarse al piso de BMC.'
     )
+    show_subsidio_detail_in_report = fields.Boolean(
+        string='Mostrar detalle de subsidio patronal en el comprobante',
+        default=True,
+        help='Controla si el comprobante de pago (PDF) de la boleta '
+             'muestra el detalle informativo del subsidio patronal de '
+             'incapacidad: la fila "Neto total del periodo (patrono + '
+             'CCSS)" y la fila "Subsidio patrono dias 1-3 (Art. 79 CT)" '
+             'dentro de Detalle del Periodo. Ambas filas son solo '
+             'informativas (no afectan ningun calculo ni monto real de '
+             'la boleta) -- desactive esta opcion si el cliente prefiere '
+             'un comprobante mas simple, sin ese desglose tecnico.',
+    )
     ccss_bmc_amount = fields.Monetary(
         string='Monto BMC Mensual (CRC)',
         currency_field='currency_id',

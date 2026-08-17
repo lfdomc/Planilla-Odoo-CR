@@ -5,6 +5,7 @@
         <t t-call="web.external_layout">
             <main>
             <t t-foreach="docs" t-as="doc">
+                <t t-set="_cfg" t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',doc.company_id.id)],limit=1)"/>
                 <t t-set="freq_label" t-value="
                     'Quincenal' if doc.effective_frequency == 'biweekly' else
                     'Semanal' if doc.effective_frequency == 'weekly' else
@@ -52,7 +53,6 @@
                                 Puesto: <t t-out="doc.employee_id.job_id.name"/>
                                 &#160;&#160;|&#160;&#160;
                                 Dias laborados: <t t-out="str(doc.dias_laborados_periodo)"/>
-                                <t t-set="_cfg" t-value="doc.env['planilla.accounting.config'].sudo().search([('company_id','=',doc.company_id.id)],limit=1)"/>
                                 <t t-if="not _cfg or _cfg.show_vacation_on_payslip">
                                 &#160;&#160;|&#160;&#160;
                                 Saldo vacac.: <t t-out="'{:.1f}'.format(doc.employee_id.vacation_days_available or 0)"/> dias
@@ -344,7 +344,7 @@
                         <tr><td colspan="3" style="border-top:1px solid #aaa; padding:0;"/></tr>
 
                         <!-- Opcion A: neto total en italica ANTES del bloque oscuro, solo cuando hay subsidio -->
-                        <t t-if="doc.ccss_subsidy_total &gt; 0">
+                        <t t-if="doc.ccss_subsidy_total &gt; 0 and (not _cfg or _cfg.show_subsidio_detail_in_report)">
                         <t t-set="mat_s2" t-value="doc.disability_ids.filtered(lambda d: d.disability_type == 'maternity' and d.state in ('confirmed','paid'))"/>
                         <tr style="font-size:10.5px; color:#555; font-style:italic;">
                             <td style="padding:2px 8px;">Neto total del periodo:</td>
@@ -421,7 +421,7 @@
                             <td/>
                         </tr>
                         <!-- Subsidio patrono días 1-3 como nota informativa -->
-                        <t t-if="(doc.costo_patrono_periodo or 0) &gt; 0">
+                        <t t-if="(doc.costo_patrono_periodo or 0) &gt; 0 and (not _cfg or _cfg.show_subsidio_detail_in_report)">
                         <tr>
                             <td style="padding:1px 8px 1px 20px; font-size:11px; color:#1a7a3d;">
                                 Subsidio patrono días 1-3 (Art. 79 CT — 50% a cargo del patrono):
