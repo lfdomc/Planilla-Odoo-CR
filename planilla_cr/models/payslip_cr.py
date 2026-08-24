@@ -738,6 +738,33 @@ class PayslipCR(models.Model):
                 )
 
 
+    def get_bono_notes(self):
+        """
+        Retorna la lista de notas (Observaciones/Referencia) de los
+        bonos que generaron alguna linea en esta boleta, para mostrar
+        como aclaratorio en el pie del comprobante PDF.
+
+        Deduplica por bono_id (no por texto), para no repetir la misma
+        nota si un bono genero mas de una linea en la boleta. Omite
+        bonos sin nota o con nota vacia/solo espacios en blanco.
+
+        Retorna una lista de dicts {'bono_name': ..., 'note': ...}, en
+        el mismo orden en que aparecen las lineas en la boleta.
+        """
+        self.ensure_one()
+        vistos = set()
+        notas = []
+        for line in self.deduction_line_ids:
+            bono = line.bono_id
+            if not bono or bono.id in vistos:
+                continue
+            vistos.add(bono.id)
+            texto = (bono.note or '').strip()
+            if texto:
+                notas.append({'bono_name': bono.name, 'note': texto})
+        return notas
+
+
 class PayslipDeductionLine(models.Model):
     _name = 'planilla.payslip.deduction.line'
     _description = 'Linea de Deduccion / Ingreso en Boleta'

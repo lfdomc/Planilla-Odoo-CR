@@ -447,6 +447,22 @@
 
                     </table>
 
+                    <!-- ACLARATORIO: notas de bonos con Observaciones/Referencia -->
+                    <t t-set="_bono_notes" t-value="doc.get_bono_notes()"/>
+                    <t t-if="_bono_notes">
+                    <div style="margin-top:16px; padding:8px 10px; border-left:3px solid #1a7a3d; background:#f4f9f6;">
+                        <div style="font-size:10px; font-weight:bold; color:#1a7a3d; margin-bottom:3px;">
+                            ACLARATORIO
+                        </div>
+                        <t t-foreach="_bono_notes" t-as="_bn">
+                        <div style="font-size:10px; color:#444; margin-bottom:2px;">
+                            <span style="font-weight:bold;"><t t-out="_bn['bono_name']"/>:</span>
+                            <t t-out="_bn['note']"/>
+                        </div>
+                        </t>
+                    </div>
+                    </t>
+
                     <!-- FIRMAS -->
                     <div style="display:table; width:100%; margin-top:40px; font-size:11px;">
                         <div style="display:table-cell; width:48%; text-align:center; padding-top:30px; border-top:1px solid #000;">
