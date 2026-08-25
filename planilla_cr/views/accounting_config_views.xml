@@ -199,6 +199,10 @@
                             <field name="extra_vacation_days_amount"
                                    invisible="not extra_vacation_days_enabled"
                                    string="Días totales en el mes del aniversario"/>
+                            <field name="extra_vacation_total_annual_days"
+                                   readonly="1"
+                                   string="→ Total de días de vacaciones al año"
+                                   style="font-weight:bold; font-size:1.1em;"/>
                             <field name="extra_vacation_last_applied_year"
                                    readonly="1"
                                    invisible="not extra_vacation_days_enabled"
@@ -217,6 +221,18 @@
                                 al total configurado (no se suma encima).
                                 Empleados con menos de 1 año completo no reciben el beneficio.
                                 Art. 58 CT: beneficio superior al mínimo legal.
+                                <br/><br/>
+                                <strong>Total de vacaciones al año con esta configuración:
+                                <field name="extra_vacation_total_annual_days" nolabel="1" readonly="1"/> días.</strong>
+                            </div>
+                            <div colspan="2" invisible="not extra_vacation_days_enabled">
+                                <button name="action_recalcular_saldos_vacaciones" type="object"
+                                        string="Recalcular Saldos de Vacaciones de Todos los Empleados"
+                                        class="btn-secondary" icon="fa-refresh"
+                                        confirm="Esto va a recalcular el saldo de vacaciones (dias acumulados, tomados y disponibles) de todos los empleados activos, usando la configuracion actual. No modifica ningun dato guardado, solo actualiza el valor mostrado. ¿Continuar?"/>
+                                <div class="text-muted" style="margin-top:4px;">
+                                    <i class="fa fa-info-circle"/> Use este botón después de cambiar cualquier valor de este bloque, para que el saldo mostrado en la ficha de cada empleado refleje la configuración actual de inmediato (en vez de esperar a que se abra cada ficha individualmente).
+                                </div>
                             </div>
                         </group>
                     </group>

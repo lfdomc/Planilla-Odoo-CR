@@ -143,6 +143,35 @@ class PayrollAccountingConfig(models.Model):
         help='Modalidad FIJA: dias a acreditar a cada empleado. '
              'Modalidad POR ANO: dias por cada anio completo de servicio.'
     )
+    extra_vacation_total_annual_days = fields.Float(
+        string='Total de dias de vacaciones al año (resultante)',
+        compute='_compute_extra_vacation_total_annual_days',
+        help='Muestra en vivo cuantos dias de vacaciones al año recibe '
+             'un empleado con esta configuracion, para confirmar el '
+             'resultado antes de guardar. '
+             'Con el beneficio activo: 11 meses normales x 1 dia + el '
+             'total configurado arriba para el mes de aniversario '
+             '(ej. si arriba se pone 3, el total anual da 11 + 3 = 14 '
+             'dias). Sin el beneficio activo: 12 meses x 1 dia = 12 '
+             'dias, el minimo legal.',
+    )
+
+    @api.depends('extra_vacation_days_amount', 'extra_vacation_days_enabled')
+    def _compute_extra_vacation_total_annual_days(self):
+        for rec in self:
+            if not rec.extra_vacation_days_enabled:
+                # Sin el beneficio activo, los 12 meses del año aportan
+                # su dia normal por igual (incluido el mes de
+                # aniversario, que sin el beneficio no recibe nada
+                # especial) -- 12 meses x 1 dia = 12 dias anuales.
+                rec.extra_vacation_total_annual_days = 12.0
+                continue
+            # Con el beneficio activo, los otros 11 meses aportan 1 dia
+            # cada uno, y el mes de aniversario aporta el total
+            # configurado arriba (no se suma encima del dia normal).
+            rec.extra_vacation_total_annual_days = round(
+                11.0 + (rec.extra_vacation_days_amount or 0.0), 2)
+
     extra_vacation_last_applied_year = fields.Integer(
         string='Ultimo anio aplicado',
         default=0,
@@ -921,6 +950,54 @@ class PayrollAccountingConfig(models.Model):
             'params': {
                 'title': 'Correo de prueba enviado',
                 'message': 'Correo enviado a ' + recipient + '. Revise su bandeja.' + slip_note,
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    def action_recalcular_saldos_vacaciones(self):
+        """
+        Fuerza el recalculo del saldo de vacaciones (dias acumulados,
+        tomados y disponibles) de todos los empleados activos de esta
+        empresa, con la configuracion actual (ej. dias totales del mes
+        de aniversario, metodo de acumulacion).
+
+        Por que es necesario: vacation_days_accrued es un campo
+        computado que depende de campos del propio empleado
+        (entry_date, vacation_initial_balance, etc.) -- pero NO
+        depende de planilla.accounting.config, porque esa
+        configuracion vive en un modelo distinto y el mecanismo
+        @api.depends de Odoo solo seria activado por cambios dentro de
+        esa misma cadena de dependencias. Por eso, cambiar un valor
+        aqui (ej. "Dias Totales en el Mes del Aniversario") no
+        actualiza automaticamente el saldo ya mostrado en las fichas
+        de empleado -- ese saldo se recalcula solo, en pantalla, la
+        proxima vez que alguien la abre. Este boton adelanta ese
+        recalculo para todos los empleados a la vez, en vez de tener
+        que abrir cada ficha una por una para confirmar el nuevo
+        resultado.
+
+        A diferencia del Wizard de Auditoria de Vacaciones, este boton
+        NUNCA escribe vacation_initial_balance ni ningun otro dato del
+        empleado -- solo refresca el valor que Odoo ya calcula y
+        muestra, sin modificar el historial de nadie.
+        """
+        self.ensure_one()
+        employees = self.env['hr.employee'].search([
+            ('company_id', '=', self.company_id.id),
+            ('active', '=', True),
+        ])
+        employees._compute_vacation_balance()
+        employees.flush_recordset()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Saldos de vacaciones actualizados',
+                'message': (
+                    f'{len(employees)} empleado(s) recalculado(s) con la '
+                    f'configuracion actual.'
+                ),
                 'type': 'success',
                 'sticky': False,
             },
