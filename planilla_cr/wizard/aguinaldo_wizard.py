@@ -361,6 +361,128 @@ class AguinaldoWizard(models.TransientModel):
             'target': 'self',
         }
 
+    def action_export_boletas_detalle(self):
+        """
+        Exporta un Excel con UNA FILA POR CADA BOLETA individual (no por
+        empleado), con todos los datos crudos que usa el calculo de
+        aguinaldo, mas el resultado ya calculado paso a paso. Pensado
+        para poder auditar/comparar el calculo contra un Excel externo
+        (ej. el de la empresa) boleta por boleta, sin depender de pedir
+        capturas de pantalla de cada boleta individual.
+
+        Incluye exactamente los mismos campos que se usaron para
+        diagnosticar y corregir el calculo de aguinaldo: salario bruto,
+        subsidio CCSS de incapacidad, costo patronal de los dias 1-3
+        (Art. 79 CT), y el "devengado" final ya calculado con la misma
+        formula real que usa action_compute().
+        """
+        self.ensure_one()
+        if not self.computed:
+            raise UserError('Primero calcule el aguinaldo.')
+        try:
+            import xlsxwriter
+        except ImportError:
+            raise UserError('xlsxwriter no esta instalado.')
+
+        from datetime import date as _date
+
+        output = io.BytesIO()
+        wb = xlsxwriter.Workbook(output, {'in_memory': True})
+        ws = wb.add_worksheet('Detalle Boletas')
+
+        bold = wb.add_format({'bold': True, 'bg_color': '#1F4E79', 'font_color': 'white', 'border': 1})
+        money = wb.add_format({'num_format': '#,##0.00', 'border': 1})
+        normal = wb.add_format({'border': 1})
+        date_fmt = wb.add_format({'num_format': 'dd/mm/yyyy', 'border': 1})
+
+        ws.set_column('A:A', 32)   # Empleado
+        ws.set_column('B:B', 16)   # Sucursal
+        ws.set_column('C:C', 26)   # Boleta (referencia)
+        ws.set_column('D:E', 12)   # Fechas
+        ws.set_column('F:F', 12)   # Estado
+        ws.set_column('G:M', 16)   # Montos
+
+        headers = [
+            'Empleado', 'Sucursal', 'Boleta', 'Desde', 'Hasta', 'Estado',
+            'Salario Bruto', 'Salario Base',
+            'Subsidio CCSS (incapacidad)', 'Costo Patrono Dias 1-3 (Art.79)',
+            'Devengado (calculado)', 'En Periodo Jun-Nov', 'En Provision (post-corte)',
+        ]
+        for col, h in enumerate(headers):
+            ws.write(0, col, h, bold)
+
+        year = self.year
+        period_start = _date(year, 6, 1)
+        period_end = _date(year, 11, 30)
+
+        # Mismo dominio que usa action_compute() para las boletas Jun-Nov,
+        # mas todas las boletas confirmadas/pagadas del empleado desde
+        # diciembre del ano anterior hasta hoy (para cubrir tambien el
+        # rango de "Provision Acumulada").
+        emp_ids = self.result_ids.mapped('employee_id').ids
+        domain = [
+            ('employee_id', 'in', emp_ids),
+            ('state', 'in', ('done', 'confirmed')),
+            ('date_from', '>=', _date(year - 1, 12, 1)),
+            ('date_to', '<=', _date.today()),
+            ('company_id', '=', self.company_id.id),
+        ]
+        if self.branch_id:
+            domain.append(('branch_id', '=', self.branch_id.id))
+        slips = self.env['planilla.payslip.cr'].search(
+            domain, order='employee_id, date_from')
+
+        row = 1
+        for slip in slips:
+            if self.salary_basis == 'gross':
+                base = slip.gross_salary or 0.0
+            else:
+                base = slip.base_salary or 0.0
+            subsidio = round(
+                sum(
+                    getattr(d, 'ccss_subsidy', 0.0) or 0.0
+                    for d in slip.disability_ids
+                    if getattr(d, 'state', '') in ('confirmed', 'paid')
+                ), 2)
+            costo_patrono_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
+            devengado = max(round(base - subsidio + costo_patrono_1_3, 2), 0.0)
+            en_jun_nov = bool(
+                slip.date_from and slip.date_to
+                and slip.date_from >= period_start and slip.date_to <= period_end
+                and slip.state == 'done'
+            )
+
+            ws.write(row, 0, slip.employee_id.name, normal)
+            ws.write(row, 1, slip.branch_id.name or '', normal)
+            ws.write(row, 2, slip.name or '', normal)
+            ws.write(row, 3, slip.date_from, date_fmt)
+            ws.write(row, 4, slip.date_to, date_fmt)
+            ws.write(row, 5, dict(slip._fields['state'].selection).get(slip.state, slip.state), normal)
+            ws.write(row, 6, slip.gross_salary or 0.0, money)
+            ws.write(row, 7, slip.base_salary or 0.0, money)
+            ws.write(row, 8, subsidio, money)
+            ws.write(row, 9, costo_patrono_1_3, money)
+            ws.write(row, 10, devengado, money)
+            ws.write(row, 11, 'Si' if en_jun_nov else 'No', normal)
+            ws.write(row, 12, 'Si' if slip.date_from >= _date(year - 1, 12, 1) else 'No', normal)
+            row += 1
+
+        wb.close()
+        xlsx_data = base64.b64encode(output.getvalue()).decode()
+        filename = f'Aguinaldo_{self.year}_Detalle_Boletas.xlsx'
+
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': xlsx_data,
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
 
 class AguinaldoLine(models.TransientModel):
     _name = 'planilla.aguinaldo.line'

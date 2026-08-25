@@ -40,6 +40,11 @@
                 <button name="action_export_excel" type="object"
                                 string="Exportar Excel" class="btn-success"
                                 invisible="not computed"/>
+                        <button name="action_export_boletas_detalle" type="object"
+                                string="Exportar Detalle por Boleta (Auditoría)" class="btn-secondary"
+                                icon="fa-search"
+                                invisible="not computed"
+                                help="Genera un Excel con una fila por cada boleta individual usada en el cálculo, con todos los montos crudos y el resultado ya calculado -- útil para comparar contra un Excel externo boleta por boleta."/>
                     </div>
 
                     <!-- Tabla de resultados -->
