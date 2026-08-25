@@ -213,7 +213,11 @@
                         </div>
                         <group string="Saldo Calculado" col="2">
                             <field name="disability_days_total" string="Días Incapacidad Acumulados" readonly="1"
-                               help="Días de incapacidad (no maternidad) desde el corte. Reduce vacaciones si la opción está activa en Cuentas Contables."/>
+                               help="Días de incapacidad (no maternidad) desde el corte. Es un total informativo -- vea el campo de abajo para saber cuántos días de vacación descuenta realmente."/>
+                            <field name="disability_days_vacation_impact"
+                                   string="→ Días de Vacación Descontados por Incapacidad"
+                                   readonly="1" style="font-weight:bold;"
+                                   decoration-danger="disability_days_vacation_impact &gt; 0"/>
                         <field name="vacation_days_accrued" string="Total Acumulado (incluye inicial)" readonly="1"/>
                             <field name="vacation_days_taken" string="Días Tomados en Sistema" readonly="1"/>
                             <field name="vacation_days_available" string="Días Disponibles" readonly="1"/>

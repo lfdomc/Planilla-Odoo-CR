@@ -874,8 +874,48 @@ class HrEmployeeExtension(models.Model):
         compute='_compute_disability_days_total', store=False,
         help='Suma de días de incapacidad por enfermedad/accidente confirmadas o pagadas '
              'desde el corte de vacaciones. Excluye maternidad (Art. 95 CT). '
-             'Se usa para calcular el descuento de vacaciones cuando está configurado.'
+             'Este total es solo informativo -- NO indica cuanto se descuenta de '
+             'vacaciones. Vea "Días de Incapacidad que SÍ Descuentan Vacaciones" '
+             'para ese dato.'
     )
+    disability_days_vacation_impact = fields.Float(
+        string='Días de Vacación Descontados por Incapacidad',
+        compute='_compute_disability_days_vacation_impact', store=False,
+        help='Cuantos dias de vacacion se le estan restando REALMENTE a '
+             'este empleado por sus incapacidades, con la formula y la '
+             'configuracion que su empresa tiene activa ahora mismo. '
+             'Solo aplica si "Excluir incapacidades de vacaciones (Art. '
+             '153 CT)" esta ACTIVO en Configuracion Contable -- si esta '
+             'apagado (el valor de fabrica), este campo siempre da 0, '
+             'sin importar cuantos dias de incapacidad tenga el '
+             'empleado, porque el sistema entonces no descuenta nada. '
+             'Formula real cuando el toggle esta activo: 1 dia de '
+             'vacacion por cada 29 dias de incapacidad acumulados desde '
+             'el corte, redondeado hacia abajo (ej. 72 dias de '
+             'incapacidad = floor(72/29) = 2 dias de vacacion menos '
+             'ese año). Coincide exactamente con lo que ya resta '
+             '_compute_vacation_balance al Total Acumulado.'
+    )
+
+    def _compute_disability_days_vacation_impact(self):
+        for emp in self:
+            _config = self.env['planilla.accounting.config'].sudo().get_config(emp.company_id.id)
+            if not _config or not _config.exclude_disability_from_vacation:
+                emp.disability_days_vacation_impact = 0.0
+                continue
+            domain = [
+                ('employee_id', '=', emp.id),
+                ('state', 'in', ('confirmed', 'paid')),
+                ('disability_type', '!=', 'maternity'),
+            ]
+            if emp.vacation_initial_balance_date:
+                domain.append(('date_start', '>=', emp.vacation_initial_balance_date))
+            elif emp.entry_date:
+                domain.append(('date_start', '>=', emp.entry_date))
+            recs = self.env['planilla.disability'].search(domain)
+            total_dias = sum(r.days or 0 for r in recs)
+            emp.disability_days_vacation_impact = math.floor(total_dias / 29)
+
     vacation_initial_balance = fields.Float(
         string='Saldo Inicial de Vacaciones (dias)',
         default=0.0,

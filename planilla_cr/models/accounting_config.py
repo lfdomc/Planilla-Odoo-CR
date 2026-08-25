@@ -988,6 +988,11 @@ class PayrollAccountingConfig(models.Model):
             ('active', '=', True),
         ])
         employees._compute_vacation_balance()
+        # Tambien refresca el detalle de cuantos dias de vacacion se
+        # descuentan por incapacidad, ya que depende de la misma
+        # configuracion (exclude_disability_from_vacation) que este
+        # boton esta refrescando.
+        employees._compute_disability_days_vacation_impact()
         employees.flush_recordset()
         return {
             'type': 'ir.actions.client',
