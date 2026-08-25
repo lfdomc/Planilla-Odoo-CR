@@ -119,26 +119,39 @@ class AguinaldoWizard(models.TransientModel):
                 }
             # Art. 228 CT: "salarios ordinarios devengados" = bruto menos:
             # - Subsidio CCSS por incapacidad (lo paga la Caja, no el patrono)
-            # - Permisos sin goce de salario
-            # Esto coincide con la fórmula del Excel: Col17 - Col20 - Col22 - Col25 - Col27
+            # NOTA: los permisos sin goce de salario NO se restan aqui --
+            # base_salary/gross_salary de la boleta YA los excluye por
+            # diseño (confirmado en payslip_compute_mixin.py: "g ya tiene
+            # licencias_sg restadas"). Restarlos aqui de nuevo causaba un
+            # DOBLE DESCUENTO real, confirmado matematicamente con un caso
+            # real: la diferencia de aguinaldo en un periodo con permiso
+            # sin goce coincidia exactamente con la mitad del monto del
+            # permiso entre 12 -- el patron exacto de un valor restado
+            # dos veces en una formula de division entre 12.
             if self.salary_basis == 'gross':
                 base = slip.gross_salary or 0.0
             else:
                 base = slip.base_salary or 0.0
-            # Restar subsidio CCSS de incapacidades del período
+            # Restar subsidio CCSS de incapacidades del período (este SI
+            # es correcto restarlo aqui -- base_salary NO lo excluye por
+            # diseño, a diferencia de las licencias sin goce).
             subsidio = round(
                 sum(
                     getattr(d, 'ccss_subsidy', 0.0) or 0.0
                     for d in slip.disability_ids
                     if getattr(d, 'state', '') in ('confirmed', 'paid')
                 ), 2)
-            # Restar permisos sin goce (ya descontados en base_cotizable_final)
-            licencias = round(sum(
-                l.amount for l in slip.deduction_line_ids
-                if getattr(l, 'deduction_category', '') in ('licencia_sin_goce', 'ausencia')
-                and getattr(l, 'line_type', '') == 'deduction'
-            ), 2)
-            devengado = max(round(base - subsidio - licencias, 2), 0.0)
+            # FIX: sumar el subsidio PATRONAL de los dias 1-3 de
+            # incapacidad (Art. 79 CT, costo_patrono_periodo) -- este NO
+            # es un subsidio de la Caja (por eso no aparece en
+            # gross_salary, no genera cargas CCSS/Renta), sino dinero
+            # que el patrono efectivamente pago al empleado durante ese
+            # periodo -- un salario ordinario devengado real segun el
+            # Art. 228 CT. Confirmado con precision matematica exacta
+            # contra un caso real: el Excel de la empresa coincidia
+            # exactamente con (bruto + costo_patrono_periodo) / 12.
+            costo_patrono_dias_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
+            devengado = max(round(base - subsidio + costo_patrono_dias_1_3, 2), 0.0)
             employee_data[eid]['total_ordinary'] += devengado
             employee_data[eid]['slip_count'] += 1
 
