@@ -45,6 +45,7 @@
                     <!-- Tabla de resultados -->
                     <field name="result_ids" invisible="not computed">
                         <list string="Aguinaldo por Empleado" >
+                            <field name="currency_id" column_invisible="1"/>
                             <field name="employee_id" string="Empleado"/>
                             <field name="branch" string="Sucursal"/>
                             <field name="slip_count" string="Boletas" optional="hide"/>
