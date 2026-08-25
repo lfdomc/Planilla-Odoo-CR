@@ -237,20 +237,6 @@ class AguinaldoWizard(models.TransientModel):
             prov_slips_filtered = [
                 s for s in prov_slips_candidatas if s.date_from >= prov_start
             ]
-            # LOG TEMPORAL DE DIAGNOSTICO -- quitar una vez resuelto el
-            # problema de boletas de abril-mayo faltantes en el calculo.
-            if emp_obj.name and 'Walter Daniel' in emp_obj.name:
-                _logger.warning(
-                    'AGUINALDO DEBUG %s: prov_start=%s, '
-                    'candidatas=%s (%s), filtradas=%s (%s), '
-                    'provision_sum=%s',
-                    emp_obj.name, prov_start,
-                    len(prov_slips_candidatas),
-                    [(s.name, s.date_from, s.date_to, s.state) for s in prov_slips_candidatas],
-                    len(prov_slips_filtered),
-                    [(s.name, s.date_from) for s in prov_slips_filtered],
-                    sum(s.aguinaldo_provision for s in prov_slips_filtered),
-                )
             provision_sum = round(
                 sum(s.aguinaldo_provision for s in prov_slips_filtered), 2)
 

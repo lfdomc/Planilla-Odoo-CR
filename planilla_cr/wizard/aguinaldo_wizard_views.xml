@@ -43,13 +43,14 @@
                     </div>
 
                     <!-- Tabla de resultados -->
-                    <field name="result_ids" invisible="not computed">
+                    <field name="result_ids" invisible="not computed"
+                           form_view_ref="planilla_cr.view_aguinaldo_line_form">
                         <list string="Aguinaldo por Empleado" >
                             <field name="currency_id" column_invisible="1"/>
                             <field name="employee_id" string="Empleado"/>
                             <field name="branch" string="Sucursal"/>
-                            <field name="slip_count" string="Boletas" optional="hide"/>
-                            <field name="months_worked" string="Meses" optional="hide"/>
+                            <field name="slip_count" string="Boletas Jun-Nov" optional="hide"/>
+                            <field name="months_worked" string="Meses Jun-Nov" optional="hide"/>
                             <field name="total_ordinary" string="Salarios Ordinarios"
                                    widget="monetary" sum="Total" optional="hide"/>
                             <field name="aguinaldo_amount" string="Aguinaldo Jun-Nov"
@@ -65,6 +66,59 @@
                         </list>
                     </field>
                 </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_aguinaldo_line_form" model="ir.ui.view">
+        <field name="name">planilla.aguinaldo.line.form</field>
+        <field name="model">planilla.aguinaldo.line</field>
+        <field name="arch" type="xml">
+            <form string="Detalle por Empleado">
+                <field name="currency_id" invisible="1"/>
+                <group>
+                    <group string="Identificación">
+                        <field name="employee_id" readonly="1"/>
+                        <field name="branch" readonly="1"/>
+                    </group>
+                </group>
+                <div class="alert alert-info" role="alert">
+                    <i class="fa fa-info-circle"/>
+                    El Aguinaldo (Art. 228 CT) se calcula sobre el año completo
+                    Diciembre-Noviembre. El sistema arma ese año completo con
+                    DOS fuentes de datos distintas (ver desglose abajo), pero
+                    el campo "Aguinaldo" ya es el resultado FINAL de todo el año
+                    -- no es necesario sumarle nada más.
+                </div>
+                <group string="Desglose: de dónde sale el Aguinaldo del año completo">
+                    <group string="Diciembre - Mayo (capturado al implementar el sistema)">
+                        <field name="initial_amount" string="Acumulado Inicial" readonly="1"/>
+                    </group>
+                    <group string="Junio - Noviembre (calculado desde boletas del sistema)">
+                        <field name="slip_count" string="Boletas usadas" readonly="1"/>
+                        <field name="months_worked" string="Meses trabajados" readonly="1"/>
+                        <field name="total_ordinary" string="Salarios Ordinarios del semestre" readonly="1"/>
+                    </group>
+                </group>
+                <group string="Resultado: Aguinaldo del Año Completo (Dic-Nov)">
+                    <field name="aguinaldo_amount"
+                           string="AGUINALDO A PAGAR (Inicial + Jun-Nov, ya sumados)"
+                           readonly="1" style="font-weight:bold; font-size:1.15em;"/>
+                </group>
+                <div class="alert alert-warning" role="alert">
+                    <i class="fa fa-exclamation-triangle"/>
+                    Los campos de abajo son un cálculo APARTE, sin relación con
+                    el Aguinaldo de arriba: es la provisión mensual que se va
+                    acumulando en la contabilidad, desde la fecha de corte del
+                    empleado hasta hoy (puede cubrir más o menos meses que el
+                    Aguinaldo del año, según cuándo se implementó el sistema
+                    para cada empleado).
+                </div>
+                <group string="Provisión Contable Acumulada (independiente del Aguinaldo de arriba)">
+                    <field name="provision_acumulada" string="Provisión de boletas posteriores al corte" readonly="1"/>
+                    <field name="total_acumulado" string="Total Acumulado (Inicial + Provisión)"
+                           readonly="1" style="font-weight:bold;"/>
+                </group>
             </form>
         </field>
     </record>
