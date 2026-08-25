@@ -376,7 +376,7 @@ class EmployeeTermination(models.Model):
                 # liquidacion, solo cambia la fecha de referencia. Elimina
                 # la logica duplicada que existia aqui antes.
                 rh_vac = self.env['planilla.rate.helper']
-                accrued, _nb, _ba = rh_vac.calc_vacation_accrual(emp, exit_d)
+                accrued, _nb, _ba, _bac = rh_vac.calc_vacation_accrual(emp, exit_d)
                 vacation_days_net = max(accrued - vacation_days_taken, 0.0)
 
             rec.vacation_days_accrued = round(vacation_days_net, 2)

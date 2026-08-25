@@ -878,6 +878,32 @@ class HrEmployeeExtension(models.Model):
              'vacaciones. Vea "Días de Incapacidad que SÍ Descuentan Vacaciones" '
              'para ese dato.'
     )
+    vacation_anniversary_bonus_days = fields.Float(
+        string='Días Adicionales por Aniversario (ya aplicados)',
+        compute='_compute_vacation_balance', store=False,
+        help='Cuantos dias de vacacion adicionales ya se le sumaron a '
+             'este empleado por el beneficio de "Vacaciones Adicionales '
+             'por Aniversario Laboral" (Configuracion Contable), desde '
+             'la fecha de corte hasta hoy. '
+             'Solo aplica si ese beneficio esta activo -- si esta '
+             'apagado, este campo siempre da 0. '
+             'Ya esta incluido dentro de "Total Acumulado (incluye '
+             'inicial)" -- este campo solo desglosa cuanto de ese total '
+             'vino especificamente de este beneficio, para poder '
+             'confirmar el calculo sin tener que hacerlo a mano.'
+    )
+    vacation_anniversary_bonus_count = fields.Integer(
+        string='Anualidades Contempladas en el Bono',
+        compute='_compute_vacation_balance', store=False,
+        help='Cuantos aniversarios de ingreso del empleado, posteriores '
+             'a la fecha de corte, ya se contaron para el beneficio de '
+             'Vacaciones Adicionales por Aniversario. '
+             'Un empleado puede tener varios años de antiguedad total, '
+             'pero si su fecha de corte es reciente, solo los '
+             'aniversarios ocurridos DESPUES de esa fecha cuentan aqui '
+             '-- por eso este numero puede ser menor a sus años de '
+             'servicio totales.'
+    )
     disability_days_vacation_impact = fields.Float(
         string='Días de Vacación Descontados por Incapacidad',
         compute='_compute_disability_days_vacation_impact', store=False,
@@ -1458,7 +1484,7 @@ class HrEmployeeExtension(models.Model):
             if _cid_vac not in _cfg_by_company:
                 _cfg_by_company[_cid_vac] = self.env['planilla.accounting.config'].search(
                     [('company_id', '=', _cid_vac)], limit=1)
-            accrued, _nb, _ba = rh.calc_vacation_accrual(
+            accrued, _nb, bonus_days, bonus_count = rh.calc_vacation_accrual(
                 emp, hoy, disability_days_excluded=disability_days_excluded,
                 _cfg=_cfg_by_company[_cid_vac])
             # Solo contar registros POSTERIORES al corte (los anteriores
@@ -1505,6 +1531,8 @@ class HrEmployeeExtension(models.Model):
             emp.vacation_days_taken     = taken
             emp.vacation_days_available = available
             emp.vacation_balance_alert  = available < 0
+            emp.vacation_anniversary_bonus_days  = bonus_days
+            emp.vacation_anniversary_bonus_count = bonus_count
 
 
     attendance_schedule_warning = fields.Char(

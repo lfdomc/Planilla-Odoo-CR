@@ -320,7 +320,7 @@ class TerminationSimulator(models.TransientModel):
             vacation_days_gross = emp.vacation_days_accrued or 0
         else:
             rh_vac = self.env['planilla.rate.helper']
-            vacation_days_gross, accrued_since_cutoff, _bonus = rh_vac.calc_vacation_accrual(
+            vacation_days_gross, accrued_since_cutoff, _bonus, _bonus_count = rh_vac.calc_vacation_accrual(
                 emp, exit_date)
 
         vac_days   = max(vacation_days_gross - vacation_days_taken, 0)

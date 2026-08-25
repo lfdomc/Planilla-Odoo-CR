@@ -241,16 +241,18 @@ class RateHelper(models.AbstractModel):
             base_ref = entry_date
 
         bonus_aniversarios = 0
+        bonus_anniversary_count = 0
         aniv = entry_date + _rdelta(years=1)
         while aniv <= hoy:
             if aniv > base_ref:
                 # Top-up: el ciclo normal ya aporta 1 dia el mes del
                 # aniversario, el bono completa el resto.
                 bonus_aniversarios += max(av_base - 1, 0)
+                bonus_anniversary_count += 1
             aniv += _rdelta(years=1)
 
         accrued = int(init_bal) + nuevos_base + bonus_aniversarios
-        return accrued, nuevos_base, bonus_aniversarios
+        return accrued, nuevos_base, bonus_aniversarios, bonus_anniversary_count
 
     def next_sequential_code(self, table, prefix):
         """

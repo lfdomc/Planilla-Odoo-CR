@@ -218,6 +218,13 @@
                                    string="→ Días de Vacación Descontados por Incapacidad"
                                    readonly="1" style="font-weight:bold;"
                                    decoration-danger="disability_days_vacation_impact &gt; 0"/>
+                            <field name="vacation_anniversary_bonus_days"
+                                   string="→ Días Adicionales por Aniversario (ya aplicados)"
+                                   readonly="1" style="font-weight:bold;"
+                                   decoration-success="vacation_anniversary_bonus_days &gt; 0"/>
+                            <field name="vacation_anniversary_bonus_count"
+                                   string="→ Anualidades Contempladas en el Bono"
+                                   readonly="1"/>
                         <field name="vacation_days_accrued" string="Total Acumulado (incluye inicial)" readonly="1"/>
                             <field name="vacation_days_taken" string="Días Tomados en Sistema" readonly="1"/>
                             <field name="vacation_days_available" string="Días Disponibles" readonly="1"/>
