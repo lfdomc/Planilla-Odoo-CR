@@ -311,3 +311,43 @@ class VacationPayment(models.Model):
                 rec.total_amount = round(money_days * base_rate, 2)
             else:
                 rec.total_amount = round(rec.days * base_rate, 2)
+
+    @api.constrains('employee_id', 'date_start', 'date_end', 'state')
+    def _check_no_overlap(self):
+        """
+        Impide que un mismo empleado tenga dos registros de vacaciones
+        con fechas que se solapen -- sin importar el tipo (Disfrutadas/
+        Proporcionales/Adelanto), ya que en la practica real un
+        empleado no puede estar de vacaciones dos veces el mismo dia
+        fisico, sin importar como se le llame administrativamente al
+        registro.
+
+        Caso real que motivo este fix: un empleado quedo con dos
+        registros identicos de "Vacaciones Disfrutadas" para el mismo
+        dia, ambos ya "Pagado" -- al no existir ninguna validacion
+        contra esto, nada impidio que se crearan por duplicado.
+
+        Se excluyen los registros cancelados de la comparacion, ya que
+        esos no representan tiempo real tomado.
+        """
+        for rec in self:
+            if rec.state == 'cancelled' or not rec.date_start or not rec.date_end:
+                continue
+            overlapping = self.search([
+                ('id', '!=', rec.id),
+                ('employee_id', '=', rec.employee_id.id),
+                ('state', '!=', 'cancelled'),
+                ('date_start', '<=', rec.date_end),
+                ('date_end', '>=', rec.date_start),
+            ], limit=1)
+            if overlapping:
+                raise ValidationError(
+                    f'{rec.employee_id.name} ya tiene un registro de '
+                    f'vacaciones ({overlapping.vacation_type}) que se '
+                    f'traslapa con estas fechas ({overlapping.date_start} '
+                    f'al {overlapping.date_end}, estado '
+                    f'"{overlapping.state}"). Un empleado no puede tener '
+                    f'dos registros de vacaciones para el mismo dia. Si '
+                    f'esto es un error de captura, corrija o cancele el '
+                    f'registro existente antes de crear uno nuevo.'
+                )

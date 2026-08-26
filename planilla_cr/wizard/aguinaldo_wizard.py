@@ -134,13 +134,13 @@ class AguinaldoWizard(models.TransientModel):
                 base = slip.base_salary or 0.0
             # Restar subsidio CCSS de incapacidades del período (este SI
             # es correcto restarlo aqui -- base_salary NO lo excluye por
-            # diseño, a diferencia de las licencias sin goce).
-            subsidio = round(
-                sum(
-                    getattr(d, 'ccss_subsidy', 0.0) or 0.0
-                    for d in slip.disability_ids
-                    if getattr(d, 'state', '') in ('confirmed', 'paid')
-                ), 2)
+            # diseño, a diferencia de las licencias sin goce). Se usa
+            # ccss_subsidy_total, YA prorrateado especificamente para el
+            # periodo de ESTA boleta -- sumar d.ccss_subsidy de cada
+            # incapacidad vinculada (disability_ids) es incorrecto,
+            # porque ese es el TOTAL de la incapacidad completa, que
+            # puede extenderse mas alla del periodo de esta boleta.
+            subsidio = round(slip.ccss_subsidy_total or 0.0, 2)
             # FIX: sumar el subsidio PATRONAL de los dias 1-3 de
             # incapacidad (Art. 79 CT, costo_patrono_periodo) -- este NO
             # es un subsidio de la Caja (por eso no aparece en
@@ -438,12 +438,7 @@ class AguinaldoWizard(models.TransientModel):
                 base = slip.gross_salary or 0.0
             else:
                 base = slip.base_salary or 0.0
-            subsidio = round(
-                sum(
-                    getattr(d, 'ccss_subsidy', 0.0) or 0.0
-                    for d in slip.disability_ids
-                    if getattr(d, 'state', '') in ('confirmed', 'paid')
-                ), 2)
+            subsidio = round(slip.ccss_subsidy_total or 0.0, 2)
             costo_patrono_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
             devengado = max(round(base - subsidio + costo_patrono_1_3, 2), 0.0)
             en_jun_nov = bool(
