@@ -113,6 +113,7 @@
         'data/cron_jobs.xml',
         'data/email_templates.xml',
         'data/public_holidays_cr.xml',
+        'data/fix_holiday_defaults.xml',
         'views/eddi7_export_views.xml',
         'views/amonestacion_views.xml',
         'views/employee_movement_views.xml',

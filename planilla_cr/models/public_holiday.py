@@ -134,3 +134,34 @@ class PublicHoliday(models.Model):
         if company_id:
             domain += ['|', ('company_id', '=', company_id), ('company_id', '=', False)]
         return set(self.search(domain).mapped('date'))
+
+    @api.model
+    def action_fix_generates_double_pay_defaults(self):
+        """
+        Garantiza que los 3 feriados NO obligatorios reales de Costa
+        Rica (2 de agosto, 31 de agosto, 1 de diciembre -- Art. 148 CT,
+        Ley 9803 y Ley 10050) tengan generates_double_pay=True.
+
+        Se conecta via <function> en un archivo de datos SIN
+        noupdate="1" (ver data/fix_holiday_defaults.xml), que Odoo SI
+        garantiza ejecutar en cada actualizacion del modulo -- a
+        diferencia de post_migrate_hook en el manifest, que se
+        confirmo que NO es un mecanismo real/confiable de Odoo (solo
+        post_init_hook lo es, y ese unicamente corre en la instalacion
+        inicial, nunca en actualizaciones de un modulo ya instalado).
+
+        Se identifica por mes/dia (no por nombre ni por ID interno),
+        para funcionar sin importar como se haya nombrado el feriado o
+        el external id que tenga en cada instalacion.
+        """
+        candidatos = self.search([
+            ('active', '=', True),
+        ])
+        fechas_no_obligatorias = {(8, 2), (8, 31), (12, 1)}
+        a_corregir = candidatos.filtered(
+            lambda h: (h.date.month, h.date.day) in fechas_no_obligatorias
+            and not h.generates_double_pay
+        )
+        if a_corregir:
+            a_corregir.write({'generates_double_pay': True})
+        return True

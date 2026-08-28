@@ -1438,6 +1438,19 @@ def _fix_holiday_generates_double_pay(env):
     (2 de agosto, 31 de agosto, 1 de diciembre -- Art. 148 CT, Ley 9803
     y Ley 10050) tengan generates_double_pay=TRUE.
 
+    ADVERTENCIA (confirmado con un caso real): post_migrate_hook como
+    clave del manifest NO es un mecanismo oficial/confiable de Odoo
+    para ejecutar codigo en cada actualizacion -- la documentacion
+    oficial solo reconoce post_init_hook (que unicamente corre en la
+    instalacion INICIAL, nunca en actualizaciones de un modulo ya
+    instalado). Esta funcion se deja aqui de todas formas -- es
+    idempotente, no causa daño si llegara a ejecutarse. La fuente REAL
+    y garantizada de esta correccion es
+    action_fix_generates_double_pay_defaults() en
+    models/public_holiday.py, invocada via <function> en
+    data/fix_holiday_defaults.xml (sin noupdate, que SI se re-ejecuta
+    en cada -u segun la documentacion oficial de Odoo 19).
+
     Motivo: el campo generates_double_pay se agrego DESPUES de que
     estos feriados ya existieran en varias instalaciones (creados por
     el archivo de datos noupdate="1", que no se re-ejecuta sobre
