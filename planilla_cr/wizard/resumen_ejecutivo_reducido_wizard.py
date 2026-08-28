@@ -319,7 +319,12 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
 
             sal_base = slip.base_salary or 0
             extras = slip.overtime_amount or 0
-            otros_ing = slip.other_income or 0
+            # FIX: incluir bono_salarial_amount (bonos afecto CCSS:
+            # productividad, asistencia, antiguedad, comisiones, dias
+            # feriados, etc.) -- antes este componente real del bruto
+            # de la boleta quedaba completamente fuera del Sub Total
+            # de este reporte, sin ninguna columna que lo capturara.
+            otros_ing = (slip.other_income or 0) + (slip.bono_salarial_amount or 0)
             sub_total = sal_base + extras + otros_ing
 
             ccss_emp = slip.ccss_employee or 0
