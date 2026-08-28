@@ -242,6 +242,7 @@ def post_migrate_hook(env):
     _migrate_disability_payslip_m2m(env)
     _migrate_leave_cr_payslip_m2m(env)
     _remove_legacy_menu_items(env)
+    _fix_holiday_generates_double_pay(env)
 
 
 def _release_orphan_records_to_global(env, model_name, filter_domain, key_fields):
@@ -1429,3 +1430,43 @@ def _ensure_missing_columns(env):
 
     env.cr.execute("SELECT 1")  # flush
     _logger.info('planilla_cr._ensure_missing_columns: verificacion completada.')
+
+
+def _fix_holiday_generates_double_pay(env):
+    """
+    Garantiza que los 3 feriados NO obligatorios reales de Costa Rica
+    (2 de agosto, 31 de agosto, 1 de diciembre -- Art. 148 CT, Ley 9803
+    y Ley 10050) tengan generates_double_pay=TRUE.
+
+    Motivo: el campo generates_double_pay se agrego DESPUES de que
+    estos feriados ya existieran en varias instalaciones (creados por
+    el archivo de datos noupdate="1", que no se re-ejecuta sobre
+    registros existentes). Aunque el campo Python tiene default=True,
+    eso no garantiza que se aplique de forma confiable a registros
+    preexistentes durante una migracion de esquema -- confirmado con
+    un caso real: un feriado del 31 de agosto ya existente seguia
+    bloqueando el tipo "Dia Feriado" en horas extra despues de
+    actualizar el modulo, porque el registro real en la base de datos
+    seguia sin el campo nuevo activado.
+
+    Se identifica por mes/dia (no por nombre ni por ID interno de
+    registro), para que funcione sin importar como se haya nombrado el
+    feriado o el id tecnico que tenga en cada instalacion especifica.
+    """
+    env.cr.execute("""
+        ALTER TABLE planilla_public_holiday
+        ADD COLUMN IF NOT EXISTS generates_double_pay BOOLEAN DEFAULT TRUE;
+
+        UPDATE planilla_public_holiday
+        SET generates_double_pay = TRUE
+        WHERE (
+            (EXTRACT(MONTH FROM date) = 8 AND EXTRACT(DAY FROM date) = 2)
+            OR (EXTRACT(MONTH FROM date) = 8 AND EXTRACT(DAY FROM date) = 31)
+            OR (EXTRACT(MONTH FROM date) = 12 AND EXTRACT(DAY FROM date) = 1)
+        )
+        AND (generates_double_pay IS NULL OR generates_double_pay = FALSE);
+    """)
+    _logger.info(
+        'planilla_cr._fix_holiday_generates_double_pay: '
+        'verificacion de feriados no obligatorios completada.'
+    )

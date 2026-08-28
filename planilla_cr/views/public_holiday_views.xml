@@ -7,7 +7,8 @@
             <list string="Feriados Nacionales CR" editable="top">
                 <field name="date"/>
                 <field name="name"/>
-                <field name="is_paid" widget="boolean_toggle" string="Obligatorio"/>
+                <field name="is_paid" widget="boolean_toggle" string="Obligatorio (día libre garantizado)"/>
+                <field name="generates_double_pay" widget="boolean_toggle" string="Genera Pago Doble"/>
                 <field name="type"/>
                 <field name="company_id"/>
                 <field name="active"/>
