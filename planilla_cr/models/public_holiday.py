@@ -15,15 +15,41 @@ class PublicHoliday(models.Model):
         ('custom',   'Personalizado'),
     ], string='Tipo', default='national', required=True)
 
-    # FIX BUG-N06 v52: campo is_paid para distinguir pago obligatorio vs. opcional
-    # Feriado obligatorio (is_paid=True): trabajar ese dia devuelve doble salario (Art. 148 CT)
-    # Feriado no obligatorio (is_paid=False): no genera pago doble obligatorio, es trasladable
+    # FIX BUG-N06 v52 (y correccion posterior): is_paid distingue si el
+    # patrono DEBE conceder el dia libre pagado aunque no se trabaje
+    # (feriado "obligatorio" en el sentido estricto del Art. 148 CT).
+    # Feriado obligatorio (is_paid=True): dia libre pagado garantizado.
+    # Feriado no obligatorio (is_paid=False): trasladable, el pago del
+    # dia sin trabajar depende de la modalidad salarial del empleado.
     is_paid = fields.Boolean(
-        string='Pago Obligatorio',
+        string='Pago Obligatorio (dia libre garantizado)',
         default=True,
-        help='Art. 148 CT: feriados obligatorios requieren pago doble si se trabaja.\n'
-             'Feriados no obligatorios (ej: 2 de diciembre) son trasladables y '
-             'no generan doble salario automaticamente.'
+        help='Art. 148 CT: si el patrono DEBE conceder el dia libre '
+             'pagado, se trabaje o no. Los feriados "no obligatorios" '
+             '(2 de agosto, 31 de agosto, 1 de diciembre) son '
+             'trasladables y su pago sin trabajar depende de la '
+             'modalidad salarial del empleado. IMPORTANTE: esto es '
+             'independiente de si genera pago doble al trabajarlo -- '
+             'ver el campo "Genera Pago Doble" abajo.'
+    )
+    # FIX: campo separado para la pregunta legal real que determina el
+    # pago doble -- confirmado con multiples fuentes legales actuales
+    # (MTSS, AG Legal, ATC Auditores) que los feriados "no obligatorios"
+    # SI generan pago doble para empleados con salario mensual/quincenal
+    # que trabajan ese dia (el feriado ya esta incluido en el sueldo;
+    # si se trabaja, se adiciona un dia sencillo para completar el
+    # equivalente a doble). La distincion de "no obligatorio" solo
+    # afecta el pago del dia SIN trabajar, no el pago doble AL trabajar.
+    generates_double_pay = fields.Boolean(
+        string='Genera Pago Doble al Trabajarlo',
+        default=True,
+        help='Si trabajar este dia genera pago doble (Art. 148 CT). '
+             'Confirmado legalmente que esto aplica tanto a feriados '
+             'obligatorios como a los "no obligatorios" (2 de agosto, '
+             '31 de agosto, 1 de diciembre) para empleados con salario '
+             'mensual o quincenal -- son preguntas legales '
+             'independientes de si el dia libre esta garantizado sin '
+             'trabajar.'
     )
     company_id = fields.Many2one(
         'res.company', string='Empresa',
@@ -46,12 +72,35 @@ class PublicHoliday(models.Model):
     @api.model
     def is_paid_holiday(self, date_to_check, company_id=None):
         """Retorna True si la fecha es feriado de pago obligatorio (Art. 148 CT).
-        Usar para determinar si se debe pagar doble al empleado que trabaja ese dia.
+        Usar para determinar si el patrono DEBE conceder el dia libre
+        pagado, se trabaje o no. NO usar para determinar pago doble --
+        ver generates_double_pay_holiday() para eso.
         """
         domain = [
             ('date', '=', date_to_check),
             ('active', '=', True),
             ('is_paid', '=', True),
+        ]
+        if company_id:
+            domain += ['|', ('company_id', '=', company_id), ('company_id', '=', False)]
+        else:
+            domain.append(('company_id', '=', False))
+        return bool(self.search(domain, limit=1))
+
+    def generates_double_pay_holiday(self, date_to_check, company_id=None):
+        """Retorna True si trabajar esta fecha genera pago doble (Art. 148 CT).
+
+        Distinto de is_paid_holiday(): un feriado puede ser "no
+        obligatorio" (el dia libre sin trabajar no esta garantizado
+        para todas las modalidades salariales) y aun asi generar pago
+        doble si se trabaja -- confirmado legalmente para los tres
+        feriados no obligatorios (2 de agosto, 31 de agosto, 1 de
+        diciembre) en empleados con salario mensual o quincenal.
+        """
+        domain = [
+            ('date', '=', date_to_check),
+            ('active', '=', True),
+            ('generates_double_pay', '=', True),
         ]
         if company_id:
             domain += ['|', ('company_id', '=', company_id), ('company_id', '=', False)]

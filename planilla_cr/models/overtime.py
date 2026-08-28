@@ -287,15 +287,21 @@ class Overtime(models.Model):
                 _logger.warning('planilla.overtime %s: %s', self.name, msg)
 
         # FIX C-01 v53: Validar que overtime_type=holiday corresponda a un feriado real.
+        # FIX (correccion posterior): usar generates_double_pay_holiday(), no
+        # is_paid_holiday() -- la pregunta correcta aqui es si trabajar la
+        # fecha genera pago doble, no si el dia libre esta garantizado sin
+        # trabajar. Ambas preguntas son legalmente independientes; los
+        # feriados "no obligatorios" (2 de agosto, 31 de agosto, 1 de
+        # diciembre) SI generan pago doble para salario mensual/quincenal.
         if self.overtime_type == 'holiday' and self.date:
-            is_holiday = self.env['planilla.public.holiday'].is_paid_holiday(
+            is_holiday = self.env['planilla.public.holiday'].generates_double_pay_holiday(
                 self.date,
                 company_id=self.employee_id.company_id.id if self.employee_id else None
             )
             if not is_holiday:
                 raise ValidationError(
                     f'El tipo "Dia Feriado" requiere que la fecha ({self.date}) '
-                    f'este registrada como feriado de pago obligatorio (Art. 148 CT). '
+                    f'este registrada como feriado que genera pago doble (Art. 148 CT). '
                     f'Verifique en Planilla -> Feriados Nacionales o use tipo Simple/Doble.'
                 )
         self.write({'state': 'approved'})
