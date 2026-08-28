@@ -79,11 +79,18 @@
     <!--                   b) trasladarlo al lunes siguiente, -->
     <!--                   c) pactarlo con el trabajador. -->
     <!-- Si el empleado trabaja este día NO aplica pago doble automático. -->
-    <record id="holiday_cr_2026_12_02" model="planilla.public.holiday">
-        <field name="name">Abolición del Ejército</field>
-        <field name="date">2026-12-02</field>
+    <!-- 31 de agosto: Dia de la Persona Negra y la Cultura Afrocostarricense — NO OBLIGATORIO -->
+    <!-- Ley 10050 (aprobada 22 nov 2021): incorporo esta fecha al Art. 148 CT como -->
+    <!-- feriado de pago NO obligatorio, junto con el 2 de agosto y el 1 de diciembre. -->
+    <!-- Personas con salario mensual/quincenal: el dia ya viene incluido en el sueldo -->
+    <!-- (no genera pago adicional si no se trabaja). Si se labora, se agrega un pago -->
+    <!-- sencillo para completar el equivalente a doble. Personas con salario semanal -->
+    <!-- en actividad NO comercial: sin obligacion de pago si no se trabaja. -->
+    <record id="holiday_cr_2026_08_31" model="planilla.public.holiday">
+        <field name="name">Día de la Persona Negra y la Cultura Afrocostarricense</field>
+        <field name="date">2026-08-31</field>
         <field name="type">optional</field>
         <field name="is_paid">False</field>
-        <field name="note">Ley 8886: feriado NO obligatorio (trasladable). No genera pago doble. Consultar con su contador el tratamiento aplicable.</field>
+        <field name="note">Ley 10050 (Art. 148 CT): feriado NO obligatorio. Salario mensual/quincenal: ya incluido en el sueldo, sin pago adicional si no se labora. Si se trabaja, se paga sencillo adicional (equivalente a doble). No genera pago triple en horas extra por si mismo.</field>
     </record>
 </odoo>

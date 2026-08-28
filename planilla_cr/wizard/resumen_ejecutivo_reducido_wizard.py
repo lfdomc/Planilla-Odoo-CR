@@ -206,10 +206,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         #     informacion relevante para este reporte.
         #   - Se agrego Maternidad como columna propia, separada de
         #     Incapacidad C.C.S.S. (antes iban agrupadas).
-        #   - "Facturas" y "Prestamos Internos" se unificaron en una
-        #     sola columna "Facturas / Prestamos", porque representan
-        #     el mismo concepto para el negocio (dinero que se le
-        #     descuenta al empleado por una compra o prestamo interno).
+        #   - Facturas (Cobros al Empleado) y Prestamos Internos son
+        #     columnas SEPARADAS, para poder diferenciar los valores
+        #     de cada concepto -- antes estaban unificadas en una sola
+        #     columna, pero se dividieron por pedido explicito.
         #   - Total (leido de salary_payable, no reconstruido) al final de
         #     cada fila: neto del empleado incluyendo subsidios CCSS/INS.
         #   - Deposito Patrono (leido de deposito_patrono) como ultima
@@ -229,7 +229,8 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ('Ahorro\nNavideño',                11, 'ded',  fd_ded),
             ('Permiso sin\nGoce de Salario',    12, 'ded',  fd_ded),
             ('Impuesto\nde Renta',              11, 'ded',  fd_ded),
-            ('Facturas /\nPrestamos',           13, 'ded',  fd_ded),
+            ('Facturas',                        11, 'ded',  fd_ded),
+            ('Préstamos\nInternos',             12, 'ded',  fd_ded),
             ('Otros',                           11, 'ded',  fd_ded),
             ('Embargos',                        11, 'ded',  fd_ded),
             ('Total',                           13, 'tot',  None),
@@ -335,23 +336,31 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # sistema (confirmado contra la definicion real del campo
             # deduction_category) -- solo 'embargo' existe.
             embargo = _sum_cat(slip, 'embargo')
-            # FIX: unificar Facturas y Prestamos Internos en una sola
-            # columna, por pedido explicito (son el mismo concepto
-            # para el negocio: dinero que se le descuenta al empleado
-            # por una compra o prestamo interno). Se identifican por
-            # los campos de VINCULO directo (loan_installment_id,
-            # employee_charge_id), no solo por deduction_category --
-            # 'prestamo', 'prestamo_interno', 'cobro', 'cobro_empleado'
-            # y 'employee_charge' nunca fueron categorias reales del
-            # sistema, y aunque 'loan' si es real, no todas las lineas
-            # de prestamo/cobro quedan siempre bien categorizadas con
-            # ese texto -- el vinculo directo al registro de origen es
-            # la fuente confiable.
-            facturas_prestamos = round(sum(
+            # FIX: separar Facturas y Prestamos en DOS columnas propias
+            # (antes unificadas en una sola), por pedido explicito, para
+            # poder diferenciar los valores de cada concepto. Se
+            # identifican por los campos de VINCULO directo, no solo
+            # por deduction_category -- 'prestamo', 'prestamo_interno',
+            # 'cobro', 'cobro_empleado' y 'employee_charge' nunca
+            # fueron categorias reales del sistema, y aunque 'loan' si
+            # es real, no todas las lineas de prestamo quedan siempre
+            # bien categorizadas con ese texto -- el vinculo directo al
+            # registro de origen es la fuente confiable.
+            #   - Facturas = Cobros al Empleado (employee_charge_id):
+            #     compras/cargos internos que se le cobran al empleado.
+            #   - Prestamos = cuotas de prestamos internos
+            #     (loan_installment_id, o deduction_category='loan' de
+            #     respaldo cuando el vinculo directo no este presente).
+            facturas = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if getattr(l, 'line_type', '') == 'deduction'
+                and getattr(l, 'employee_charge_id', False)
+            ), 2)
+            prestamos = round(sum(
+                l.amount for l in slip.deduction_line_ids
+                if getattr(l, 'line_type', '') == 'deduction'
+                and not getattr(l, 'employee_charge_id', False)
                 and (getattr(l, 'loan_installment_id', False)
-                     or getattr(l, 'employee_charge_id', False)
                      or getattr(l, 'deduction_category', '') == 'loan')
             ), 2)
             # "Otros" = todo lo demas que no tiene columna propia en este
@@ -366,7 +375,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # columna especifica de arriba (incluyendo la categoria
             # 'other' o cualquier otra no contemplada) tambien cae aqui
             # -- se excluyen explicitamente las lineas ya contadas en
-            # facturas_prestamos y embargo para no duplicarlas.
+            # facturas, prestamos y embargo para no duplicarlas.
             categorias_con_columna_propia = {
                 'ahorro', 'licencia_sin_goce', 'ausencia', 'embargo',
                 'sindical', 'cooperativa', 'rop', 'seguro',
@@ -405,7 +414,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 emp.name or '',
                 sal_base, otros_ing, extras, sub_total,
                 ccss_emp, monto_incap_ccss, monto_incap_ins, monto_maternidad,
-                ahorro, permiso_sg, renta, facturas_prestamos, otros_ded, embargo,
+                ahorro, permiso_sg, renta, facturas, prestamos, otros_ded, embargo,
                 total_empleado, deposito_patrono,
             ]
 
@@ -468,8 +477,8 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             'Deposito Patrono = monto real que la empresa deposita '
             '(excluye subsidios que paga la Caja/INS directamente) -- '
             'valor correcto para libros contables. '
-            '"Facturas / Prestamos" = cuotas de prestamos internos y '
-            'cobros al empleado (ej. compras en la empresa). '
+            '"Facturas" = cobros al empleado (ej. compras en la empresa). '
+            '"Prestamos Internos" = cuotas de prestamos internos. '
             '"Otros" en Rebajos agrupa: cuota sindical, cooperativa, ROP, '
             'seguro/poliza, pension voluntaria, pension alimentaria, '
             'rebajo consolidado de renta, y cualquier otra deduccion sin '
