@@ -1450,6 +1450,8 @@ class HrEmployeeExtension(models.Model):
                 emp.vacation_days_taken    = 0.0
                 emp.vacation_days_available = 0.0
                 emp.vacation_balance_alert  = False
+                emp.vacation_anniversary_bonus_days  = 0.0
+                emp.vacation_anniversary_bonus_count = 0
                 continue
 
             # Usar exit_date solo si el empleado YA salio (active=False)
