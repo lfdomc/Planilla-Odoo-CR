@@ -334,15 +334,28 @@ class TerminationSimulator(models.TransientModel):
 
         # -- Aguinaldo proporcional (Art. 228 CT) ----------------------------
         # FIX: incluir acumulado pre-implementacion si existe
-        if exit_date.month >= 12:
+        if exit_date.month == 12:
             period_start = datetime.date(exit_date.year, 12, 1)
-            total_months = 0
-        elif exit_date.month >= 6:
-            period_start = datetime.date(exit_date.year - 1, 12, 1)
-            total_months = exit_date.month - 5
         else:
             period_start = datetime.date(exit_date.year - 1, 12, 1)
-            total_months = exit_date.month
+
+        # FIX BUG CRITICO: total_months debe contar SOLO los meses
+        # realmente trabajados por el empleado -- antes se calculaba
+        # unicamente a partir del mes calendario de salida (con 3
+        # formulas ligeramente distintas repetidas en este mismo
+        # archivo), sin verificar la fecha de ingreso, inflando
+        # severamente el aguinaldo de empleados con poco tiempo en la
+        # empresa. Mismo fix ya aplicado en employee_termination.py:
+        # el inicio real del periodo es el MAYOR entre el 1 de
+        # diciembre (inicio legal del periodo) y la fecha real de
+        # ingreso del empleado.
+        entry = emp.entry_date or period_start
+        real_period_start = max(period_start, entry)
+        total_months = max(
+            0,
+            (exit_date.year * 12 + exit_date.month)
+            - (real_period_start.year * 12 + real_period_start.month) + 1
+        )
 
         ag_init_amount = emp.aguinaldo_initial_amount or 0.0
         ag_init_date   = emp.aguinaldo_initial_date
@@ -354,12 +367,9 @@ class TerminationSimulator(models.TransientModel):
             # MISMA LÓGICA que employee_termination.py cuando usa boletas directas:
             # ag = sum(gross_salary_boletas_en_periodo) / 12
             # Con los 6 campos manuales: ag = sum(sal_nonzero) / 12
-            # Número de meses para mostrar (informativo)
-            if exit_date.month == 12:
-                ag_period_start = datetime.date(exit_date.year, 12, 1)
-            else:
-                ag_period_start = datetime.date(exit_date.year - 1, 12, 1)
-            total_months = (exit_date.month % 12) + 1
+            # FIX: ya NO se redefine total_months aqui -- se usa el valor
+            # correcto ya calculado al inicio del bloque (con entry_date real).
+            ag_period_start = period_start
 
             # Si hay aguinaldo_initial_amount: solo agregar meses NO cubiertos
             # IDÉNTICO a employee_termination.py para evitar doble conteo.

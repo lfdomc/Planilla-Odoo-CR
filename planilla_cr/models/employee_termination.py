@@ -393,7 +393,24 @@ class EmployeeTermination(models.Model):
                 period_start = _date(exit_year, 12, 1)
             else:
                 period_start = _date(exit_year - 1, 12, 1)
-            total_months = (exit_month % 12) + 1
+
+            # FIX: total_months debe contar SOLO los meses realmente
+            # trabajados por el empleado -- antes se calculaba unicamente
+            # a partir del mes calendario de salida, sin verificar la
+            # fecha de ingreso, inflando severamente el aguinaldo de
+            # empleados con poco tiempo en la empresa (confirmado con un
+            # caso real: 25 dias de servicio calculaba 10 meses de
+            # aguinaldo). El inicio real del periodo es el MAYOR entre el
+            # 1 de diciembre (inicio legal del periodo) y la fecha real
+            # de ingreso del empleado -- mismo criterio que ya usa
+            # correctamente el wizard general de aguinaldo.
+            entry = rec.entry_date or period_start
+            real_period_start = max(period_start, entry)
+            total_months = max(
+                0,
+                (exit_year * 12 + exit_month)
+                - (real_period_start.year * 12 + real_period_start.month) + 1
+            )
 
             # FIX: Si hay acumulado inicial, descontar los meses ya cubiertos
             ag_init_amount = rec.employee_id.aguinaldo_initial_amount or 0.0
@@ -416,6 +433,20 @@ class EmployeeTermination(models.Model):
         """FIX NEW-02 v54: calcula renta sobre el total bruto de la liquidacion.
         Reutiliza la misma logica progresiva por tramos que payslip_cr._calc_income_tax.
         La liquidacion se trata como pago unico mensual (freq = monthly).
+
+        ADVERTENCIA (codigo duplicado, confirmado en auditoria): este
+        metodo es una implementacion INDEPENDIENTE de
+        payslip_compute_mixin.py::_calc_income_tax, no una llamada
+        compartida -- ambos archivos calculan tramos progresivos de
+        renta por separado. Hoy ambos dan resultados correctos y
+        consistentes (este metodo no anualiza, tratando gross como
+        monto mensual real directo -- equivalente al camino
+        already_monthly=True del otro archivo), pero cualquier cambio
+        futuro a la formula de renta (ej. un nuevo ajuste legal) debe
+        aplicarse en AMBOS lugares o quedaran desincronizados. Se
+        recomienda para una futura sesion extraer esta logica a un
+        metodo compartido (ej. un mixin comun) para eliminar el riesgo
+        de duplicacion real.
         """
         brackets = self.env['planilla.income.tax.bracket'].search(
             # FIX-R12: mismo fix que payslip_compute_mixin -- filtrar por empresa
@@ -498,14 +529,48 @@ class EmployeeTermination(models.Model):
             emp = self.employee_id
             self.entry_date = emp.entry_date or False
 
-            # MEJORA: para empleados con salario variable (comisiones, HE recurrentes),
-            # calcular el salario bruto promedio de los ultimos 4 meses del historial
-            # en lugar de usar solo el salario base fijo.
-            # Art. 153 CT: la liquidacion debe basarse en el salario real percibido.
-            if getattr(emp, 'has_variable_income', False):
-                # Usar salario mensual del empleado directamente
-                avg_monthly = emp.base_salary or 0
-                self.last_salary = emp.base_salary or 0
+            # FIX: siempre cargar el salario base como respaldo inmediato,
+            # sin importar has_variable_income -- antes el campo quedaba
+            # vacio/en cero para la mayoria de empleados (los de salario
+            # fijo), ya que la asignacion estaba condicionada solo a
+            # has_variable_income=True.
+            self.last_salary = emp.base_salary or 0.0
+
+            # FIX: precargar las ultimas 6 quincenas confirmadas del
+            # sistema (agrupadas en meses), igual que ya hace
+            # correctamente el Simulador de Liquidacion -- el propio
+            # texto de ayuda de has_variable_income promete este
+            # promedio de 4-6 meses del historial real (Art. 153 CT),
+            # pero el codigo anterior nunca lo implementaba: solo
+            # copiaba el salario base actual, sin ningun promedio.
+            # Solo si NO hay datos manuales ya ingresados, para no
+            # sobreescribir una edicion manual existente.
+            if not any([self.sal_m1, self.sal_m2, self.sal_m3,
+                        self.sal_m4, self.sal_m5, self.sal_m6]):
+                slips = self.env['planilla.payslip.cr'].search([
+                    ('employee_id', '=', emp.id),
+                    ('state', 'in', ('done', 'confirmed')),
+                ], order='date_to desc', limit=12)
+                from collections import defaultdict
+                monthly = defaultdict(float)
+                for s in slips:
+                    key = s.date_to.strftime('%Y-%m') if s.date_to else ''
+                    if key:
+                        # Usar base_salary mensual (no gross, que
+                        # incluye incapacidades/bonos puntuales) -- el
+                        # salario puro que exige el Art. 153 CT para
+                        # este calculo, igual criterio que el simulador.
+                        monthly[key] = (emp.base_salary or 0)
+                months_sorted = sorted(monthly.keys(), reverse=True)[:6]
+                sal_fields = ['sal_m1', 'sal_m2', 'sal_m3',
+                              'sal_m4', 'sal_m5', 'sal_m6']
+                for i, key in enumerate(months_sorted):
+                    setattr(self, sal_fields[i], round(monthly[key], 2))
+                # Si no hay boletas en el sistema, usar el salario base
+                # actual como respaldo para los 6 meses.
+                if not months_sorted and emp.base_salary:
+                    for f in sal_fields:
+                        setattr(self, f, round(emp.base_salary, 2))
 
     # -- Actions --------------------------------------------------
 
