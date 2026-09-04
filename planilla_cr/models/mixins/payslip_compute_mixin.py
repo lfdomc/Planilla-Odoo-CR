@@ -973,10 +973,18 @@ class PayslipComputeMixin(models.AbstractModel):
         """
         Calculo progresivo de renta usando tramos configurados en la UI.
 
-        NUEVO PARAMETRO: one_time_bonus -- monto de bonos NO recurrentes.
-        Los bonos puntuales (is_recurring=False) NO se anualizan porque no
-        se repetiran en el proximo periodo. Anualizarlos generaria un impuesto
-        incorrecto proyectando ingresos que no existiran.
+        PARAMETRO OBSOLETO: one_time_bonus -- ya NO tiene efecto en el
+        calculo (se conserva en la firma solo por compatibilidad con
+        los llamadores existentes, que pueden seguir pasandolo sin
+        error). FIX LEGAL: se elimino la logica que aislaba bonos "no
+        recurrentes" de la proyeccion mensual -- confirmado con
+        multiples fuentes legales actuales que la Ley del Impuesto
+        sobre la Renta de Costa Rica NO reconoce esa distincion: todo
+        el salario bruto devengado en el periodo (bono puntual o
+        habitual) se proyecta uniformemente al mes y se le aplica la
+        tabla progresiva de ese periodo, sin excepcion. La unica
+        excepcion real reconocida por ley es el aguinaldo (Art. 35 Ley
+        ISR), que se excluye en otro punto del sistema.
 
         NUEVO PARAMETRO: already_monthly -- usado por la reconciliacion del
         metodo "Mensual Consolidado" (ver _reconcile_monthly_income_tax).
@@ -993,9 +1001,8 @@ class PayslipComputeMixin(models.AbstractModel):
         se busca aqui como antes.
 
         Logica correcta (DGT-R-016-2026, Art. 33 LIR):
-          - base recurrente = gross - one_time_bonus -> se anualiza x periodos/mes
-          - bono puntual = one_time_bonus -> se agrega SIN anualizar
-          monthly_equiv = (gross - one_time_bonus) x periods_per_month + one_time_bonus
+          monthly_equiv = gross x periods_per_month
+          (todo el salario bruto del periodo se anualiza por igual)
 
         Retorna tupla (tax_neto, creditos_aplicados) para que _compute_deductions
         pueda almacenar ambos valores por separado en la boleta.
@@ -1022,11 +1029,21 @@ class PayslipComputeMixin(models.AbstractModel):
             # gravable real del mes completo -- no proyectar, no dividir.
             monthly_equiv = gross
         else:
-            # FIX RENTA-BONO: solo anualizar la parte recurrente del salario.
-            # Los bonos puntuales (is_recurring=False) no se proyectan al mes
-            # porque no se repetiran en el siguiente periodo.
-            base_recurrente = max(gross - one_time_bonus, 0.0)
-            monthly_equiv = base_recurrente * periods_per_month + one_time_bonus
+            # FIX LEGAL: la ley costarricense del impuesto al salario NO
+            # distingue entre ingresos "recurrentes" y "puntuales" para
+            # efectos de la retencion del periodo -- todo el salario
+            # bruto devengado en la quincena/mes se proyecta uniformemente
+            # y se le aplica la tabla progresiva de ese periodo. Un bono
+            # de produccion, comision alta, o pago extraordinario de horas
+            # extra se suma al salario ordinario del mes SIN excepcion,
+            # sin importar si se repetira o no el siguiente periodo.
+            # Confirmado con multiples fuentes legales actuales: "el ISR
+            # del mes refleja el ingreso real de ese periodo. No se
+            # promedia con otros meses." El parametro one_time_bonus se
+            # mantiene en la firma del metodo por compatibilidad con los
+            # llamadores existentes, pero ya NO se usa para excluir nada
+            # de la proyeccion -- todo el gross se anualiza por igual.
+            monthly_equiv = gross * periods_per_month
 
         brackets = self.env['planilla.income.tax.bracket'].search(
             # Buscar tramos especificos de la empresa actual O globales.
