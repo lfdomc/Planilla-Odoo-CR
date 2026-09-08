@@ -346,10 +346,20 @@ class ResumenEjecutivoWizard(models.TransientModel):
 
             # DEDUCCIONES QUE REDUCEN COTIZABLE
             dias_incap = slip.disability_days_in_period or 0
-            # monto incapacidad = días × tarifa diaria (base_salary/30)
-            # No usar base-gross porque las HE pueden hacer gross>base → da 0 incorrecto
-            _daily_rate = round((slip.base_salary or 0) / 30, 4)
-            monto_incap = round((slip.disability_days_in_period or 0) * _daily_rate, 2)
+            # FIX: Monto Incapacidad = cuanto se dejo de pagar del
+            # salario esperado por la incapacidad -- una DEDUCCION,
+            # distinta del Subsidio Mat./CCSS (subsid_mat, abajo), que
+            # es un INGRESO real que si recibe el empleado. Se calcula
+            # como la diferencia entre el salario completo esperado
+            # (de la ficha del empleado) y salario_cotizable (el
+            # salario YA reducido y probado que calculo la propia
+            # boleta segun la incapacidad real) -- sin reconstruir
+            # dias x tarifa diaria (formula fragil que ya causo montos
+            # matematicamente imposibles en un caso real), y sin
+            # duplicar el concepto que ya cuenta subsid_mat por separado.
+            _emp_salario_esperado = (emp.base_salary or 0.0)
+            _salario_cotizable_real = (slip.salario_cotizable or 0.0)
+            monto_incap = round(max(_emp_salario_esperado - _salario_cotizable_real, 0.0), 2)
             licencia_sg = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if l.line_type == 'deduction'
@@ -377,9 +387,29 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 ), 2)
 
             pension_al = _sum_cat('pension_alimentaria')
-            embargo    = _sum_cat('embargo', 'embargo_judicial')
-            cobros_emp = _sum_cat('cobro', 'cobro_empleado', 'employee_charge')
-            prestamos  = _sum_cat('loan', 'prestamo', 'prestamo_interno')
+            # FIX: 'embargo_judicial' nunca fue una categoria real del
+            # sistema (confirmado contra la definicion real del campo
+            # deduction_category) -- solo 'embargo' existe.
+            embargo    = _sum_cat('embargo')
+            # FIX: 'cobro', 'cobro_empleado', 'employee_charge',
+            # 'prestamo', 'prestamo_interno' nunca fueron categorias
+            # reales del sistema -- se identifican por el vinculo
+            # directo al registro de origen (employee_charge_id,
+            # loan_installment_id), la fuente confiable ya validada en
+            # el reporte reducido, en vez de depender de texto que
+            # puede no estar bien asignado.
+            cobros_emp = round(sum(
+                l.amount for l in slip.deduction_line_ids
+                if getattr(l, 'line_type', '') == 'deduction'
+                and getattr(l, 'employee_charge_id', False)
+            ), 2)
+            prestamos = round(sum(
+                l.amount for l in slip.deduction_line_ids
+                if getattr(l, 'line_type', '') == 'deduction'
+                and not getattr(l, 'employee_charge_id', False)
+                and (getattr(l, 'loan_installment_id', False)
+                     or getattr(l, 'deduction_category', '') == 'loan')
+            ), 2)
             seguro     = _sum_cat('seguro')
             pension_vol = _sum_cat('pension_vol')
             otras_ded  = max(round(

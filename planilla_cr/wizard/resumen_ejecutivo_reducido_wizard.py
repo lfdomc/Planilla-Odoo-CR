@@ -39,59 +39,13 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         help='Activar para revisar cálculos antes de confirmar la planilla.',
     )
 
-    def _dias_incapacidad_por_tipo(self, slip):
-        """
-        Suma los dias de incapacidad de esta boleta, separados en TRES
-        grupos: CCSS (enfermedad + accidente laboral), INS (riesgo
-        laboral), y Maternidad (licencia de maternidad, con columna
-        propia por pedido explicito -- antes se agrupaba junto con
-        CCSS porque legalmente ambas van por la misma via de subsidio,
-        pero se separo para que el reporte sea mas claro). Replica el
-        mismo calculo de traslape de fechas que usa
-        payslip_compute_mixin.py para disability_days_in_period, pero
-        acumulando por separado segun disability_type -- ese campo ya
-        existe en planilla.disability (ccss/ccss_accident/ins/
-        maternity/other) y cada boleta tiene acceso directo a sus
-        incapacidades vinculadas via slip.disability_ids, sin necesitar
-        reabrir el calculo completo de subsidios/dias patronales (eso
-        afecta montos que ya vienen correctos en la boleta, no la
-        simple cuenta de dias por tipo que se pide aqui).
-
-        Retorna (dias_ccss, dias_ins, dias_maternidad) -- todos como
-        float, ya que un traslape puede incluir medio dia extra del
-        primer dia (extra_half_day), igual que el calculo original.
-        """
-        dias_ccss = 0.0
-        dias_ins = 0.0
-        dias_maternidad = 0.0
-        active_dis = getattr(slip, 'disability_ids', None)
-        if not active_dis:
-            return dias_ccss, dias_ins, dias_maternidad
-        date_from = getattr(slip, 'date_from', None)
-        date_to = getattr(slip, 'date_to', None)
-        if not date_from or not date_to:
-            return dias_ccss, dias_ins, dias_maternidad
-
-        for dis in active_dis:
-            if not dis.date_start or not dis.date_end:
-                continue
-            overlap_start = max(date_from, dis.date_start)
-            overlap_end = min(date_to, dis.date_end)
-            if overlap_end < overlap_start:
-                continue
-            dias_overlap = (overlap_end - overlap_start).days + 1
-            if getattr(dis, 'extra_half_day', False):
-                if date_from <= dis.date_start <= date_to:
-                    dias_overlap += 0.5
-            if dis.disability_type == 'ins':
-                dias_ins += dias_overlap
-            elif dis.disability_type == 'maternity':
-                dias_maternidad += dias_overlap
-            else:
-                # ccss, ccss_accident, other -> se agrupan bajo
-                # "Incapacidad CCSS" para este reporte reducido
-                dias_ccss += dias_overlap
-        return dias_ccss, dias_ins, dias_maternidad
+    # NOTA: el metodo _dias_incapacidad_por_tipo() que vivia aqui se
+    # elimino -- ya no se usa. El reporte ahora absorbe directamente
+    # ccss_subsidy_total / ins_subsidy_total (los montos de subsidio
+    # ya calculados y probados de cada boleta), en vez de reconstruir
+    # el monto sumando dias de incapacidad x tarifa diaria -- esa
+    # reconstruccion podia dar montos matematicamente imposibles (ver
+    # historial de esta funcion para el caso real que motivo el cambio).
 
     def action_generate(self):
         self.ensure_one()
@@ -319,20 +273,53 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
 
             sal_base = slip.base_salary or 0
             extras = slip.overtime_amount or 0
-            # FIX: incluir bono_salarial_amount (bonos afecto CCSS:
-            # productividad, asistencia, antiguedad, comisiones, dias
-            # feriados, etc.) -- antes este componente real del bruto
-            # de la boleta quedaba completamente fuera del Sub Total
-            # de este reporte, sin ninguna columna que lo capturara.
-            otros_ing = (slip.other_income or 0) + (slip.bono_salarial_amount or 0)
-            sub_total = sal_base + extras + otros_ing
+            # FIX DE FONDO: usar gross_salary DIRECTAMENTE como fuente
+            # del Sub Total, en vez de reconstruirlo sumando piezas
+            # (sal_base+extras+otros_ing) -- gross_salary es el campo
+            # real y ya calculado por la boleta que suma TODOS los
+            # componentes del bruto (base_salary, overtime_amount,
+            # vacation_amount, other_income, bono_salarial_amount).
+            # La reconstruccion manual anterior no incluia
+            # vacation_amount (dias de vacaciones pagados dentro del
+            # periodo) -- un componente real del bruto que quedaba
+            # fuera del Sub Total sin que nadie lo notara, el mismo
+            # patron de bug que ya se corrigio dos veces en este
+            # reporte (bonos, luego incapacidad). "Otros" ahora se
+            # calcula como la DIFERENCIA real (gross_salary - sal_base
+            # - extras), garantizando que las columnas SIEMPRE sumen
+            # exactamente el bruto real de la boleta, sin importar que
+            # componentes nuevos se agreguen al calculo en el futuro.
+            sub_total = round(slip.gross_salary or 0.0, 2)
+            otros_ing = round(sub_total - sal_base - extras, 2)
 
             ccss_emp = slip.ccss_employee or 0
-            dias_ccss, dias_ins, dias_maternidad = self._dias_incapacidad_por_tipo(slip)
-            _daily_rate = round((slip.base_salary or 0) / 30, 4)
-            monto_incap_ccss = round(dias_ccss * _daily_rate, 2)
-            monto_incap_ins = round(dias_ins * _daily_rate, 2)
-            monto_maternidad = round(dias_maternidad * _daily_rate, 2)
+            # FIX DE FONDO: absorber DIRECTAMENTE los montos ya
+            # calculados y probados de la boleta (ccss_subsidy_total,
+            # ins_subsidy_total), en vez de reconstruirlos con una
+            # formula propia -- confirmado que la reconstruccion por
+            # dias x tarifa diaria podia dar montos matematicamente
+            # imposibles (mayores al salario real de la persona).
+            # ccss_subsidy_total YA incluye maternidad combinada con
+            # CCSS regular (asi lo calcula el sistema, sin separar el
+            # monto en dinero por tipo) -- se usa disability_ids (que
+            # SI conoce el tipo real de cada incapacidad vinculada a
+            # esta boleta) para decidir a cual columna va el monto: si
+            # TODAS son maternidad, va a Maternidad; si no, va a
+            # Incapacidad C.C.S.S. Una mezcla de tipos en la misma
+            # boleta (caso raro) se deja integra en Incapacidad C.C.S.S.,
+            # sin repartir sin base real.
+            _ccss_subsidio = round(slip.ccss_subsidy_total or 0.0, 2)
+            _tipos_activos = set(
+                d.disability_type for d in (slip.disability_ids or [])
+                if getattr(d, 'disability_type', False)
+            )
+            if _tipos_activos and _tipos_activos == {'maternity'}:
+                monto_maternidad = _ccss_subsidio
+                monto_incap_ccss = 0.0
+            else:
+                monto_incap_ccss = _ccss_subsidio
+                monto_maternidad = 0.0
+            monto_incap_ins = round(slip.ins_subsidy_total or 0.0, 2)
 
             ahorro = _sum_cat(slip, 'ahorro')
             permiso_sg = _sum_cat(slip, 'licencia_sin_goce', 'ausencia')
