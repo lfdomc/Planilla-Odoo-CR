@@ -17,6 +17,41 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         ('mes',      'Por Mes (dos quincenas)'),
     ], string='Período', default='quincena', required=True)
 
+    # FIX: Resumen Consolidado por pedido explicito -- el cliente
+    # ahora tiene empleados pagados con distintas frecuencias
+    # (quincenal, mensual, semanal) dentro de la misma empresa. Este
+    # modo, activo por defecto, busca TODOS los empleados pagados
+    # dentro de un rango de fechas real, sin importar su
+    # calendarizacion, y los agrupa por frecuencia real de pago en
+    # secciones separadas dentro del mismo Excel -- en vez de exigir
+    # elegir una planilla especifica de una sola calendarizacion (lo
+    # que dejaria fuera a los empleados con otra frecuencia que caigan
+    # en el mismo rango de fechas).
+    use_consolidated = fields.Boolean(
+        string='Resumen Consolidado (todas las frecuencias de pago)',
+        default=True,
+        help='Activo (por defecto): busca todos los empleados pagados '
+             'dentro del rango de fechas indicado, sin importar si su '
+             'calendarizacion es quincenal, mensual o semanal -- los '
+             'agrupa en secciones separadas dentro del mismo reporte, '
+             'reflejando los pagos reales de cada quien segun su '
+             'propia frecuencia. '
+             'Desactivado: usa el modo anterior, donde se elige una '
+             'planilla especifica de una sola calendarizacion '
+             '(quincenal o mensual).',
+    )
+    consolidated_date_from = fields.Date(
+        string='Desde',
+        help='Inicio del rango de fechas a incluir en el resumen '
+             'consolidado. Se incluye cualquier boleta cuyo periodo se '
+             'traslape con este rango, sin importar su frecuencia.',
+    )
+    consolidated_date_to = fields.Date(
+        string='Hasta',
+        help='Fin del rango de fechas a incluir en el resumen '
+             'consolidado.',
+    )
+
     payroll_run_id = fields.Many2one(
         'planilla.run.cr', string='Planilla (quincena)',
         domain="[('company_id', '=', company_id)]"
@@ -50,6 +85,60 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
     def action_generate(self):
         self.ensure_one()
 
+        # FIX: Resumen Consolidado -- selecciona boletas por RANGO DE
+        # FECHAS real (traslape de periodo), sin importar la
+        # calendarizacion, en vez de exigir elegir una planilla
+        # especifica de una sola frecuencia. Esto permite mostrar en
+        # un mismo reporte a empleados quincenales, mensuales y
+        # semanales que fueron pagados dentro del mismo rango de
+        # fechas del calendario.
+        if self.use_consolidated:
+            if not self.consolidated_date_from or not self.consolidated_date_to:
+                raise UserError('Indique el rango de fechas (Desde / Hasta) para el resumen consolidado.')
+            if self.consolidated_date_from > self.consolidated_date_to:
+                raise UserError('La fecha "Desde" no puede ser posterior a la fecha "Hasta".')
+
+            domain = [
+                ('company_id', '=', self.company_id.id),
+                ('date_from', '<=', self.consolidated_date_to),
+                ('date_to', '>=', self.consolidated_date_from),
+                ('state', 'in', (['draft', 'confirmed', 'done']
+                                 if self.include_draft
+                                 else ['confirmed', 'done'])),
+            ]
+            slips = self.env['planilla.payslip.cr'].search(domain)
+            if not slips:
+                raise UserError(
+                    'No hay boletas confirmadas dentro del rango de fechas indicado.')
+
+            # Determinar la frecuencia real de cada boleta segun la
+            # calendarizacion de su planilla -- para poder agrupar
+            # despues en secciones (Quincenal / Mensual / Semanal).
+            _freq_labels = {
+                'weekly': 'Semanal', 'biweekly': 'Quincenal',
+                'monthly': 'Mensual', 'bimonthly': 'Bimensual',
+            }
+            _freq_order = {'biweekly': 0, 'monthly': 1, 'weekly': 2, 'bimonthly': 3}
+
+            def _freq_de_boleta(s):
+                cal = s.payroll_run_id.payroll_calendar_id if s.payroll_run_id else False
+                return getattr(cal, 'frequency', False) or 'biweekly'
+
+            slips = slips.sorted(key=lambda s: (
+                _freq_order.get(_freq_de_boleta(s), 9),
+                s.employee_id.department_id.name or '',
+                s.employee_id.name or ''
+            ))
+
+            self._consolidated_freq_labels = _freq_labels
+            self._consolidated_freq_of = {s.id: _freq_de_boleta(s) for s in slips}
+
+            run = slips[:1].payroll_run_id
+            self._is_consolidated_run = True
+            return self._build_excel(slips, run)
+
+        self._is_consolidated_run = False
+
         if self.period_mode == 'mes':
             if not self.payroll_run_id_1 and not self.payroll_run_id_2:
                 raise UserError('Seleccione al menos una quincena para el mes.')
@@ -74,11 +163,6 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
 
         if not slips:
             raise UserError('No hay boletas confirmadas en esta planilla.')
-
-        try:
-            import xlsxwriter
-        except ImportError:
-            raise UserError('xlsxwriter no instalado.')
 
         # En modo mensual: consolidar las dos quincenas por empleado,
         # mismo patron usado en el Resumen Ejecutivo completo.
@@ -122,7 +206,21 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             for eid in sorted(emp_order, key=lambda e: emp_order[e]):
                 merged.append(_MergedSlip(emp_slips[eid]))
             slips = merged
-            slips = merged
+
+        return self._build_excel(slips, run)
+
+    def _build_excel(self, slips, run):
+        """
+        Construye el archivo Excel del Resumen Ejecutivo Reducido a
+        partir de una lista de boletas (o _MergedSlip para modo mes) ya
+        seleccionada por el llamador -- reutilizado tanto por el modo
+        normal (una planilla especifica) como por el modo consolidado
+        (rango de fechas, todas las frecuencias de pago).
+        """
+        try:
+            import xlsxwriter
+        except ImportError:
+            raise UserError('xlsxwriter no instalado.')
 
         output = io.BytesIO()
         wb = xlsxwriter.Workbook(output, {'in_memory': True})
@@ -199,9 +297,12 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ws.set_column(ci, ci, w)
 
         empresa = run.company_id.name or ''
-        d_start = min(r.date_start for r in runs)
-        d_end = max(r.date_end for r in runs)
-        periodo = f"{d_start.strftime('%d/%m/%Y')} al {d_end.strftime('%d/%m/%Y')}"
+        _fechas_desde = [s.date_from for s in slips if getattr(s, 'date_from', None)]
+        _fechas_hasta = [s.date_to for s in slips if getattr(s, 'date_to', None)]
+        d_start = min(_fechas_desde) if _fechas_desde else None
+        d_end = max(_fechas_hasta) if _fechas_hasta else None
+        periodo = (f"{d_start.strftime('%d/%m/%Y')} al {d_end.strftime('%d/%m/%Y')}"
+                   if d_start and d_end else '')
 
         draft_warn = ' -- INCLUYE BORRADORES -- Solo para revision interna' if self.include_draft else ''
         titulo_fmt = F(bold=True, sz=12, bg='#1F4E79', fg='#FFFFFF', border=2)
@@ -232,10 +333,16 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         ws.set_row(row_hdr, 34)
 
         # -- Datos por empleado, agrupados por departamento -----------------
+        # (y, en modo consolidado, primero por frecuencia de pago real)
         row = 4
         totales = [0.0] * N
         prev_dept = None
         dept_totals = [0.0] * N
+        prev_freq = None
+        freq_totals = [0.0] * N
+        is_consolidated = getattr(self, '_is_consolidated_run', False)
+        freq_labels = getattr(self, '_consolidated_freq_labels', {})
+        freq_of = getattr(self, '_consolidated_freq_of', {})
 
         def _sum_cat(slip, *cats):
             return round(sum(
@@ -247,6 +354,50 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         for slip in slips:
             emp = slip.employee_id
             dept = emp.department_id.name or 'Sin Departamento'
+
+            if is_consolidated:
+                _sid = getattr(slip, 'id', None)
+                freq_code = freq_of.get(_sid, 'biweekly')
+                freq_label = freq_labels.get(freq_code, 'Quincenal')
+                if freq_label != prev_freq:
+                    if prev_freq is not None:
+                        # Subtotal de la seccion de frecuencia anterior,
+                        # incluyendo el ultimo subtotal de departamento
+                        # que quedo pendiente de cerrar.
+                        sub_lbl_fmt = F(bold=True, bg='#F2F2F2', align='left', border=1)
+                        ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
+                        for ci in range(1, N):
+                            _, _, tipo, _ = cols[ci]
+                            color = '#C00000' if tipo == 'ded' else (
+                                '#1F4E79' if tipo == 'tot' else '#000000')
+                            sf = F(bold=True, bg='#F2F2F2', num='#,##0', border=1, fg=color)
+                            v = dept_totals[ci]
+                            ws.write(row, ci, v if v else None, sf)
+                        ws.set_row(row, 14)
+                        row += 1
+                        dept_totals = [0.0] * N
+                        prev_dept = None
+
+                        freq_sub_fmt = F(bold=True, bg='#D9E2F3', align='left', border=2, sz=10)
+                        ws.write(row, 0, f'TOTAL {prev_freq.upper()}', freq_sub_fmt)
+                        for ci in range(1, N):
+                            _, _, tipo, _ = cols[ci]
+                            color = '#C00000' if tipo == 'ded' else (
+                                '#1F4E79' if tipo == 'tot' else '#000000')
+                            sf = F(bold=True, bg='#D9E2F3', num='#,##0', border=2, fg=color)
+                            v = freq_totals[ci]
+                            ws.write(row, ci, v if v else None, sf)
+                        ws.set_row(row, 16)
+                        row += 2
+                        freq_totals = [0.0] * N
+
+                    freq_hdr_fmt = F(bold=True, bg='#1F4E79', fg='#FFFFFF',
+                                      align='left', border=2, sz=11)
+                    ws.merge_range(row, 0, row, N - 1,
+                                   f'FRECUENCIA: {freq_label.upper()}', freq_hdr_fmt)
+                    ws.set_row(row, 18)
+                    row += 1
+                    prev_freq = freq_label
 
             if dept != prev_dept:
                 if prev_dept is not None:
@@ -293,32 +444,38 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             otros_ing = round(sub_total - sal_base - extras, 2)
 
             ccss_emp = slip.ccss_employee or 0
-            # FIX DE FONDO: absorber DIRECTAMENTE los montos ya
-            # calculados y probados de la boleta (ccss_subsidy_total,
-            # ins_subsidy_total), en vez de reconstruirlos con una
-            # formula propia -- confirmado que la reconstruccion por
-            # dias x tarifa diaria podia dar montos matematicamente
-            # imposibles (mayores al salario real de la persona).
-            # ccss_subsidy_total YA incluye maternidad combinada con
-            # CCSS regular (asi lo calcula el sistema, sin separar el
-            # monto en dinero por tipo) -- se usa disability_ids (que
-            # SI conoce el tipo real de cada incapacidad vinculada a
-            # esta boleta) para decidir a cual columna va el monto: si
-            # TODAS son maternidad, va a Maternidad; si no, va a
-            # Incapacidad C.C.S.S. Una mezcla de tipos en la misma
-            # boleta (caso raro) se deja integra en Incapacidad C.C.S.S.,
-            # sin repartir sin base real.
-            _ccss_subsidio = round(slip.ccss_subsidy_total or 0.0, 2)
+            # FIX POR PEDIDO EXPLICITO: la columna de Incapacidad debe
+            # mostrar deposito_patrono -- el Neto Quincenal que el
+            # PATRONO realmente paga al empleado (el mismo campo que
+            # la boleta muestra como "① Neto Quincenal - pago del
+            # Patrono") -- NO el subsidio que paga la Caja/INS
+            # directamente (ccss_subsidy_total), que es dinero que no
+            # sale de la empresa y por eso no es el dato de interes
+            # para el resumen contable. Se mantiene la clasificacion
+            # por tipo (disability_ids) ya validada, solo para decidir
+            # en cual columna (CCSS vs Maternidad) va este mismo
+            # numero -- no para calcular un monto distinto.
+            _deposito_patrono_real = round(slip.deposito_patrono or 0.0, 2)
             _tipos_activos = set(
                 d.disability_type for d in (slip.disability_ids or [])
                 if getattr(d, 'disability_type', False)
             )
-            if _tipos_activos and _tipos_activos == {'maternity'}:
-                monto_maternidad = _ccss_subsidio
+            _tiene_incapacidad = bool(getattr(slip, 'disability_ids', False))
+            if not _tiene_incapacidad:
+                monto_incap_ccss = 0.0
+                monto_maternidad = 0.0
+            elif _tipos_activos == {'maternity'}:
+                monto_maternidad = _deposito_patrono_real
                 monto_incap_ccss = 0.0
             else:
-                monto_incap_ccss = _ccss_subsidio
+                monto_incap_ccss = _deposito_patrono_real
                 monto_maternidad = 0.0
+            # FIX: INS es un pago directo del INS al empleado (riesgo
+            # laboral), no pasa por el patrono -- se mantiene el
+            # subsidio real como referencia informativa, ya que no hay
+            # un "pago del patrono" equivalente para este caso (el
+            # patrono no le paga nada al empleado por dias de riesgo
+            # laboral con subsidio INS, ese dinero es completo del INS).
             monto_incap_ins = round(slip.ins_subsidy_total or 0.0, 2)
 
             ahorro = _sum_cat(slip, 'ahorro')
@@ -423,12 +580,14 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     # sumatoria de Total vacia en ambas filas de cierre.
                     totales[ci] += val
                     dept_totals[ci] += val
+                    freq_totals[ci] += val
                     continue
                 is_num = isinstance(val, (int, float)) and tipo in ('ing', 'ded')
                 ws.write(row, ci, val if val != 0 or not is_num else None, dfmt)
                 if is_num and val:
                     totales[ci] += val
                     dept_totals[ci] += val
+                    freq_totals[ci] += val
 
             ws.set_row(row, 14)
             row += 1
@@ -445,6 +604,23 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 v = dept_totals[ci]
                 ws.write(row, ci, v if v else None, sf)
             ws.set_row(row, 14)
+            row += 1
+
+        # FIX: cerrar el ULTIMO grupo de frecuencia (solo en modo
+        # consolidado) -- el control de cambio de frecuencia dentro
+        # del bucle solo cierra la seccion anterior cuando CAMBIA a
+        # una nueva, nunca al llegar al final de la lista de boletas.
+        if is_consolidated and prev_freq:
+            freq_sub_fmt = F(bold=True, bg='#D9E2F3', align='left', border=2, sz=10)
+            ws.write(row, 0, f'TOTAL {prev_freq.upper()}', freq_sub_fmt)
+            for ci in range(1, N):
+                _, _, tipo, _ = cols[ci]
+                color = '#C00000' if tipo == 'ded' else (
+                    '#1F4E79' if tipo == 'tot' else '#000000')
+                sf = F(bold=True, bg='#D9E2F3', num='#,##0', border=2, fg=color)
+                v = freq_totals[ci]
+                ws.write(row, ci, v if v else None, sf)
+            ws.set_row(row, 16)
             row += 1
 
         row += 1
