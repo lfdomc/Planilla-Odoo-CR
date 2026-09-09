@@ -447,39 +447,39 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             otros_ing = round(sub_total - sal_base - extras, 2)
 
             ccss_emp = slip.ccss_employee or 0
-            # FIX POR PEDIDO EXPLICITO: la columna de Incapacidad debe
-            # mostrar deposito_patrono -- el Neto Quincenal que el
-            # PATRONO realmente paga al empleado (el mismo campo que
-            # la boleta muestra como "① Neto Quincenal - pago del
-            # Patrono") -- NO el subsidio que paga la Caja/INS
-            # directamente (ccss_subsidy_total), que es dinero que no
-            # sale de la empresa y por eso no es el dato de interes
-            # para el resumen contable. Se mantiene la clasificacion
-            # por tipo (disability_ids) ya validada, solo para decidir
-            # en cual columna (CCSS vs Maternidad) va este mismo
-            # numero -- no para calcular un monto distinto.
+            # FIX CRITICO POR PEDIDO EXPLICITO (corrige un bug que
+            # persistia en la columna INS de una correccion anterior):
+            # las TRES columnas de incapacidad (CCSS, INS, Maternidad)
+            # deben mostrar SIEMPRE deposito_patrono -- el Neto
+            # Quincenal que el PATRONO realmente paga al empleado (el
+            # mismo campo que la boleta muestra como "① Neto Quincenal
+            # - pago del Patrono") -- NUNCA el subsidio que paga la
+            # Caja o el INS directamente (ccss_subsidy_total,
+            # ins_subsidy_total), que es dinero que no sale de la
+            # empresa y por eso no es relevante para su resumen
+            # contable. Se usa el tipo REAL de la incapacidad
+            # (disability_type: ccss/ccss_accident/other -> columna
+            # CCSS; ins -> columna INS; maternity -> columna
+            # Maternidad) para decidir en CUAL de las tres columnas va
+            # este mismo numero -- las tres son mutuamente excluyentes,
+            # solo una tiene valor por boleta segun el tipo real.
             _deposito_patrono_real = round(slip.deposito_patrono or 0.0, 2)
             _tipos_activos = set(
                 d.disability_type for d in (slip.disability_ids or [])
                 if getattr(d, 'disability_type', False)
             )
-            _tiene_incapacidad = bool(getattr(slip, 'disability_ids', False))
-            if not _tiene_incapacidad:
-                monto_incap_ccss = 0.0
-                monto_maternidad = 0.0
-            elif _tipos_activos == {'maternity'}:
+            monto_incap_ccss = 0.0
+            monto_incap_ins = 0.0
+            monto_maternidad = 0.0
+            if _tipos_activos == {'maternity'}:
                 monto_maternidad = _deposito_patrono_real
-                monto_incap_ccss = 0.0
-            else:
+            elif _tipos_activos == {'ins'}:
+                monto_incap_ins = _deposito_patrono_real
+            elif _tipos_activos:
+                # ccss, ccss_accident, other, o una mezcla de tipos en
+                # la misma boleta (caso raro) -- se deja integro en
+                # Incapacidad C.C.S.S., sin repartir sin base real.
                 monto_incap_ccss = _deposito_patrono_real
-                monto_maternidad = 0.0
-            # FIX: INS es un pago directo del INS al empleado (riesgo
-            # laboral), no pasa por el patrono -- se mantiene el
-            # subsidio real como referencia informativa, ya que no hay
-            # un "pago del patrono" equivalente para este caso (el
-            # patrono no le paga nada al empleado por dias de riesgo
-            # laboral con subsidio INS, ese dinero es completo del INS).
-            monto_incap_ins = round(slip.ins_subsidy_total or 0.0, 2)
 
             ahorro = _sum_cat(slip, 'ahorro')
             permiso_sg = _sum_cat(slip, 'licencia_sin_goce', 'ausencia')
