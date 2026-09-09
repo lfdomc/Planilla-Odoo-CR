@@ -130,14 +130,17 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 s.employee_id.name or ''
             ))
 
-            self._consolidated_freq_labels = _freq_labels
-            self._consolidated_freq_of = {s.id: _freq_de_boleta(s) for s in slips}
+            # FIX BUG CRITICO: los modelos de Odoo no permiten asignar
+            # atributos arbitrarios en self (AttributeError: no
+            # __dict__ for setting new attributes) -- se pasa esta
+            # informacion directamente como argumentos de
+            # _build_excel, en vez de guardarla como atributo temporal
+            # de instancia.
+            freq_of = {s.id: _freq_de_boleta(s) for s in slips}
 
             run = slips[:1].payroll_run_id
-            self._is_consolidated_run = True
-            return self._build_excel(slips, run)
-
-        self._is_consolidated_run = False
+            return self._build_excel(slips, run, is_consolidated=True,
+                                      freq_labels=_freq_labels, freq_of=freq_of)
 
         if self.period_mode == 'mes':
             if not self.payroll_run_id_1 and not self.payroll_run_id_2:
@@ -209,7 +212,8 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
 
         return self._build_excel(slips, run)
 
-    def _build_excel(self, slips, run):
+    def _build_excel(self, slips, run, is_consolidated=False,
+                      freq_labels=None, freq_of=None):
         """
         Construye el archivo Excel del Resumen Ejecutivo Reducido a
         partir de una lista de boletas (o _MergedSlip para modo mes) ya
@@ -340,9 +344,8 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         dept_totals = [0.0] * N
         prev_freq = None
         freq_totals = [0.0] * N
-        is_consolidated = getattr(self, '_is_consolidated_run', False)
-        freq_labels = getattr(self, '_consolidated_freq_labels', {})
-        freq_of = getattr(self, '_consolidated_freq_of', {})
+        freq_labels = freq_labels or {}
+        freq_of = freq_of or {}
 
         def _sum_cat(slip, *cats):
             return round(sum(
