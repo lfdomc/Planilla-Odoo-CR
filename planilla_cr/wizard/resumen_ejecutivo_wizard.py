@@ -2,6 +2,7 @@ import io
 import base64
 from odoo import models, fields, api
 from odoo.exceptions import UserError
+from ..models import planilla_const as K
 
 
 class ResumenEjecutivoWizard(models.TransientModel):
@@ -107,6 +108,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
         fh_ded = F(bold=True, bg=C_DED, fg='#FFFFFF', sz=9, wrap=True)
         fh_net = F(bold=True, bg=C_NET, fg='#FFFFFF', sz=9, wrap=True)
         fh_pat = F(bold=True, bg=C_PAT, fg='#FFFFFF', sz=9, wrap=True)
+        fh_chk = F(bold=True, bg='#7030A0', fg='#FFFFFF', sz=9, wrap=True)
 
         # Formatos de datos
         fd_id  = F(bg=BG_ID,  align='left')
@@ -125,6 +127,8 @@ class ResumenEjecutivoWizard(models.TransientModel):
 
         f_lbl  = F(align='left')
         f_sep  = F(bg='#FFFFFF', border=0)  # columna separadora
+        fd_chk_ok  = F(bold=True, align='center', bg='#C6EFCE', fg='#006100')
+        fd_chk_bad = F(bold=True, align='center', bg='#FFC7CE', fg='#9C0006')
 
         # ── Definición de columnas ─────────────────────────────────────────────
         # Cada columna: (encabezado, ancho, sección, formato_dato)
@@ -173,6 +177,12 @@ class ResumenEjecutivoWizard(models.TransientModel):
             ('Prov.\nCesantía',        11, 'pat', fd_pat),
             ('Prov.\nVacaciones',      11, 'pat', fd_pat),
             ('Costo Total\nPatronal',  13, 'pat', ft_pat),
+            # ── Verificación (por pedido explicito, mismo criterio ────────────
+            #    que el resumen reducido): confirma que los ingresos
+            #    reales menos las deducciones reales cuadren
+            #    exactamente contra el Neto Depósito real de la
+            #    boleta, para auditar cada fila visualmente.
+            ('Verif.',                 10, 'chk', None),
         ]
 
         N = len(cols)
@@ -183,6 +193,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             'net': fh_net,
             'pat': fh_pat,
             'sep': f_sep,
+            'chk': fh_chk,
         }
 
         # ── Anchos de columna ──────────────────────────────────────────────────
@@ -313,7 +324,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
                     # Fila subtotal del departamento anterior
                     sub_lbl_fmt = F(bold=True, bg='#F2F2F2', align='left', border=1)
                     ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
-                    for ci in range(1, N):
+                    for ci in range(1, N - 1):
                         _, _, sec, _ = cols[ci]
                         sf = F(bold=True, bg='#F2F2F2',
                                num='#,##0', border=1,
@@ -336,7 +347,18 @@ class ResumenEjecutivoWizard(models.TransientModel):
             dias_lab = slip.dias_laborados_periodo or slip.days_worked or 0
 
             # INGRESOS
-            sal_base     = slip.base_salary or 0
+            # FIX MATEMATICO CRITICO POR PEDIDO EXPLICITO: sal_base
+            # debe mostrar el salario ESPERADO completo (de la ficha
+            # del empleado, emp.base_salary), NO el ya reducido por la
+            # boleta segun la incapacidad (slip.base_salary) -- de lo
+            # contrario, al restar la columna Monto Incapacidad (que
+            # representa exactamente ese mismo descuento) se estaria
+            # contando el efecto de la incapacidad DOS VECES. Mismo
+            # fix ya aplicado y validado matematicamente en el
+            # resumen reducido: Salario esperado + Bonos - CCSS -
+            # Incapacidad debe cuadrar exacto contra Deposito Patrono.
+            _freq_factor = K.FREQ_FACTORS.get(slip._get_effective_freq(), 1.0)
+            sal_base     = round((emp.base_salary or 0.0) * _freq_factor, 2)
             horas_extras = slip.overtime_amount or 0
             bonos        = slip.bono_salarial_amount or 0
             bonos_exentos = getattr(slip, 'amount_bonos_exentos', 0) or 0
@@ -359,7 +381,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # que usa exactamente slip.base_salary para mostrar
             # "Salario por dias laborados".
             monto_incap = max(round(
-                (emp.base_salary or 0.0) - (slip.base_salary or 0.0), 2), 0.0)
+                ((emp.base_salary or 0.0) * _freq_factor) - (slip.base_salary or 0.0), 2), 0.0)
             licencia_sg = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if l.line_type == 'deduction'
@@ -430,6 +452,24 @@ class ResumenEjecutivoWizard(models.TransientModel):
             prov_vac   = slip.vacation_provision or 0
             costo_tot  = slip.total_employer_cost or 0
 
+            # FIX: columna de Verificacion, por pedido explicito
+            # (mismo criterio ya aplicado en el resumen reducido) --
+            # confirma que los ingresos reales (sal_base esperado
+            # completo + todos los demas ingresos reales) menos las
+            # deducciones reales cuadren exacto contra Deposito
+            # Patrono. NO usar bruto_cotiz (base_cotizable_final) como
+            # base, porque ese campo YA viene reducido por la
+            # incapacidad -- restarle total_ded (que incluye
+            # monto_incap, el mismo descuento) contaria el efecto de
+            # la incapacidad dos veces, el mismo bug ya corregido en
+            # las columnas visibles del reporte.
+            _ingresos_reales = round(
+                sal_base + horas_extras + bonos + bonos_exentos
+                + vacaciones + otros_ing + subsid_mat, 2)
+            _neto_calculado = round(_ingresos_reales - (total_ded or 0), 2)
+            _diferencia_verif = round(_neto_calculado - (neto_dep or 0), 2)
+            _verif_ok = abs(_diferencia_verif) < 1.0
+
             # ── Escribir fila ──────────────────────────────────────────────────
             vals = [
                 emp.name or '',
@@ -448,9 +488,15 @@ class ResumenEjecutivoWizard(models.TransientModel):
                 neto_dep,
                 '',  # separador
                 ccss_pat, ins_pat, prov_agu, prov_ces, prov_vac, costo_tot,
+                'OK' if _verif_ok else 'X',
             ]
 
             for ci, (val, (_, _, sec, dfmt)) in enumerate(zip(vals, cols)):
+                if sec == 'chk':
+                    # Columna de verificacion: texto OK/X con formato
+                    # verde/rojo, no un numero acumulable en totales.
+                    ws.write(row, ci, val, fd_chk_ok if val == 'OK' else fd_chk_bad)
+                    continue
                 is_num = isinstance(val, float) and sec != 'sep'
                 is_int = sec == 'id' and ci == 4
                 ws.write(row, ci, val if val != 0.0 or not is_num else None, dfmt)
@@ -468,7 +514,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
         if prev_dept:
             sub_lbl_fmt = F(bold=True, bg='#F2F2F2', align='left', border=1)
             ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
-            for ci in range(1, N):
+            for ci in range(1, N - 1):
                 _, _, sec, _ = cols[ci]
                 sf = F(bold=True, bg='#F2F2F2', num='#,##0', border=1,
                        fg='#C00000' if sec == 'ded' else '#000000')
@@ -481,7 +527,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
         row += 1
         tot_lbl_fmt = F(bold=True, bg='#FFF2CC', align='left', border=2, sz=10)
         ws.write(row, 0, 'TOTAL GENERAL', tot_lbl_fmt)
-        for ci in range(1, N):
+        for ci in range(1, N - 1):
             _, _, sec, _ = cols[ci]
             tf = F(bold=True, bg='#FFF2CC', num='#,##0', border=2,
                    fg='#C00000' if sec == 'ded' else '#000000')

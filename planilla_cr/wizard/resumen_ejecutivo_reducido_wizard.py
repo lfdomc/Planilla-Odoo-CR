@@ -2,6 +2,7 @@ import io
 import base64
 from odoo import models, fields
 from odoo.exceptions import UserError
+from ..models import planilla_const as K
 
 
 class ResumenEjecutivoReducidoWizard(models.TransientModel):
@@ -431,21 +432,32 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 prev_dept = dept
 
             # FIX MATEMATICO CRITICO POR PEDIDO EXPLICITO: Salario
-            # Quincenal debe mostrar el salario ESPERADO completo (de
-            # la ficha del empleado, emp.base_salary), NO el ya
-            # reducido por la boleta segun la incapacidad
-            # (slip.base_salary) -- de lo contrario, al restar la
-            # columna Incapacidad (que representa exactamente ese
-            # mismo descuento) se estaria contando el efecto de la
-            # incapacidad DOS VECES: una porque el salario mostrado ya
-            # viene reducido, y otra porque la columna Incapacidad
-            # tambien lo resta explicitamente. Confirmado con un caso
-            # real (Martha): con salario esperado completo (195,000)
-            # + bono (13,000) - CCSS (1,407.90) - Incapacidad
-            # (195,000) = 11,592.10, que coincide EXACTO con Deposito
-            # Patrono real -- la unica combinacion que cuadra
-            # matematicamente sin duplicar el descuento.
-            sal_base = round(emp.base_salary or 0.0, 2)
+            # Quincenal debe mostrar el salario ESPERADO completo del
+            # PERIODO de esta boleta (no el ya reducido por la
+            # incapacidad) -- de lo contrario, al restar la columna
+            # Incapacidad (que representa exactamente ese mismo
+            # descuento) se estaria contando el efecto de la
+            # incapacidad DOS VECES. Confirmado con un caso real
+            # (Martha): con salario esperado del periodo (195,000) +
+            # bono (13,000) - CCSS (1,407.90) - Incapacidad (195,000)
+            # = 11,592.10, que coincide EXACTO con Deposito Patrono
+            # real.
+            #
+            # FIX ADICIONAL: emp.base_salary es el salario MENSUAL
+            # completo de la ficha (confirmado: es la base de
+            # hourly_rate = base_salary / 30 dias, un patron exclusivo
+            # de salarios mensuales) -- NO el salario del periodo de
+            # la boleta. Usarlo directamente duplicaba el salario para
+            # empleados quincenales (un caso real mostro 390,000 en
+            # vez de 195,000). Se convierte al periodo real
+            # multiplicando por K.FREQ_FACTORS segun la frecuencia
+            # EFECTIVA de esta boleta especifica
+            # (slip._get_effective_freq(), el mismo metodo que ya usa
+            # el propio sistema para este calculo) -- funciona
+            # correctamente sin importar si el empleado es quincenal,
+            # mensual o semanal.
+            _freq_factor = K.FREQ_FACTORS.get(slip._get_effective_freq(), 1.0)
+            sal_base = round((emp.base_salary or 0.0) * _freq_factor, 2)
             extras = slip.overtime_amount or 0
             # Otros_ing (el bono y cualquier otro ingreso real) se
             # calcula desde el bruto REAL de la boleta (gross_salary,
@@ -485,7 +497,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # Maternidad) para decidir en CUAL de las tres columnas va
             # este mismo monto -- las tres son mutuamente excluyentes,
             # solo una tiene valor por boleta segun el tipo real.
-            _emp_salario_esperado = round(emp.base_salary or 0.0, 2)
+            _emp_salario_esperado = round((emp.base_salary or 0.0) * _freq_factor, 2)
             _salario_real_boleta = round(slip.base_salary or 0.0, 2)
             _monto_rebajado_real = max(round(_emp_salario_esperado - _salario_real_boleta, 2), 0.0)
             _tipos_activos = set(
