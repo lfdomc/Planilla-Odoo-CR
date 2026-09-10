@@ -291,11 +291,15 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ('Embargos',                        11, 'ded',  fd_ded),
             ('Total',                           13, 'tot',  None),
             ('Depósito\nPatrono',               14, 'tot',  None),
+            ('Verif.\n(S)',                     10, 'chk',  None),
         ]
         N = len(cols)
         tipo_hdr = {'lbl': fh_lbl, 'ing': fh_ing, 'ded': fh_ded,
-                    'tot': F(bold=True, bg='#1F4E79', fg='#FFFFFF', sz=9, wrap=True)}
+                    'tot': F(bold=True, bg='#1F4E79', fg='#FFFFFF', sz=9, wrap=True),
+                    'chk': F(bold=True, bg='#7030A0', fg='#FFFFFF', sz=9, wrap=True)}
         ft_tot = F(bg='#FFF2CC', num='#,##0', bold=True, border=2)
+        fd_chk_ok  = F(bold=True, align='center', bg='#C6EFCE', fg='#006100')
+        fd_chk_bad = F(bold=True, align='center', bg='#FFC7CE', fg='#9C0006')
 
         for ci, (_, w, _, _) in enumerate(cols):
             ws.set_column(ci, ci, w)
@@ -327,8 +331,9 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         row_sec = 2
         ws.write(row_sec, 0, 'IDENTIFICACION', tipo_hdr['lbl'])
         ws.merge_range(row_sec, 1, row_sec, 4, 'INGRESOS', tipo_hdr['ing'])
-        ws.merge_range(row_sec, 5, row_sec, N - 3, 'REBAJOS', tipo_hdr['ded'])
-        ws.merge_range(row_sec, N - 2, row_sec, N - 1, 'TOTAL', tipo_hdr['tot'])
+        ws.merge_range(row_sec, 5, row_sec, N - 4, 'REBAJOS', tipo_hdr['ded'])
+        ws.merge_range(row_sec, N - 3, row_sec, N - 2, 'TOTAL', tipo_hdr['tot'])
+        ws.write(row_sec, N - 1, 'VERIF.', tipo_hdr['chk'])
         ws.set_row(row_sec, 16)
 
         row_hdr = 3
@@ -369,7 +374,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                         # que quedo pendiente de cerrar.
                         sub_lbl_fmt = F(bold=True, bg='#F2F2F2', align='left', border=1)
                         ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
-                        for ci in range(1, N):
+                        for ci in range(1, N - 1):
                             _, _, tipo, _ = cols[ci]
                             color = '#C00000' if tipo == 'ded' else (
                                 '#1F4E79' if tipo == 'tot' else '#000000')
@@ -383,7 +388,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
 
                         freq_sub_fmt = F(bold=True, bg='#D9E2F3', align='left', border=2, sz=10)
                         ws.write(row, 0, f'TOTAL {prev_freq.upper()}', freq_sub_fmt)
-                        for ci in range(1, N):
+                        for ci in range(1, N - 1):
                             _, _, tipo, _ = cols[ci]
                             color = '#C00000' if tipo == 'ded' else (
                                 '#1F4E79' if tipo == 'tot' else '#000000')
@@ -406,7 +411,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 if prev_dept is not None:
                     sub_lbl_fmt = F(bold=True, bg='#F2F2F2', align='left', border=1)
                     ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
-                    for ci in range(1, N):
+                    for ci in range(1, N - 1):
                         _, _, tipo, _ = cols[ci]
                         color = '#C00000' if tipo == 'ded' else (
                             '#1F4E79' if tipo == 'tot' else '#000000')
@@ -425,45 +430,64 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 row += 1
                 prev_dept = dept
 
-            sal_base = slip.base_salary or 0
+            # FIX MATEMATICO CRITICO POR PEDIDO EXPLICITO: Salario
+            # Quincenal debe mostrar el salario ESPERADO completo (de
+            # la ficha del empleado, emp.base_salary), NO el ya
+            # reducido por la boleta segun la incapacidad
+            # (slip.base_salary) -- de lo contrario, al restar la
+            # columna Incapacidad (que representa exactamente ese
+            # mismo descuento) se estaria contando el efecto de la
+            # incapacidad DOS VECES: una porque el salario mostrado ya
+            # viene reducido, y otra porque la columna Incapacidad
+            # tambien lo resta explicitamente. Confirmado con un caso
+            # real (Martha): con salario esperado completo (195,000)
+            # + bono (13,000) - CCSS (1,407.90) - Incapacidad
+            # (195,000) = 11,592.10, que coincide EXACTO con Deposito
+            # Patrono real -- la unica combinacion que cuadra
+            # matematicamente sin duplicar el descuento.
+            sal_base = round(emp.base_salary or 0.0, 2)
             extras = slip.overtime_amount or 0
-            # FIX DE FONDO: usar gross_salary DIRECTAMENTE como fuente
-            # del Sub Total, en vez de reconstruirlo sumando piezas
-            # (sal_base+extras+otros_ing) -- gross_salary es el campo
-            # real y ya calculado por la boleta que suma TODOS los
-            # componentes del bruto (base_salary, overtime_amount,
-            # vacation_amount, other_income, bono_salarial_amount).
-            # La reconstruccion manual anterior no incluia
-            # vacation_amount (dias de vacaciones pagados dentro del
-            # periodo) -- un componente real del bruto que quedaba
-            # fuera del Sub Total sin que nadie lo notara, el mismo
-            # patron de bug que ya se corrigio dos veces en este
-            # reporte (bonos, luego incapacidad). "Otros" ahora se
-            # calcula como la DIFERENCIA real (gross_salary - sal_base
-            # - extras), garantizando que las columnas SIEMPRE sumen
-            # exactamente el bruto real de la boleta, sin importar que
-            # componentes nuevos se agreguen al calculo en el futuro.
-            sub_total = round(slip.gross_salary or 0.0, 2)
-            otros_ing = round(sub_total - sal_base - extras, 2)
+            # Otros_ing (el bono y cualquier otro ingreso real) se
+            # calcula desde el bruto REAL de la boleta (gross_salary,
+            # que ya incluye el salario REAL reducido) -- no desde el
+            # salario esperado, para no mezclar o distorsionar el
+            # bono con la diferencia entre salario esperado y real
+            # (esa diferencia ya se captura aparte en la columna
+            # Incapacidad, mas abajo).
+            _salario_real_boleta_ing = round(slip.base_salary or 0.0, 2)
+            _gross_real = round(slip.gross_salary or 0.0, 2)
+            otros_ing = round(_gross_real - _salario_real_boleta_ing - extras, 2)
+            # Sub Total = INGRESOS REALES antes de cualquier deduccion
+            # (salario esperado completo + bono + extras) -- distinto
+            # de gross_salary de la boleta (que ya viene reducido por
+            # la incapacidad); este Sub Total es el que, restandole
+            # las columnas de deducciones (incluyendo Incapacidad),
+            # debe cuadrar exactamente contra Deposito Patrono.
+            sub_total = round(sal_base + otros_ing + extras, 2)
 
             ccss_emp = slip.ccss_employee or 0
-            # FIX CRITICO POR PEDIDO EXPLICITO (corrige un bug que
-            # persistia en la columna INS de una correccion anterior):
-            # las TRES columnas de incapacidad (CCSS, INS, Maternidad)
-            # deben mostrar SIEMPRE deposito_patrono -- el Neto
-            # Quincenal que el PATRONO realmente paga al empleado (el
-            # mismo campo que la boleta muestra como "① Neto Quincenal
-            # - pago del Patrono") -- NUNCA el subsidio que paga la
-            # Caja o el INS directamente (ccss_subsidy_total,
-            # ins_subsidy_total), que es dinero que no sale de la
-            # empresa y por eso no es relevante para su resumen
-            # contable. Se usa el tipo REAL de la incapacidad
-            # (disability_type: ccss/ccss_accident/other -> columna
-            # CCSS; ins -> columna INS; maternity -> columna
+            # FIX MATEMATICO POR PEDIDO EXPLICITO: las TRES columnas de
+            # incapacidad (CCSS, INS, Maternidad) deben mostrar cuanto
+            # se le REBAJO al empleado del salario por los dias de
+            # incapacidad -- confirmado con un caso real (Martha
+            # Lorena Martinez Valerio: 195,000 de salario esperado -
+            # 0.00 de salario realmente pagado por sus 15 dias de
+            # incapacidad = 195,000 de rebajo real). Se calcula como
+            # emp.base_salary (salario esperado COMPLETO, de la ficha
+            # del empleado, sin ningun descuento) menos slip.base_salary
+            # (el salario YA reducido y probado que calculo la propia
+            # boleta segun la incapacidad real) -- confirmado contra
+            # el propio reporte PDF de la boleta (report/payslip_report.xml),
+            # que usa exactamente slip.base_salary para mostrar
+            # "Salario por dias laborados". Se usa el tipo REAL de la
+            # incapacidad (disability_type: ccss/ccss_accident/other
+            # -> columna CCSS; ins -> columna INS; maternity -> columna
             # Maternidad) para decidir en CUAL de las tres columnas va
-            # este mismo numero -- las tres son mutuamente excluyentes,
+            # este mismo monto -- las tres son mutuamente excluyentes,
             # solo una tiene valor por boleta segun el tipo real.
-            _deposito_patrono_real = round(slip.deposito_patrono or 0.0, 2)
+            _emp_salario_esperado = round(emp.base_salary or 0.0, 2)
+            _salario_real_boleta = round(slip.base_salary or 0.0, 2)
+            _monto_rebajado_real = max(round(_emp_salario_esperado - _salario_real_boleta, 2), 0.0)
             _tipos_activos = set(
                 d.disability_type for d in (slip.disability_ids or [])
                 if getattr(d, 'disability_type', False)
@@ -472,14 +496,14 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             monto_incap_ins = 0.0
             monto_maternidad = 0.0
             if _tipos_activos == {'maternity'}:
-                monto_maternidad = _deposito_patrono_real
+                monto_maternidad = _monto_rebajado_real
             elif _tipos_activos == {'ins'}:
-                monto_incap_ins = _deposito_patrono_real
+                monto_incap_ins = _monto_rebajado_real
             elif _tipos_activos:
                 # ccss, ccss_accident, other, o una mezcla de tipos en
                 # la misma boleta (caso raro) -- se deja integro en
                 # Incapacidad C.C.S.S., sin repartir sin base real.
-                monto_incap_ccss = _deposito_patrono_real
+                monto_incap_ccss = _monto_rebajado_real
 
             ahorro = _sum_cat(slip, 'ahorro')
             permiso_sg = _sum_cat(slip, 'licencia_sin_goce', 'ausencia')
@@ -562,15 +586,37 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             total_empleado = round(slip.salary_payable or 0.0, 2)
             deposito_patrono = round(slip.deposito_patrono or 0.0, 2)
 
+            # FIX: columna de Verificacion (S), por pedido explicito --
+            # confirma matematicamente que Sub Total menos todas las
+            # deducciones (columnas F a P) cuadre exactamente contra
+            # Deposito Patrono (columna R), para poder auditar
+            # visualmente cada fila del reporte. Tolerancia de +/-1
+            # colon para absorber diferencias minimas de redondeo
+            # entre calculos independientes.
+            _suma_deducciones = round(
+                ccss_emp + monto_incap_ccss + monto_incap_ins + monto_maternidad
+                + ahorro + permiso_sg + renta + facturas + prestamos
+                + otros_ded + embargo, 2)
+            _neto_calculado = round(sub_total - _suma_deducciones, 2)
+            _diferencia_verif = round(_neto_calculado - deposito_patrono, 2)
+            _verif_ok = abs(_diferencia_verif) < 1.0
+
             vals = [
                 emp.name or '',
                 sal_base, otros_ing, extras, sub_total,
                 ccss_emp, monto_incap_ccss, monto_incap_ins, monto_maternidad,
                 ahorro, permiso_sg, renta, facturas, prestamos, otros_ded, embargo,
                 total_empleado, deposito_patrono,
+                'OK' if _verif_ok else 'X',
             ]
 
             for ci, (val, (_, _, tipo, dfmt)) in enumerate(zip(vals, cols)):
+                if tipo == 'chk':
+                    # Columna de verificacion: texto OK/X, no un
+                    # numero acumulable -- no entra en los totales de
+                    # departamento/frecuencia/general.
+                    ws.write(row, ci, val, fd_chk_ok if val == 'OK' else fd_chk_bad)
+                    continue
                 if tipo == 'tot':
                     # El Total de la fila siempre se muestra, incluso
                     # si diera 0 -- a diferencia de ingresos/rebajos
@@ -598,7 +644,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         if prev_dept:
             sub_lbl_fmt = F(bold=True, bg='#F2F2F2', align='left', border=1)
             ws.write(row, 0, f'  Subtotal {prev_dept}', sub_lbl_fmt)
-            for ci in range(1, N):
+            for ci in range(1, N - 1):
                 _, _, tipo, _ = cols[ci]
                 color = '#C00000' if tipo == 'ded' else (
                     '#1F4E79' if tipo == 'tot' else '#000000')
@@ -616,7 +662,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         if is_consolidated and prev_freq:
             freq_sub_fmt = F(bold=True, bg='#D9E2F3', align='left', border=2, sz=10)
             ws.write(row, 0, f'TOTAL {prev_freq.upper()}', freq_sub_fmt)
-            for ci in range(1, N):
+            for ci in range(1, N - 1):
                 _, _, tipo, _ = cols[ci]
                 color = '#C00000' if tipo == 'ded' else (
                     '#1F4E79' if tipo == 'tot' else '#000000')
@@ -629,7 +675,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         row += 1
         tot_lbl_fmt = F(bold=True, bg=BG_TOT, align='left', border=2, sz=10)
         ws.write(row, 0, 'TOTAL GENERAL', tot_lbl_fmt)
-        for ci in range(1, N):
+        for ci in range(1, N - 1):
             _, _, tipo, _ = cols[ci]
             color = '#C00000' if tipo == 'ded' else (
                 '#1F4E79' if tipo == 'tot' else '#000000')

@@ -346,17 +346,20 @@ class ResumenEjecutivoWizard(models.TransientModel):
 
             # DEDUCCIONES QUE REDUCEN COTIZABLE
             dias_incap = slip.disability_days_in_period or 0
-            # FIX POR PEDIDO EXPLICITO: Monto Incapacidad debe mostrar
-            # deposito_patrono -- el Neto Quincenal que el PATRONO
-            # realmente paga al empleado (el mismo campo que la
-            # boleta muestra como "① Neto Quincenal - pago del
-            # Patrono"), NO una reconstruccion de "cuanto se dejo de
-            # pagar del salario esperado", ya que ese numero no es el
-            # dato de interes real para el resumen contable de la
-            # empresa -- lo que importa es cuanto debe pagar realmente
-            # el patrono, no una diferencia teorica contra el salario
-            # completo.
-            monto_incap = round(slip.deposito_patrono or 0.0, 2)
+            # FIX MATEMATICO POR PEDIDO EXPLICITO: Monto Incapacidad
+            # debe mostrar cuanto se le REBAJO al empleado del salario
+            # por los dias de incapacidad -- confirmado con un caso
+            # real (Martha Lorena Martinez Valerio: 195,000 de salario
+            # esperado - 0.00 de salario realmente pagado por sus 15
+            # dias de incapacidad = 195,000 de rebajo real). Se
+            # calcula como emp.base_salary (salario esperado COMPLETO
+            # de la ficha) menos slip.base_salary (el salario YA
+            # reducido y probado que calculo la propia boleta) --
+            # confirmado contra el propio reporte PDF de la boleta,
+            # que usa exactamente slip.base_salary para mostrar
+            # "Salario por dias laborados".
+            monto_incap = max(round(
+                (emp.base_salary or 0.0) - (slip.base_salary or 0.0), 2), 0.0)
             licencia_sg = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if l.line_type == 'deduction'
