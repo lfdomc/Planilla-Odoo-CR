@@ -457,7 +457,17 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # correctamente sin importar si el empleado es quincenal,
             # mensual o semanal.
             _freq_factor = K.FREQ_FACTORS.get(slip._get_effective_freq(), 1.0)
-            sal_base = round((emp.base_salary or 0.0) * _freq_factor, 2)
+            # FIX CRITICO: usar el salario VIGENTE en la fecha de esta
+            # boleta especifica (mismo metodo real que ya usa el
+            # sistema en _compute_base_salary), no el salario ACTUAL
+            # de la ficha del empleado -- si hubo un aumento salarial
+            # posterior a esta boleta (registrado en
+            # planilla.salary.history), emp.base_salary ya refleja ese
+            # aumento, mostrando un salario mayor al que realmente
+            # aplicaba en el periodo de esta boleta especifica.
+            _salario_mensual_vigente = slip._get_salary_for_date(emp, slip.date_from)
+            _prop_factor = slip.proportional_factor if slip.is_proportional else 1.0
+            sal_base = round((_salario_mensual_vigente or 0.0) * _freq_factor * _prop_factor, 2)
             extras = slip.overtime_amount or 0
             # Otros_ing (el bono y cualquier otro ingreso real) se
             # calcula desde el bruto REAL de la boleta (gross_salary,
@@ -465,10 +475,16 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # salario esperado, para no mezclar o distorsionar el
             # bono con la diferencia entre salario esperado y real
             # (esa diferencia ya se captura aparte en la columna
-            # Incapacidad, mas abajo).
+            # Incapacidad, mas abajo). Se suma tambien
+            # costo_patrono_periodo (Subsidio patrono dias 1-3, Art.
+            # 79 CT) -- dinero REAL que el patrono si paga durante una
+            # incapacidad corta (menos de 4 dias), pero que NO forma
+            # parte de gross_salary (no genera cargas CCSS/Renta por
+            # diseño legal, asi que el sistema no lo incluye ahi).
             _salario_real_boleta_ing = round(slip.salario_cotizable or 0.0, 2)
             _gross_real = round(slip.gross_salary or 0.0, 2)
-            otros_ing = round(_gross_real - _salario_real_boleta_ing - extras, 2)
+            _costo_patrono_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
+            otros_ing = round(_gross_real - _salario_real_boleta_ing - extras + _costo_patrono_1_3, 2)
             # Sub Total = INGRESOS REALES antes de cualquier deduccion
             # (salario esperado completo + bono + extras) -- distinto
             # de gross_salary de la boleta (que ya viene reducido por
@@ -503,7 +519,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # Maternidad) para decidir en CUAL de las tres columnas va
             # este mismo monto -- las tres son mutuamente excluyentes,
             # solo una tiene valor por boleta segun el tipo real.
-            _emp_salario_esperado = round((emp.base_salary or 0.0) * _freq_factor, 2)
+            _emp_salario_esperado = round((_salario_mensual_vigente or 0.0) * _freq_factor * _prop_factor, 2)
             _salario_real_boleta = round(slip.salario_cotizable or 0.0, 2)
             _monto_rebajado_real = max(round(_emp_salario_esperado - _salario_real_boleta, 2), 0.0)
             _tipos_activos = set(

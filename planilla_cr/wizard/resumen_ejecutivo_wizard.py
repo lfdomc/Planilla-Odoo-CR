@@ -358,7 +358,9 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # resumen reducido: Salario esperado + Bonos - CCSS -
             # Incapacidad debe cuadrar exacto contra Deposito Patrono.
             _freq_factor = K.FREQ_FACTORS.get(slip._get_effective_freq(), 1.0)
-            sal_base     = round((emp.base_salary or 0.0) * _freq_factor, 2)
+            _salario_mensual_vigente = slip._get_salary_for_date(emp, slip.date_from)
+            _prop_factor = slip.proportional_factor if slip.is_proportional else 1.0
+            sal_base     = round((_salario_mensual_vigente or 0.0) * _freq_factor * _prop_factor, 2)
             horas_extras = slip.overtime_amount or 0
             bonos        = slip.bono_salarial_amount or 0
             bonos_exentos = getattr(slip, 'amount_bonos_exentos', 0) or 0
@@ -374,14 +376,14 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # real (Martha Lorena Martinez Valerio: 195,000 de salario
             # esperado - 0.00 de salario realmente pagado por sus 15
             # dias de incapacidad = 195,000 de rebajo real). Se
-            # calcula como emp.base_salary (salario esperado COMPLETO
-            # de la ficha) menos slip.base_salary (el salario YA
-            # reducido y probado que calculo la propia boleta) --
-            # confirmado contra el propio reporte PDF de la boleta,
-            # que usa exactamente slip.base_salary para mostrar
-            # "Salario por dias laborados".
+            # calcula como el salario VIGENTE en la fecha de esta
+            # boleta (no emp.base_salary actual, que puede ya incluir
+            # un aumento posterior), con su factor de proporcionalidad
+            # real si aplica, menos slip.salario_cotizable (el
+            # salario YA reducido y probado que calculo la propia
+            # boleta).
             monto_incap = max(round(
-                ((emp.base_salary or 0.0) * _freq_factor) - (slip.salario_cotizable or 0.0), 2), 0.0)
+                ((_salario_mensual_vigente or 0.0) * _freq_factor * _prop_factor) - (slip.salario_cotizable or 0.0), 2), 0.0)
             licencia_sg = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if l.line_type == 'deduction'
@@ -389,8 +391,18 @@ class ResumenEjecutivoWizard(models.TransientModel):
             ), 2)
 
             # SUBSIDIO MATERNIDAD / CCSS (días 4+ incapacidad + paternidad)
-            # Este subsidio sí forma parte del neto que recibe el empleado
-            subsid_mat = round((slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0), 2)
+            # Este subsidio sí forma parte del neto que recibe el empleado.
+            # FIX: se suma tambien costo_patrono_periodo (Subsidio
+            # patrono dias 1-3, Art. 79 CT) -- dinero REAL que el
+            # patrono si paga durante una incapacidad corta (menos de
+            # 4 dias), pero que no aparecia capturado en ninguna
+            # columna de este reporte -- confirmado con un caso real
+            # (Sergio Andres Solis Juarez) que sin este ajuste faltaban
+            # exactamente 6,500 colones para que el neto calculado
+            # cuadrara contra Deposito Patrono real.
+            subsid_mat = round(
+                (slip.ccss_subsidy_total or 0) + (slip.paternity_amount or 0)
+                + (slip.costo_patrono_periodo or 0), 2)
 
             # SALARIO BRUTO COTIZABLE
             bruto_cotiz = slip.base_cotizable_final or 0
