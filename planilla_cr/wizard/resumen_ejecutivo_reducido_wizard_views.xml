@@ -29,10 +29,22 @@
           </div>
           <group invisible="not use_consolidated">
             <group>
+              <field name="report_selector_mode" widget="radio" options="{'horizontal': True}"/>
+              <field name="report_year" string="Año"
+                     invisible="report_selector_mode != 'quincena'"
+                     required="report_selector_mode == 'quincena' and use_consolidated"/>
+              <field name="report_month" string="Mes"
+                     invisible="report_selector_mode != 'quincena'"
+                     required="report_selector_mode == 'quincena' and use_consolidated"/>
+              <field name="report_quincena" string="Quincena" widget="radio"
+                     invisible="report_selector_mode != 'quincena'"
+                     required="report_selector_mode == 'quincena' and use_consolidated"/>
               <field name="consolidated_date_from" string="Desde"
-                     required="use_consolidated"/>
+                     invisible="report_selector_mode != 'rango'"
+                     required="report_selector_mode == 'rango' and use_consolidated"/>
               <field name="consolidated_date_to" string="Hasta"
-                     required="use_consolidated"/>
+                     invisible="report_selector_mode != 'rango'"
+                     required="report_selector_mode == 'rango' and use_consolidated"/>
             </group>
             <group>
               <field name="elaborado_por" string="Elaborado por"/>

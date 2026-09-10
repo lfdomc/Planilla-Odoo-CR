@@ -1,8 +1,22 @@
 import io
 import base64
-from odoo import models, fields
+from datetime import date
+from dateutil.relativedelta import relativedelta
+from odoo import models, fields, api
 from odoo.exceptions import UserError
 from ..models import planilla_const as K
+
+
+def _fecha_inicio_quincena(year, month, quincena):
+    """Primer dia de la quincena indicada (1 o 16)."""
+    return date(year, month, 1) if quincena == '1' else date(year, month, 16)
+
+
+def _fecha_fin_quincena(year, month, quincena):
+    """Ultimo dia de la quincena indicada (15, o el ultimo dia real del mes)."""
+    if quincena == '1':
+        return date(year, month, 15)
+    return date(year, month, 1) + relativedelta(months=1) - relativedelta(days=1)
 
 
 class ResumenEjecutivoReducidoWizard(models.TransientModel):
@@ -41,17 +55,73 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
              'planilla especifica de una sola calendarizacion '
              '(quincenal o mensual).',
     )
+    # FIX: por pedido explicito, agregar una forma mas rapida de
+    # indicar el periodo del resumen consolidado -- eligiendo
+    # directamente una quincena predefinida (Año, Mes, Primera/
+    # Segunda), en vez de tener que escribir las fechas manualmente
+    # cada vez. Activo por defecto para facilitar el uso habitual; el
+    # rango de fechas manual sigue disponible como alternativa para
+    # casos especiales (ej. un rango que no coincide con una quincena
+    # calendario exacta).
+    report_selector_mode = fields.Selection([
+        ('quincena', 'Quincena Predefinida'),
+        ('rango', 'Rango de Fechas Manual'),
+    ], string='Seleccionar Período Por', default='quincena', required=True)
+    report_year = fields.Integer(
+        string='Año', default=lambda self: date.today().year,
+    )
+    report_month = fields.Selection([
+        ('1', 'Enero'), ('2', 'Febrero'), ('3', 'Marzo'), ('4', 'Abril'),
+        ('5', 'Mayo'), ('6', 'Junio'), ('7', 'Julio'), ('8', 'Agosto'),
+        ('9', 'Septiembre'), ('10', 'Octubre'), ('11', 'Noviembre'), ('12', 'Diciembre'),
+    ], string='Mes', default=lambda self: str(date.today().month),
+    )
+    report_quincena = fields.Selection([
+        ('1', 'Primera Quincena (1 al 15)'),
+        ('2', 'Segunda Quincena (16 al fin de mes)'),
+    ], string='Quincena',
+        default=lambda self: '1' if date.today().day <= 15 else '2')
     consolidated_date_from = fields.Date(
         string='Desde',
+        default=lambda self: _fecha_inicio_quincena(
+            date.today().year, date.today().month,
+            '1' if date.today().day <= 15 else '2'),
         help='Inicio del rango de fechas a incluir en el resumen '
              'consolidado. Se incluye cualquier boleta cuyo periodo se '
              'traslape con este rango, sin importar su frecuencia.',
     )
     consolidated_date_to = fields.Date(
         string='Hasta',
+        default=lambda self: _fecha_fin_quincena(
+            date.today().year, date.today().month,
+            '1' if date.today().day <= 15 else '2'),
         help='Fin del rango de fechas a incluir en el resumen '
              'consolidado.',
     )
+
+    @api.onchange('report_year', 'report_month', 'report_quincena', 'report_selector_mode')
+    def _onchange_report_period_selector(self):
+        """
+        Calcula automaticamente consolidated_date_from/
+        consolidated_date_to a partir de Año/Mes/Quincena elegidos --
+        por pedido explicito, para facilitar la generacion del
+        reporte sin tener que escribir las fechas manualmente cada
+        vez. Reutiliza exactamente la misma logica de fechas ya
+        validada en schedule_type.py::get_period_dates (1-15 para
+        primera quincena, 16-fin de mes para segunda) -- solo se
+        activa cuando report_selector_mode='quincena'; en modo
+        'rango', las fechas se dejan tal como el usuario las escriba
+        manualmente.
+        """
+        if self.report_selector_mode != 'quincena':
+            return
+        if not self.report_year or not self.report_month:
+            return
+        year = self.report_year
+        month = int(self.report_month)
+        quincena = self.report_quincena or '1'
+        self.consolidated_date_from = _fecha_inicio_quincena(year, month, quincena)
+        self.consolidated_date_to = _fecha_fin_quincena(year, month, quincena)
 
     payroll_run_id = fields.Many2one(
         'planilla.run.cr', string='Planilla (quincena)',
