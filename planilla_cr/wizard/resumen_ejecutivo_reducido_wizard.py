@@ -466,7 +466,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # bono con la diferencia entre salario esperado y real
             # (esa diferencia ya se captura aparte en la columna
             # Incapacidad, mas abajo).
-            _salario_real_boleta_ing = round(slip.base_salary or 0.0, 2)
+            _salario_real_boleta_ing = round(slip.salario_cotizable or 0.0, 2)
             _gross_real = round(slip.gross_salary or 0.0, 2)
             otros_ing = round(_gross_real - _salario_real_boleta_ing - extras, 2)
             # Sub Total = INGRESOS REALES antes de cualquier deduccion
@@ -486,19 +486,25 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # 0.00 de salario realmente pagado por sus 15 dias de
             # incapacidad = 195,000 de rebajo real). Se calcula como
             # emp.base_salary (salario esperado COMPLETO, de la ficha
-            # del empleado, sin ningun descuento) menos slip.base_salary
-            # (el salario YA reducido y probado que calculo la propia
-            # boleta segun la incapacidad real) -- confirmado contra
-            # el propio reporte PDF de la boleta (report/payslip_report.xml),
-            # que usa exactamente slip.base_salary para mostrar
-            # "Salario por dias laborados". Se usa el tipo REAL de la
+            # del empleado, sin ningun descuento) menos
+            # slip.salario_cotizable (el salario PURO ya reducido por
+            # la incapacidad, SIN el bono -- confirmado contra la
+            # vista real de Odoo, views/payslip_cr_views.xml, que
+            # muestra "Salario dias laborados <salario_cotizable> +
+            # bono afecto CCSS <bono_salarial_amount>" como DOS campos
+            # separados, no uno combinado). IMPORTANTE: slip.base_salary
+            # NUNCA se reduce por incapacidad (confirmado en su propio
+            # metodo _compute_base_salary) -- usarlo aqui fue un error
+            # real que se arrastro en varias correcciones anteriores,
+            # hasta verificar el campo correcto contra el codigo real
+            # de la vista. Se usa el tipo REAL de la
             # incapacidad (disability_type: ccss/ccss_accident/other
             # -> columna CCSS; ins -> columna INS; maternity -> columna
             # Maternidad) para decidir en CUAL de las tres columnas va
             # este mismo monto -- las tres son mutuamente excluyentes,
             # solo una tiene valor por boleta segun el tipo real.
             _emp_salario_esperado = round((emp.base_salary or 0.0) * _freq_factor, 2)
-            _salario_real_boleta = round(slip.base_salary or 0.0, 2)
+            _salario_real_boleta = round(slip.salario_cotizable or 0.0, 2)
             _monto_rebajado_real = max(round(_emp_salario_esperado - _salario_real_boleta, 2), 0.0)
             _tipos_activos = set(
                 d.disability_type for d in (slip.disability_ids or [])

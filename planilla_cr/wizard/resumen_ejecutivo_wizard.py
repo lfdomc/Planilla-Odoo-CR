@@ -381,7 +381,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             # que usa exactamente slip.base_salary para mostrar
             # "Salario por dias laborados".
             monto_incap = max(round(
-                ((emp.base_salary or 0.0) * _freq_factor) - (slip.base_salary or 0.0), 2), 0.0)
+                ((emp.base_salary or 0.0) * _freq_factor) - (slip.salario_cotizable or 0.0), 2), 0.0)
             licencia_sg = round(sum(
                 l.amount for l in slip.deduction_line_ids
                 if l.line_type == 'deduction'
