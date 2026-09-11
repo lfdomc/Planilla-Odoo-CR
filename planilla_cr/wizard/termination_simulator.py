@@ -147,9 +147,18 @@ class TerminationSimulator(models.TransientModel):
                 for s in slips:
                     key = s.date_to.strftime('%Y-%m') if s.date_to else ''
                     if key:
-                        # Usar base_salary mensual / 2 (no gross que incluye incap/bonos)
-                        # Esto da el salario puro que el Excel usa en su calculo
-                        monthly[key] = (s.employee_id.base_salary or 0)
+                        # FIX: usar el salario REAL de ESTA boleta
+                        # especifica (s.base_salary, ya reducido/
+                        # proporcional segun corresponda a esa
+                        # quincena), NO s.employee_id.base_salary (el
+                        # salario ACTUAL de la ficha, un valor fijo
+                        # que ignoraba por completo las variaciones
+                        # reales entre boletas -- confirmado con un
+                        # caso real donde los 6 meses quedaban todos
+                        # con el mismo monto, el salario actual, en
+                        # vez de reflejar lo que realmente se le pago
+                        # cada mes segun sus boletas confirmadas).
+                        monthly[key] += (s.base_salary or 0)
                 months_sorted = sorted(monthly.keys(), reverse=True)[:6]
                 sal_fields = ['sal_m1','sal_m2','sal_m3','sal_m4','sal_m5','sal_m6']
                 for i, key in enumerate(months_sorted):
@@ -397,29 +406,29 @@ class TerminationSimulator(models.TransientModel):
                     len(sal_nonzero), aguinaldo, months_worked)
             )
         else:
-            # Sin campos manuales: usar boletas del sistema
-            slips_in_period = self.env['planilla.payslip.cr'].search([
-                ('employee_id', '=', emp.id),
-                ('state', '=', 'done'),
-                ('date_from', '>=', period_start),
-                ('date_to', '<=', exit_date),
-            ])
-            # Art. 228 CT: usar MISMO promedio que preaviso/cesantia (salary)
-            # NO usar sum(gross_salary boletas) porque incluye HE variables
-            # Formula: salary / 12 * total_months (igual que Excel)
+            # FIX ARQUITECTURA: usar el metodo centralizado
+            # rate_helper.calc_aguinaldo_periodo() -- la misma fuente
+            # unica de verdad que ahora tambien usan el Wizard de
+            # Aguinaldo y la Liquidacion, en vez de la formula anterior
+            # (salary/12*months_from_system, un promedio simple x
+            # meses). Confirmado con un caso real (Raichel Daniela
+            # Leiton Arias) que la formula anterior daba un resultado
+            # distinto y menos preciso que sumar las boletas reales
+            # del periodo, cuando el salario de la persona varia entre
+            # periodos.
+            rh_agu = self.env['planilla.rate.helper']
             if ag_init_amount and ag_init_date and ag_init_date >= period_start:
-                months_covered = (
-                    (ag_init_date.year * 12 + ag_init_date.month) -
-                    (period_start.year * 12 + period_start.month) + 1
-                )
-                months_from_system = max(0, total_months - months_covered)
-                aguinaldo_system = round(salary / 12.0 * months_from_system, 2)
+                fecha_desde_sistema = ag_init_date + relativedelta(days=1)
+                resultado = rh_agu.calc_aguinaldo_periodo(
+                    emp, fecha_desde_sistema, exit_date)
+                aguinaldo_system = round(resultado['total'] / 12.0, 2)
                 aguinaldo     = round(ag_init_amount + aguinaldo_system, 2)
                 months_worked = total_months
                 notes_lines.append(
-                    'Aguinaldo Art.228 CT: inicial CRC%s + sistema CRC%s' % (
+                    'Aguinaldo Art.228 CT: inicial CRC%s + sistema CRC%s (%s boletas)' % (
                         '{:,.2f}'.format(ag_init_amount),
-                        '{:,.2f}'.format(aguinaldo_system))
+                        '{:,.2f}'.format(aguinaldo_system),
+                        resultado['slip_count'])
                 )
             elif ag_init_amount:
                 aguinaldo     = ag_init_amount
@@ -430,9 +439,12 @@ class TerminationSimulator(models.TransientModel):
                 )
             else:
                 months_worked = total_months
-                aguinaldo = round(salary * months_worked / 12.0, 2)
+                resultado = rh_agu.calc_aguinaldo_periodo(
+                    emp, real_period_start, exit_date)
+                aguinaldo = round(resultado['total'] / 12.0, 2)
                 notes_lines.append(
-                    'Aguinaldo Art.228 CT: %s meses estimado' % months_worked
+                    'Aguinaldo Art.228 CT: suma de %s boletas reales / 12 (%s meses)' % (
+                        resultado['slip_count'], months_worked)
                 )
 
         # -- Totales ----------------------------------------------------------

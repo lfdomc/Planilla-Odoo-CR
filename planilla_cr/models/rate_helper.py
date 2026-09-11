@@ -304,3 +304,78 @@ class RateHelper(models.AbstractModel):
                 'V':   dc.ins_rate_v   / 100,
             }
         return {'I': 0.0087, 'II': 0.0149, 'III': 0.0247, 'IV': 0.0413, 'V': 0.0688}
+
+    def calc_aguinaldo_periodo(self, employee, date_from, date_to,
+                                salary_basis='gross', include_confirmed=False):
+        """
+        FUENTE UNICA DE VERDAD para el calculo de aguinaldo (Art. 228 CT,
+        Ley 2412). Usada por el Wizard de Aguinaldo, la Liquidacion, y el
+        Simulador de Liquidacion -- antes cada uno tenia su propia formula
+        separada, lo que causaba resultados distintos para el mismo
+        empleado segun por donde se calculara.
+
+        Confirmado legalmente (Ley 2412, Art. 2): el aguinaldo se calcula
+        con base en el PROMEDIO de los sueldos REALMENTE DEVENGADOS
+        durante el periodo -- es decir, SUMAR lo que la persona gano
+        realmente en cada boleta del periodo y dividir entre 12. NO
+        promediar una muestra de meses y multiplicarla por la cantidad
+        de meses del periodo (formula matematicamente distinta, e
+        imprecisa cuando el salario de la persona varia entre periodos
+        -- ej. incapacidades, permisos, ingreso/salida a mitad de
+        quincena, ajustes salariales).
+
+        :param employee: registro hr.employee
+        :param date_from: fecha real de inicio del periodo a calcular
+            (normalmente el 1 de diciembre del año anterior, o la fecha
+            de ingreso del empleado si es posterior)
+        :param date_to: fecha real de fin del periodo a calcular
+            (normalmente el 30 de noviembre, o la fecha de salida/
+            simulacion si es anterior)
+        :param salary_basis: 'gross' (bruto: base_salary + horas extras
+            + bonos + vacaciones, RECOMENDADO por el Art. 228 CT) o
+            'base' (solo salario base, sin componentes variables)
+        :param include_confirmed: si True, incluye boletas en estado
+            'confirmed' ademas de 'done' -- util para simulaciones
+            donde la ultima quincena aun no esta pagada formalmente.
+        :return: dict con 'total' (monto de salarios reales devengados
+            en el periodo, ya listo para dividir entre 12), 'slip_count'
+            (boletas incluidas), y 'months_with_data' (meses distintos
+            con al menos una boleta, solo informativo).
+        """
+        estados = ('done', 'confirmed') if include_confirmed else ('done',)
+        domain = [
+            ('employee_id', '=', employee.id),
+            ('state', 'in', estados),
+            ('date_from', '>=', date_from),
+            ('date_to', '<=', date_to),
+        ]
+        slips = self.env['planilla.payslip.cr'].search(domain)
+
+        total = 0.0
+        meses_con_datos = set()
+        for slip in slips:
+            # Art. 228 CT: "salarios ordinarios devengados" = bruto menos:
+            # - Subsidio CCSS por incapacidad (lo paga la Caja, no el patrono)
+            # + Subsidio PATRONAL de los dias 1-3 de incapacidad (Art. 79
+            #   CT, costo_patrono_periodo) -- SI es salario ordinario
+            #   devengado, aunque no genere cargas CCSS/Renta por diseño.
+            # NOTA: los permisos sin goce de salario NO se restan aqui --
+            # base_salary/gross_salary de la boleta YA los excluye por
+            # diseño (confirmado: restarlos de nuevo causaba un doble
+            # descuento real).
+            if salary_basis == 'gross':
+                base = slip.gross_salary or 0.0
+            else:
+                base = slip.base_salary or 0.0
+            subsidio = round(slip.ccss_subsidy_total or 0.0, 2)
+            costo_patrono_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
+            devengado = max(round(base - subsidio + costo_patrono_1_3, 2), 0.0)
+            total += devengado
+            if slip.date_to:
+                meses_con_datos.add(slip.date_to.strftime('%Y-%m'))
+
+        return {
+            'total': round(total, 2),
+            'slip_count': len(slips),
+            'months_with_data': len(meses_con_datos),
+        }

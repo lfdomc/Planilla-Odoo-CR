@@ -101,59 +101,32 @@ class AguinaldoWizard(models.TransientModel):
                     'junio-noviembre %s ni empleados con acumulado inicial.' % self.year
                 )
 
-        # Agrupar por empleado
+        # FIX ARQUITECTURA (por pedido explicito): usar el metodo
+        # centralizado rate_helper.calc_aguinaldo_periodo() -- la misma
+        # fuente unica de verdad que ahora tambien usan la Liquidacion
+        # (employee_termination.py) y el Simulador
+        # (termination_simulator.py), en vez de acumular manualmente
+        # boleta por boleta con una formula propia repetida en 3
+        # archivos distintos (que podian desincronizarse entre si,
+        # confirmado con un caso real).
+        rh = self.env['planilla.rate.helper']
         employee_data = {}
-        for slip in slips:
-            eid = slip.employee_id.id
-            if eid not in employee_data:
-                employee_data[eid] = {
-                    'employee_id': eid,
-                    'employee_name': slip.employee_id.name,
-                    'branch': slip.employee_id.branch_id.name or '',
-                    'entry_date': slip.employee_id.entry_date,
-                    'total_ordinary': 0.0,
-                    'months_count': 0,
-                    'slip_count': 0,
-                    'aguinaldo_initial': slip.employee_id.aguinaldo_initial_amount or 0.0,
-                    'aguinaldo_initial_date': slip.employee_id.aguinaldo_initial_date,
-                }
-            # Art. 228 CT: "salarios ordinarios devengados" = bruto menos:
-            # - Subsidio CCSS por incapacidad (lo paga la Caja, no el patrono)
-            # NOTA: los permisos sin goce de salario NO se restan aqui --
-            # base_salary/gross_salary de la boleta YA los excluye por
-            # diseño (confirmado en payslip_compute_mixin.py: "g ya tiene
-            # licencias_sg restadas"). Restarlos aqui de nuevo causaba un
-            # DOBLE DESCUENTO real, confirmado matematicamente con un caso
-            # real: la diferencia de aguinaldo en un periodo con permiso
-            # sin goce coincidia exactamente con la mitad del monto del
-            # permiso entre 12 -- el patron exacto de un valor restado
-            # dos veces en una formula de division entre 12.
-            if self.salary_basis == 'gross':
-                base = slip.gross_salary or 0.0
-            else:
-                base = slip.base_salary or 0.0
-            # Restar subsidio CCSS de incapacidades del período (este SI
-            # es correcto restarlo aqui -- base_salary NO lo excluye por
-            # diseño, a diferencia de las licencias sin goce). Se usa
-            # ccss_subsidy_total, YA prorrateado especificamente para el
-            # periodo de ESTA boleta -- sumar d.ccss_subsidy de cada
-            # incapacidad vinculada (disability_ids) es incorrecto,
-            # porque ese es el TOTAL de la incapacidad completa, que
-            # puede extenderse mas alla del periodo de esta boleta.
-            subsidio = round(slip.ccss_subsidy_total or 0.0, 2)
-            # FIX: sumar el subsidio PATRONAL de los dias 1-3 de
-            # incapacidad (Art. 79 CT, costo_patrono_periodo) -- este NO
-            # es un subsidio de la Caja (por eso no aparece en
-            # gross_salary, no genera cargas CCSS/Renta), sino dinero
-            # que el patrono efectivamente pago al empleado durante ese
-            # periodo -- un salario ordinario devengado real segun el
-            # Art. 228 CT. Confirmado con precision matematica exacta
-            # contra un caso real: el Excel de la empresa coincidia
-            # exactamente con (bruto + costo_patrono_periodo) / 12.
-            costo_patrono_dias_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
-            devengado = max(round(base - subsidio + costo_patrono_dias_1_3, 2), 0.0)
-            employee_data[eid]['total_ordinary'] += devengado
-            employee_data[eid]['slip_count'] += 1
+        empleados_con_boletas = slips.mapped('employee_id')
+        for emp in empleados_con_boletas:
+            resultado = rh.calc_aguinaldo_periodo(
+                emp, period_start, period_end,
+                salary_basis=self.salary_basis)
+            employee_data[emp.id] = {
+                'employee_id': emp.id,
+                'employee_name': emp.name,
+                'branch': emp.branch_id.name or '',
+                'entry_date': emp.entry_date,
+                'total_ordinary': resultado['total'],
+                'months_count': 0,
+                'slip_count': resultado['slip_count'],
+                'aguinaldo_initial': emp.aguinaldo_initial_amount or 0.0,
+                'aguinaldo_initial_date': emp.aguinaldo_initial_date,
+            }
 
         # Agregar empleados con acumulado inicial aunque no tengan boletas en el sistema todavia
         # (empleados que solo tienen datos pre-implementacion)

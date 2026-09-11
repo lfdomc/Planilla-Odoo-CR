@@ -301,8 +301,6 @@ class EmployeeTermination(models.Model):
                 daily_salary = rec.salary_average_manual / 30
             else:
                 daily_salary = rec.last_salary / 30
-            monthly_salary_eff = daily_salary * 30
-            # monthly_salary se deriva de daily_salary_eff
 
             # -- Preaviso ------------------------------------------
             rec.preaviso_amount = daily_salary * rec.preaviso_days if rec.preaviso_applies else 0
@@ -412,22 +410,33 @@ class EmployeeTermination(models.Model):
                 - (real_period_start.year * 12 + real_period_start.month) + 1
             )
 
-            # FIX: Si hay acumulado inicial, descontar los meses ya cubiertos
+            # FIX ARQUITECTURA: usar el metodo centralizado
+            # rate_helper.calc_aguinaldo_periodo() -- la misma fuente
+            # unica de verdad que ahora tambien usan el Wizard de
+            # Aguinaldo y el Simulador de Liquidacion, en vez de la
+            # formula anterior (promedio simple x meses), que es
+            # matematicamente distinta e imprecisa cuando el salario
+            # de la persona varia entre periodos (confirmado contra
+            # el Excel real de la empresa, que suma boletas reales
+            # periodo por periodo).
             ag_init_amount = rec.employee_id.aguinaldo_initial_amount or 0.0
             ag_init_date   = rec.employee_id.aguinaldo_initial_date
+            rh_agu = self.env['planilla.rate.helper']
             if ag_init_amount and ag_init_date and ag_init_date >= period_start:
-                # Meses cubiertos por el acumulado inicial (incluye el mes del corte)
-                months_covered = (
-                    (ag_init_date.year * 12 + ag_init_date.month) -
-                    (period_start.year * 12 + period_start.month) + 1
-                )
-                months_from_system = max(0, total_months - months_covered)
-                aguinaldo_system   = round(monthly_salary_eff / 12 * months_from_system, 2)
+                # El sistema solo calcula desde el dia siguiente al
+                # corte del acumulado inicial, para no duplicar el
+                # periodo ya cubierto por ese acumulado.
+                fecha_desde_sistema = ag_init_date + relativedelta(days=1)
+                resultado = rh_agu.calc_aguinaldo_periodo(
+                    emp, fecha_desde_sistema, exit_d)
+                aguinaldo_system   = round(resultado['total'] / 12.0, 2)
                 rec.aguinaldo_months = total_months
                 rec.aguinaldo_amount = round(ag_init_amount + aguinaldo_system, 2)
             else:
+                resultado = rh_agu.calc_aguinaldo_periodo(
+                    emp, real_period_start, exit_d)
                 rec.aguinaldo_months = total_months
-                rec.aguinaldo_amount = round(monthly_salary_eff / 12 * total_months, 2)
+                rec.aguinaldo_amount = round(resultado['total'] / 12.0, 2)
 
     def _calc_income_tax(self, gross):
         """FIX NEW-02 v54: calcula renta sobre el total bruto de la liquidacion.
