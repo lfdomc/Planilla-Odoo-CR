@@ -406,42 +406,28 @@ class TerminationSimulator(models.TransientModel):
                     len(sal_nonzero), aguinaldo, months_worked)
             )
         else:
-            # FIX ARQUITECTURA: usar el metodo centralizado
-            # rate_helper.calc_aguinaldo_periodo() -- la misma fuente
-            # unica de verdad que ahora tambien usan el Wizard de
-            # Aguinaldo y la Liquidacion, en vez de la formula anterior
-            # (salary/12*months_from_system, un promedio simple x
-            # meses). Confirmado con un caso real (Raichel Daniela
-            # Leiton Arias) que la formula anterior daba un resultado
-            # distinto y menos preciso que sumar las boletas reales
-            # del periodo, cuando el salario de la persona varia entre
-            # periodos.
+            # FIX ARQUITECTURA DEFINITIVO: usar el metodo de decision de
+            # negocio UNICO (rate_helper.calc_aguinaldo_completo), el
+            # mismo que ahora tambien usan el Wizard de Aguinaldo (caso
+            # normal) y la Liquidacion -- se pasa exit_date=exit_date
+            # para activar el CASO LIQUIDACION: calculo dinamico desde
+            # el dia siguiente al corte real del Acumulado Inicial
+            # hasta la fecha de salida real. Confirmado con el usuario
+            # que este es el comportamiento correcto para una
+            # liquidacion/simulacion.
             rh_agu = self.env['planilla.rate.helper']
-            if ag_init_amount and ag_init_date and ag_init_date >= period_start:
-                fecha_desde_sistema = ag_init_date + relativedelta(days=1)
-                resultado = rh_agu.calc_aguinaldo_periodo(
-                    emp, fecha_desde_sistema, exit_date)
-                aguinaldo_system = round(resultado['total'] / 12.0, 2)
-                aguinaldo     = round(ag_init_amount + aguinaldo_system, 2)
-                months_worked = total_months
+            resultado = rh_agu.calc_aguinaldo_completo(
+                emp, exit_date.year, exit_date=exit_date)
+            aguinaldo = resultado['total_final']
+            months_worked = total_months
+            if resultado['emp_initial']:
                 notes_lines.append(
                     'Aguinaldo Art.228 CT: inicial CRC%s + sistema CRC%s (%s boletas)' % (
-                        '{:,.2f}'.format(ag_init_amount),
-                        '{:,.2f}'.format(aguinaldo_system),
+                        '{:,.2f}'.format(resultado['emp_initial']),
+                        '{:,.2f}'.format(resultado['aguinaldo_sistema']),
                         resultado['slip_count'])
                 )
-            elif ag_init_amount:
-                aguinaldo     = ag_init_amount
-                months_worked = total_months
-                notes_lines.append(
-                    'Aguinaldo Art.228 CT: acumulado inicial CRC%s' % (
-                        '{:,.2f}'.format(ag_init_amount),)
-                )
             else:
-                months_worked = total_months
-                resultado = rh_agu.calc_aguinaldo_periodo(
-                    emp, real_period_start, exit_date)
-                aguinaldo = round(resultado['total'] / 12.0, 2)
                 notes_lines.append(
                     'Aguinaldo Art.228 CT: suma de %s boletas reales / 12 (%s meses)' % (
                         resultado['slip_count'], months_worked)

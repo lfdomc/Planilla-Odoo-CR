@@ -49,6 +49,7 @@
             <group>
               <field name="elaborado_por" string="Elaborado por"/>
               <field name="include_draft" string="Incluir boletas en borrador"/>
+              <field name="orden_por_calculos" widget="boolean_toggle"/>
             </group>
           </group>
 
@@ -70,6 +71,7 @@
             <group>
               <field name="elaborado_por" string="Elaborado por"/>
               <field name="include_draft" string="Incluir boletas en borrador"/>
+              <field name="orden_por_calculos" widget="boolean_toggle"/>
             </group>
           </group>
 

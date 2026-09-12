@@ -144,6 +144,29 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         default=True,
         help='Activar para revisar cálculos antes de confirmar la planilla.',
     )
+    orden_por_calculos = fields.Boolean(
+        string='Ordenado por Cálculos',
+        default=True,
+        help='Activo (por defecto): ordena las columnas siguiendo el '
+             'flujo real de calculo, de izquierda a derecha -- '
+             'Ingresos, luego los rebajos por dias no laborados '
+             '(incapacidad, maternidad, permiso sin goce) que se '
+             'restan ANTES del Sub Total (porque reducen la base '
+             'cotizable real), despues el Sub Total (Base Cotizable), '
+             'luego los rebajos de deducciones legales que se calculan '
+             'DESPUES del Sub Total (CCSS, Renta, Ahorro, Facturas, '
+             'Prestamos, Otros, Embargos), luego los Subsidios (dinero '
+             'real que el patrono paga pero que no cotiza, ej. '
+             'subsidio de los dias 1-3 de incapacidad), y finalmente '
+             'el Total -- de modo que cada columna se pueda sumar/'
+             'restar en el orden exacto en que aparece, sin saltos. '
+             'La columna de Verificacion confirma este mismo flujo '
+             'izquierda a derecha contra el Total real. '
+             'Desactivado: usa el formato anterior (columnas agrupadas '
+             'por tipo -- Ingresos, luego todos los Rebajos juntos, '
+             'luego Total -- sin importar en que orden se calculan '
+             'realmente).',
+    )
 
     # NOTA: el metodo _dias_incapacidad_por_tipo() que vivia aqui se
     # elimino -- ya no se usa. El reporte ahora absorbe directamente
@@ -343,32 +366,73 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         #     columna: el monto real que la empresa deposita, excluyendo
         #     esos subsidios -- valor correcto para libros contables.
         # (encabezado, ancho, tipo: 'lbl'/'ing'/'ded'/'tot', formato)
-        cols = [
-            ('Nombre',                          26, 'lbl',  fd_lbl),
-            ('Salario\nQuincenal',              12, 'ing',  fd_ing),
-            ('Otros',                           10, 'ing',  fd_ing),
-            ('Extras',                          10, 'ing',  fd_ing),
-            ('Sub total\nquincenal',            13, 'ing',  ft_ing),
-            ('C.C.S.S.',                        11, 'ded',  fd_ded),
-            ('Incapacidad\nC.C.S.S.',           11, 'ded',  fd_ded),
-            ('Incapacidad\nI.N.S.',             11, 'ded',  fd_ded),
-            ('Maternidad',                      11, 'ded',  fd_ded),
-            ('Ahorro\nNavideño',                11, 'ded',  fd_ded),
-            ('Permiso sin\nGoce de Salario',    12, 'ded',  fd_ded),
-            ('Impuesto\nde Renta',              11, 'ded',  fd_ded),
-            ('Facturas',                        11, 'ded',  fd_ded),
-            ('Préstamos\nInternos',             12, 'ded',  fd_ded),
-            ('Otros',                           11, 'ded',  fd_ded),
-            ('Embargos',                        11, 'ded',  fd_ded),
-            ('Total',                           13, 'tot',  None),
-            ('Depósito\nPatrono',               14, 'tot',  None),
-            ('Verif.\n(S)',                     10, 'chk',  None),
-        ]
+        if self.orden_por_calculos:
+            # NUEVO ORDEN (activo por defecto, por pedido explicito):
+            # sigue el flujo REAL de calculo de izquierda a derecha,
+            # confirmado matematicamente contra un archivo de ejemplo
+            # real -- Ingresos, luego los rebajos que reducen la base
+            # cotizable ANTES de llegar al Sub Total (incapacidad,
+            # maternidad, permiso sin goce -- estos SI afectan cuanto
+            # se cotiza), despues el Sub Total (Base Cotizable real),
+            # luego los rebajos de deducciones legales que se calculan
+            # DESPUES del Sub Total (CCSS, Renta, Ahorro, Facturas,
+            # Prestamos, Otros, Embargos), luego los Subsidios (dinero
+            # real que el patrono paga pero que no cotiza -- ej.
+            # subsidio dias 1-3 de incapacidad, Art. 79 CT), y
+            # finalmente el Total. Formula confirmada:
+            # Total = SubTotal - (CCSS+Renta+Ahorro+Facturas+
+            #         Prestamos+Otros+Embargos) + Subsidio
+            cols = [
+                ('Nombre',                          26, 'lbl',  fd_lbl),
+                ('Salario\nQuincenal',              12, 'ing',  fd_ing),
+                ('Otros\nIngresos',                 10, 'ing',  fd_ing),
+                ('Extras',                          10, 'ing',  fd_ing),
+                ('Incapacidad\nC.C.S.S.',           11, 'ded',  fd_ded),
+                ('Incapacidad\nI.N.S.',             11, 'ded',  fd_ded),
+                ('Maternidad',                      11, 'ded',  fd_ded),
+                ('Permiso sin\nGoce de Salario',    12, 'ded',  fd_ded),
+                ('Sub Total\nQuincenal\n(Base Cotizable)', 14, 'ing', ft_ing),
+                ('C.C.S.S.',                        11, 'ded',  fd_ded),
+                ('Impuesto\nde Renta',               11, 'ded',  fd_ded),
+                ('Ahorro\nNavideño',                11, 'ded',  fd_ded),
+                ('Facturas',                        11, 'ded',  fd_ded),
+                ('Préstamos\nInternos',             12, 'ded',  fd_ded),
+                ('Otros',                           11, 'ded',  fd_ded),
+                ('Embargos',                        11, 'ded',  fd_ded),
+                ('Subsidio\n(no cotiza)',           12, 'sub',  None),
+                ('Total\n(Neto Real)',              13, 'tot',  None),
+                ('Depósito\nPatrono',               14, 'tot',  None),
+                ('Verif.\n(S)',                     10, 'chk',  None),
+            ]
+        else:
+            cols = [
+                ('Nombre',                          26, 'lbl',  fd_lbl),
+                ('Salario\nQuincenal',              12, 'ing',  fd_ing),
+                ('Otros',                           10, 'ing',  fd_ing),
+                ('Extras',                          10, 'ing',  fd_ing),
+                ('Sub total\nquincenal',            13, 'ing',  ft_ing),
+                ('C.C.S.S.',                        11, 'ded',  fd_ded),
+                ('Incapacidad\nC.C.S.S.',           11, 'ded',  fd_ded),
+                ('Incapacidad\nI.N.S.',             11, 'ded',  fd_ded),
+                ('Maternidad',                      11, 'ded',  fd_ded),
+                ('Ahorro\nNavideño',                11, 'ded',  fd_ded),
+                ('Permiso sin\nGoce de Salario',    12, 'ded',  fd_ded),
+                ('Impuesto\nde Renta',              11, 'ded',  fd_ded),
+                ('Facturas',                        11, 'ded',  fd_ded),
+                ('Préstamos\nInternos',             12, 'ded',  fd_ded),
+                ('Otros',                           11, 'ded',  fd_ded),
+                ('Embargos',                        11, 'ded',  fd_ded),
+                ('Total',                           13, 'tot',  None),
+                ('Depósito\nPatrono',               14, 'tot',  None),
+                ('Verif.\n(S)',                     10, 'chk',  None),
+            ]
         N = len(cols)
         tipo_hdr = {'lbl': fh_lbl, 'ing': fh_ing, 'ded': fh_ded,
+                    'sub': F(bold=True, bg='#548235', fg='#FFFFFF', sz=9, wrap=True),
                     'tot': F(bold=True, bg='#1F4E79', fg='#FFFFFF', sz=9, wrap=True),
                     'chk': F(bold=True, bg='#7030A0', fg='#FFFFFF', sz=9, wrap=True)}
         ft_tot = F(bg='#FFF2CC', num='#,##0', bold=True, border=2)
+        fd_sub = F(num='#,##0', border=1, bg='#E2EFDA')
         fd_chk_ok  = F(bold=True, align='center', bg='#C6EFCE', fg='#006100')
         fd_chk_bad = F(bold=True, align='center', bg='#FFC7CE', fg='#9C0006')
 
@@ -392,18 +456,38 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         ws.merge_range(0, 0, 0, N - 1,
             f'RESUMEN EJECUTIVO REDUCIDO -- {titulo_periodo}{draft_warn}',
             titulo_fmt)
+        _orden_texto = ('  |  Reordenado: flujo Ingresos -> Rebajos '
+                        '(dias no laborados) -> Subtotal -> Rebajos '
+                        '(deducciones legales) -> Subsidios -> Total'
+                        if self.orden_por_calculos else '')
         ws.merge_range(1, 0, 1, N - 1,
             f'{empresa}  |  Periodo: {periodo}  |  '
-            f'Elaborado por: {self.elaborado_por or ""}', sub_fmt)
+            f'Elaborado por: {self.elaborado_por or ""}{_orden_texto}', sub_fmt)
         ws.set_row(0, 20)
         ws.set_row(1, 14)
 
         # -- Fila de sección + encabezados ----------------------------------
         row_sec = 2
         ws.write(row_sec, 0, 'IDENTIFICACION', tipo_hdr['lbl'])
-        ws.merge_range(row_sec, 1, row_sec, 4, 'INGRESOS', tipo_hdr['ing'])
-        ws.merge_range(row_sec, 5, row_sec, N - 4, 'REBAJOS', tipo_hdr['ded'])
-        ws.merge_range(row_sec, N - 3, row_sec, N - 2, 'TOTAL', tipo_hdr['tot'])
+        if self.orden_por_calculos:
+            # Nuevo orden: IDENTIFICACION(1) INGRESOS(3) REBAJOS-DIAS NO
+            # LABORADOS(4) SUBTOTAL(1) REBAJOS-DEDUCCIONES LEGALES(7)
+            # SUBSIDIOS(1) TOTAL(2) VERIF(1) -- confirmado contra el
+            # archivo de ejemplo real (N=20 columnas totales).
+            ws.merge_range(row_sec, 1, row_sec, 3, 'INGRESOS', tipo_hdr['ing'])
+            ws.merge_range(row_sec, 4, row_sec, 7,
+                           'REBAJOS - DÍAS NO LABORADOS (antes del subtotal)',
+                           tipo_hdr['ded'])
+            ws.write(row_sec, 8, 'SUBTOTAL', tipo_hdr['ing'])
+            ws.merge_range(row_sec, 9, row_sec, 15,
+                           'REBAJOS - DEDUCCIONES LEGALES (después del subtotal)',
+                           tipo_hdr['ded'])
+            ws.write(row_sec, 16, 'SUBSIDIOS', tipo_hdr['sub'])
+            ws.merge_range(row_sec, 17, row_sec, 18, 'TOTAL', tipo_hdr['tot'])
+        else:
+            ws.merge_range(row_sec, 1, row_sec, 4, 'INGRESOS', tipo_hdr['ing'])
+            ws.merge_range(row_sec, 5, row_sec, N - 4, 'REBAJOS', tipo_hdr['ded'])
+            ws.merge_range(row_sec, N - 3, row_sec, N - 2, 'TOTAL', tipo_hdr['tot'])
         ws.write(row_sec, N - 1, 'VERIF.', tipo_hdr['chk'])
         ws.set_row(row_sec, 16)
 
@@ -690,29 +774,67 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             total_empleado = round(slip.salary_payable or 0.0, 2)
             deposito_patrono = round(slip.deposito_patrono or 0.0, 2)
 
-            # FIX: columna de Verificacion (S), por pedido explicito --
-            # confirma matematicamente que Sub Total menos todas las
-            # deducciones (columnas F a P) cuadre exactamente contra
-            # Deposito Patrono (columna R), para poder auditar
-            # visualmente cada fila del reporte. Tolerancia de +/-1
-            # colon para absorber diferencias minimas de redondeo
-            # entre calculos independientes.
-            _suma_deducciones = round(
-                ccss_emp + monto_incap_ccss + monto_incap_ins + monto_maternidad
-                + ahorro + permiso_sg + renta + facturas + prestamos
-                + otros_ded + embargo, 2)
-            _neto_calculado = round(sub_total - _suma_deducciones, 2)
-            _diferencia_verif = round(_neto_calculado - deposito_patrono, 2)
-            _verif_ok = abs(_diferencia_verif) < 1.0
+            if self.orden_por_calculos:
+                # NUEVO ORDEN: Otros Ingresos SIN el subsidio patronal
+                # mezclado (aqui se muestra como columna propia, mas
+                # adelante en el flujo) -- confirmado matematicamente
+                # contra el archivo de ejemplo real.
+                otros_ing_reordenado = round(otros_ing - _costo_patrono_1_3, 2)
+                # Base Cotizable real = Salario + Otros + Extras menos
+                # los rebajos por dias NO laborados (incapacidad,
+                # maternidad, permiso sin goce) -- estos SI reducen
+                # cuanto se cotiza, por eso van ANTES del Sub Total en
+                # este flujo, a diferencia de CCSS/Renta/etc. que se
+                # CALCULAN a partir de esa base ya reducida.
+                sub_total_cotizable = round(
+                    sal_base + otros_ing_reordenado + extras
+                    - monto_incap_ccss - monto_incap_ins - monto_maternidad
+                    - permiso_sg, 2)
+                # Verificacion: Base Cotizable - deducciones legales +
+                # Subsidio debe cuadrar exacto contra Deposito Patrono
+                # -- el mismo flujo izquierda a derecha del reporte.
+                _suma_ded_legales = round(
+                    ccss_emp + renta + ahorro + facturas + prestamos
+                    + otros_ded + embargo, 2)
+                _neto_calculado = round(
+                    sub_total_cotizable - _suma_ded_legales + _costo_patrono_1_3, 2)
+                _diferencia_verif = round(_neto_calculado - deposito_patrono, 2)
+                _verif_ok = abs(_diferencia_verif) < 1.0
 
-            vals = [
-                emp.name or '',
-                sal_base, otros_ing, extras, sub_total,
-                ccss_emp, monto_incap_ccss, monto_incap_ins, monto_maternidad,
-                ahorro, permiso_sg, renta, facturas, prestamos, otros_ded, embargo,
-                total_empleado, deposito_patrono,
-                'OK' if _verif_ok else 'X',
-            ]
+                vals = [
+                    emp.name or '',
+                    sal_base, otros_ing_reordenado, extras,
+                    monto_incap_ccss, monto_incap_ins, monto_maternidad, permiso_sg,
+                    sub_total_cotizable,
+                    ccss_emp, renta, ahorro, facturas, prestamos, otros_ded, embargo,
+                    _costo_patrono_1_3,
+                    total_empleado, deposito_patrono,
+                    'OK' if _verif_ok else 'X',
+                ]
+            else:
+                # FIX: columna de Verificacion (S), por pedido explicito --
+                # confirma matematicamente que Sub Total menos todas las
+                # deducciones (columnas F a P) cuadre exactamente contra
+                # Deposito Patrono (columna R), para poder auditar
+                # visualmente cada fila del reporte. Tolerancia de +/-1
+                # colon para absorber diferencias minimas de redondeo
+                # entre calculos independientes.
+                _suma_deducciones = round(
+                    ccss_emp + monto_incap_ccss + monto_incap_ins + monto_maternidad
+                    + ahorro + permiso_sg + renta + facturas + prestamos
+                    + otros_ded + embargo, 2)
+                _neto_calculado = round(sub_total - _suma_deducciones, 2)
+                _diferencia_verif = round(_neto_calculado - deposito_patrono, 2)
+                _verif_ok = abs(_diferencia_verif) < 1.0
+
+                vals = [
+                    emp.name or '',
+                    sal_base, otros_ing, extras, sub_total,
+                    ccss_emp, monto_incap_ccss, monto_incap_ins, monto_maternidad,
+                    ahorro, permiso_sg, renta, facturas, prestamos, otros_ded, embargo,
+                    total_empleado, deposito_patrono,
+                    'OK' if _verif_ok else 'X',
+                ]
 
             for ci, (val, (_, _, tipo, dfmt)) in enumerate(zip(vals, cols)):
                 if tipo == 'chk':
@@ -735,8 +857,9 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     dept_totals[ci] += val
                     freq_totals[ci] += val
                     continue
-                is_num = isinstance(val, (int, float)) and tipo in ('ing', 'ded')
-                ws.write(row, ci, val if val != 0 or not is_num else None, dfmt)
+                is_num = isinstance(val, (int, float)) and tipo in ('ing', 'ded', 'sub')
+                _fmt_usado = fd_sub if tipo == 'sub' else dfmt
+                ws.write(row, ci, val if val != 0 or not is_num else None, _fmt_usado)
                 if is_num and val:
                     totales[ci] += val
                     dept_totals[ci] += val

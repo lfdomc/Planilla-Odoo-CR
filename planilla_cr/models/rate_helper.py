@@ -10,6 +10,7 @@ es mas importante que el rendimiento en este caso.
 Las optimizaciones de rendimiento se aplican en las capas de batch sync
 (PERF-04, PERF-05) que reducen queries de otro tipo sin tocar datos contables.
 """
+from datetime import date
 from odoo import models
 from . import planilla_const as K
 
@@ -378,4 +379,101 @@ class RateHelper(models.AbstractModel):
             'total': round(total, 2),
             'slip_count': len(slips),
             'months_with_data': len(meses_con_datos),
+        }
+
+    def calc_aguinaldo_completo(self, employee, year, exit_date=None,
+                                 salary_basis='gross', include_confirmed=False):
+        """
+        DECISION DE NEGOCIO UNICA para el rango real de calculo de
+        aguinaldo -- usada por el Wizard de Aguinaldo, la Liquidacion, y
+        el Simulador de Liquidacion, para que los TRES coincidan siempre,
+        tanto en la formula (calc_aguinaldo_periodo) como en el RANGO DE
+        FECHAS que se le pasa.
+
+        Confirmado con el usuario (caso real de negocio, no solo
+        tecnico): el sistema tiene boletas completas desde abril del año
+        del aguinaldo en adelante -- marzo hacia atras no esta cargado,
+        por eso el Acumulado Inicial (aguinaldo_initial_amount /
+        aguinaldo_initial_date) existe, para cubrir ese periodo historico
+        que el sistema no tiene.
+
+        Dos escenarios reales:
+          1) CASO NORMAL (empleado activo, sin exit_date): el sistema
+             SIEMPRE calcula junio-noviembre como la parte dinamica
+             (asumiendo que el Acumulado Inicial ya cubre correctamente
+             diciembre-mayo), tal como ya hacia el Reporte de Aguinaldos
+             -- confirmado que ese es el comportamiento correcto para
+             este caso, ya que el corte del Acumulado Inicial siempre
+             es anterior a junio en la operacion normal de la empresa.
+          2) CASO LIQUIDACION (se pasa exit_date, la persona sale de la
+             empresa a mitad de año): el sistema calcula dinamicamente
+             desde el dia siguiente al corte real del Acumulado Inicial
+             hasta la fecha de salida real -- que puede terminar antes
+             de noviembre, reflejando que la persona no trabajo el año
+             completo.
+
+        :param employee: registro hr.employee
+        :param year: año del aguinaldo (el periodo legal es 1-dic del
+            año anterior a 30-nov de este año)
+        :param exit_date: si se indica, activa el CASO LIQUIDACION
+            (calculo dinamico hasta esta fecha). Si es None (por
+            defecto), usa el CASO NORMAL (siempre junio-noviembre).
+        :param salary_basis: ver calc_aguinaldo_periodo.
+        :param include_confirmed: ver calc_aguinaldo_periodo.
+        :return: dict con 'total_final' (Acumulado Inicial + lo
+            calculado por el sistema, el monto final de aguinaldo),
+            'sistema' (dict retornado por calc_aguinaldo_periodo, la
+            parte que SI calculo el sistema), y 'emp_initial' (el
+            Acumulado Inicial aplicado, para desglose informativo).
+        """
+        from datetime import timedelta
+        dic_start = date(year - 1, 12, 1)
+        ag_init_amount = employee.aguinaldo_initial_amount or 0.0
+        ag_init_date = employee.aguinaldo_initial_date
+        tiene_inicial = bool(
+            ag_init_amount and ag_init_date and ag_init_date >= dic_start)
+
+        if exit_date is not None:
+            # CASO LIQUIDACION: dinamico desde el corte real hasta la
+            # fecha de salida real.
+            if tiene_inicial:
+                fecha_desde = ag_init_date + timedelta(days=1)
+                emp_initial = ag_init_amount
+            else:
+                fecha_desde = dic_start
+                emp_initial = 0.0
+            fecha_hasta = exit_date
+        else:
+            # CASO NORMAL: junio hasta HOY o el 30 de noviembre, lo que
+            # ocurra primero -- el Acumulado Inicial se suma tal cual
+            # esta capturado (ya cubre dic-mayo por diseño de la
+            # operacion normal de la empresa). FIX: antes fecha_hasta
+            # era siempre 30 de noviembre fijo -- consultar el reporte
+            # antes de noviembre coincidia con "hasta hoy" solo porque
+            # las boletas de meses futuros aun no existen en la base de
+            # datos (busqueda vacia por casualidad, no por diseño
+            # explicito). Se corrige para que el limite real sea
+            # siempre explicito: quien consulta el reporte HOY espera
+            # ver el dato real A HOY, no un limite futuro que solo
+            # coincide con hoy porque esos registros todavia no existen.
+            fecha_desde = date(year, 6, 1)
+            fin_periodo_legal = date(year, 11, 30)
+            fecha_hasta = min(fin_periodo_legal, date.today())
+            emp_initial = ag_init_amount if (
+                ag_init_amount and ag_init_date
+                and dic_start <= ag_init_date <= fin_periodo_legal) else 0.0
+
+        sistema = self.calc_aguinaldo_periodo(
+            employee, fecha_desde, fecha_hasta,
+            salary_basis=salary_basis, include_confirmed=include_confirmed)
+        aguinaldo_sistema = round(sistema['total'] / 12.0, 2)
+        total_final = round(emp_initial + aguinaldo_sistema, 2)
+
+        return {
+            'total_final': total_final,
+            'aguinaldo_sistema': aguinaldo_sistema,
+            'emp_initial': emp_initial,
+            'fecha_desde': fecha_desde,
+            'fecha_hasta': fecha_hasta,
+            'slip_count': sistema['slip_count'],
         }
