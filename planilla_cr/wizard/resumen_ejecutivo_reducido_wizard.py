@@ -337,17 +337,21 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
 
         C_ING = '#375623'
         C_DED = '#C00000'
+        C_DED_DIAS = '#BF8F00'
         BG_ING = '#E2EFDA'
         BG_DED = '#FCE4D6'
+        BG_DED_DIAS = '#FFF2CC'
         BG_TOT = '#FFF2CC'
 
         fh_lbl = F(bold=True, bg='#1F4E79', fg='#FFFFFF', sz=9, wrap=True)
         fh_ing = F(bold=True, bg=C_ING, fg='#FFFFFF', sz=9, wrap=True)
         fh_ded = F(bold=True, bg=C_DED, fg='#FFFFFF', sz=9, wrap=True)
+        fh_ded_dias = F(bold=True, bg=C_DED_DIAS, fg='#FFFFFF', sz=9, wrap=True)
 
         fd_lbl = F(align='left')
         fd_ing = F(bg=BG_ING, num='#,##0')
         fd_ded = F(bg=BG_DED, num='#,##0', fg='#C00000')
+        fd_ded_dias = F(bg=BG_DED_DIAS, num='#,##0', fg='#BF8F00')
         ft_ing = F(bg=BG_ING, num='#,##0', bold=True, border=2)
 
         # -- Columnas, igual al Excel de referencia de Mundopet, con las
@@ -387,10 +391,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 ('Salario\nQuincenal',              12, 'ing',  fd_ing),
                 ('Otros\nIngresos',                 10, 'ing',  fd_ing),
                 ('Extras',                          10, 'ing',  fd_ing),
-                ('Incapacidad\nC.C.S.S.',           11, 'ded',  fd_ded),
-                ('Incapacidad\nI.N.S.',             11, 'ded',  fd_ded),
-                ('Maternidad',                      11, 'ded',  fd_ded),
-                ('Permiso sin\nGoce de Salario',    12, 'ded',  fd_ded),
+                ('Incapacidad\nC.C.S.S.',           11, 'ded_dias',  fd_ded_dias),
+                ('Incapacidad\nI.N.S.',             11, 'ded_dias',  fd_ded_dias),
+                ('Maternidad',                      11, 'ded_dias',  fd_ded_dias),
+                ('Permiso sin\nGoce de Salario',    12, 'ded_dias',  fd_ded_dias),
                 ('Sub Total\nQuincenal\n(Base Cotizable)', 14, 'ing', ft_ing),
                 ('C.C.S.S.',                        11, 'ded',  fd_ded),
                 ('Impuesto\nde Renta',               11, 'ded',  fd_ded),
@@ -399,7 +403,8 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                 ('Préstamos\nInternos',             12, 'ded',  fd_ded),
                 ('Otros',                           11, 'ded',  fd_ded),
                 ('Embargos',                        11, 'ded',  fd_ded),
-                ('Subsidio\n(no cotiza)',           12, 'sub',  None),
+                ('Subsidio Patronal\n(Incap./Pat.)', 13, 'sub',  None),
+                ('Bono Exento /\nOtros Ing.',        13, 'exento',  None),
                 ('Total\n(Neto Real)',              13, 'tot',  None),
                 ('Depósito\nPatrono',               14, 'tot',  None),
                 ('Verif.\n(S)',                     10, 'chk',  None),
@@ -428,11 +433,16 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ]
         N = len(cols)
         tipo_hdr = {'lbl': fh_lbl, 'ing': fh_ing, 'ded': fh_ded,
+                    'ded_dias': fh_ded_dias,
                     'sub': F(bold=True, bg='#548235', fg='#FFFFFF', sz=9, wrap=True),
+                    'exento': F(bold=True, bg='#4472C4', fg='#FFFFFF', sz=9, wrap=True),
+                    'paternidad': F(bold=True, bg='#7030A0', fg='#FFFFFF', sz=9, wrap=True),
                     'tot': F(bold=True, bg='#1F4E79', fg='#FFFFFF', sz=9, wrap=True),
                     'chk': F(bold=True, bg='#7030A0', fg='#FFFFFF', sz=9, wrap=True)}
         ft_tot = F(bg='#FFF2CC', num='#,##0', bold=True, border=2)
         fd_sub = F(num='#,##0', border=1, bg='#E2EFDA')
+        fd_exento = F(num='#,##0', border=1, bg='#D9E2F3')
+        fd_paternidad = F(num='#,##0', border=1, bg='#E4DFEC')
         fd_chk_ok  = F(bold=True, align='center', bg='#C6EFCE', fg='#006100')
         fd_chk_bad = F(bold=True, align='center', bg='#FFC7CE', fg='#9C0006')
 
@@ -477,13 +487,14 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             ws.merge_range(row_sec, 1, row_sec, 3, 'INGRESOS', tipo_hdr['ing'])
             ws.merge_range(row_sec, 4, row_sec, 7,
                            'REBAJOS - DÍAS NO LABORADOS (antes del subtotal)',
-                           tipo_hdr['ded'])
+                           tipo_hdr['ded_dias'])
             ws.write(row_sec, 8, 'SUBTOTAL', tipo_hdr['ing'])
             ws.merge_range(row_sec, 9, row_sec, 15,
                            'REBAJOS - DEDUCCIONES LEGALES (después del subtotal)',
                            tipo_hdr['ded'])
-            ws.write(row_sec, 16, 'SUBSIDIOS', tipo_hdr['sub'])
-            ws.merge_range(row_sec, 17, row_sec, 18, 'TOTAL', tipo_hdr['tot'])
+            ws.write(row_sec, 16, 'SUBSIDIOS\n(no cotiza)', tipo_hdr['sub'])
+            ws.write(row_sec, 17, 'BONOS EXENTOS\n(no cotiza)', tipo_hdr['exento'])
+            ws.merge_range(row_sec, 18, row_sec, 19, 'TOTAL', tipo_hdr['tot'])
         else:
             ws.merge_range(row_sec, 1, row_sec, 4, 'INGRESOS', tipo_hdr['ing'])
             ws.merge_range(row_sec, 5, row_sec, N - 4, 'REBAJOS', tipo_hdr['ded'])
@@ -532,7 +543,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                         for ci in range(1, N - 1):
                             _, _, tipo, _ = cols[ci]
                             color = '#C00000' if tipo == 'ded' else (
-                                '#1F4E79' if tipo == 'tot' else '#000000')
+                                '#BF8F00' if tipo == 'ded_dias' else (
+                                '#4472C4' if tipo == 'exento' else (
+                                '#7030A0' if tipo == 'paternidad' else (
+                                '#1F4E79' if tipo == 'tot' else '#000000'))))
                             sf = F(bold=True, bg='#F2F2F2', num='#,##0', border=1, fg=color)
                             v = dept_totals[ci]
                             ws.write(row, ci, v if v else None, sf)
@@ -546,7 +560,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                         for ci in range(1, N - 1):
                             _, _, tipo, _ = cols[ci]
                             color = '#C00000' if tipo == 'ded' else (
-                                '#1F4E79' if tipo == 'tot' else '#000000')
+                                '#BF8F00' if tipo == 'ded_dias' else (
+                                '#4472C4' if tipo == 'exento' else (
+                                '#7030A0' if tipo == 'paternidad' else (
+                                '#1F4E79' if tipo == 'tot' else '#000000'))))
                             sf = F(bold=True, bg='#D9E2F3', num='#,##0', border=2, fg=color)
                             v = freq_totals[ci]
                             ws.write(row, ci, v if v else None, sf)
@@ -569,7 +586,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     for ci in range(1, N - 1):
                         _, _, tipo, _ = cols[ci]
                         color = '#C00000' if tipo == 'ded' else (
-                            '#1F4E79' if tipo == 'tot' else '#000000')
+                            '#BF8F00' if tipo == 'ded_dias' else (
+                            '#4472C4' if tipo == 'exento' else (
+                            '#7030A0' if tipo == 'paternidad' else (
+                            '#1F4E79' if tipo == 'tot' else '#000000'))))
                         sf = F(bold=True, bg='#F2F2F2', num='#,##0', border=1,
                                fg=color)
                         v = dept_totals[ci]
@@ -637,8 +657,21 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             # diseño legal, asi que el sistema no lo incluye ahi).
             _salario_real_boleta_ing = round(slip.salario_cotizable or 0.0, 2)
             _gross_real = round(slip.gross_salary or 0.0, 2)
+            # CORRECCION DEFINITIVA DE FONDO: confirmado con precision
+            # matematica exacta (reconstruyendo el Salario Bruto
+            # Quincenal real de un caso real -- Jorge Rojas Madrigal --
+            # sumando sus 4 componentes conocidos) que gross_salary
+            # NUNCA incluye ninguno de estos 4 componentes: subsidio
+            # patronal dias 1-3, bono exento CCSS, pago de paternidad,
+            # ni otros ingresos adicionales. Cada uno se calcula, se
+            # muestra, y se suma UNA SOLA VEZ, como columna propia al
+            # final -- NUNCA se mezclan dentro de otros_ing/Sub Total,
+            # ya que ninguno pasa por CCSS/Renta.
             _costo_patrono_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
-            otros_ing = round(_gross_real - _salario_real_boleta_ing - extras + _costo_patrono_1_3, 2)
+            _bonos_exentos = round(slip.amount_bonos_exentos or 0.0, 2)
+            _paternity_amount = round(slip.paternity_amount or 0.0, 2)
+            _otros_ingresos_adic = round(slip.amount_otros_ingresos_adic or 0.0, 2)
+            otros_ing = round(_gross_real - _salario_real_boleta_ing - extras, 2)
             # Sub Total = INGRESOS REALES antes de cualquier deduccion
             # (salario esperado completo + bono + extras) -- distinto
             # de gross_salary de la boleta (que ya viene reducido por
@@ -775,11 +808,13 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             deposito_patrono = round(slip.deposito_patrono or 0.0, 2)
 
             if self.orden_por_calculos:
-                # NUEVO ORDEN: Otros Ingresos SIN el subsidio patronal
-                # mezclado (aqui se muestra como columna propia, mas
-                # adelante en el flujo) -- confirmado matematicamente
-                # contra el archivo de ejemplo real.
-                otros_ing_reordenado = round(otros_ing - _costo_patrono_1_3, 2)
+                # otros_ing YA excluye correctamente los 4 componentes
+                # "no cotizables" desde su calculo base (corregido de
+                # raiz mas arriba) -- no hay nada que restar aqui, se
+                # usa directamente. Los 4 se muestran como columnas
+                # propias, DESPUES de las deducciones legales, en la
+                # seccion de Subsidios/Exentos.
+                otros_ing_reordenado = otros_ing
                 # Base Cotizable real = Salario + Otros + Extras menos
                 # los rebajos por dias NO laborados (incapacidad,
                 # maternidad, permiso sin goce) -- estos SI reducen
@@ -791,13 +826,30 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     - monto_incap_ccss - monto_incap_ins - monto_maternidad
                     - permiso_sg, 2)
                 # Verificacion: Base Cotizable - deducciones legales +
-                # Subsidio debe cuadrar exacto contra Deposito Patrono
-                # -- el mismo flujo izquierda a derecha del reporte.
+                # Subsidio + Bono Exento debe cuadrar exacto contra
+                # Deposito Patrono -- el mismo flujo izquierda a
+                # derecha del reporte, ahora con AMBOS componentes
+                # exentos sumados de vuelta al final, en vez de uno
+                # mezclado antes del Sub Total (confirmado matematicamente
+                # con un caso real, Jorge Rojas Madrigal).
                 _suma_ded_legales = round(
                     ccss_emp + renta + ahorro + facturas + prestamos
                     + otros_ded + embargo, 2)
+                # FUSION (Opcion A, por decision explicita del
+                # usuario): Subsidio Patronal ahora agrupa tanto el
+                # costo patronal dias 1-3 (incapacidad, Art. 79 CT)
+                # como el pago de paternidad (Ley 8107) -- ambos
+                # comparten la misma naturaleza (el patrono paga
+                # directamente, sin pasar por CCSS/Renta). Bono Exento
+                # ahora agrupa tanto los bonos exentos de CCSS como
+                # cualquier otro ingreso adicional -- mismo criterio.
+                # La suma total no cambia, solo se agrupan en 2
+                # columnas en vez de 4 para un reporte mas compacto.
+                _subsidio_total = round(_costo_patrono_1_3 + _paternity_amount, 2)
+                _exento_total = round(_bonos_exentos + _otros_ingresos_adic, 2)
                 _neto_calculado = round(
-                    sub_total_cotizable - _suma_ded_legales + _costo_patrono_1_3, 2)
+                    sub_total_cotizable - _suma_ded_legales
+                    + _subsidio_total + _exento_total, 2)
                 _diferencia_verif = round(_neto_calculado - deposito_patrono, 2)
                 _verif_ok = abs(_diferencia_verif) < 1.0
 
@@ -807,7 +859,7 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     monto_incap_ccss, monto_incap_ins, monto_maternidad, permiso_sg,
                     sub_total_cotizable,
                     ccss_emp, renta, ahorro, facturas, prestamos, otros_ded, embargo,
-                    _costo_patrono_1_3,
+                    _subsidio_total, _exento_total,
                     total_empleado, deposito_patrono,
                     'OK' if _verif_ok else 'X',
                 ]
@@ -823,7 +875,20 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     ccss_emp + monto_incap_ccss + monto_incap_ins + monto_maternidad
                     + ahorro + permiso_sg + renta + facturas + prestamos
                     + otros_ded + embargo, 2)
-                _neto_calculado = round(sub_total - _suma_deducciones, 2)
+                # FIX: sumar _bonos_exentos de vuelta -- el 'Salario
+                # Bruto Quincenal' real de la boleta (y por lo tanto
+                # Sub Total aqui) NUNCA incluye estos 4 componentes
+                # (costo patronal dias 1-3, bono exento, paternidad,
+                # otros ingresos adic.) -- confirmado con precision
+                # matematica exacta reconstruyendo el bruto real de un
+                # caso real (Jorge Rojas Madrigal). CCSS y Renta se
+                # calculan sobre una base que los excluye a los 4, asi
+                # que hay que sumarlos de vuelta para llegar al neto
+                # real, exacto al centavo.
+                _subsidio_total = round(_costo_patrono_1_3 + _paternity_amount, 2)
+                _exento_total = round(_bonos_exentos + _otros_ingresos_adic, 2)
+                _neto_calculado = round(
+                    sub_total - _suma_deducciones + _subsidio_total + _exento_total, 2)
                 _diferencia_verif = round(_neto_calculado - deposito_patrono, 2)
                 _verif_ok = abs(_diferencia_verif) < 1.0
 
@@ -857,8 +922,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
                     dept_totals[ci] += val
                     freq_totals[ci] += val
                     continue
-                is_num = isinstance(val, (int, float)) and tipo in ('ing', 'ded', 'sub')
-                _fmt_usado = fd_sub if tipo == 'sub' else dfmt
+                is_num = isinstance(val, (int, float)) and tipo in ('ing', 'ded', 'ded_dias', 'sub', 'exento', 'paternidad')
+                _fmt_usado = fd_sub if tipo == 'sub' else (
+                    fd_exento if tipo == 'exento' else (
+                    fd_paternidad if tipo == 'paternidad' else dfmt))
                 ws.write(row, ci, val if val != 0 or not is_num else None, _fmt_usado)
                 if is_num and val:
                     totales[ci] += val
@@ -874,7 +941,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             for ci in range(1, N - 1):
                 _, _, tipo, _ = cols[ci]
                 color = '#C00000' if tipo == 'ded' else (
-                    '#1F4E79' if tipo == 'tot' else '#000000')
+                    '#BF8F00' if tipo == 'ded_dias' else (
+                    '#4472C4' if tipo == 'exento' else (
+                    '#7030A0' if tipo == 'paternidad' else (
+                    '#1F4E79' if tipo == 'tot' else '#000000'))))
                 sf = F(bold=True, bg='#F2F2F2', num='#,##0', border=1,
                        fg=color)
                 v = dept_totals[ci]
@@ -892,7 +962,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
             for ci in range(1, N - 1):
                 _, _, tipo, _ = cols[ci]
                 color = '#C00000' if tipo == 'ded' else (
-                    '#1F4E79' if tipo == 'tot' else '#000000')
+                    '#BF8F00' if tipo == 'ded_dias' else (
+                    '#4472C4' if tipo == 'exento' else (
+                    '#7030A0' if tipo == 'paternidad' else (
+                    '#1F4E79' if tipo == 'tot' else '#000000'))))
                 sf = F(bold=True, bg='#D9E2F3', num='#,##0', border=2, fg=color)
                 v = freq_totals[ci]
                 ws.write(row, ci, v if v else None, sf)
@@ -905,7 +978,10 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
         for ci in range(1, N - 1):
             _, _, tipo, _ = cols[ci]
             color = '#C00000' if tipo == 'ded' else (
-                '#1F4E79' if tipo == 'tot' else '#000000')
+                '#BF8F00' if tipo == 'ded_dias' else (
+                '#4472C4' if tipo == 'exento' else (
+                '#7030A0' if tipo == 'paternidad' else (
+                '#1F4E79' if tipo == 'tot' else '#000000'))))
             tf = F(bold=True, bg=BG_TOT, num='#,##0', border=2,
                    fg=color)
             v = totales[ci]
