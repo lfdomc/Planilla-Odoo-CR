@@ -350,8 +350,8 @@ class ResumenEjecutivoReducidoWizard(models.TransientModel):
 
         fd_lbl = F(align='left')
         fd_ing = F(bg=BG_ING, num='#,##0')
-        fd_ded = F(bg=BG_DED, num='#,##0', fg='#C00000')
-        fd_ded_dias = F(bg=BG_DED_DIAS, num='#,##0', fg='#BF8F00')
+        fd_ded = F(bg=BG_DED, num='#,##0', fg='#000000')
+        fd_ded_dias = F(bg=BG_DED_DIAS, num='#,##0', fg='#000000')
         ft_ing = F(bg=BG_ING, num='#,##0', bold=True, border=2)
 
         # -- Columnas, igual al Excel de referencia de Mundopet, con las
