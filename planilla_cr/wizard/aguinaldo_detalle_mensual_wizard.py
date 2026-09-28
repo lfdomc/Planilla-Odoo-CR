@@ -101,9 +101,22 @@ class AguinaldoDetalleMensualWizard(models.TransientModel):
 
         # -- Recolectar datos por empleado x quincena --------------------
         # data[emp.id][(mes_label, num_q)] = dict con componentes
+        #
+        # cubierto_inicial: misma decision de negocio centralizada que
+        # calc_aguinaldo_completo y la Auditoria de Aguinaldo usan
+        # (rate_helper.get_aguinaldo_fecha_corte) -- toda quincena cuya
+        # fecha_hasta caiga en o antes del corte real del Acumulado
+        # Inicial del empleado ya esta cubierta ahi, y NO debe sumarse
+        # como devengado nuevo en este detalle (evita duplicarla).
         data = {}
+        cubierto_inicial = {}  # emp.id -> fecha limite cubierta por el Acumulado Inicial
         for emp in empleados:
             data[emp.id] = {}
+            corte = rh.get_aguinaldo_fecha_corte(emp, self.year)
+            cubierto_inicial[emp.id] = (
+                corte['fecha_desde'] - relativedelta(days=1)
+                if corte['tiene_inicial'] else None
+            )
             slips = self.env['planilla.payslip.cr'].search([
                 ('employee_id', '=', emp.id),
                 ('state', 'in', estados),
@@ -115,6 +128,29 @@ class AguinaldoDetalleMensualWizard(models.TransientModel):
                 slips_by_range[(s.date_from, s.date_to)] = s
 
             for mes_label, num_q, f_desde, f_hasta in quincenas:
+                limite = cubierto_inicial[emp.id]
+                if limite and f_hasta <= limite:
+                    # Esta quincena ya esta cubierta por el Acumulado
+                    # Inicial (Art. 228 CT, pre-implementacion) del
+                    # empleado -- NO se debe sumar como devengado nuevo
+                    # aunque exista boleta cargada para ese periodo,
+                    # porque duplicaria el monto (una vez en el
+                    # acumulado inicial, otra vez aqui).
+                    data[emp.id][(mes_label, num_q)] = {
+                        'tiene_boleta': False,
+                        'cubierto_inicial': True,
+                        'slip_name': '',
+                        'estado': '',
+                        'sub_total': 0.0,
+                        'costo_patrono': 0.0,
+                        'incap_ccss': 0.0,
+                        'incap_ins': 0.0,
+                        'psgs': 0.0,
+                        'devengado': 0.0,
+                        'valor_quincena': 0.0,
+                    }
+                    continue
+
                 slip = slips_by_range.get((f_desde, f_hasta))
                 if not slip:
                     # Buscar por solapamiento si las fechas no calzan exacto
@@ -141,6 +177,7 @@ class AguinaldoDetalleMensualWizard(models.TransientModel):
                     valor_quincena = round(devengado / 12.0, 2)
                     data[emp.id][(mes_label, num_q)] = {
                         'tiene_boleta': True,
+                        'cubierto_inicial': False,
                         'slip_name': slip.name or '',
                         'estado': slip.state,
                         'sub_total': sub_total,
@@ -154,6 +191,7 @@ class AguinaldoDetalleMensualWizard(models.TransientModel):
                 else:
                     data[emp.id][(mes_label, num_q)] = {
                         'tiene_boleta': False,
+                        'cubierto_inicial': False,
                         'slip_name': '',
                         'estado': '',
                         'sub_total': 0.0,
@@ -182,6 +220,9 @@ class AguinaldoDetalleMensualWizard(models.TransientModel):
                                    'bg_color': '#D9E1F2'})
         no_boleta_fmt = wb.add_format({'align': 'center', 'border': 1,
                                         'bg_color': '#FFF2CC', 'italic': True})
+        cubierto_fmt = wb.add_format({'align': 'center', 'border': 1,
+                                       'bg_color': '#D6DCE5', 'italic': True,
+                                       'font_color': '#666666'})
 
         # ---- HOJA 1: Resumen, mismo layout que la hoja "Agui." del Excel ----
         ws1 = wb.add_worksheet('Resumen (como Excel)')
@@ -211,6 +252,8 @@ class AguinaldoDetalleMensualWizard(models.TransientModel):
                 if d['tiene_boleta']:
                     ws1.write(row, i + 1, d['valor_quincena'], num_fmt)
                     acumulado += d['valor_quincena']
+                elif d.get('cubierto_inicial'):
+                    ws1.write(row, i + 1, 'Acum.Inicial', cubierto_fmt)
                 else:
                     ws1.write(row, i + 1, 'S/D', no_boleta_fmt)
             ws1.write(row, len(quincenas) + 1, round(acumulado, 2), acum_fmt)
@@ -257,6 +300,11 @@ class AguinaldoDetalleMensualWizard(models.TransientModel):
                     ws2.write(row2, 9, d['psgs'], num_fmt)
                     ws2.write(row2, 10, d['devengado'], num_fmt)
                     ws2.write(row2, 11, d['valor_quincena'], num_bold_fmt)
+                elif d.get('cubierto_inicial'):
+                    ws2.write(row2, 3, '', cubierto_fmt)
+                    ws2.write(row2, 4, 'Acumulado Inicial (Art.228 CT)', cubierto_fmt)
+                    for c in range(5, 12):
+                        ws2.write(row2, c, '', cubierto_fmt)
                 else:
                     ws2.write(row2, 3, '', no_boleta_fmt)
                     ws2.write(row2, 4, 'Sin boleta', no_boleta_fmt)
@@ -276,7 +324,13 @@ class AguinaldoDetalleMensualWizard(models.TransientModel):
             'exactamente en que mes (si en alguno) aparece una diferencia. '
             '"S/D" / "Sin boleta" = no hay boleta en estado '
             + ('Pagada o Confirmada' if self.incluir_confirmadas else 'Pagada')
-            + ' para esa quincena en el sistema.',
+            + ' para esa quincena en el sistema. '
+            '"Acum.Inicial" / "Acumulado Inicial (Art.228 CT)" = esta quincena ya '
+            'esta cubierta por el Aguinaldo Acumulado Inicial (pre-implementacion) '
+            'del empleado, segun su Fecha de Corte -- NO se cuenta como devengado '
+            'nuevo aqui para evitar duplicarla (aunque exista boleta cargada en el '
+            'sistema para ese periodo, ya esta incluida en el monto del Acumulado '
+            'Inicial de su ficha).',
             note_fmt)
 
         wb.close()

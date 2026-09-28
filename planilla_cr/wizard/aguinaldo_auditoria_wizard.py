@@ -117,18 +117,16 @@ class AguinaldoAuditoriaWizard(models.TransientModel):
         empresa = self._leer_excel_empresa()
 
         # -- Calcular el equivalente real en Odoo, usando el MISMO
-        # metodo centralizado (rate_helper.calc_aguinaldo_periodo) ya
-        # unificado en Wizard de Aguinaldo, Liquidacion, y Simulador --
-        # desde el dia siguiente al corte del Acumulado Inicial de cada
-        # empleado (mismo criterio de decision que
-        # calc_aguinaldo_completo usa internamente), hasta la fecha
-        # limite indicada por el usuario (que puede ser un rango
-        # parcial del año, ej. "hasta agosto" -- por eso esta auditoria
-        # llama directo a calc_aguinaldo_periodo en vez de
+        # criterio centralizado (rate_helper.get_aguinaldo_fecha_corte +
+        # calc_aguinaldo_periodo) ya unificado en Wizard de Aguinaldo,
+        # Liquidacion, Simulador y Detalle Mensual -- desde el dia
+        # siguiente al corte del Acumulado Inicial de cada empleado,
+        # hasta la fecha limite indicada por el usuario (que puede ser
+        # un rango parcial del año, ej. "hasta agosto" -- por eso esta
+        # auditoria llama directo a calc_aguinaldo_periodo en vez de
         # calc_aguinaldo_completo, que siempre fuerza noviembre como
         # limite en el caso normal).
         from dateutil.relativedelta import relativedelta
-        from datetime import timedelta
         meses_limite = {'ago': 8, 'set': 9, 'oct': 10, 'nov': 11}[self.hasta_columna]
         fecha_limite = date(self.year, meses_limite, 1) + relativedelta(months=1) - relativedelta(days=1)
 
@@ -140,16 +138,9 @@ class AguinaldoAuditoriaWizard(models.TransientModel):
 
         filas = []
         for emp in empleados:
-            ag_init_amount = emp.aguinaldo_initial_amount or 0.0
-            ag_init_date = emp.aguinaldo_initial_date
-            dic_start = date(self.year - 1, 12, 1)
-
-            if ag_init_amount and ag_init_date and ag_init_date >= dic_start:
-                fecha_desde = ag_init_date + timedelta(days=1)
-                emp_initial = ag_init_amount
-            else:
-                fecha_desde = dic_start
-                emp_initial = 0.0
+            corte = rh.get_aguinaldo_fecha_corte(emp, self.year)
+            fecha_desde = corte['fecha_desde']
+            emp_initial = corte['emp_initial']
 
             resultado = rh.calc_aguinaldo_periodo(emp, fecha_desde, fecha_limite)
             odoo_sistema = round(resultado['total'] / 12.0, 2)

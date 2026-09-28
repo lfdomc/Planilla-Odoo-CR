@@ -420,6 +420,56 @@ class RateHelper(models.AbstractModel):
             'months_with_data': len(meses_con_datos),
         }
 
+    def get_aguinaldo_fecha_corte(self, employee, year):
+        """
+        DECISION DE NEGOCIO UNICA para determinar desde que fecha debe
+        empezar el calculo DINAMICO (por boleta) del aguinaldo de un
+        empleado -- usada por calc_aguinaldo_completo, y directamente
+        por la Auditoria de Aguinaldo y el Detalle Mensual (los dos
+        reportes de diagnostico que necesitan una fecha_hasta parcial o
+        granularidad quincenal, por lo que no pueden usar
+        calc_aguinaldo_completo tal cual, pero SI deben coincidir en
+        este criterio para que sus resultados sean comparables entre
+        si y contra el reporte oficial).
+
+        Cada empleado puede tener una Fecha de Corte distinta en su
+        Acumulado Inicial (campo aguinaldo_initial_date), segun cuando
+        se cargo su saldo pre-implementacion -- por eso NUNCA se asume
+        un mes fijo (ej. siempre junio, o siempre marzo) para todos los
+        empleados. Usar una fecha fija dejaria sin contar, para
+        cualquier empleado cuyo corte real sea anterior a esa fecha
+        fija, los meses intermedios: ni en el Acumulado Inicial (que
+        solo cubre hasta su propio corte) ni en el calculo dinamico
+        (que arrancaria despues de esos meses).
+
+        :param employee: registro hr.employee
+        :param year: año del aguinaldo (el periodo legal es 1-dic del
+            año anterior a 30-nov de este año)
+        :return: dict con 'fecha_desde' (dia siguiente al corte real,
+            o el inicio del periodo legal si no hay Acumulado Inicial
+            configurado), 'emp_initial' (el monto del Acumulado Inicial
+            a aplicar, 0.0 si no aplica), y 'tiene_inicial' (bool).
+        """
+        from datetime import timedelta
+        dic_start = date(year - 1, 12, 1)
+        ag_init_amount = employee.aguinaldo_initial_amount or 0.0
+        ag_init_date = employee.aguinaldo_initial_date
+        tiene_inicial = bool(
+            ag_init_amount and ag_init_date and ag_init_date >= dic_start)
+
+        if tiene_inicial:
+            fecha_desde = ag_init_date + timedelta(days=1)
+            emp_initial = ag_init_amount
+        else:
+            fecha_desde = dic_start
+            emp_initial = 0.0
+
+        return {
+            'fecha_desde': fecha_desde,
+            'emp_initial': emp_initial,
+            'tiene_inicial': tiene_inicial,
+        }
+
     def calc_aguinaldo_completo(self, employee, year, exit_date=None,
                                  salary_basis='gross', include_confirmed=False):
         """
@@ -438,25 +488,33 @@ class RateHelper(models.AbstractModel):
 
         Dos escenarios reales:
           1) CASO NORMAL (empleado activo, sin exit_date): el sistema
-             SIEMPRE calcula junio-noviembre como la parte dinamica
-             (asumiendo que el Acumulado Inicial ya cubre correctamente
-             diciembre-mayo), tal como ya hacia el Reporte de Aguinaldos
-             -- confirmado que ese es el comportamiento correcto para
-             este caso, ya que el corte del Acumulado Inicial siempre
-             es anterior a junio en la operacion normal de la empresa.
+             calcula dinamicamente desde el dia siguiente a la Fecha de
+             Corte real del Acumulado Inicial de CADA empleado (campo
+             aguinaldo_initial_date en su ficha) hasta HOY o el 30 de
+             noviembre, lo que ocurra primero. NO se asume un mes fijo
+             (ej. siempre junio) porque cada empleado puede tener una
+             fecha de corte distinta segun cuando se cargo su saldo
+             pre-implementacion -- usar una fecha fija dejaria sin
+             contar (ni en el acumulado inicial ni en el calculo
+             dinamico) los meses entre el corte real y el mes fijo
+             asumido, para cualquier empleado cuyo corte sea anterior a
+             ese mes. Si el empleado no tiene Acumulado Inicial
+             configurado, se usa el inicio del periodo legal completo
+             (1-dic del año anterior).
           2) CASO LIQUIDACION (se pasa exit_date, la persona sale de la
-             empresa a mitad de año): el sistema calcula dinamicamente
-             desde el dia siguiente al corte real del Acumulado Inicial
-             hasta la fecha de salida real -- que puede terminar antes
-             de noviembre, reflejando que la persona no trabajo el año
-             completo.
+             empresa a mitad de año): misma logica de fecha_desde (dia
+             siguiente al corte real), pero fecha_hasta es la fecha de
+             salida real -- que puede terminar antes de noviembre,
+             reflejando que la persona no trabajo el año completo.
 
         :param employee: registro hr.employee
         :param year: año del aguinaldo (el periodo legal es 1-dic del
             año anterior a 30-nov de este año)
         :param exit_date: si se indica, activa el CASO LIQUIDACION
             (calculo dinamico hasta esta fecha). Si es None (por
-            defecto), usa el CASO NORMAL (siempre junio-noviembre).
+            defecto), usa el CASO NORMAL (dinamico desde el dia
+            siguiente a la Fecha de Corte real del empleado hasta hoy
+            o el 30 de noviembre, lo que ocurra primero).
         :param salary_basis: ver calc_aguinaldo_periodo.
         :param include_confirmed: ver calc_aguinaldo_periodo.
         :return: dict con 'total_final' (Acumulado Inicial + lo
@@ -465,42 +523,23 @@ class RateHelper(models.AbstractModel):
             parte que SI calculo el sistema), y 'emp_initial' (el
             Acumulado Inicial aplicado, para desglose informativo).
         """
-        from datetime import timedelta
-        dic_start = date(year - 1, 12, 1)
-        ag_init_amount = employee.aguinaldo_initial_amount or 0.0
-        ag_init_date = employee.aguinaldo_initial_date
-        tiene_inicial = bool(
-            ag_init_amount and ag_init_date and ag_init_date >= dic_start)
+        corte = self.get_aguinaldo_fecha_corte(employee, year)
+        fecha_desde = corte['fecha_desde']
+        emp_initial = corte['emp_initial']
 
         if exit_date is not None:
-            # CASO LIQUIDACION: dinamico desde el corte real hasta la
-            # fecha de salida real.
-            if tiene_inicial:
-                fecha_desde = ag_init_date + timedelta(days=1)
-                emp_initial = ag_init_amount
-            else:
-                fecha_desde = dic_start
-                emp_initial = 0.0
+            # CASO LIQUIDACION: dinamico desde el corte real (o desde
+            # el inicio del periodo si no hay Acumulado Inicial) hasta
+            # la fecha de salida real.
             fecha_hasta = exit_date
         else:
-            # CASO NORMAL: junio hasta HOY o el 30 de noviembre, lo que
-            # ocurra primero -- el Acumulado Inicial se suma tal cual
-            # esta capturado (ya cubre dic-mayo por diseño de la
-            # operacion normal de la empresa). FIX: antes fecha_hasta
-            # era siempre 30 de noviembre fijo -- consultar el reporte
-            # antes de noviembre coincidia con "hasta hoy" solo porque
-            # las boletas de meses futuros aun no existen en la base de
-            # datos (busqueda vacia por casualidad, no por diseño
-            # explicito). Se corrige para que el limite real sea
+            # CASO NORMAL: dinamico desde el corte real hasta HOY o el
+            # 30 de noviembre, lo que ocurra primero -- el limite es
             # siempre explicito: quien consulta el reporte HOY espera
             # ver el dato real A HOY, no un limite futuro que solo
             # coincide con hoy porque esos registros todavia no existen.
-            fecha_desde = date(year, 6, 1)
             fin_periodo_legal = date(year, 11, 30)
             fecha_hasta = min(fin_periodo_legal, date.today())
-            emp_initial = ag_init_amount if (
-                ag_init_amount and ag_init_date
-                and dic_start <= ag_init_date <= fin_periodo_legal) else 0.0
 
         sistema = self.calc_aguinaldo_periodo(
             employee, fecha_desde, fecha_hasta,
