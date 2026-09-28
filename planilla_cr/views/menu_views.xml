@@ -349,6 +349,11 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
               parent="menu_planilla_cr_reports"
               action="planilla_cr.action_aguinaldo_detalle_mensual_wizard"
               sequence="6"/>
+    <menuitem id="menu_employee_boleta_detalle"
+              name="Detalle Completo de Boletas por Empleado"
+              parent="menu_planilla_cr_reports"
+              action="planilla_cr.action_employee_boleta_detalle_wizard"
+              sequence="7"/>
 
     <menuitem id="menu_rebajo_renta"
               name="Rebajos Consolidados de Renta"

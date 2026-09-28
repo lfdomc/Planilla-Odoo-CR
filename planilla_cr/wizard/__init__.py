@@ -31,5 +31,6 @@ from . import resumen_ejecutivo_wizard
 from . import resumen_ejecutivo_reducido_wizard
 from . import aguinaldo_auditoria_wizard
 from . import aguinaldo_detalle_mensual_wizard
+from . import employee_boleta_detalle_wizard
 from . import confirm_warnings_wizard
 from . import reporte_208_wizard
