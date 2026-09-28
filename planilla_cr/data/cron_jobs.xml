@@ -111,5 +111,17 @@
         <field name="priority">5</field>
     </record>
 
+    <!-- Cron 9: Limpieza de adjuntos de reportes, diario -->
+    <record id="cron_cleanup_report_attachments" model="ir.cron">
+        <field name="name">Planilla CR - Limpieza de Adjuntos de Reportes</field>
+        <field name="model_id" ref="planilla_cr.model_planilla_scheduled_actions"/>
+        <field name="state">code</field>
+        <field name="code">model.cron_cleanup_report_attachments()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+        <field name="priority">90</field>
+    </record>
+
 </odoo>
 

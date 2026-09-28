@@ -15,6 +15,87 @@ class PlanillaScheduledActions(models.AbstractModel):
     _name = 'planilla.scheduled.actions'
     _description = 'Acciones Programadas Planilla CR'
 
+    # Prefijos de nombre de archivo de TODOS los reportes/wizards del
+    # modulo que generan un ir.attachment binario "de descarga" (Excel,
+    # CSV, TXT, PRN) SIN ligarlo a ningun registro (sin res_model/res_id)
+    # -- por diseño, estos nunca se usan de nuevo despues de descargarse,
+    # asi que se acumulan como basura indefinidamente si nadie los borra
+    # a mano. Un adjunto real del sistema (documento de empleado, boleta
+    # adjunta, EDDI7, Corrector de Saldo Inicial de Vacaciones, etc.)
+    # SIEMPRE tiene res_model/res_id, asi que el filtro de abajo
+    # (res_model = False) ya los protege aunque coincidan por nombre;
+    # esta lista de prefijos es una segunda capa de seguridad para no
+    # tocar por error un adjunto huerfano de otro origen (ej. un correo
+    # entrante, un adjunto de otro modulo).
+    _REPORT_ATTACHMENT_PREFIXES = [
+        'Acciones_Personal_',
+        'Aguinaldo_',
+        'Auditoria_Aguinaldo_',
+        'Detalle_Boletas_',
+        'Diagnostico_Integral_',
+        'Planilla_BAC_',
+        'Planilla_BCR_DAV_',
+        'Planilla_BNCR_',
+        'Planilla_SINPE_Movil_',
+        'Reporte_208_',
+        'ResumenEjecutivo_',
+        'ResumenEjecutivoReducido_',
+        'Saldo_Vacaciones_',
+        'SICERE_',
+    ]
+
+    @api.model
+    def cron_cleanup_report_attachments(self):
+        """
+        Borra los adjuntos de reportes/exportaciones generados por los
+        wizards de Planilla CR (Aguinaldo, Auditorias, Acciones de
+        Personal, Diagnostico Integral, pagos bancarios, SICERE,
+        Reporte 208, Resumen Ejecutivo, Saldo de Vacaciones, etc.) con
+        mas de 4 dias de antiguedad, para evitar que se acumulen
+        indefinidamente en la base de datos -- cada corrida de estos
+        reportes crea un adjunto nuevo que solo se usa una vez, al
+        momento de la descarga.
+
+        Doble filtro de seguridad, ambos deben cumplirse:
+          1. res_model vacio (False) -- nunca borra un adjunto ligado a
+             un registro real (boleta, empleado, EDDI7, Corrector de
+             Saldo Inicial, documentos de empleado, etc.), sin importar
+             el nombre.
+          2. Nombre empieza con uno de los prefijos conocidos de estos
+             reportes -- nunca borra un adjunto huerfano de otro origen
+             que no sea uno de estos wizards.
+
+        El cron corre diariamente, pero solo borra adjuntos con mas de
+        4 dias de antiguedad (margen de seguridad para no borrar algo
+        que el usuario podria estar a punto de descargar todavia).
+
+        Corre: diariamente.
+        """
+        limite = date.today() - relativedelta(days=4)
+
+        # El numero de '|' debe ser (cantidad_de_prefijos - 1) para
+        # encadenar todos los OR en notacion polaca de dominio Odoo.
+        n_or = len(self._REPORT_ATTACHMENT_PREFIXES) - 1
+        domain = [
+            ('res_model', '=', False),
+            ('create_date', '<', limite),
+        ] + ['|'] * n_or + [
+            ('name', '=like', f'{prefijo}%')
+            for prefijo in self._REPORT_ATTACHMENT_PREFIXES
+        ]
+
+        attachments = self.env['ir.attachment'].search(domain)
+        count = len(attachments)
+        if count:
+            nombres = attachments.mapped('name')[:10]
+            attachments.unlink()
+            _logger.info(
+                'Planilla CR: cron_cleanup_report_attachments -- %d adjuntos de '
+                'reportes eliminados (>4 dias). Ejemplos: %s', count, nombres)
+        else:
+            _logger.info(
+                'Planilla CR: cron_cleanup_report_attachments -- nada que limpiar.')
+
     @api.model
     def cron_check_anniversaries(self):
         """
