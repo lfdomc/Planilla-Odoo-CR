@@ -104,6 +104,7 @@
         'wizard/resumen_ejecutivo_wizard_views.xml',
         'wizard/resumen_ejecutivo_reducido_wizard_views.xml',
         'wizard/aguinaldo_auditoria_wizard_views.xml',
+        'wizard/aguinaldo_detalle_mensual_wizard_views.xml',
         'wizard/reporte_208_wizard_views.xml',
         'wizard/employer_cost_wizard_views.xml',
         'wizard/wizard_views_v24.xml',
