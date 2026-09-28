@@ -141,6 +141,7 @@ class AguinaldoAuditoriaWizard(models.TransientModel):
             corte = rh.get_aguinaldo_fecha_corte(emp, self.year)
             fecha_desde = corte['fecha_desde']
             emp_initial = corte['emp_initial']
+            ag_init_date = emp.aguinaldo_initial_date if corte['tiene_inicial'] else None
 
             resultado = rh.calc_aguinaldo_periodo(emp, fecha_desde, fecha_limite)
             odoo_sistema = round(resultado['total'] / 12.0, 2)

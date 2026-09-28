@@ -48,13 +48,13 @@ class AccionesPersonalWizard(models.TransientModel):
         default=lambda self: fields.Date.context_today(self),
     )
 
-    def action_generate(self):
-        self.ensure_one()
-        try:
-            import xlsxwriter
-        except ImportError:
-            raise UserError('xlsxwriter no esta instalado.')
-
+    def _get_eventos(self):
+        """
+        Devuelve la lista cruda de eventos (acciones de personal) segun
+        los filtros del wizard. Separado de action_generate() para que
+        el Diagnostico Integral del Sistema pueda reusar exactamente la
+        misma consulta sin duplicar logica.
+        """
         if self.date_from > self.date_to:
             raise UserError('La fecha "Desde" no puede ser posterior a "Hasta".')
 
@@ -167,10 +167,16 @@ class AccionesPersonalWizard(models.TransientModel):
                 'bonos, vacaciones, pensiones, embargos) con los filtros indicados.')
 
         eventos.sort(key=lambda ev: (ev[0], ev[1] or date.min))
+        return eventos
 
-        output = io.BytesIO()
-        wb = xlsxwriter.Workbook(output, {'in_memory': True})
-        ws = wb.add_worksheet('Acciones de Personal')
+    def _build_worksheet(self, wb, eventos, sheet_name='Acciones de Personal'):
+        """
+        Escribe la hoja de Acciones de Personal en un Workbook xlsxwriter
+        ya existente (wb) -- usado tanto por action_generate() (workbook
+        propio de una sola hoja) como por el Diagnostico Integral del
+        Sistema (workbook compartido de multiples hojas).
+        """
+        ws = wb.add_worksheet(sheet_name)
 
         title_fmt = wb.add_format({'bold': True, 'font_size': 13,
                                     'bg_color': '#1F4E79', 'font_color': 'white'})
@@ -234,7 +240,20 @@ class AccionesPersonalWizard(models.TransientModel):
             'Empleado" para confirmar que cada novedad se reflejo '
             'correctamente en la boleta correspondiente.',
             note_fmt)
+        return ws
 
+    def action_generate(self):
+        self.ensure_one()
+        try:
+            import xlsxwriter
+        except ImportError:
+            raise UserError('xlsxwriter no esta instalado.')
+
+        eventos = self._get_eventos()
+
+        output = io.BytesIO()
+        wb = xlsxwriter.Workbook(output, {'in_memory': True})
+        self._build_worksheet(wb, eventos)
         wb.close()
         xlsx_data = base64.b64encode(output.getvalue()).decode()
         filename = f'Acciones_Personal_{self.date_from}_{self.date_to}.xlsx'

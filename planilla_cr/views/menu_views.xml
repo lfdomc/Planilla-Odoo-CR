@@ -339,26 +339,39 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
               parent="menu_planilla_cr_reports"
               action="planilla_cr.action_resumen_ejecutivo_reducido_wizard"
               sequence="4"/>
+    <!-- DIAGNOSTICO DEL SISTEMA: submenu distintivo que agrupa todos los
+         reportes de auditoria/verificacion cruzada (Odoo vs Excel de la
+         empresa, boletas, novedades) en un solo lugar, separado de los
+         reportes operativos normales. -->
+    <menuitem id="menu_diagnostico_sistema"
+              name="🔎 Diagnostico del Sistema"
+              parent="menu_planilla_cr_reports"
+              sequence="5"/>
+    <menuitem id="menu_diagnostico_integral"
+              name="⭐ Diagnostico Integral (Reporte Consolidado)"
+              parent="menu_diagnostico_sistema"
+              action="planilla_cr.action_diagnostico_sistema_wizard"
+              sequence="1"/>
     <menuitem id="menu_aguinaldo_auditoria"
               name="Auditoria de Aguinaldo (Odoo vs Excel)"
-              parent="menu_planilla_cr_reports"
+              parent="menu_diagnostico_sistema"
               action="planilla_cr.action_aguinaldo_auditoria_wizard"
-              sequence="5"/>
+              sequence="2"/>
     <menuitem id="menu_aguinaldo_detalle_mensual"
               name="Detalle Mensual de Aguinaldo (vs Excel)"
-              parent="menu_planilla_cr_reports"
+              parent="menu_diagnostico_sistema"
               action="planilla_cr.action_aguinaldo_detalle_mensual_wizard"
-              sequence="6"/>
+              sequence="3"/>
     <menuitem id="menu_employee_boleta_detalle"
               name="Detalle Completo de Boletas por Empleado"
-              parent="menu_planilla_cr_reports"
+              parent="menu_diagnostico_sistema"
               action="planilla_cr.action_employee_boleta_detalle_wizard"
-              sequence="7"/>
+              sequence="4"/>
     <menuitem id="menu_acciones_personal"
               name="Acciones de Personal Consolidadas"
-              parent="menu_planilla_cr_reports"
+              parent="menu_diagnostico_sistema"
               action="planilla_cr.action_acciones_personal_wizard"
-              sequence="8"/>
+              sequence="5"/>
 
     <menuitem id="menu_rebajo_renta"
               name="Rebajos Consolidados de Renta"

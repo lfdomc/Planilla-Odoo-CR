@@ -107,6 +107,7 @@
         'wizard/aguinaldo_detalle_mensual_wizard_views.xml',
         'wizard/employee_boleta_detalle_wizard_views.xml',
         'wizard/acciones_personal_wizard_views.xml',
+        'wizard/diagnostico_sistema_wizard_views.xml',
         'wizard/reporte_208_wizard_views.xml',
         'wizard/employer_cost_wizard_views.xml',
         'wizard/wizard_views_v24.xml',
