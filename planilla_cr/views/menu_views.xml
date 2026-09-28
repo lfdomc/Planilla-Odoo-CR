@@ -96,57 +96,79 @@
               name="Generar Reportes PDF"
               parent="menu_planilla_cr_reports"
               action="action_planilla_report_wizard"
-              sequence="5"/>
+              sequence="1"/>
 
+    <!-- 🔎 REPORTES GERENCIALES -->
+    <menuitem id="menu_resumen_ejecutivo"
+              name="Resumen Ejecutivo"
+              parent="menu_reportes_gerenciales"
+              action="planilla_cr.action_resumen_ejecutivo_wizard"
+              sequence="1"/>
+    <menuitem id="menu_resumen_ejecutivo_reducido"
+              name="Resumen Ejecutivo Reducido"
+              parent="menu_reportes_gerenciales"
+              action="planilla_cr.action_resumen_ejecutivo_reducido_wizard"
+              sequence="2"/>
+    <menuitem id="menu_aguinaldo_wizard"
+              name="Decimo Mes (Aguinaldo)"
+              parent="menu_reportes_gerenciales"
+              action="action_aguinaldo_wizard"
+              sequence="3"
+              groups="planilla_cr.group_planilla_admin"/>
+
+    <!-- 🔎 CARGAS SOCIALES Y FISCAL -->
     <menuitem id="menu_ins_report"
               name="Planilla INS (Riesgos del Trabajo)"
-              parent="menu_planilla_cr_reports"
+              parent="menu_cargas_sociales_fiscal"
               action="action_ins_report_wizard"
-              sequence="6"/>
+              sequence="1"/>
 
     <menuitem id="menu_ccss_report"
               name="Planilla CCSS (Patrono)"
-              parent="menu_planilla_cr_reports"
+              parent="menu_cargas_sociales_fiscal"
               action="action_ccss_report_wizard"
-              sequence="7"/>
+              sequence="2"/>
 
     <menuitem id="menu_eddi7_export"
               name=" Declaracion EDDI-7 CCSS"
-              parent="menu_planilla_cr_reports"
+              parent="menu_cargas_sociales_fiscal"
               action="planilla_cr.action_eddi7_export"
-              sequence="8"/>
+              sequence="3"/>
 
+    <menuitem id="menu_mtss_export"
+              name="Exportacion MTSS"
+              parent="menu_cargas_sociales_fiscal"
+              action="planilla_cr.action_mtss_export_wizard"
+              sequence="4"
+              groups="planilla_cr.group_planilla_aprobador"/>
+
+    <!-- 🔎 PAGOS Y BANCOS -->
     <menuitem id="menu_bank_payment"
               name="Exportar para Banco (BCR / BNCR)"
-              parent="menu_planilla_cr_reports"
+              parent="menu_pagos_bancos"
               action="action_bank_payment_wizard"
-              sequence="8"/>
+              sequence="1"/>
 
+    <!-- 🔎 PERSONAL Y ACTIVOS -->
     <menuitem id="menu_salary_history"
               name="Historial de Salarios"
-              parent="menu_planilla_cr_reports"
+              parent="menu_personal_activos"
               action="action_salary_history"
-              sequence="10"/>
+              sequence="1"/>
 
+    <!-- 🔎 COSTOS Y PRODUCTIVIDAD -->
     <menuitem id="menu_employer_cost_report"
               name="Costos Patronales Consolidado"
-              parent="menu_planilla_cr_reports"
+              parent="menu_costos_productividad"
               action="planilla_cr.action_employer_cost_report_wizard"
-              sequence="73"
+              sequence="1"
               groups="planilla_cr.group_planilla_aprobador"/>
 
     <menuitem id="menu_overtime_consolidated_report"
               name="Horas Extras Consolidado"
-              parent="menu_planilla_cr_reports"
+              parent="menu_costos_productividad"
               action="planilla_cr.action_overtime_consolidated_wizard"
-              sequence="74"
-              groups="planilla_cr.group_planilla_aprobador"/>
-
-    <menuitem id="menu_mtss_export"
-              name="Exportacion MTSS"
-              parent="menu_planilla_cr_reports"
-              action="planilla_cr.action_mtss_export_wizard"
-              sequence="75"
+              sequence="2"
               groups="planilla_cr.group_planilla_aprobador"/>
 
     <menuitem id="menu_audit_zip"
@@ -155,13 +177,6 @@
               action="planilla_cr.action_audit_zip_wizard"
               sequence="90"
               groups="planilla_cr.group_planilla_aprobador"/>
-
-    <menuitem id="menu_aguinaldo_wizard"
-              name="Decimo Mes (Aguinaldo)"
-              parent="menu_planilla_cr_reports"
-              action="action_aguinaldo_wizard"
-              sequence="45"
-              groups="planilla_cr.group_planilla_admin"/>
 
     <menuitem id="menu_import_data_wizard"
               name="Importar Empleados desde Excel"
@@ -329,26 +344,10 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
               parent="planilla_cr.menu_planilla_cr_config"
               action="planilla_cr.action_vacation_initial_balance_wizard"
               sequence="96"/>
-    <menuitem id="menu_resumen_ejecutivo"
-              name="Resumen Ejecutivo"
-              parent="menu_planilla_cr_reports"
-              action="planilla_cr.action_resumen_ejecutivo_wizard"
-              sequence="3"/>
-    <menuitem id="menu_resumen_ejecutivo_reducido"
-              name="Resumen Ejecutivo Reducido"
-              parent="menu_planilla_cr_reports"
-              action="planilla_cr.action_resumen_ejecutivo_reducido_wizard"
-              sequence="4"/>
-    <!-- DIAGNOSTICO DEL SISTEMA: submenu distintivo que agrupa todos los
-         reportes de auditoria/verificacion cruzada (Odoo vs Excel de la
-         empresa, boletas, novedades) en un solo lugar, separado de los
-         reportes operativos normales. -->
-    <menuitem id="menu_diagnostico_sistema"
-              name="🔎 Diagnostico del Sistema"
-              parent="menu_planilla_cr_reports"
-              sequence="5"/>
+    <!-- DIAGNOSTICO DEL SISTEMA: submenu distintivo (contenedor definido -->
+    <!-- en menu_containers.xml para cargar antes que cualquier hijo). -->
     <menuitem id="menu_diagnostico_integral"
-              name="⭐ Diagnostico Integral (Reporte Consolidado)"
+              name="Diagnostico Integral (Reporte Consolidado)"
               parent="menu_diagnostico_sistema"
               action="planilla_cr.action_diagnostico_sistema_wizard"
               sequence="1"/>
@@ -381,8 +380,8 @@ action = env['planilla.employee.charge'].search([]).action_sanear_huerfanos()
 
     <menuitem id="menu_reporte_208"
               name="Retenciones Renta 208/138 (TRIBU-CR)"
-              parent="menu_planilla_cr_reports"
+              parent="menu_cargas_sociales_fiscal"
               action="planilla_cr.action_reporte_208_wizard"
-              sequence="35"/>
+              sequence="5"/>
 
 </odoo>

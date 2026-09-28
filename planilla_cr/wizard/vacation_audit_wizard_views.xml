@@ -84,7 +84,7 @@
 
     <menuitem id="menu_vacation_audit"
               name="Auditoría de Vacaciones"
-              parent="planilla_cr.menu_planilla_cr_reports"
+              parent="planilla_cr.menu_diagnostico_sistema"
               action="action_vacation_audit_wizard"
-              sequence="30"/>
+              sequence="6"/>
 </odoo>

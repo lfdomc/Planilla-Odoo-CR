@@ -93,7 +93,7 @@
 
     <menuitem id="menu_employee_movement"
               name="Movimientos de Personal"
-              parent="planilla_cr.menu_planilla_cr_reports"
+              parent="planilla_cr.menu_personal_activos"
               action="action_employee_movement"
-              sequence="25"/>
+              sequence="1"/>
 </odoo>

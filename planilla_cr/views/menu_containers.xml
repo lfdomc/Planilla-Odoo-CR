@@ -25,4 +25,37 @@
               name="Configuracion"
               parent="menu_planilla_cr_root"
               sequence="90"/>
+
+    <!-- Subcategorias de Reportes: contenedores sin accion, cargan
+         primero para que cualquier vista pueda usarlos como parent sin
+         importar el orden de carga del manifest. -->
+    <menuitem id="menu_reportes_gerenciales"
+              name="🔎 Reportes Gerenciales"
+              parent="menu_planilla_cr_reports"
+              sequence="2"/>
+
+    <menuitem id="menu_cargas_sociales_fiscal"
+              name="🔎 Cargas Sociales y Fiscal"
+              parent="menu_planilla_cr_reports"
+              sequence="3"/>
+
+    <menuitem id="menu_pagos_bancos"
+              name="🔎 Pagos y Bancos"
+              parent="menu_planilla_cr_reports"
+              sequence="4"/>
+
+    <menuitem id="menu_diagnostico_sistema"
+              name="🔎 Diagnostico del Sistema"
+              parent="menu_planilla_cr_reports"
+              sequence="5"/>
+
+    <menuitem id="menu_personal_activos"
+              name="🔎 Personal y Activos"
+              parent="menu_planilla_cr_reports"
+              sequence="6"/>
+
+    <menuitem id="menu_costos_productividad"
+              name="🔎 Costos y Productividad"
+              parent="menu_planilla_cr_reports"
+              sequence="7"/>
 </odoo>

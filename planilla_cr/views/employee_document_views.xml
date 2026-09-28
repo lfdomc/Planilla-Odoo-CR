@@ -109,9 +109,9 @@
 
     <menuitem id="menu_employee_document_all"
               name="Documentos por Vencer"
-              parent="menu_planilla_cr_reports"
+              parent="menu_personal_activos"
               action="action_employee_document_all"
-              sequence="70"/>
+              sequence="2"/>
 
     <!-- ==================================================================
          Activos Asignados — vista cruzada de todos los empleados
@@ -179,8 +179,8 @@
 
     <menuitem id="menu_employee_asset_all"
               name="Activos Asignados"
-              parent="menu_planilla_cr_reports"
+              parent="menu_personal_activos"
               action="action_employee_asset_all"
-              sequence="71"/>
+              sequence="3"/>
 
 </odoo>
