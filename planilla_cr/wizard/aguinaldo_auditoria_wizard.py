@@ -242,12 +242,18 @@ class AguinaldoAuditoriaWizard(models.TransientModel):
         row += 1
         note_fmt = F(italic=True, font_color='#666666', font_size=9)
         ws_out.merge_range(row, 0, row, 9,
-            'Metodo Odoo: rate_helper.calc_aguinaldo_periodo() -- suma el salario bruto real '
-            '(base_salary + horas extras + bonos + vacaciones) de cada boleta confirmada/pagada '
-            'entre el dia siguiente al corte del Acumulado Inicial y la fecha limite indicada, '
-            'resta el subsidio CCSS de incapacidad y suma el subsidio patronal de los dias 1-3 '
-            '(Art. 79 CT), luego divide el total entre 12. Confirmado legalmente (Ley 2412, Art. 2) '
-            'que este es el metodo correcto: promedio de salarios REALMENTE DEVENGADOS, no un '
+            'Metodo Odoo: rate_helper.calc_aguinaldo_periodo() -- por cada boleta '
+            'confirmada/pagada entre el dia siguiente al corte del Acumulado Inicial y la '
+            'fecha limite indicada, toma el Sub Total Quincenal (gross_salary), SUMA el '
+            'subsidio patronal de los dias 1-3 de incapacidad (Art. 79 CT, no incluido en '
+            'gross_salary por diseño del sistema) y resta el subsidio CCSS de incapacidad '
+            '(dias 4+), el subsidio INS, y el permiso sin goce de salario del periodo, luego '
+            'divide el total entre 12. Formula verificada quincena a quincena contra las '
+            'celdas reales del Excel oficial de RRHH (empleados sin incapacidad, ej. '
+            'Josseline: coincidencia a centavos exactos) y contra boletas reales con '
+            'incapacidad (Freddy Abarca Rodriguez, Karla Montoya, 1ra quincena Set-2026: '
+            'coincidencia a centavos exactos). Confirmado legalmente (Ley 2412, Art. 2) que '
+            'este es el metodo correcto: suma de salarios REALMENTE DEVENGADOS, no un '
             'promedio de muestra multiplicado por meses. Filas en verde: diferencia menor a 1 colon '
             '(coincidencia). Filas en rojo: diferencia real que amerita revision.',
             note_fmt)

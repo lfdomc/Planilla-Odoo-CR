@@ -328,13 +328,14 @@ class AguinaldoWizard(models.TransientModel):
         ws.set_column('C:C', 26)   # Boleta (referencia)
         ws.set_column('D:E', 12)   # Fechas
         ws.set_column('F:F', 12)   # Estado
-        ws.set_column('G:M', 16)   # Montos
+        ws.set_column('G:N', 16)   # Montos
 
         headers = [
             'Empleado', 'Sucursal', 'Boleta', 'Desde', 'Hasta', 'Estado',
-            'Salario Bruto', 'Salario Base',
-            'Subsidio CCSS (incapacidad)', 'Costo Patrono Dias 1-3 (Art.79)',
-            'Devengado (calculado)', 'En Periodo Jun-Nov', 'En Provision (post-corte)',
+            'Sub Total Quincenal (gross_salary)', 'Costo Patrono Dias 1-3 (Art.79)',
+            'Monto Incapacidad CCSS', 'Monto Incapacidad INS',
+            'Monto Permiso Sin Goce', 'Devengado (calculado)',
+            'En Periodo Jun-Nov', 'En Provision (post-corte)',
         ]
         for col, h in enumerate(headers):
             ws.write(0, col, h, bold)
@@ -362,13 +363,22 @@ class AguinaldoWizard(models.TransientModel):
 
         row = 1
         for slip in slips:
-            if self.salary_basis == 'gross':
-                base = slip.gross_salary or 0.0
-            else:
-                base = slip.base_salary or 0.0
-            subsidio = round(slip.ccss_subsidy_total or 0.0, 2)
+            # Misma formula EXACTA que rate_helper.calc_aguinaldo_periodo()
+            # (revision 2), verificada contra el Excel oficial de RRHH
+            # (hoja "Agui.") y contra boletas reales con incapacidad.
+            sub_total = slip.gross_salary or 0.0
             costo_patrono_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
-            devengado = max(round(base - subsidio + costo_patrono_1_3, 2), 0.0)
+            monto_incap_ccss = round(slip.ccss_subsidy_total or 0.0, 2)
+            monto_incap_ins = round(slip.ins_subsidy_total or 0.0, 2)
+            monto_psgs = round(sum(
+                l.amount for l in slip.deduction_line_ids
+                if l.deduction_category == 'licencia_sin_goce'
+                and l.line_type == 'deduction'
+            ), 2)
+            devengado = max(round(
+                sub_total + costo_patrono_1_3
+                - monto_incap_ccss - monto_incap_ins - monto_psgs, 2
+            ), 0.0)
             en_jun_nov = bool(
                 slip.date_from and slip.date_to
                 and slip.date_from >= period_start and slip.date_to <= period_end
@@ -381,13 +391,14 @@ class AguinaldoWizard(models.TransientModel):
             ws.write(row, 3, slip.date_from, date_fmt)
             ws.write(row, 4, slip.date_to, date_fmt)
             ws.write(row, 5, dict(slip._fields['state'].selection).get(slip.state, slip.state), normal)
-            ws.write(row, 6, slip.gross_salary or 0.0, money)
-            ws.write(row, 7, slip.base_salary or 0.0, money)
-            ws.write(row, 8, subsidio, money)
-            ws.write(row, 9, costo_patrono_1_3, money)
-            ws.write(row, 10, devengado, money)
-            ws.write(row, 11, 'Si' if en_jun_nov else 'No', normal)
-            ws.write(row, 12, 'Si' if slip.date_from >= _date(year - 1, 12, 1) else 'No', normal)
+            ws.write(row, 6, sub_total, money)
+            ws.write(row, 7, costo_patrono_1_3, money)
+            ws.write(row, 8, monto_incap_ccss, money)
+            ws.write(row, 9, monto_incap_ins, money)
+            ws.write(row, 10, monto_psgs, money)
+            ws.write(row, 11, devengado, money)
+            ws.write(row, 12, 'Si' if en_jun_nov else 'No', normal)
+            ws.write(row, 13, 'Si' if slip.date_from >= _date(year - 1, 12, 1) else 'No', normal)
             row += 1
 
         wb.close()

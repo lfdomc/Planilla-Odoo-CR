@@ -355,22 +355,61 @@ class RateHelper(models.AbstractModel):
         total = 0.0
         meses_con_datos = set()
         for slip in slips:
-            # Art. 228 CT: "salarios ordinarios devengados" = bruto menos:
-            # - Subsidio CCSS por incapacidad (lo paga la Caja, no el patrono)
-            # + Subsidio PATRONAL de los dias 1-3 de incapacidad (Art. 79
-            #   CT, costo_patrono_periodo) -- SI es salario ordinario
-            #   devengado, aunque no genere cargas CCSS/Renta por diseño.
-            # NOTA: los permisos sin goce de salario NO se restan aqui --
-            # base_salary/gross_salary de la boleta YA los excluye por
-            # diseño (confirmado: restarlos de nuevo causaba un doble
-            # descuento real).
+            # FIX FORMULA REAL (2026-09, revision 2): verificada
+            # quincena-a-quincena contra el Excel oficial de RRHH de
+            # Mundopet (PLANILLA_MUNDOPET_2026_11-09-2026.xlsx, hoja
+            # "Agui.") Y contra boletas reales con incapacidad
+            # (Freddy Abarca Rodriguez, Karla Vanessa Montoya Gutierrez,
+            # 1ra quincena Set-2026), reproducida a centavos exactos:
+            #
+            #   devengado = SubTotalQuincenal + CostoPatronoDias1a3
+            #               - MontoIncapCCSS - MontoIncapINS - MontoPSGS
+            #
+            # CORRECCION SOBRE LA REVISION ANTERIOR: se habia quitado
+            # costo_patrono_periodo asumiendo que gross_salary/
+            # salario_cotizable ya lo incluia -- ESTO ERA INCORRECTO.
+            # Confirmado leyendo payslip_compute_mixin.py (comentario
+            # explicito: "el subsidio patrono dias 1-3 NO es salario ->
+            # NO genera cargas CCSS ni Renta. NO se incluye en base
+            # cotizable. Solo se suma al neto que recibe el empleado,
+            # fuera de la base") y verificado numericamente contra la
+            # boleta real de Karla (1 dia incapacidad, sin extras):
+            #   gross_salary (Odoo)          = 182,000.00
+            #   costo_patrono_periodo (Odoo) =   6,500.00
+            #   suma                         = 188,500.00
+            #   Excel (SubTotal - MontoCCSS) = 195,000.00 - 6,500.00
+            #                                = 188,500.00  <- coincide
+            # El Excel logra el mismo resultado por otro camino: no
+            # descuenta el dia de incapacidad del salario base, y solo
+            # resta la MITAD de ese dia como "Monto Incapacidades CCSS"
+            # -- equivalente a sumar el 50% patronal aparte, como hace
+            # Odoo. Caso Josseline (sin incapacidad en todo el año, ya
+            # verificado a 580,988.02 exacto) no cambia con este fix,
+            # porque costo_patrono_periodo = 0 cuando no hay incapacidad.
+            #
+            #  - SI se resta el subsidio INS (ins_subsidy_total), ademas
+            #    del CCSS -- el Excel resta ambos por separado.
+            #  - SI se resta el permiso sin goce de salario (PSGS,
+            #    deduction_category='licencia_sin_goce') -- CONFIRMADO
+            #    que gross_salary NO lo excluye en origen (solo
+            #    base_cotizable_final lo hace), por lo que restarlo aqui
+            #    NO duplica un descuento ya aplicado.
             if salary_basis == 'gross':
                 base = slip.gross_salary or 0.0
             else:
                 base = slip.base_salary or 0.0
-            subsidio = round(slip.ccss_subsidy_total or 0.0, 2)
             costo_patrono_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
-            devengado = max(round(base - subsidio + costo_patrono_1_3, 2), 0.0)
+            monto_incap_ccss = round(slip.ccss_subsidy_total or 0.0, 2)
+            monto_incap_ins = round(slip.ins_subsidy_total or 0.0, 2)
+            monto_psgs = round(sum(
+                l.amount for l in slip.deduction_line_ids
+                if l.deduction_category == 'licencia_sin_goce'
+                and l.line_type == 'deduction'
+            ), 2)
+            devengado = max(round(
+                base + costo_patrono_1_3
+                - monto_incap_ccss - monto_incap_ins - monto_psgs, 2
+            ), 0.0)
             total += devengado
             if slip.date_to:
                 meses_con_datos.add(slip.date_to.strftime('%Y-%m'))
