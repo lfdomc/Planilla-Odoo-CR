@@ -109,12 +109,24 @@ class AguinaldoWizard(models.TransientModel):
         # boleta por boleta con una formula propia repetida en 3
         # archivos distintos (que podian desincronizarse entre si,
         # confirmado con un caso real).
+        #
+        # FIX CONSISTENCIA (2026-09): 'Total Salarios Ordinarios' y
+        # 'Boletas' (columnas informativas de este reporte) deben
+        # calcularse con el MISMO rango real (fecha de corte por
+        # empleado, via get_aguinaldo_fecha_corte) que usa
+        # calc_aguinaldo_completo() para el monto oficial del
+        # aguinaldo -- antes usaban period_start/period_end fijo
+        # (1-jun), lo que mostraba "7 boletas" en pantalla mientras el
+        # monto real ya habia sido calculado con 11 boletas desde
+        # abril -- inconsistencia confirmada con un caso real
+        # (Alexander Matarrita Ramirez, corte 31-mar).
         rh = self.env['planilla.rate.helper']
         employee_data = {}
         empleados_con_boletas = slips.mapped('employee_id')
         for emp in empleados_con_boletas:
+            corte = rh.get_aguinaldo_fecha_corte(emp, self.year)
             resultado = rh.calc_aguinaldo_periodo(
-                emp, period_start, period_end,
+                emp, corte['fecha_desde'], period_end,
                 salary_basis=self.salary_basis)
             employee_data[emp.id] = {
                 'employee_id': emp.id,
@@ -130,7 +142,6 @@ class AguinaldoWizard(models.TransientModel):
 
         # Agregar empleados con acumulado inicial aunque no tengan boletas en el sistema todavia
         # (empleados que solo tienen datos pre-implementacion)
-        period_start = date(self.year, 6, 1)  # ya definido arriba pero repetimos para el nuevo bloque
         emp_domain = [
             ('company_id', '=', self.company_id.id),
             ('aguinaldo_initial_amount', '>', 0),
