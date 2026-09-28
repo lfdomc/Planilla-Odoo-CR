@@ -314,6 +314,8 @@ class AguinaldoWizard(models.TransientModel):
 
         from datetime import date as _date
 
+        rh = self.env['planilla.rate.helper']
+
         output = io.BytesIO()
         wb = xlsxwriter.Workbook(output, {'in_memory': True})
         ws = wb.add_worksheet('Detalle Boletas')
@@ -341,8 +343,23 @@ class AguinaldoWizard(models.TransientModel):
             ws.write(0, col, h, bold)
 
         year = self.year
-        period_start = _date(year, 6, 1)
         period_end = _date(year, 11, 30)
+
+        # Fecha de corte real por empleado (Art. 228 CT) -- MISMO
+        # criterio centralizado que calc_aguinaldo_completo, la
+        # Auditoria de Aguinaldo y el Detalle Mensual usan
+        # (rate_helper.get_aguinaldo_fecha_corte). Antes esta
+        # exportacion usaba un 1-jun fijo para TODOS los empleados
+        # (columna "En Periodo Jun-Nov") y prácticamente nunca excluia
+        # nada en "En Provision (post-corte)" (solo comparaba contra
+        # 1-dic del año anterior, no contra el corte real de cada
+        # empleado) -- se corrige para que las dos columnas reflejen la
+        # fecha de corte real de cada empleado, igual que el resto del
+        # sistema.
+        cortes_por_empleado = {
+            emp.id: rh.get_aguinaldo_fecha_corte(emp, year)['fecha_desde']
+            for emp in self.result_ids.mapped('employee_id')
+        }
 
         # Mismo dominio que usa action_compute() para las boletas Jun-Nov,
         # mas todas las boletas confirmadas/pagadas del empleado desde
@@ -364,8 +381,13 @@ class AguinaldoWizard(models.TransientModel):
         row = 1
         for slip in slips:
             # Misma formula EXACTA que rate_helper.calc_aguinaldo_periodo()
-            # (revision 2), verificada contra el Excel oficial de RRHH
-            # (hoja "Agui.") y contra boletas reales con incapacidad.
+            # (revision 2), calculada boleta por boleta usando el mismo
+            # metodo centralizado (no una copia manual de la formula),
+            # verificada contra el Excel oficial de RRHH (hoja "Agui.")
+            # y contra boletas reales con incapacidad.
+            componentes = rh.calc_aguinaldo_periodo(
+                slip.employee_id, slip.date_from, slip.date_to,
+                include_confirmed=True)
             sub_total = slip.gross_salary or 0.0
             costo_patrono_1_3 = round(slip.costo_patrono_periodo or 0.0, 2)
             monto_incap_ccss = round(slip.ccss_subsidy_total or 0.0, 2)
@@ -375,13 +397,13 @@ class AguinaldoWizard(models.TransientModel):
                 if l.deduction_category == 'licencia_sin_goce'
                 and l.line_type == 'deduction'
             ), 2)
-            devengado = max(round(
-                sub_total + costo_patrono_1_3
-                - monto_incap_ccss - monto_incap_ins - monto_psgs, 2
-            ), 0.0)
+            devengado = componentes['total']
+
+            fecha_corte = cortes_por_empleado.get(slip.employee_id.id)
+            en_provision = bool(
+                fecha_corte and slip.date_from and slip.date_from >= fecha_corte)
             en_jun_nov = bool(
-                slip.date_from and slip.date_to
-                and slip.date_from >= period_start and slip.date_to <= period_end
+                en_provision and slip.date_to and slip.date_to <= period_end
                 and slip.state == 'done'
             )
 
