@@ -240,6 +240,7 @@ class ResumenEjecutivoWizard(models.TransientModel):
             'net': 'NETO',
             'pat': 'CARGAS PATRONALES',
             'sep': '',
+            'chk': 'VERIF.',
         }
         prev_sec = None; sec_start_ci = 0
         for ci, (_, _, sec, _) in enumerate(cols):
