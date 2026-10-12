@@ -193,6 +193,27 @@ class PayslipActionMixin(models.AbstractModel):
         # guardado podria estar desactualizado -- se refresca aqui porque es
         # el momento donde mas importa que sea correcto.
         self._compute_is_last_payslip_of_month()
+        # FIX17 RENTA-CONSOLIDADA: la renta de la ultima boleta del mes depende
+        # de boletas hermanas (otro registro), algo que @api.depends no puede
+        # rastrear. Si la ultima boleta se calculo cuando la 1a quincena aun no
+        # existia o se modifico despues, su renta quedo obsoleta. Se recalcula
+        # aqui, justo antes de confirmar, SOLO deducciones y totales (no toca
+        # novedades ni lineas ajustadas a mano), solo en modo mensual consolidado.
+        _cfg_confirm = {}
+        _ultimas = self.env['planilla.payslip.cr']
+        for rec in self:
+            if not rec.is_last_payslip_of_month or getattr(rec, 'is_sp', False):
+                continue
+            _cid = rec.company_id.id
+            if _cid not in _cfg_confirm:
+                _cfg_confirm[_cid] = self.env['planilla.accounting.config'].search(
+                    [('company_id', '=', _cid)], limit=1)
+            _cfg = _cfg_confirm[_cid]
+            if _cfg and _cfg.income_tax_method == 'monthly_consolidated':
+                _ultimas |= rec
+        for rec in _ultimas:
+            rec._compute_deductions()
+            rec._compute_totals()
         # NO re-sincronizar novedades aqui -- causaria recalculo de boletas
         # ya revisadas y ajustadas manualmente, perdiendo correcciones aplicadas.
         self._validate_before_confirm()

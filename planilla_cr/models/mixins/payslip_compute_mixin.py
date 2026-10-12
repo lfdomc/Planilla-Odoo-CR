@@ -1119,7 +1119,7 @@ class PayslipComputeMixin(models.AbstractModel):
 
         Reconcilia el impuesto de renta del mes completo:
           1. Suma el ingreso gravable REAL de todas las boletas hermanas
-             confirmadas/pagadas de este mismo mes (mismo empleado, misma
+             (borrador, confirmadas o pagadas) de este mismo mes (mismo empleado, misma
              empresa, misma calendarizacion) + el ingreso de esta boleta.
           2. Calcula el impuesto sobre ese total real (sin proyectar, ya
              es el dato real) -- los creditos fiscales se aplican UNA
@@ -1140,15 +1140,33 @@ class PayslipComputeMixin(models.AbstractModel):
         month_start = self.date_to.replace(day=1)
         month_end   = self.date_to + relativedelta(months=1, day=1) - relativedelta(days=1)
 
-        hermanas = self.env['planilla.payslip.cr'].search([
+        # FIX17 RENTA-CONSOLIDADA: las hermanas en BORRADOR tambien cuentan.
+        # Antes solo se leian boletas 'confirmed'/'done': al generar la
+        # planilla con las dos quincenas en borrador, la ultima boleta del
+        # mes veia 0 hermanas y calculaba la renta mensual sobre UNA sola
+        # quincena (ej. Saul Barrantes: Q2 = 41,950 en vez de 128,825;
+        # Jorge Rojas: no recibia la devolucion de 12,301). Es el mismo
+        # criterio del Excel de RRHH (impuesto del mes menos lo retenido
+        # en la 1a quincena, sin importar si ya se pago).
+        # Si hay boletas duplicadas para el mismo periodo, prevalece la
+        # 'done' sobre la 'confirmed' y esta sobre la 'draft' (una sola por
+        # periodo) para no contar el mismo ingreso dos veces.
+        _hermanas_all = self.env['planilla.payslip.cr'].search([
             ('id', '!=', self.id),
             ('employee_id', '=', self.employee_id.id),
             ('company_id', '=', self.company_id.id),
             ('payroll_calendar_id', '=', self.payroll_calendar_id.id),
             ('date_to', '>=', month_start),
             ('date_to', '<=', month_end),
-            ('state', 'in', ('confirmed', 'done')),
+            ('state', 'in', ('draft', 'confirmed', 'done')),
         ])
+        _prioridad_estado = {'done': 0, 'confirmed': 1, 'draft': 2}
+        _por_periodo = {}
+        for _h in _hermanas_all.sorted(
+                key=lambda h: (_prioridad_estado.get(h.state, 3), h.id)):
+            _por_periodo.setdefault((_h.date_from, _h.date_to), _h)
+        hermanas = self.env['planilla.payslip.cr'].browse(
+            [h.id for h in _por_periodo.values()])
 
         ingreso_gravable_mes = own_gross + sum(hermanas.mapped('base_cotizable_final'))
         ccss_emp_mes         = (self.ccss_employee or 0.0) + sum(hermanas.mapped('ccss_employee'))

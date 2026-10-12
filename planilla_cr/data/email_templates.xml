@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<odoo noupdate="1">
-    <!-- Email templates are created programmatically in hooks.py post_init_hook
-         to avoid Odoo 19 RelaxNG schema validation issues with body_html content. -->
-</odoo>
