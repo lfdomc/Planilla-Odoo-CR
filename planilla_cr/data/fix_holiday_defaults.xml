@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Este archivo NO tiene noupdate="1" a proposito: la etiqueta
+        <function> dentro de un bloque sin noupdate se ejecuta tanto en
+        la instalacion inicial como en CADA actualizacion del modulo
+        (odoo-bin -u), confirmado contra la documentacion oficial de
+        Odoo 19. Esto garantiza que el fix de feriados no obligatorios
+        (2 de agosto, 31 de agosto, 1 de diciembre) se aplique siempre,
+        incluso para registros que ya existian en la base de datos
+        antes de agregar el campo generates_double_pay.
+    -->
+    <function model="planilla.public.holiday"
+              name="action_fix_generates_double_pay_defaults"
+              eval="[]"/>
+</odoo>

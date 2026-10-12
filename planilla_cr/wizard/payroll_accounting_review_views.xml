@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_payroll_accounting_review_form" model="ir.ui.view">
+        <field name="name">planilla.accounting.review.form</field>
+        <field name="model">planilla.accounting.review</field>
+        <field name="arch" type="xml">
+            <form string="Revisión: Asientos Contables vs Planillas">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        <strong>Solo lectura.</strong> Compara los montos de cada planilla
+                        contra su asiento contable. Las diferencias mayores a ₡1 se marcan
+                        en rojo. Use el botón "↻ Regenerar Asiento" en la planilla para
+                        corregir diferencias.
+                    </div>
+
+                    <group string="Período a Revisar">
+                        <group>
+                            <field name="date_from" string="Desde"/>
+                            <field name="date_to" string="Hasta"/>
+                        </group>
+                    </group>
+
+                    <div class="mt8 mb8">
+                        <button name="action_review" type="object"
+                                string="🔍 Revisar Período"
+                                class="btn-primary"/>
+                    </div>
+
+                    <!-- Resumen -->
+                    <group string="Resumen" invisible="not computed">
+                        <group>
+                            <field name="total_runs" string="Total Planillas"/>
+                            <field name="ok_count" string="✅ Cuadran"/>
+                        </group>
+                        <group>
+                            <field name="disc_count" string="⚠️ Con diferencias"/>
+                            <field name="no_entry_count" string="❌ Sin asiento"/>
+                        </group>
+                    </group>
+
+                    <!-- Detalle -->
+                    <field name="line_ids" nolabel="1" invisible="not computed">
+                        <list
+                              decoration-success="estado == 'ok'"
+                              decoration-warning="estado == 'diferencia'"
+                              decoration-danger="estado == 'sin_asiento'">
+                            <field name="date_end" string="Fecha"/>
+                            <field name="run_name" string="Planilla"/>
+                            <field name="run_state" string="Estado"/>
+                            <field name="move_name" string="Asiento" optional="show"/>
+                            <field name="move_state" string="Est. Asiento" optional="show"/>
+                            <field name="planilla_bruto" string="Bruto Planilla"
+                                   widget="monetary" options="{'currency_field': 'currency_id'}"/>
+                            <field name="asiento_salarios" string="630000 Salarios"
+                                   widget="monetary" options="{'currency_field': 'currency_id'}"
+                                   optional="show"/>
+                            <field name="dif_salarios" string="Δ Salarios"
+                                   widget="monetary" options="{'currency_field': 'currency_id'}"
+                                   decoration-danger="dif_salarios &gt; 1 or dif_salarios &lt; -1"/>
+                            <field name="planilla_ccss" string="CCSS Planilla"
+                                   widget="monetary" options="{'currency_field': 'currency_id'}"
+                                   optional="show"/>
+                            <field name="asiento_ccss" string="CCSS Asiento"
+                                   widget="monetary" options="{'currency_field': 'currency_id'}"
+                                   optional="show"/>
+                            <field name="dif_ccss" string="Δ CCSS"
+                                   widget="monetary" options="{'currency_field': 'currency_id'}"
+                                   decoration-danger="dif_ccss &gt; 1 or dif_ccss &lt; -1"/>
+                            <field name="planilla_neto" string="Neto Planilla"
+                                   widget="monetary" options="{'currency_field': 'currency_id'}"
+                                   optional="show"/>
+                            <field name="asiento_neto" string="Neto Asiento"
+                                   widget="monetary" options="{'currency_field': 'currency_id'}"
+                                   optional="show"/>
+                            <field name="dif_neto" string="Δ Neto"
+                                   widget="monetary" options="{'currency_field': 'currency_id'}"
+                                   decoration-danger="dif_neto &gt; 1 or dif_neto &lt; -1"/>
+                            <field name="estado" string="Estado"
+                                   decoration-success="estado == 'ok'"
+                                   decoration-warning="estado == 'diferencia'"
+                                   decoration-danger="estado == 'sin_asiento'"/>
+                            <field name="currency_id" column_invisible="1"/>
+                            <field name="tiene_diferencia" column_invisible="1"/>
+                            <button name="action_open_run" type="object"
+                                    string="Ver Planilla" icon="fa-external-link"
+                                    class="btn-sm"/>
+                        </list>
+                    </field>
+                </sheet>
+
+            </form>
+        </field>
+    </record>
+
+    <record id="action_payroll_accounting_review" model="ir.actions.act_window">
+        <field name="name">Revisión: Planillas vs Asientos</field>
+        <field name="res_model">planilla.accounting.review</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+
+    <!-- Menú en Contabilidad / Facturación -->
+    <menuitem id="menu_payroll_accounting_review"
+              name="Revisión de Planillas"
+              parent="account.menu_finance_entries"
+              action="action_payroll_accounting_review"
+              sequence="99"/>
+</odoo>

@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_overtime_list" model="ir.ui.view">
+        <field name="name">planilla.overtime.list</field>
+        <field name="model">planilla.overtime</field>
+        <field name="arch" type="xml">
+            <list string="Horas Extras" decoration-success="state=='approved'"
+                  decoration-muted="state=='paid'" decoration-danger="state=='cancelled'"
+                  decoration-info="state=='draft' and source=='auto'">
+                <header>
+                    <button name="action_recalculate_all_rates" type="object"
+                            string="Recalcular Tarifas (corregir errores)"
+                            class="btn-warning"
+                            confirm="Esto recalculara la tarifa horaria y monto de todas las HE en estado Borrador y Aprobado usando el salario mensual actual de cada empleado. Continuar?"/>
+                </header>
+                <field name="code" string="Codigo" readonly="1"/>
+                <field name="date"/>
+                <field name="employee_id"/>
+                <field name="branch_id"/>
+                <field name="overtime_type"/>
+                <field name="hours"/>
+                <field name="hourly_rate" string="Tarifa/Hora" optional="show"/>
+                <field name="amount"/>
+                <field name="afecto_ccss" string="CCSS" optional="show"/>
+                <field name="afecto_renta" string="Renta" optional="show"/>
+                <field name="source" optional="show"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_overtime_form" model="ir.ui.view">
+        <field name="name">planilla.overtime.form</field>
+        <field name="model">planilla.overtime</field>
+        <field name="arch" type="xml">
+            <form string="Horas Extras">
+                <header>
+                    <button name="action_approve" type="object" string="Aprobar"
+                            invisible="state != 'draft'" class="btn-primary"/>
+                    <button name="action_cancel" type="object" string="Cancelar"
+                            invisible="state not in ('draft', 'approved')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved,paid"/>
+                </header>
+                <sheet>
+                    <!-- Banner de advertencia legal — visible cuando se superan límites Art. 139 CT -->
+                    <div class="alert alert-warning o_no_print"
+                         role="alert"
+                         invisible="not legal_warning">
+                        <strong>⚠ Advertencia Legal — Art. 139 Código de Trabajo CR</strong><br/>
+                        <field name="legal_warning" readonly="1"/>
+                        <br/><small>Esta advertencia no bloquea el registro. Se recomienda
+                        gestiónar autorización especial con el empleado si corresponde.</small>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="employee_id"/>
+                            <field name="branch_id" readonly="1"/>
+                            <field name="date"/>
+                        </group>
+                        <group>
+                            <field name="overtime_type"/>
+                            <field name="hours"/>
+                            <field name="hourly_rate"/>
+                            <field name="amount"/>
+                        </group>
+                    </group>
+                    <field name="allow_overtime_exemption" invisible="1"/>
+                    <div class="alert alert-info" role="alert"
+                         invisible="source != 'auto'">
+                        ⚡ <strong>Auto-detectada desde asistencias.</strong>
+                        Verifique el tipo antes de aprobar. Si es incorrecta (nocturna, feriado), corrija el tipo aquí.
+                    </div>
+                    <group string="⚖ Afectación Fiscal"
+                           invisible="not allow_overtime_exemption">
+                        <group>
+                            <field name="afecto_ccss" widget="boolean_toggle"/>
+                            <field name="afecto_renta" widget="boolean_toggle"/>
+                        </group>
+                        <div class="text-muted" colspan="2"
+                             invisible="afecto_ccss and afecto_renta">
+                            ⚠ Art. 139 CT: las horas extra son salario ordinario y por ley
+                            generan CCSS y Renta. Desactivar estos checks puede generar
+                            riesgo de incumplimiento ante una inspección de la CCSS.
+                        </div>
+                    </group>
+                    <field name="note" placeholder="Observaciones..."/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+
+    <record id="view_overtime_search" model="ir.ui.view">
+        <field name="name">planilla.overtime.search</field>
+        <field name="model">planilla.overtime</field>
+        <field name="arch" type="xml">
+            <search string="Buscar">
+                <field name="employee_id"/>
+                <field name="date"/>
+                <filter string="Sin aprobar" name="draft"    domain="[('state','=','draft')]"/>
+                <filter string="⚡ Auto-detectadas" name="auto_detected"
+                        domain="[('source','=','auto'),('state','=','draft')]"
+                        help="HE creadas automáticamente desde asistencias — pendientes de aprobación"/>
+                <filter string="Aprobadas"   name="approved" domain="[('state','=','approved')]"/>
+                <filter string="Pagadas"     name="paid"     domain="[('state','=','paid')]"/>
+                <separator/>
+                <filter string="Simples (1.5x)" name="simple"  domain="[('overtime_type','=','simple')]"/>
+                <filter string="Dobles (2x)"    name="double"  domain="[('overtime_type','=','double')]"/>
+                <filter string="Feriados"        name="holiday" domain="[('overtime_type','=','holiday')]"/>
+                <separator/>
+                <filter string="▾ Por Empleado" name="by_emp"    context="{'group_by':'employee_id'}"/>
+                <filter string="▾ Por Tipo"     name="by_type"   context="{'group_by':'overtime_type'}"/>
+                <filter string="▾ Por Estado"   name="by_state"  context="{'group_by':'state'}"/>
+                <separator/>
+                <filter string="1ra Quincena (1-15)" name="q1"
+                        domain="[('date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date', '&lt;=', (context_today() + relativedelta(day=15)).strftime('%Y-%m-%d'))]"/>
+                <filter string="2da Quincena (16-fin)" name="q2"
+                        domain="[('date', '&gt;=', (context_today() + relativedelta(day=16)).strftime('%Y-%m-%d')),
+                                 ('date', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="Este mes" name="this_month"
+                        domain="[('date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Mes pasado" name="last_month"
+                        domain="[('date', '&gt;=', (context_today() + relativedelta(months=-1, day=1)).strftime('%Y-%m-%d')),
+                                 ('date', '&lt;=', (context_today() + relativedelta(months=-1, day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="▾ Por Mes"      name="by_month" context="{'group_by':'date:month'}"/>
+                <filter string="▾ Por Quincena" name="by_week"  context="{'group_by':'date:week'}"/>
+            
+                <separator/>
+                <filter name="current_company" string="Empresa Actual"
+                        domain="[('company_id', '=', allowed_company_ids[0])]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_overtime" model="ir.actions.act_window">
+        <field name="name">Horas Extras</field>
+        <field name="res_model">planilla.overtime</field>
+        <field name="view_mode">list,form</field>
+
+        <field name="search_view_id" ref="view_overtime_search"/>
+        <field name="context">{"search_default_by_month": 1, 'search_default_current_company': 1}</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,740 @@
+import io
+import base64
+import csv
+from datetime import datetime
+from odoo import models, fields, api
+from odoo.exceptions import UserError
+
+
+class BankPaymentWizard(models.TransientModel):
+    _name = 'planilla.bank.payment'
+    _description = 'Exportar Planilla para Banco'
+
+    company_id = fields.Many2one('res.company', required=True,
+                                  default=lambda self: self.env.company)
+    date_from = fields.Date(string='Desde', required=True)
+    date_to = fields.Date(string='Hasta', required=True)
+    branch_id = fields.Many2one('planilla.branch', string='Sucursal')
+    bank_format = fields.Selection([
+        ('bcr_dav', 'BCR - Archivo DAV (CSV)'),
+        ('bncr_sin', 'BNCR - Archivo SINPE (.SIN)'),
+        ('sinpe_movil', 'SINPE Movil -- Todos los bancos (CSV)'),
+        ('bac_csv',   'BAC Credomatic (CSV)'),
+        ('bac_excel', 'BAC Credomatic (Excel)'),
+        ('bac_prn',   'BAC Credomatic - Macro Pago Planilla Formato 6 (.PRN)'),
+    ], string='Formato Bancario', required=True, default='bcr_dav')
+
+    # Campos SINPE Movil
+    sinpe_concept = fields.Char(
+        string='Concepto SINPE Movil',
+        default='Pago de Planilla',
+        help='Descripcion que vera el empleado al recibir el pago (max 60 caracteres).'
+    )
+
+    # Campos especificos BNCR SIN
+    bncr_client_id = fields.Char(
+        string='ID Cliente BNCR',
+        help='Identificacion unica del cliente segun canal BNCR (15 caracteres)'
+    )
+    bncr_client_id_type = fields.Selection([
+        ('1', 'Cedula Fisica'),
+        ('2', 'Cedula Juridica'),
+        ('3', 'ID Extranjero'),
+    ], string='Tipo ID Empresa', default='2')
+    bncr_company_id_number = fields.Char(
+        string='Cedula Juridica Empresa',
+        help='Cedula juridica de la empresa (sin guiones)'
+    )
+    bncr_transfer_number = fields.Char(
+        string='Numero de Transferencia',
+        help='Consecutivo interno de 5 digitos para este archivo'
+    )
+    bncr_debit_iban = fields.Char(
+        string='IBAN Cuenta Debito Empresa',
+        help='Cuenta IBAN de la empresa desde la que se debita la planilla'
+    )
+    bncr_currency = fields.Selection([
+        ('01', 'Colones (CRC)'),
+        ('02', 'Dolares (USD)'),
+    ], string='Moneda', default='01')
+    bncr_concept = fields.Char(
+        string='Concepto de Pago',
+        default='Pago de Planilla',
+        help='Concepto que apareceran en los estados de cuenta (max 45 caracteres)'
+    )
+
+    # Campo BCR DAV
+    bcr_concept = fields.Char(
+        string='Concepto de Pago BCR',
+        help='Concepto que aparece en el estado de cuenta (max 45 caracteres)'
+    )
+
+    # Campo BAC Formato 6 (.PRN)
+    bac_prn_concept = fields.Char(
+        string='Concepto de Pago (BAC Formato 6)',
+        help='Concepto que aparece en el archivo BAC Formato 6 (max 30 '
+             'caracteres). Si se deja vacio, se usa el concepto por '
+             'defecto configurado en Contabilidad de Planilla.'
+    )
+
+    def _get_payslips(self):
+        domain = [
+            ('date_from', '<=', self.date_to),
+            ('date_to', '>=', self.date_from),
+            ('state', '=', 'done'),
+            ('company_id', '=', self.company_id.id),
+        ]
+        if self.branch_id:
+            domain.append(('branch_id', '=', self.branch_id.id))
+        return self.env['planilla.payslip.cr'].search(domain)
+
+    # -------------------------------------------------------------
+    #  BCR  DAV  (CSV)
+    # -------------------------------------------------------------
+    def _validate_bank_accounts(self, payslips):
+        """FIX-P3: Verifica que todos los empleados tengan datos de pago.
+        BCR/BNCR usan bank_iban; SINPE Movil usa sinpe_phone.
+        La version anterior bloqueaba empleados con IBAN pero sin bank_account_number.
+        """
+        sin_cuenta = payslips.filtered(
+            lambda p: not (
+                (p.employee_id.bank_iban or '').strip() or
+                (p.employee_id.bank_account_number or '').strip() or
+                (getattr(p.employee_id, 'sinpe_phone', None) or '').strip()
+            )
+        ).mapped('employee_id.name')
+        if sin_cuenta:
+            msg = (
+                'Los siguientes empleados no tienen datos bancarios registrados\n'
+                '(IBAN, cuenta bancaria o telefono SINPE):\n\n'
+            )
+            msg += '\n'.join(f'  - {n}' for n in sin_cuenta)
+            msg += '\n\nConfigure en: Planilla -> Empleados -> Datos Bancarios.'
+            raise UserError(msg)
+
+    def action_export_bcr_dav(self):
+        self.ensure_one()
+        payslips = self._get_payslips()
+        self._validate_bank_accounts(payslips)
+        if not payslips:
+            raise UserError('No hay boletas aprobadas en el periodo seleccionado.')
+
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator='\r\n')
+
+        date_str = self.date_to.strftime('%d-%m-%y') if self.date_to else ''
+        concept = (self.bcr_concept or f'Pago Planilla {date_str}')[:45]
+
+        errors = []
+        for payslip in payslips:
+            emp = payslip.employee_id
+            iban = (emp.bank_iban or '').strip().replace(' ', '').replace('-', '')
+            if not iban:
+                errors.append(f'{emp.name}: sin IBAN registrado')
+                continue
+            if not iban.startswith('CR') or len(iban) != 22:
+                errors.append(f'{emp.name}: IBAN invalido ({iban})')
+                continue
+
+            net = round((payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable), 2)
+            nombre = emp.name or ''
+            writer.writerow([iban, nombre, f'{net:.2f}', concept, concept, concept])
+
+        if errors and not output.getvalue():
+            raise UserError(
+                'No se generaron registros. Errores encontrados:\n' + '\n'.join(errors)
+            )
+
+        csv_bytes = output.getvalue().encode('utf-8')
+        if errors:
+            # Agregar comentario al inicio con advertencias
+            warn = '# ADVERTENCIA: Empleados omitidos por falta de IBAN:\n'
+            warn += '\n'.join(f'# - {e}' for e in errors) + '\n'
+            csv_bytes = warn.encode('utf-8') + csv_bytes
+
+        filename = f'Planilla_BCR_DAV_{self.date_from}_{self.date_to}.csv'
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(csv_bytes),
+            'mimetype': 'text/csv',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    # -------------------------------------------------------------
+    #  BNCR  SINPE  (.SIN)  -  Formato posicional fijo
+    # -------------------------------------------------------------
+    def _pad(self, value, length, align='left', fill=' '):
+        value = str(value) if value else ''
+        if align == 'left':
+            return value[:length].ljust(length, fill)
+        else:
+            return value[:length].rjust(length, fill)
+
+    def _format_monto(self, amount, length=15):
+        # Monto en centimos sin punto decimal, relleno con ceros a la izquierda
+        centimos = int(round(amount * 100))
+        return str(centimos).rjust(length, '0')
+
+    def _format_id_bncr(self, id_number, id_type):
+        # Fisica: 6 ceros + 9 digitos = 15 chars
+        # Juridica/Extranjero: 3 ceros + 12 digitos = 15 chars
+        id_clean = ''.join(filter(str.isdigit, id_number or ''))
+        if id_type == '1':  # Fisica
+            return id_clean.rjust(15, '0')[:15]
+        else:  # Juridica o Extranjero
+            return id_clean.rjust(15, '0')[:15]
+
+    def action_export_bncr_sin(self):
+        self.ensure_one()
+
+        if not self.bncr_client_id:
+            raise UserError('Debe ingresar el ID Cliente BNCR.')
+        if not self.bncr_debit_iban:
+            raise UserError('Debe ingresar el IBAN de la cuenta debito de la empresa.')
+        if not self.bncr_transfer_number:
+            raise UserError('Debe ingresar el Numero de Transferencia.')
+
+        payslips = self._get_payslips()
+        self._validate_bank_accounts(payslips)
+        if not payslips:
+            raise UserError('No hay boletas aprobadas en el periodo seleccionado.')
+
+        lines = []
+        errors = []
+        total_monto = 0.0
+        sum_correlativos = 0
+        creditos = []
+
+        line_num = 1
+        for payslip in payslips:
+            emp = payslip.employee_id
+            iban = (emp.bank_iban or '').strip().replace(' ', '').replace('-', '')
+            if not iban:
+                errors.append(f'{emp.name}: sin IBAN')
+                continue
+            if len(iban) != 22:
+                errors.append(f'{emp.name}: IBAN invalido ({iban})')
+                continue
+
+            net = (payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable)
+            total_monto += net
+
+            # Correlativo = posicion 23-28 del IBAN (indices 22-28 en 0-based del string IBAN completo)
+            # El IBAN tiene formato: CR + 2 digitos control + 4 banco + 16 cuenta
+            # Segun BNCR: correlativo inicia en pos 23 y finaliza en 28 del registro
+            # En el registro tipo 3, el IBAN va en la pos 04 (cols 9-30 aprox)
+            # El correlativo que se suma es los digitos de posicion 23-28 dentro del registro
+            # Por simplicidad usamos los ultimos 6 digitos del IBAN numerico
+            iban_digits = ''.join(filter(str.isdigit, iban))
+            correlativo = int(iban_digits[-6:]) if len(iban_digits) >= 6 else line_num
+            sum_correlativos += correlativo
+
+            # Tipo ID del beneficiario
+            ins_id_type = getattr(emp, 'ins_id_type', '01') or '01'
+            ben_id_type = '1' if ins_id_type == '01' else ('2' if ins_id_type == '02' else '3')
+            id_num = emp.identification_id or ''
+
+            concept = (self.bncr_concept or 'Pago de Planilla')[:45]
+            comprobante = str(line_num).rjust(8, '0')
+
+            creditos.append({
+                'line_num': line_num,
+                'iban': iban,
+                'comprobante': comprobante,
+                'monto': net,
+                'concept': concept,
+                'ben_id_type': ben_id_type,
+                'id_num': id_num,
+                'nombre': emp.name or '',
+            })
+            line_num += 1
+
+        if not creditos:
+            raise UserError(
+                'No se generaron registros. Errores:\n' + '\n'.join(errors)
+            )
+
+        fecha = self.date_to.strftime('%d/%m/%Y') if self.date_to else datetime.today().strftime('%d/%m/%Y')
+        moneda = self.bncr_currency or '01'
+        client_id_padded = self._pad(self.bncr_client_id, 15)
+        transfer_num = self._pad(self.bncr_transfer_number, 5, 'right', '0')
+        company_id_fmt = self._format_id_bncr(self.bncr_company_id_number, self.bncr_client_id_type)
+        debit_iban = self._pad(self.bncr_debit_iban.replace(' ', '').replace('-', ''), 22)
+        monto_total_fmt = self._format_monto(total_monto, 16)
+        sum_corr_fmt = str(sum_correlativos).rjust(10, '0')
+
+        # -- Registro tipo 1: Encabezado --
+        r1 = (
+            '1' +                           # pos 01: tipo registro
+            client_id_padded +              # pos 02: ID cliente (15)
+            (self.bncr_client_id_type or '2') +  # pos 03: tipo ID (1)
+            company_id_fmt +               # pos 04: ID empresa (15)
+            fecha +                         # pos 05: fecha dd/mm/yyyy (8) -> 10 con separadores
+            transfer_num +                  # pos 06: num transferencia (5)
+            '1' +                           # pos 07: tipo transaccion
+            '0000' +                        # pos 08: codigo respuesta BNCR (4)
+            '0000' +                        # pos 09: codigo error SINPE (4)
+            monto_total_fmt +              # pos 10: monto total SFB (16)
+            '0000000000000000' +           # pos 11: monto SINPE (16)
+            '0000000' +                    # pos 12: tipo cambio compra (7)
+            '0000000' +                    # pos 13: tipo cambio venta (7)
+            monto_total_fmt +              # pos 14: sumatoria montos (16)
+            sum_corr_fmt                   # pos 15: sumatoria correlativos (10)
+        )
+        lines.append(r1)
+
+        # -- Registro tipo 2: Debito empresa --
+        debit_comprobante = '00000001'
+        r2 = (
+            '2' +                           # pos 01: tipo registro
+            '00001' +                       # pos 02: numero linea (5)
+            '1' +                           # pos 03: tipo procesamiento
+            debit_iban +                    # pos 04: IBAN debito (22)
+            debit_comprobante +            # pos 05: comprobante (8)
+            self._format_monto(total_monto, 15) +  # pos 06: monto debito (15)
+            moneda +                        # pos 07: moneda (2)
+            self._pad(self.bncr_concept or 'Pago de Planilla', 45) +  # pos 08: concepto (45)
+            '00'                            # pos 09: estado (2)
+        )
+        lines.append(r2)
+
+        # -- Registros tipo 3: Creditos por empleado --
+        for i, cred in enumerate(creditos):
+            # Tipo procesamiento: 1=BNCR, 2=otros bancos T+1
+            # Detectamos si es BNCR por los primeros digitos del IBAN
+            iban_banco = cred['iban'][5:9]  # posicion banco en IBAN CR
+            tipo_proc = '1' if iban_banco == '0152' else '2'  # 0152 = BNCR
+
+            # ID beneficiario segun tipo
+            id_fisica = cred['id_num'].replace('-', '').replace(' ', '')
+            if cred['ben_id_type'] == '1':
+                ben_id = id_fisica.ljust(15)[:15]
+            else:
+                ben_id = id_fisica.rjust(12, '0').ljust(15)[:15]
+
+            r3 = (
+                '3' +                                           # pos 01
+                str(i + 2).rjust(5, '0') +                    # pos 02: num linea credito (inicia en 2)
+                tipo_proc +                                     # pos 03: tipo procesamiento
+                self._pad(cred['iban'], 22) +                  # pos 04: IBAN (22)
+                cred['comprobante'] +                          # pos 05: comprobante (8)
+                self._format_monto(cred['monto'], 15) +       # pos 06: monto (15)
+                moneda +                                        # pos 07: moneda (2)
+                self._pad(cred['concept'], 45) +              # pos 08: concepto (45)
+                '00' +                                         # pos 09: estado (2)
+                cred['ben_id_type'] +                         # pos 10: tipo ID beneficiario (1)
+                ben_id +                                       # pos 11: ID beneficiario (15)
+                self._pad(cred['nombre'], 20)                 # pos 12: detalle especial (20)
+            )
+            lines.append(r3)
+
+        content = '\r\n'.join(lines) + '\r\n'
+        if errors:
+            content = '** ADVERTENCIA: Omitidos por falta de IBAN:\r\n'
+            content += '\r\n'.join(f'** {e}' for e in errors) + '\r\n'
+            content += '\r\n'.join(lines) + '\r\n'
+
+        filename = f'Planilla_BNCR_{self.date_from}_{self.date_to}.SIN'
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(content.encode('latin-1', errors='replace')),
+            'mimetype': 'application/octet-stream',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    # -------------------------------------------------------------
+    #  SINPE  MOVIL  --  CSV  universal  (todos los bancos)
+    # -------------------------------------------------------------
+    def action_export_sinpe_movil(self):
+        """Genera CSV para pago masivo via SINPE Movil.
+        Formato: telefono, monto, concepto -- compatible con portales
+        de BAC, Scotiabank, Davivienda, BCR, BNCR y otros.
+        """
+        self.ensure_one()
+        payslips = self._get_payslips()
+        self._validate_bank_accounts(payslips)
+        if not payslips:
+            raise UserError('No hay boletas aprobadas en el periodo seleccionado.')
+
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator='\r\n')
+        # Encabezado estandar compatible con plataformas de pago masivo CR
+        writer.writerow(['telefono', 'monto', 'concepto', 'empleado', 'cedula'])
+
+        concept = (self.sinpe_concept or 'Pago de Planilla')[:60]
+        errors = []
+        count = 0
+
+        for payslip in payslips.sorted(key=lambda s: s.employee_id.name):
+            emp = payslip.employee_id
+            phone = (getattr(emp, 'sinpe_phone', None) or
+                     getattr(emp, 'mobile_phone', None) or
+                     getattr(emp, 'work_phone', None) or '').strip()
+            # Limpiar telefono -- solo digitos, 8 caracteres para CR
+            phone_clean = ''.join(filter(str.isdigit, phone))
+            if not phone_clean:
+                errors.append(f'{emp.name}: sin telefono SINPE registrado')
+                continue
+            if len(phone_clean) != 8:
+                errors.append(f'{emp.name}: telefono invalido ({phone_clean}) -- debe tener 8 digitos')
+                continue
+
+            net = round((payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable), 2)
+            cedula = emp.identification_id or ''
+            writer.writerow([phone_clean, f'{net:.2f}', concept, emp.name, cedula])
+            count += 1
+
+        if count == 0:
+            raise UserError(
+                'No se generaron registros. Errores encontrados:\n' + '\n'.join(errors)
+            )
+
+        csv_content = output.getvalue()
+        if errors:
+            warn = '# ADVERTENCIA -- Empleados omitidos por falta de telefono SINPE:\n'
+            warn += '\n'.join(f'# - {e}' for e in errors) + '\n'
+            csv_content = warn + csv_content
+
+        filename = f'Planilla_SINPE_Movil_{self.date_from}_{self.date_to}.csv'
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(csv_content.encode('utf-8')),
+            'mimetype': 'text/csv',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    # -------------------------------------------------------------
+    #  BAC  CREDOMATIC  --  CSV  cedula/nombre/monto
+    # -------------------------------------------------------------
+    def action_export_bac_csv(self):
+        """Genera CSV para pago masivo BAC Credomatic.
+        Formato: cedula, nombre_empleado, monto_neto
+        Compatible con el portal de pagos masivos de BAC Costa Rica.
+        """
+        self.ensure_one()
+        payslips = self._get_payslips()
+        if not payslips:
+            raise UserError('No hay boletas aprobadas en el periodo seleccionado.')
+
+        output = io.StringIO()
+        writer = csv.writer(output, lineterminator='\r\n')
+        writer.writerow(['Cedula', 'Nombre', 'Monto'])
+
+        errors = []
+        count = 0
+        total = 0.0
+
+        for payslip in payslips.sorted(key=lambda s: s.employee_id.name):
+            emp = payslip.employee_id
+            cedula = (emp.identification_id or '').strip().replace('-', '')
+            if not cedula:
+                errors.append(f'{emp.name}: sin cedula registrada')
+                continue
+            net = round((payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable), 2)
+            writer.writerow([cedula, emp.name or '', f'{net:.2f}'])
+            total += net
+            count += 1
+
+        if count == 0:
+            raise UserError(
+                'No se generaron registros. Errores:\n' + '\n'.join(errors)
+            )
+
+        # Fila de totales al final
+        writer.writerow(['', f'TOTAL ({count} empleados)', f'{total:.2f}'])
+
+        csv_content = output.getvalue()
+        if errors:
+            warn = '# ADVERTENCIA -- Empleados omitidos por falta de cedula:\n'
+            warn += '\n'.join(f'# - {e}' for e in errors) + '\n'
+            csv_content = warn + csv_content
+
+        filename = f'Planilla_BAC_{self.date_from}_{self.date_to}.csv'
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': base64.b64encode(csv_content.encode('utf-8')),
+            'mimetype': 'text/csv',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    # -------------------------------------------------------------
+    #  BAC  CREDOMATIC  --  EXCEL  (.xlsx)
+    # -------------------------------------------------------------
+    def action_export_bac_excel(self):
+        """Genera Excel para pago masivo BAC Credomatic.
+        Columnas: Cedula | Nombre | Monto
+        """
+        self.ensure_one()
+        import io as _io
+        try:
+            import xlsxwriter
+        except ImportError:
+            from odoo.exceptions import UserError as _UE
+            raise _UE('xlsxwriter no esta instalado. Use el formato CSV.')
+
+        payslips = self._get_payslips()
+        if not payslips:
+            from odoo.exceptions import UserError as _UE
+            raise _UE('No hay boletas aprobadas en el periodo seleccionado.')
+
+        output = _io.BytesIO()
+        workbook  = xlsxwriter.Workbook(output, {'in_memory': True})
+        sheet     = workbook.add_worksheet('BAC Planilla')
+
+        # Formatos
+        fmt_title  = workbook.add_format({'bold': True, 'font_size': 13, 'font_color': '#FFFFFF', 'bg_color': '#C8102E', 'border': 1})
+        fmt_header = workbook.add_format({'bold': True, 'bg_color': '#C8102E', 'font_color': '#FFFFFF', 'border': 1, 'align': 'center'})
+        fmt_cedula = workbook.add_format({'align': 'left', 'border': 1, 'num_format': '@'})
+        fmt_nombre = workbook.add_format({'align': 'left', 'border': 1})
+        fmt_monto  = workbook.add_format({'num_format': '#,##0.00', 'border': 1, 'align': 'right'})
+        fmt_total  = workbook.add_format({'bold': True, 'bg_color': '#F5C6CB', 'num_format': '#,##0.00', 'border': 1, 'align': 'right'})
+        fmt_total_lbl = workbook.add_format({'bold': True, 'bg_color': '#F5C6CB', 'border': 1})
+
+        # Titulo
+        sheet.merge_range('A1:C1', f'Planilla BAC Credomatic -- {self.date_from} al {self.date_to}', fmt_title)
+        sheet.set_row(0, 20)
+
+        # Encabezados
+        sheet.write(1, 0, 'Cedula',  fmt_header)
+        sheet.write(1, 1, 'Nombre',  fmt_header)
+        sheet.write(1, 2, 'Monto',   fmt_header)
+
+        # Anchos de columna
+        sheet.set_column('A:A', 14)
+        sheet.set_column('B:B', 35)
+        sheet.set_column('C:C', 16)
+
+        row   = 2
+        total = 0.0
+        count = 0
+        errors = []
+
+        for payslip in payslips.sorted(key=lambda s: s.employee_id.name):
+            emp    = payslip.employee_id
+            cedula = (emp.identification_id or '').strip().replace('-', '')
+            if not cedula:
+                errors.append(f'{emp.name}: sin cedula registrada')
+                continue
+            net = round((payslip.deposito_patrono if payslip.deposito_patrono is not None else payslip.salary_payable), 2)
+            sheet.write(row, 0, cedula,    fmt_cedula)
+            sheet.write(row, 1, emp.name,  fmt_nombre)
+            sheet.write(row, 2, net,       fmt_monto)
+            total += net
+            count += 1
+            row   += 1
+
+        # Fila de totales
+        sheet.write(row, 0, '',                           fmt_total_lbl)
+        sheet.write(row, 1, f'TOTAL ({count} empleados)', fmt_total_lbl)
+        sheet.write(row, 2, total,                        fmt_total)
+
+        workbook.close()
+        xlsx_bytes = output.getvalue()
+
+        filename = f'Planilla_BAC_{self.date_from}_{self.date_to}.xlsx'
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': __import__('base64').b64encode(xlsx_bytes),
+            'mimetype': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    # -------------------------------------------------------------
+    #  BAC  CREDOMATIC  --  MACRO PAGO PLANILLA FORMATO 6  (.PRN)
+    # -------------------------------------------------------------
+    def action_export_bac_prn(self):
+        """Genera el archivo de ancho fijo .PRN para el servicio 'Macro
+        Pago Planilla Formato 6' de BAC Credomatic, replicando exactamente
+        el algoritmo de la macro oficial de Excel (BAC_SJ_Macro_Pago_
+        Planilla_Formato_6). Layout validado byte por byte contra archivos
+        PRN reales generados por esa macro:
+
+        Linea B (encabezado, una sola vez):
+          Tipo(1) Plan(4) Envio(5,00000) vacio(20) cero_fijo(5,00000)
+          Anio(4) Mes(2) Dia(2) MontoTotal_centavos(13) TotalLineas(5)
+
+        Linea T (una por empleado, monto > 0):
+          Tipo(1) Plan(4) Envio(5) Referencia/cedula(20) Consecutivo(5)
+          Anio(4) Mes(2) Dia(2) Monto_centavos(13) vacio(5)
+          Concepto(30) vacio(1) Nombre(sin padding final)
+
+        Nombre del archivo: INP<PLAN><envio_4digitos> <envio>.PRN
+        (igual a la convencion de la macro: Ini + planNumber + " " + dispatchNumber)
+
+        FIX vs. la macro original: la Referencia (cedula) se escribe
+        siempre como texto plano. La macro de Excel guarda esa columna
+        con formato numerico, lo que hace que cedulas largas se
+        exporten en notacion cientifica (ej. "1.55828E+11" en vez de
+        "155827603528") -- el banco rechaza o mal-interpreta esas
+        lineas. Aqui nunca se formatea la cedula como numero.
+        """
+        self.ensure_one()
+        from odoo.exceptions import UserError as _UE
+
+        config = self.env['planilla.accounting.config'].sudo().get_config(self.company_id.id)
+        if not config or not config.bac_prn_plan:
+            raise _UE(
+                'Configure el "Plan BAC (Formato 6)" en Contabilidad de '
+                'Planilla antes de generar este archivo (Planilla > '
+                'Configuracion > Contabilidad).'
+            )
+        plan = (config.bac_prn_plan or '').strip().upper()
+        if not plan:
+            raise _UE('El Plan BAC configurado esta vacio.')
+
+        envio = config.bac_prn_next_dispatch or 1
+        concepto = (self.bac_prn_concept or config.bac_prn_concept or 'Pago de Planilla').strip()[:30]
+
+        payslips = self._get_payslips()
+        if not payslips:
+            raise _UE('No hay boletas aprobadas en el periodo seleccionado.')
+
+        # Fecha del archivo: se usa la fecha de hoy, igual que la macro
+        # (Format(Date, "dd")/"mm"/"yyyy") cuando no se especifica otra.
+        hoy = fields.Date.context_today(self)
+        dia, mes, anio = hoy.day, hoy.month, hoy.year
+
+        def _fixed(value, width, align='left', pad=' '):
+            s = str(value)[:width]
+            return s.ljust(width, pad) if align == 'left' else s.rjust(width, pad)
+
+        lines = []
+        errors = []
+        consecutivo = 0
+        monto_total_centavos = 0
+
+        for payslip in payslips.sorted(key=lambda s: s.employee_id.name):
+            emp = payslip.employee_id
+            net = round(
+                payslip.deposito_patrono if payslip.deposito_patrono is not None
+                else payslip.salary_payable, 2
+            )
+            if net <= 0:
+                continue  # igual que la macro: solo montos > 0
+
+            cedula = (emp.identification_id or '').strip().replace('-', '').replace(' ', '')
+            if not cedula:
+                errors.append(f'{emp.name}: sin cedula/identificacion registrada -- omitido')
+                continue
+            if len(cedula) > 20:
+                errors.append(f'{emp.name}: cedula de mas de 20 caracteres -- omitido')
+                continue
+
+            consecutivo += 1
+            monto_centavos = int(round(net * 100))
+            monto_total_centavos += monto_centavos
+
+            nombre = (emp.name or '').strip()[:30]
+
+            line = (
+                'T'
+                + _fixed(plan, 4)
+                + _fixed(envio, 5, 'right', '0')
+                + _fixed(cedula, 20)
+                + _fixed(consecutivo, 5, 'right', '0')
+                + _fixed(anio, 4, 'right', '0')
+                + _fixed(mes, 2, 'right', '0')
+                + _fixed(dia, 2, 'right', '0')
+                + _fixed(monto_centavos, 13, 'right', '0')
+                + _fixed('', 5)
+                + _fixed(concepto, 30)
+                + _fixed('', 1)
+                + nombre  # sin padding final, igual que el archivo real
+            )
+            lines.append(line)
+
+        if consecutivo == 0:
+            detalle = ('\n' + '\n'.join(errors)) if errors else ''
+            raise _UE(
+                'No hay empleados con monto mayor a 0 para incluir en el '
+                'archivo BAC.' + detalle
+            )
+
+        header = (
+            'B'
+            + _fixed(plan, 4)
+            + _fixed(envio, 5, 'right', '0')
+            + _fixed('', 20)
+            + _fixed(0, 5, 'right', '0')
+            + _fixed(anio, 4, 'right', '0')
+            + _fixed(mes, 2, 'right', '0')
+            + _fixed(dia, 2, 'right', '0')
+            + _fixed(monto_total_centavos, 13, 'right', '0')
+            + _fixed(consecutivo, 5, 'right', '0')
+        )
+
+        # CRLF, igual que el archivo original (Windows / xlTextPrinter)
+        content = '\r\n'.join([header] + lines) + '\r\n'
+
+        # Nombre de archivo: INP + plan(4) + " " + envio -- igual a la
+        # convencion de la macro (Ini + planNumber + " " + dispatchNumber).
+        # La macro varia el prefijo segun la longitud del plan
+        # (INP000x/INP00xx/INP0xxx/INPxxxx para 1/2/3/4 caracteres) para
+        # que "INP + plan" siempre sea de 7 caracteres -- se replica igual.
+        prefijos = {1: 'INP000', 2: 'INP00', 3: 'INP0', 4: 'INP'}
+        prefijo = prefijos.get(len(plan), 'INP')
+        filename = f'{prefijo}{plan} {envio}.PRN'
+
+        attachment = self.env['ir.attachment'].create({
+            'name': filename,
+            'type': 'binary',
+            'datas': __import__('base64').b64encode(content.encode('latin-1', errors='replace')),
+            'mimetype': 'text/plain',
+        })
+
+        # Incrementar el consecutivo de envio para la proxima vez,
+        # igual que la macro (B9 = B9 + 1 en saveXLS()).
+        config.sudo().write({'bac_prn_next_dispatch': envio + 1})
+
+        if errors:
+            self.message_post(body=(
+                'Archivo BAC Formato 6 generado con advertencias:<br/>'
+                + '<br/>'.join(errors)
+            )) if hasattr(self, 'message_post') else None
+
+        return {
+            'type': 'ir.actions.act_url',
+            'url': f'/web/content/{attachment.id}?download=true',
+            'target': 'self',
+        }
+
+    def action_export(self):
+        self.ensure_one()
+        if self.bank_format == 'bcr_dav':
+            return self.action_export_bcr_dav()
+        elif self.bank_format == 'bncr_sin':
+            return self.action_export_bncr_sin()
+        elif self.bank_format == 'sinpe_movil':
+            return self.action_export_sinpe_movil()
+        elif self.bank_format == 'bac_csv':
+            return self.action_export_bac_csv()
+        elif self.bank_format == 'bac_excel':
+            return self.action_export_bac_excel()
+        elif self.bank_format == 'bac_prn':
+            return self.action_export_bac_prn()
+        raise UserError('Formato no implementado.')

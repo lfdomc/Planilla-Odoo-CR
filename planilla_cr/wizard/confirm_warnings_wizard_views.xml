@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_confirm_warnings_wizard" model="ir.ui.view">
+    <field name="name">planilla.confirm.warnings.wizard.form</field>
+    <field name="model">planilla.confirm.warnings.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Confirmar Planilla con Advertencias">
+        <sheet>
+          <div class="alert alert-warning" role="alert">
+            <strong>Advertencias encontradas en la planilla.</strong>
+            Puede confirmar de todas formas o cancelar para corregir.
+          </div>
+          <group>
+            <field name="warnings_text" widget="text" readonly="1"
+                   style="white-space:pre-wrap; font-family:monospace; font-size:12px;"/>
+          </group>
+        </sheet>
+        <footer>
+          <button name="action_confirm_anyway" type="object"
+                  string="Confirmar de todas formas" class="btn-warning"
+                  confirm="Confirma que desea procesar la planilla con estas advertencias?"/>
+          <button special="cancel" string="Cancelar y corregir" class="btn-secondary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+</odoo>

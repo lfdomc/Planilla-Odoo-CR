@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="doc_type_cedula" model="planilla.employee.document.type">
+        <field name="name">Cedula de Identidad / Residencia</field>
+        <field name="sequence">10</field>
+        <field name="requires_number">True</field>
+        <field name="alert_days_before">60</field>
+    </record>
+
+    <record id="doc_type_licencia_conducir" model="planilla.employee.document.type">
+        <field name="name">Licencia de Conducir</field>
+        <field name="sequence">20</field>
+        <field name="requires_number">True</field>
+        <field name="alert_days_before">30</field>
+    </record>
+
+    <record id="doc_type_carnet_manipulacion" model="planilla.employee.document.type">
+        <field name="name">Carne de Manipulacion de Alimentos</field>
+        <field name="sequence">30</field>
+        <field name="requires_number">True</field>
+        <field name="alert_days_before">30</field>
+    </record>
+
+    <record id="doc_type_permiso_trabajo" model="planilla.employee.document.type">
+        <field name="name">Permiso de Trabajo / Cedula de Residencia (extranjeros)</field>
+        <field name="sequence">40</field>
+        <field name="requires_number">True</field>
+        <field name="alert_days_before">60</field>
+    </record>
+
+    <record id="doc_type_certificado_medico" model="planilla.employee.document.type">
+        <field name="name">Certificado Medico Ocupacional</field>
+        <field name="sequence">50</field>
+        <field name="requires_number">False</field>
+        <field name="alert_days_before">30</field>
+    </record>
+
+    <!-- Documentos permanentes — no vencen, solo se almacenan (expediente digital) -->
+    <record id="doc_type_contrato_laboral" model="planilla.employee.document.type">
+        <field name="name">Contrato Laboral</field>
+        <field name="sequence">60</field>
+        <field name="requires_number">False</field>
+        <field name="requires_expiry">False</field>
+    </record>
+
+    <record id="doc_type_copia_cedula" model="planilla.employee.document.type">
+        <field name="name">Copia de Cedula</field>
+        <field name="sequence">70</field>
+        <field name="requires_number">False</field>
+        <field name="requires_expiry">False</field>
+    </record>
+
+    <record id="doc_type_curriculum" model="planilla.employee.document.type">
+        <field name="name">Curriculum Vitae</field>
+        <field name="sequence">80</field>
+        <field name="requires_number">False</field>
+        <field name="requires_expiry">False</field>
+    </record>
+
+    <record id="doc_type_carta_recomendacion" model="planilla.employee.document.type">
+        <field name="name">Carta de Recomendacion</field>
+        <field name="sequence">90</field>
+        <field name="requires_number">False</field>
+        <field name="requires_expiry">False</field>
+    </record>
+
+</odoo>

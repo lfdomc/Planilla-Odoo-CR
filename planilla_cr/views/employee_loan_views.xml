@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Vista Lista Préstamos ── -->
+    <record id="view_employee_loan_list" model="ir.ui.view">
+        <field name="name">planilla.employee.loan.list</field>
+        <field name="model">planilla.employee.loan</field>
+        <field name="arch" type="xml">
+            <list string="Préstamos y Adelantos" decoration-success="state=='paid'"
+                  decoration-warning="state=='active'" decoration-muted="state=='cancelled'">
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="branch_id"/>
+                <field name="loan_type"/>
+                <field name="amount_total"/>
+                <field name="installments"/>
+                <field name="amount_paid"/>
+                <field name="amount_pending"/>
+                <field name="date_granted"/>
+                <field name="state" widget="badge"
+                       decoration-success="state=='paid'"
+                       decoration-warning="state in ('approved','active')"
+                       decoration-danger="state=='cancelled'"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ── Vista Formulario Préstamo ── -->
+    <record id="view_employee_loan_form" model="ir.ui.view">
+        <field name="name">planilla.employee.loan.form</field>
+        <field name="model">planilla.employee.loan</field>
+        <field name="arch" type="xml">
+            <form string="Préstamo / Adelanto de Salario">
+                <header>
+                    <button type="object" name="action_print_amortization"
+                        string="Imprimir Tabla" class="btn-secondary"
+                        invisible="state not in ('approved','active','paid')"/>
+                <button name="action_approve" type="object" string="Aprobar"
+                            class="btn-primary" invisible="state != 'draft'"/>
+                    <button name="action_convert_to_biweekly" type="object"
+                            string="Convertir a Cobro Quincenal" class="btn-secondary"
+                            invisible="state not in ('approved','active') or installment_frequency == 'biweekly'"
+                            confirm="Las cuotas ya cobradas se conservan sin cambios. El saldo pendiente se repartira en cuotas quincenales del mismo monto que la cuota actual, a partir de hoy (o la fecha de la proxima cuota pendiente, la que sea posterior). ¿Continuar?"/>
+                    <button name="action_regenerate_pending_installments" type="object"
+                            string="Regenerar Cuotas Pendientes" class="btn-warning"
+                            invisible="state not in ('approved','active') or has_pending_installments or amount_pending &lt;= 0"
+                            confirm="Este prestamo tiene saldo pendiente pero ninguna cuota programada para cobrarlo (probablemente se borraron por error). El saldo se repartira en cuotas nuevas del mismo monto y frecuencia que ya tenia el prestamo, a partir de la proxima fecha de pago disponible. Las cuotas ya cobradas no se modifican. ¿Continuar?"/>
+                    <button name="action_cancel" type="object" string="Anular"
+                            class="btn-danger" invisible="state not in ('draft','approved')"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved,active,paid"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Empleado">
+                            <field name="employee_id" readonly="state != 'draft'"/>
+                            <field name="branch_id"/>
+                            <field name="loan_type" readonly="state != 'draft'"/>
+                            <field name="description" readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Montos">
+                            <field name="amount_total" readonly="state != 'draft'"/>
+                            <field name="installments" readonly="state != 'draft'"/>
+                            <field name="installment_frequency" readonly="state != 'draft'"/>
+                            <field name="installment_amount"/>
+                            <field name="amount_paid"/>
+                            <field name="amount_pending"/>
+                        </group>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not has_active_loan_warning">
+                        <field name="has_active_loan_warning" readonly="1" nolabel="1"/>
+                    </div>
+                    </group>
+                    <group>
+                        <group string="Fechas">
+                            <field name="date_granted" readonly="state != 'draft'"/>
+                            <field name="date_first_deduction" readonly="state != 'draft'"/>
+                        </group>
+                        <group string="Observaciones">
+                            <field name="note" nolabel="1"/>
+                        </group>
+                    </group>
+
+                    <!-- Tabla de cuotas -->
+                    <notebook>
+                        <page string="Cuotas" name="installments_tab">
+                            <field name="installment_ids">
+                                <list>
+                                    <field name="sequence" string="N°" readonly="1"/>
+                                    <field name="due_date" string="Fecha Descuento"
+                                           readonly="state != 'pending'"/>
+                                    <field name="amount" string="Monto (₡)" readonly="1"/>
+                                    <field name="state" widget="badge" readonly="1"
+                                           decoration-success="state=='deducted'"
+                                           decoration-warning="state=='pending'"
+                                           decoration-muted="state=='cancelled'"/>
+                                    <field name="payslip_id" string="Boleta" readonly="1"/>
+                                    <button name="get_formview_action" type="object"
+                                            string="Abrir" icon="fa-external-link"
+                                            invisible="state != 'deducted' or payslip_id"
+                                            title="Cuota huerfana -- abrir para corregir"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+
+    <record id="view_employee_loan_search" model="ir.ui.view">
+        <field name="name">planilla.employee.loan.search</field>
+        <field name="model">planilla.employee.loan</field>
+        <field name="arch" type="xml">
+            <search string="Buscar Préstamos">
+                <field name="employee_id"/>
+                <field name="date_granted"/>
+                <filter string="Activos"    name="active"   domain="[('state','in',['active','partial'])]"/>
+                <filter string="Cancelados" name="cancelled" domain="[('state','=','cancelled')]"/>
+                <filter string="Pagados"    name="paid"     domain="[('state','=','paid')]"/>
+                <separator/>
+                <filter string="Adelantos"  name="advance"  domain="[('loan_type','=','adelanto')]"/>
+                <filter string="Préstamos"  name="loan"     domain="[('loan_type','=','prestamo')]"/>
+                <separator/>
+                <filter string="▾ Por Empleado" name="by_emp" context="{'group_by':'employee_id'}"/>
+                <filter string="▾ Por Estado"   name="by_state" context="{'group_by':'state'}"/>
+                <separator/>
+                <filter string="1ra Quincena (1-15)" name="q1"
+                        domain="[('date_granted', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_granted', '&lt;=', (context_today() + relativedelta(day=15)).strftime('%Y-%m-%d'))]"/>
+                <filter string="2da Quincena (16-fin)" name="q2"
+                        domain="[('date_granted', '&gt;=', (context_today() + relativedelta(day=16)).strftime('%Y-%m-%d')),
+                                 ('date_granted', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="Este mes" name="this_month"
+                        domain="[('date_granted', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_granted', '&lt;=', (context_today() + relativedelta(day=31)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Mes pasado" name="last_month"
+                        domain="[('date_granted', '&gt;=', (context_today() + relativedelta(months=-1, day=1)).strftime('%Y-%m-%d')),
+                                 ('date_granted', '&lt;=', (context_today() + relativedelta(months=-1, day=31)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="▾ Por Mes"      name="by_month" context="{'group_by':'date_granted:month'}"/>
+            
+                <separator/>
+                <filter name="current_company" string="Empresa Actual"
+                        domain="[('company_id', '=', allowed_company_ids[0])]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_loan_installment_form" model="ir.ui.view">
+        <field name="name">planilla.loan.installment.form</field>
+        <field name="model">planilla.loan.installment</field>
+        <field name="arch" type="xml">
+            <form string="Cuota de Prestamo">
+                <header>
+                    <button name="action_fix_orphan_state" type="object"
+                            string="Corregir Estado (Cuota Huerfana)"
+                            class="btn-warning"
+                            invisible="state != 'deducted' or payslip_id"
+                            confirm="Esta cuota esta marcada 'Descontada' pero no tiene ninguna boleta real vinculada -- probablemente la boleta que la genero se elimino directamente sin revertirla primero a Borrador. ¿Devolverla a 'Pendiente' para que pueda cobrarse en la proxima boleta correspondiente?"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="state != 'deducted' or payslip_id">
+                        <strong>Cuota huerfana detectada:</strong> esta cuota esta
+                        marcada como "Descontada" pero no tiene ninguna boleta
+                        vinculada. Use el boton "Corregir Estado" arriba para
+                        devolverla a "Pendiente".
+                    </div>
+                    <group>
+                        <group>
+                            <field name="loan_id" readonly="1"/>
+                            <field name="sequence" readonly="1"/>
+                            <field name="due_date" readonly="state != 'pending'"/>
+                        </group>
+                        <group>
+                            <field name="amount" readonly="1"/>
+                            <field name="payslip_id" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_employee_loan" model="ir.actions.act_window">
+        <field name="name">Préstamos y Adelantos</field>
+        <field name="res_model">planilla.employee.loan</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay préstamos registrados</p>
+            <p>Registre préstamos o adelantos de salario. Las cuotas se descontarán
+            automáticamente en cada boleta de pago del período correspondiente.</p>
+        </field>
+
+        <field name="search_view_id" ref="view_employee_loan_search"/>
+        <field name="context">{"search_default_active": 1, 'search_default_current_company': 1}</field>
+    </record>
+
+</odoo>

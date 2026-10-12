@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Feriados nacionales CR 2026 — Art. 148 CT + Ley 8442 -->
+    <record id="holiday_cr_2026_01" model="planilla.public.holiday">
+        <field name="name">Año Nuevo</field>
+        <field name="date">2026-01-01</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_04_09" model="planilla.public.holiday">
+        <field name="name">Jueves Santo</field>
+        <field name="date">2026-04-02</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_04_10" model="planilla.public.holiday">
+        <field name="name">Viernes Santo</field>
+        <field name="date">2026-04-03</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_04_11" model="planilla.public.holiday">
+        <field name="name">Batalla de Rivas (Juan Santamaría)</field>
+        <field name="date">2026-04-11</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_05_01" model="planilla.public.holiday">
+        <field name="name">Día del Trabajador</field>
+        <field name="date">2026-05-01</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_07_25" model="planilla.public.holiday">
+        <field name="name">Anexión del Partido de Nicoya</field>
+        <field name="date">2026-07-25</field>
+        <field name="type">national</field>
+    </record>
+    <!-- FIX: el 2 de agosto tenia is_paid sin especificar (heredaba el
+         default=True, "pago obligatorio"), pero es uno de los 3
+         feriados NO obligatorios reales del Art. 148 CT (junto con el
+         31 de agosto y el 1 de diciembre), confirmado con multiples
+         fuentes legales actuales. SI genera pago doble al trabajarlo
+         para salario mensual/quincenal, igual que el 31 de agosto. -->
+    <record id="holiday_cr_2026_08_02" model="planilla.public.holiday">
+        <field name="name">Virgen de los Ángeles</field>
+        <field name="date">2026-08-02</field>
+        <field name="type">optional</field>
+        <field name="is_paid">False</field>
+        <field name="generates_double_pay">True</field>
+        <field name="note">Art. 148 CT: feriado NO obligatorio (uno de los 3 junto con 31 de agosto y 1 de diciembre). SI genera pago doble si se trabaja para salario mensual/quincenal.</field>
+    </record>
+    <record id="holiday_cr_2026_08_15" model="planilla.public.holiday">
+        <field name="name">Madre y Día del Soldado (no laborable)</field>
+        <field name="date">2026-08-15</field>
+        <field name="type">national</field>
+    </record>
+    <record id="holiday_cr_2026_09_15" model="planilla.public.holiday">
+        <field name="name">Independencia de Centroamérica</field>
+        <field name="date">2026-09-15</field>
+        <field name="type">national</field>
+    </record>
+    <!-- FIX-K14: 8 de diciembre — Inmaculada Concepción (Virgen de los Ángeles)
+         Art. 148 CT: feriado de pago obligatorio. Faltaba en la lista original. -->
+    <record id="holiday_cr_2026_12_08" model="planilla.public.holiday">
+        <field name="name">Virgen de los Ángeles (Inmaculada Concepción)</field>
+        <field name="date">2026-12-08</field>
+        <field name="type">national</field>
+        <field name="is_paid">True</field>
+    </record>
+    <record id="holiday_cr_2026_12_25" model="planilla.public.holiday">
+        <field name="name">Navidad</field>
+        <field name="date">2026-12-25</field>
+        <field name="type">national</field>
+    </record>
+
+    <!-- FIX BUG-N06 v52: Feriados faltantes 2026 -->
+
+    <!-- 1 de octubre: Día de la Cultura — PAGO OBLIGATORIO -->
+    <!-- Art. 148 CT + Ley 8442 Art. 1: feriado de pago obligatorio. -->
+    <!-- Trabajar este día devenga doble salario sin excepción. -->
+    <record id="holiday_cr_2026_10_01" model="planilla.public.holiday">
+        <field name="name">Día de la Cultura</field>
+        <field name="date">2026-10-12</field>
+        <field name="type">national</field>
+        <field name="is_paid">True</field>
+        <field name="note">Art. 148 CT + Ley 8442: feriado de pago OBLIGATORIO. Trabajar este día devuelve doble salario.</field>
+    </record>
+
+    <!-- 1 de diciembre: Dia de la Abolicion del Ejercito — NO OBLIGATORIO -->
+    <!-- Ley No. 9803 (La Gaceta No.159, 2 julio 2020), texto oficial: -->
+    <!-- "Se declara el 1 de diciembre de cada ano como Dia de la -->
+    <!-- Abolicion del Ejercito" y reforma el Art. 148 CT para incluirlo -->
+    <!-- expresamente como feriado de pago NO obligatorio, junto con el -->
+    <!-- 2 de agosto (los dos feriados no obligatorios originales del -->
+    <!-- articulo; el 31 de agosto se agrego despues via Ley 10050). -->
+    <!-- FIX: el registro previo de este feriado tenia la fecha -->
+    <!-- EQUIVOCADA (2 de diciembre en vez de 1 de diciembre) y ademas -->
+    <!-- desaparecio por error en una edicion anterior de este archivo, -->
+    <!-- dejando solo sus comentarios sin el record real, se corrige -->
+    <!-- y se restaura aqui con la fecha y la ley correctas. -->
+    <record id="holiday_cr_2026_12_01" model="planilla.public.holiday">
+        <field name="name">Día de la Abolición del Ejército</field>
+        <field name="date">2026-12-01</field>
+        <field name="type">optional</field>
+        <field name="is_paid">False</field>
+        <field name="generates_double_pay">True</field>
+        <field name="note">Ley No. 9803 (Art. 148 CT): feriado NO obligatorio. SI genera pago doble si se trabaja para empleados con salario mensual/quincenal (se agrega un salario sencillo para completar el doble); horas extra ese dia se pagan a tiempo y medio doble (valor triple).</field>
+    </record>
+    <!-- 31 de agosto: Dia de la Persona Negra y la Cultura Afrocostarricense — NO OBLIGATORIO -->
+    <!-- Ley 10050 (aprobada 22 nov 2021): incorporo esta fecha al Art. 148 CT como -->
+    <!-- feriado de pago NO obligatorio, junto con el 2 de agosto y el 1 de diciembre. -->
+    <!-- Personas con salario mensual/quincenal: el dia ya viene incluido en el sueldo -->
+    <!-- (no genera pago adicional si no se trabaja). Si se labora, se agrega un pago -->
+    <!-- sencillo para completar el equivalente a doble. Personas con salario semanal -->
+    <!-- en actividad NO comercial: sin obligacion de pago si no se trabaja. -->
+    <record id="holiday_cr_2026_08_31" model="planilla.public.holiday">
+        <field name="name">Día de la Persona Negra y la Cultura Afrocostarricense</field>
+        <field name="date">2026-08-31</field>
+        <field name="type">optional</field>
+        <field name="is_paid">False</field>
+        <field name="generates_double_pay">True</field>
+        <field name="note">Ley 10050 (Art. 148 CT): feriado NO obligatorio (el dia libre sin trabajar no esta garantizado para todas las modalidades salariales), pero SI genera pago doble si se trabaja para empleados con salario mensual/quincenal -- confirmado con multiples fuentes legales actuales (MTSS, La Nacion, AG Legal, ATC Auditores). Si se trabaja, se agrega un salario sencillo para completar el pago doble.</field>
+    </record>
+</odoo>

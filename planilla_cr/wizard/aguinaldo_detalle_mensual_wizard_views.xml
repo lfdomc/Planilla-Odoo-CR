@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+  <record id="view_aguinaldo_detalle_mensual_wizard" model="ir.ui.view">
+    <field name="name">planilla.aguinaldo.detalle.mensual.wizard.form</field>
+    <field name="model">planilla.aguinaldo.detalle.mensual.wizard</field>
+    <field name="arch" type="xml">
+      <form string="Detalle Mensual de Aguinaldo (vs Excel)">
+        <sheet>
+          <div class="alert alert-info" role="alert">
+            <i class="fa fa-info-circle"/>
+            Genera un Excel con el aguinaldo calculado quincena por
+            quincena (mismo formato que la hoja "Agui." del Excel de
+            RRHH), mas una hoja de detalle con cada componente de la
+            formula por separado (Sub Total, Costo Patrono Dias 1-3,
+            Incapacidad CCSS/INS, Permiso Sin Goce). Ponga este Excel
+            al lado del Excel real de la empresa y compare mes por mes
+            para ubicar exactamente donde aparece cualquier diferencia.
+          </div>
+          <group>
+            <group>
+              <field name="company_id"/>
+              <field name="year" string="Año del Aguinaldo"/>
+              <field name="branch_id"/>
+            </group>
+            <group>
+              <field name="employee_id"/>
+              <field name="incluir_confirmadas"/>
+            </group>
+          </group>
+        </sheet>
+        <footer>
+          <button name="action_generate" type="object"
+                  string="Generar Detalle Mensual" class="btn-primary"/>
+          <button special="cancel" string="Cancelar" class="btn-secondary"/>
+        </footer>
+      </form>
+    </field>
+  </record>
+
+  <record id="action_aguinaldo_detalle_mensual_wizard" model="ir.actions.act_window">
+    <field name="name">Detalle Mensual de Aguinaldo (vs Excel)</field>
+    <field name="res_model">planilla.aguinaldo.detalle.mensual.wizard</field>
+    <field name="view_mode">form</field>
+    <field name="target">new</field>
+  </record>
+</odoo>

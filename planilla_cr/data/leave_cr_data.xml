@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- ── Licencias con goce (gasto patronal — DEBE contabilidad) ─────────── -->
+    <record id="deduction_code_licencia_con_goce" model="planilla.deduction.code">
+        <field name="code">LIC-GOCE</field>
+        <field name="name">Licencia con Goce de Sueldo</field>
+        <field name="deduction_type">employer</field>
+        <field name="calculation_type">fixed</field>
+        <field name="employee_percentage">0</field>
+        <field name="active">True</field>
+        <field name="description">
+            Licencias especiales pagadas con base legal CR: duelo 1er grado (3 días),
+            paternidad/adopción (8 días hábiles), matrimonio (2 días), donación de sangre (1 día),
+            adopción (3 meses). Gasto a cargo del patrono. Cuenta 630800.
+        </field>
+    </record>
+
+    <!-- ── Licencias sin goce (deducción al empleado) ──────────────────────── -->
+    <record id="deduction_code_licencia_sin_goce" model="planilla.deduction.code">
+        <field name="code">LIC-SGOCE</field>
+        <field name="name">Licencia Sin Goce de Sueldo</field>
+        <field name="deduction_type">employee</field>
+        <field name="calculation_type">fixed</field>
+        <field name="employee_percentage">0</field>
+        <field name="active">True</field>
+        <field name="description">
+            Permisos sin goce de sueldo por acuerdo entre partes (Art. 85 CT).
+            Se descuenta del salario neto del empleado. Reduce base de CCSS y renta
+            proporcionalmente. Cuenta 230000 (reduce salarios por pagar).
+        </field>
+    </record>
+
+</odoo>
