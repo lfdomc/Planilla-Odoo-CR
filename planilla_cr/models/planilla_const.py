@@ -195,6 +195,27 @@ CCSS_SIN_TOPE_SALARIAL: bool = True  # Documentacion -- no usar en codigo
 #: Dias laborales en un mes para calculo de salario diario (Art. 163 CT)
 DIAS_MES: int = 30
 
+
+def dias_comerciales(fecha_desde, fecha_hasta) -> int:
+    """Dias de un rango bajo el criterio laboral de mes de 30 dias.
+
+    Dias calendario (ambos extremos incluidos) menos cada dia 31 que
+    caiga dentro del rango: el dia 31 no se paga ni se cuenta como
+    dia trabajado (salario diario = salario mensual / 30). Resultado
+    minimo 0. Ejemplo: 16-oct a 31-oct = 15 (no 16).
+    """
+    if not fecha_desde or not fecha_hasta or fecha_hasta < fecha_desde:
+        return 0
+    from datetime import timedelta
+    total = (fecha_hasta - fecha_desde).days + 1
+    d = fecha_desde
+    treintayunos = 0
+    while d <= fecha_hasta:
+        if d.day == 31:
+            treintayunos += 1
+        d += timedelta(days=1)
+    return max(total - treintayunos, 0)
+
 #: Horas jornada ordinaria por defecto (Art. 136 CT: 8h diurnas)
 HORAS_JORNADA_DEFAULT: float = 8.0
 

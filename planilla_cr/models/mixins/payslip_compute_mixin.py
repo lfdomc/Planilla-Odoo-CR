@@ -123,11 +123,17 @@ class PayslipComputeMixin(models.AbstractModel):
                                              or _next_start.year != rec.date_to.year)
 
 
-    @api.depends('date_from', 'date_to', 'is_proportional', 'days_worked')
+    @api.depends('date_from', 'date_to', 'is_proportional', 'days_worked',
+                 'employee_id.exit_date')
     def _compute_proportional_days(self):
         for rec in self:
             if rec.date_from and rec.date_to:
                 rec.days_in_period = (rec.date_to - rec.date_from).days + 1
+                # Liquidacion (salida dentro del periodo): mes de 30 dias,
+                # el dia 31 no cuenta (ni en los dias del periodo ni trabajados)
+                _sal = rec.employee_id.exit_date
+                if rec.is_proportional and _sal and rec.date_from <= _sal <= rec.date_to:
+                    rec.days_in_period = K.dias_comerciales(rec.date_from, rec.date_to)
             else:
                 rec.days_in_period = 30
             if rec.is_proportional and rec.days_in_period > 0:
@@ -233,7 +239,7 @@ class PayslipComputeMixin(models.AbstractModel):
                     rec.days_worked = (rec.date_to - emp.entry_date).days + 1
                 elif emp.exit_date and rec.date_from <= emp.exit_date <= rec.date_to:
                     rec.is_proportional = True
-                    rec.days_worked = (emp.exit_date - rec.date_from).days + 1
+                    rec.days_worked = K.dias_comerciales(rec.date_from, emp.exit_date)
 
     @api.depends('employee_id', 'date_from', 'date_to', 'attendance_hours', 'is_proportional',
                  'proportional_factor',

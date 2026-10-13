@@ -1,6 +1,7 @@
 import logging
 from odoo import models, fields, api
 from odoo.exceptions import UserError, ValidationError
+from . import planilla_const as K
 
 _logger = logging.getLogger(__name__)
 
@@ -818,7 +819,7 @@ class PayrollRunCR(models.Model):
                     exit_d = getattr(employee, 'exit_date', None) or getattr(employee, 'departure_date', None)
                     if exit_d and self.date_start <= exit_d <= self.date_end:
                         is_prop     = True
-                        days_worked = (exit_d - slip_date_from).days + 1
+                        days_worked = K.dias_comerciales(slip_date_from, exit_d)
 
                     vals_to_create.append({
                         'employee_id':       employee.id,
